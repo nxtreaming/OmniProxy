@@ -1,0 +1,27 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+
+# Local caches and logs
+.gocache/
+*.log
+
+# Local environment and credentials
+.env
+.env.*
+auth.json
+**/auth.json
+*.omniproxy.bak
+
+# Go / Wails build outputs
+OmniProxyBackend/build/bin/
+OmniProxyBackend/frontend/package.json.md5
+wails_reference/
+wails_reference2/
+
+# Frontend dependencies and generated bundles
+**/node_modules/
+**/dist/*
+!**/dist/.gitkeep
