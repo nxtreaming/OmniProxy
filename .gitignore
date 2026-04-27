@@ -17,6 +17,7 @@ auth.json
 
 # Go / Wails build outputs
 OmniProxyBackend/build/bin/
+OmniProxyBackend/build/windows/installer/
 OmniProxyBackend/frontend/package.json.md5
 wails_reference/
 wails_reference2/

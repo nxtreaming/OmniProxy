@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: OmniProxyBackend/go.mod
+          cache-dependency-path: OmniProxyBackend/go.sum
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: OmniProxyBackend/frontend/package-lock.json
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Build NSIS installer
+        working-directory: OmniProxyBackend
+        run: |
+          $wails = Join-Path (go env GOPATH) "bin\wails.exe"
+          & $wails build -clean -nsis
+
+      - name: Prepare release assets
+        working-directory: OmniProxyBackend
+        run: |
+          $version = "${{ github.ref_name }}"
+          $installer = Get-ChildItem -Path "build\bin" -Filter "*-installer.exe" | Select-Object -First 1
+          if (-not $installer) {
+            throw "NSIS installer was not found in build\bin"
+          }
+
+          $installerAsset = "OmniProxy-Setup-$version-windows-amd64.exe"
+          Copy-Item -LiteralPath $installer.FullName -Destination $installerAsset -Force
+
+          $portableAsset = "OmniProxy-$version-windows-amd64-portable.zip"
+          Compress-Archive -Path "build\bin\OmniProxy.exe" -DestinationPath $portableAsset -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OmniProxy ${{ github.ref_name }}
+          files: |
+            OmniProxyBackend/OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe
+            OmniProxyBackend/OmniProxy-${{ github.ref_name }}-windows-amd64-portable.zip
+          body: |
+            # OmniProxy ${{ github.ref_name }} 🎉
+
+            第一版公开发布。
+
+            ## 下载
+
+            - `OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe`：Windows 安装包，推荐下载。
+            - `OmniProxy-${{ github.ref_name }}-windows-amd64-portable.zip`：便携版 exe 备份。
+
+            ## 亮点
+
+            - 本地 AI API 代理与多账号调度。
+            - 支持 OpenAI、Codex auth.json、Anthropic、DeepSeek、Kimi、Xiaomi MiMo。
+            - Codex / Claude Code 一键配置。
+            - 额度刷新、重置时间、Token 明细和实时日志。
+            - 桌面端导航图标、页面切换动画和自定义应用图标。
+
+            ## 安全提示
+
+            OmniProxy 默认面向本地个人开发场景，只监听 `127.0.0.1`。请不要把真实凭据提交到 GitHub。
