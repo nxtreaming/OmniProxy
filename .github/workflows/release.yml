@@ -37,6 +37,15 @@ jobs:
       - name: Install NSIS
         run: choco install nsis -y --no-progress
 
+      - name: Add NSIS to PATH
+        run: |
+          $nsisDir = "${env:ProgramFiles(x86)}\NSIS"
+          $makensis = Join-Path $nsisDir "makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            throw "makensis.exe was not found at $makensis"
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $nsisDir
+
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
@@ -52,8 +61,8 @@ jobs:
           $version = "${{ github.ref_name }}"
           Get-ChildItem -Path "build" -Recurse -File | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
 
-          $installer = Get-ChildItem -Path "build" -Recurse -Filter "*.exe" |
-            Where-Object { $_.Name -match "(?i)(installer|setup)" } |
+          $installer = Get-ChildItem -Path "build" -Recurse -Filter "*-installer.exe" |
+            Where-Object { $_.FullName -notmatch "(?i)WebView|MicrosoftEdge" } |
             Sort-Object Length -Descending |
             Select-Object -First 1
 
@@ -68,6 +77,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: OmniProxy ${{ github.ref_name }}
+          overwrite_files: true
           files: |
             OmniProxyBackend/OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe
           body: |
