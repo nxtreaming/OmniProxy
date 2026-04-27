@@ -1,0 +1,142 @@
+package proxy
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strings"
+
+	"OmniProxyBackend/internal/token"
+)
+
+func applyAuth(header http.Header, selected token.Token) error {
+	return applyAuthWithProtocol(header, selected, "")
+}
+
+func applyRouteAuth(header http.Header, selected token.Token, route routeInfo) error {
+	return applyAuthWithProtocol(header, selected, route.Protocol)
+}
+
+func applyAuthWithProtocol(header http.Header, selected token.Token, protocol string) error {
+	header.Del("Authorization")
+	header.Del("X-Api-Key")
+	header.Del("Api-Key")
+
+	secret, err := credentialSecret(selected)
+	if err != nil {
+		return err
+	}
+
+	if selected.CredentialType == token.CredentialTypeCodexAuthJSON {
+		accountID, ok := codexAccountID(selected.TokenValue)
+		if ok {
+			header.Set("ChatGPT-Account-Id", accountID)
+		}
+	}
+
+	switch token.NormalizeProvider(selected.Provider) {
+	case token.ProviderAnthropic:
+		header.Set("x-api-key", secret)
+		if header.Get("anthropic-version") == "" {
+			header.Set("anthropic-version", "2023-06-01")
+		}
+	case token.ProviderDeepSeek:
+		if protocol == "anthropic" {
+			header.Set("x-api-key", secret)
+			if header.Get("anthropic-version") == "" {
+				header.Set("anthropic-version", "2023-06-01")
+			}
+		} else {
+			header.Set("Authorization", "Bearer "+secret)
+		}
+	case token.ProviderKimi:
+		if protocol == "anthropic" {
+			header.Set("x-api-key", secret)
+			if header.Get("anthropic-version") == "" {
+				header.Set("anthropic-version", "2023-06-01")
+			}
+		} else {
+			header.Set("Authorization", "Bearer "+secret)
+		}
+	case token.ProviderXiaomi:
+		header.Set("api-key", secret)
+	default:
+		header.Set("Authorization", "Bearer "+secret)
+	}
+
+	return nil
+}
+
+func credentialSecret(selected token.Token) (string, error) {
+	credentialType := selected.CredentialType
+	if credentialType == "" {
+		credentialType = token.CredentialTypeAPIKey
+	}
+
+	if credentialType != token.CredentialTypeCodexAuthJSON {
+		value := strings.TrimSpace(selected.TokenValue)
+		if value == "" {
+			return "", errors.New("empty token value")
+		}
+		return value, nil
+	}
+
+	if accessToken, accountID, ok := codexAccess(selected.TokenValue); ok {
+		_ = accountID
+		return accessToken, nil
+	}
+
+	return "", errors.New("codex auth.json does not contain a supported token field")
+}
+
+func codexAccess(raw string) (string, string, bool) {
+	var data struct {
+		OpenAIAPIKey *string `json:"OPENAI_API_KEY"`
+		Tokens       struct {
+			AccessToken string `json:"access_token"`
+			AccountID   string `json:"account_id"`
+			IDToken     string `json:"id_token"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		return "", "", false
+	}
+	if data.Tokens.AccessToken != "" {
+		return strings.TrimSpace(data.Tokens.AccessToken), strings.TrimSpace(data.Tokens.AccountID), true
+	}
+	if data.OpenAIAPIKey != nil && strings.TrimSpace(*data.OpenAIAPIKey) != "" {
+		return strings.TrimSpace(*data.OpenAIAPIKey), strings.TrimSpace(data.Tokens.AccountID), true
+	}
+	if data.Tokens.IDToken != "" {
+		return strings.TrimSpace(data.Tokens.IDToken), strings.TrimSpace(data.Tokens.AccountID), true
+	}
+	return "", "", false
+}
+
+func codexAccountID(raw string) (string, bool) {
+	_, accountID, ok := codexAccess(raw)
+	return accountID, ok && accountID != ""
+}
+
+func findStringField(value any, wanted string) (string, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			if strings.EqualFold(key, wanted) {
+				if text, ok := child.(string); ok {
+					return text, true
+				}
+			}
+			if text, ok := findStringField(child, wanted); ok {
+				return text, true
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			if text, ok := findStringField(child, wanted); ok {
+				return text, true
+			}
+		}
+	}
+	return "", false
+}
