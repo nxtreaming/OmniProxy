@@ -718,9 +718,6 @@ async function refreshQuota(item) {
           <el-tag :type="proxyStatus.running ? 'success' : 'info'" effect="light" round>
             代理 {{ proxyStatus.running ? '运行中' : '已停止' }} · :{{ proxyStatus.port }}
           </el-tag>
-          <el-tag v-if="currentToken" type="primary" effect="plain" round class="current-account-tag">
-            使用账号：{{ currentToken.name }}
-          </el-tag>
           <el-button type="primary" :icon="SwitchButton" @click="toggleProxy">
             {{ proxyStatus.running ? '停止代理' : '启动代理' }}
           </el-button>
@@ -739,11 +736,6 @@ async function refreshQuota(item) {
       </div>
 
       <section v-if="activeTab === 'dashboard'" class="view-grid">
-        <article class="metric-card">
-          <span>正在使用账号</span>
-          <strong class="metric-token-name">{{ currentToken?.name || '暂无可用账号' }}</strong>
-          <small>{{ currentToken ? `${providerLabel(currentToken.provider)} · ${currentToken.remaining}% · ${formatTime(currentToken.lastUsedAt)}` : '请先添加账号' }}</small>
-        </article>
         <article class="metric-card account-status-card">
           <span>账号状态</span>
           <div class="account-status-metrics">
@@ -778,15 +770,26 @@ async function refreshQuota(item) {
             <button type="button" class="ghost-button" @click="refreshAll">刷新</button>
           </div>
           <div class="quota-list">
-            <div v-for="item in tokens" :key="item.id" class="quota-row">
-              <div>
-                <strong>{{ item.name }}</strong>
-                <span :class="['tag', statusClass(item.status)]">{{ statusLabel(item.status) }}</span>
+            <div
+              v-for="item in tokens"
+              :key="item.id"
+              :class="['quota-row', { 'current-quota-row': currentToken?.id === item.id }]"
+              :aria-current="currentToken?.id === item.id ? 'true' : undefined"
+            >
+              <div class="quota-account">
+                <div class="quota-account-title">
+                  <strong>{{ item.name }}</strong>
+                  <span v-if="currentToken?.id === item.id" class="current-usage-badge">正在使用</span>
+                  <span :class="['tag', statusClass(item.status)]">{{ statusLabel(item.status) }}</span>
+                </div>
+                <small v-if="currentToken?.id === item.id" class="current-usage-meta">
+                  {{ providerLabel(item.provider) }} · 最后使用 {{ formatTime(item.lastUsedAt) }}
+                </small>
               </div>
               <div class="progress">
                 <span :style="{ width: `${Math.max(0, Math.min(100, item.remaining))}%` }"></span>
               </div>
-              <small>{{ item.remaining }}%</small>
+              <small class="quota-percent">{{ item.remaining }}%</small>
             </div>
             <div v-if="!tokens.length" class="empty">暂无账号</div>
           </div>

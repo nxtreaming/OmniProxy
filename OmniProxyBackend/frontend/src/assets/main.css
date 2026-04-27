@@ -286,13 +286,6 @@ h3 {
   justify-content: flex-end;
 }
 
-.current-account-tag {
-  max-width: 360px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .primary-button {
   background: var(--brand);
   color: #fff;
@@ -534,10 +527,6 @@ button:disabled {
   word-break: break-word;
 }
 
-.metric-token-name {
-  font-size: 23px !important;
-}
-
 .account-status-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -581,16 +570,28 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(240px, 0.68fr) minmax(160px, 1fr) 48px;
   gap: 12px;
+  align-items: center;
+  min-height: 34px;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
 }
 
-.quota-row > div:first-child {
+.quota-account {
   min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.quota-account-title {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
-.quota-row > div:first-child strong {
+.quota-account-title strong {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -598,9 +599,61 @@ button:disabled {
   white-space: nowrap;
 }
 
-.quota-row > small {
+.current-quota-row {
+  margin: 2px -6px;
+  padding: 12px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(21, 154, 91, 0.16), rgba(37, 99, 235, 0.08));
+  box-shadow:
+    inset 4px 0 0 var(--success),
+    0 12px 28px rgba(21, 154, 91, 0.12);
+}
+
+.current-quota-row .quota-account-title strong {
+  color: var(--success);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.current-usage-badge {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--success);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.current-usage-meta {
+  color: var(--brand-strong);
+  font-weight: 600;
+}
+
+.quota-percent {
   text-align: right;
   white-space: nowrap;
+  font-weight: 700;
+}
+
+.current-quota-row .quota-percent {
+  color: var(--success);
+  font-size: 18px;
+}
+
+.shell.dark .current-quota-row {
+  background: linear-gradient(90deg, rgba(21, 154, 91, 0.24), rgba(91, 141, 255, 0.12));
+  box-shadow: inset 4px 0 0 #6fd5a2;
+}
+
+.shell.dark .current-quota-row .quota-account-title strong,
+.shell.dark .current-quota-row .quota-percent {
+  color: #6fd5a2;
+}
+
+.shell.dark .current-usage-meta {
+  color: #9bb8ff;
 }
 
 .progress {
@@ -1270,8 +1323,13 @@ textarea:focus {
   .quota-fields,
   .quota-layout,
   .quota-layout.codex-layout,
+  .quota-row,
   .usage-row {
     grid-template-columns: 1fr;
+  }
+
+  .quota-percent {
+    text-align: left;
   }
 
   .wide,
