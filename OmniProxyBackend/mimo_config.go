@@ -1,0 +1,460 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"OmniProxyBackend/internal/logs"
+)
+
+const (
+	mimoModel         = "mimo-v2.5-pro"
+	mimoStandardModel = "mimo-v2.5"
+	deepSeekProModel  = "deepseek-v4-pro[1m]"
+	deepSeekFastModel = "deepseek-v4-flash"
+	kimiCodingModel   = "kimi-for-coding"
+	omniProxyMimoAuth = "omniproxy"
+)
+
+type mimoConfigureResult struct {
+	ConfigPath    string `json:"configPath,omitempty"`
+	SettingsPath  string `json:"settingsPath,omitempty"`
+	ClaudePath    string `json:"claudePath,omitempty"`
+	BackupPath    string `json:"backupPath,omitempty"`
+	BaseURL       string `json:"baseUrl,omitempty"`
+	Model         string `json:"model,omitempty"`
+	EnvConfigured bool   `json:"envConfigured,omitempty"`
+	Message       string `json:"message"`
+}
+
+type claudeModelTarget struct {
+	Model       string
+	Name        string
+	Description string
+	LogMessage  string
+	Message     string
+}
+
+var (
+	claudeMimoTarget = claudeModelTarget{
+		Model:       mimoModel,
+		Name:        "MiMo-V2.5-Pro",
+		Description: "Xiaomi MiMo-V2.5-Pro routed through OmniProxy",
+		LogMessage:  "mimo claude configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Xiaomi MiMo",
+	}
+	claudeDeepSeekTarget = claudeModelTarget{
+		Model:       deepSeekProModel,
+		Name:        "DeepSeek V4 Pro",
+		Description: "DeepSeek V4 Pro routed through OmniProxy",
+		LogMessage:  "deepseek claude configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 DeepSeek",
+	}
+	claudeKimiTarget = claudeModelTarget{
+		Model:       kimiCodingModel,
+		Name:        "Kimi for Coding",
+		Description: "Kimi Code routed through OmniProxy",
+		LogMessage:  "kimi claude configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Kimi",
+	}
+)
+
+func (a *appServer) configureMimoClaude() (mimoConfigureResult, error) {
+	return a.configureClaudeWithWriter(claudeMimoTarget, func(path string, baseURL string) error {
+		return writeMimoClaudeSettings(path, baseURL)
+	})
+}
+
+func (a *appServer) configureDeepSeekClaude() (mimoConfigureResult, error) {
+	return a.configureClaudeWithWriter(claudeDeepSeekTarget, func(path string, baseURL string) error {
+		return writeDeepSeekClaudeSettings(path, baseURL)
+	})
+}
+
+func (a *appServer) configureKimiClaude() (mimoConfigureResult, error) {
+	return a.configureClaudeWithWriter(claudeKimiTarget, func(path string, baseURL string) error {
+		return writeKimiClaudeSettings(path, baseURL)
+	})
+}
+
+func (a *appServer) configureClaudeWithWriter(target claudeModelTarget, writeSettings func(string, string) error) (mimoConfigureResult, error) {
+	a.mu.Lock()
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/anthropic-router", a.cfg.ProxyPort)
+	a.mu.Unlock()
+
+	return a.configureClaudeWithBaseURL(target, baseURL, writeSettings)
+}
+
+func (a *appServer) configureClaudeWithBaseURL(target claudeModelTarget, baseURL string, writeSettings func(string, string) error) (mimoConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	claudeDir := filepath.Join(home, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	if err := writeSettings(settingsPath, baseURL); err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	claudePath := filepath.Join(home, ".claude.json")
+	if err := writeMimoClaudeOnboarding(claudePath); err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: target.LogMessage})
+	return mimoConfigureResult{
+		SettingsPath: settingsPath,
+		ClaudePath:   claudePath,
+		BackupPath:   settingsPath + ".omniproxy.bak",
+		BaseURL:      baseURL,
+		Model:        target.Model,
+		Message:      target.Message,
+	}, nil
+}
+
+func (a *appServer) restoreMimoClaudeConfig() (mimoConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	if err := restoreBackup(settingsPath, settingsPath+".omniproxy.bak"); err != nil {
+		return mimoConfigureResult{}, err
+	}
+	claudePath := filepath.Join(home, ".claude.json")
+	if err := restoreBackup(claudePath, claudePath+".omniproxy.bak"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return mimoConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "mimo claude config restored"})
+	return mimoConfigureResult{
+		SettingsPath: settingsPath,
+		ClaudePath:   claudePath,
+		BackupPath:   settingsPath + ".omniproxy.bak",
+		Message:      "Claude Code 配置已恢复",
+	}, nil
+}
+
+func (a *appServer) restoreDeepSeekClaudeConfig() (mimoConfigureResult, error) {
+	return a.restoreMimoClaudeConfig()
+}
+
+func (a *appServer) restoreKimiClaudeConfig() (mimoConfigureResult, error) {
+	return a.restoreMimoClaudeConfig()
+}
+
+func writeMimoClaudeSettings(path string, baseURL string) error {
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+		return err
+	}
+
+	env := cleanClaudeEnv(data)
+	env["ANTHROPIC_BASE_URL"] = baseURL
+	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
+	env["ANTHROPIC_MODEL"] = mimoModel
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = mimoModel
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = "MiMo-V2.5-Pro"
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5-Pro routed through OmniProxy"
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = mimoStandardModel
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"] = "MiMo-V2.5"
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = mimoStandardModel
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"] = "MiMo-V2.5"
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
+	env["CLAUDE_CODE_SUBAGENT_MODEL"] = mimoStandardModel
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION"] = mimoStandardModel
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"] = "MiMo-V2.5"
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
+	data["env"] = env
+	return writeJSONObject(path, data)
+}
+
+func writeDeepSeekClaudeSettings(path string, baseURL string) error {
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+		return err
+	}
+
+	env := cleanClaudeEnv(data)
+	env["ANTHROPIC_BASE_URL"] = baseURL
+	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
+	env["ANTHROPIC_MODEL"] = deepSeekProModel
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = deepSeekProModel
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = "DeepSeek V4 Pro"
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = "DeepSeek V4 Pro routed through OmniProxy"
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = deepSeekProModel
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"] = "DeepSeek V4 Pro"
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"] = "DeepSeek V4 Pro routed through OmniProxy"
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = deepSeekFastModel
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"] = "DeepSeek V4 Flash"
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"] = "DeepSeek V4 Flash routed through OmniProxy"
+	env["CLAUDE_CODE_SUBAGENT_MODEL"] = deepSeekFastModel
+	env["CLAUDE_CODE_EFFORT_LEVEL"] = "max"
+	data["env"] = env
+	return writeJSONObject(path, data)
+}
+
+func writeKimiClaudeSettings(path string, baseURL string) error {
+	return writeClaudeSingleModelSettings(path, baseURL, claudeKimiTarget)
+}
+
+func writeClaudeSingleModelSettings(path string, baseURL string, target claudeModelTarget) error {
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+		return err
+	}
+
+	env, _ := data["env"].(map[string]any)
+	if env == nil {
+		env = map[string]any{}
+	}
+	removeClaudeRouterSettings(data, env)
+
+	env["ANTHROPIC_BASE_URL"] = baseURL
+	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
+	env["ANTHROPIC_MODEL"] = target.Model
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = target.Model
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = target.Name
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = target.Description
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = target.Model
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"] = target.Name
+	env["ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"] = target.Description
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = target.Model
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"] = target.Name
+	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"] = target.Description
+	env["CLAUDE_CODE_SUBAGENT_MODEL"] = target.Model
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION"] = target.Model
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"] = target.Name
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"] = target.Description
+	data["env"] = env
+	return writeJSONObject(path, data)
+}
+
+func cleanClaudeEnv(data map[string]any) map[string]any {
+	env, _ := data["env"].(map[string]any)
+	if env == nil {
+		env = map[string]any{}
+	}
+	removeClaudeRouterSettings(data, env)
+	return env
+}
+
+func claudeRouterAvailableModels() []string {
+	return []string{
+		"best",
+		"opus",
+		"opus[1m]",
+		"opusplan",
+		"sonnet",
+		"sonnet[1m]",
+		"haiku",
+		"claude-opus-4-7",
+		"claude-opus-4-6",
+		"claude-opus-4-5-20251101",
+		"claude-opus-4-1-20250422",
+		"claude-sonnet-4-6",
+		"claude-sonnet-4-5-20250929",
+		"claude-sonnet-4-20250514",
+		"claude-haiku-4-5-20251001",
+		kimiCodingModel,
+	}
+}
+
+func claudeRouterModelOverrides() map[string]string {
+	return map[string]string{
+		"claude-opus-4-7":            mimoModel,
+		"claude-opus-4-6":            mimoStandardModel,
+		"claude-opus-4-5-20251101":   deepSeekProModel,
+		"claude-opus-4-1-20250422":   mimoStandardModel,
+		"claude-sonnet-4-6":          deepSeekFastModel,
+		"claude-sonnet-4-5-20250929": deepSeekProModel,
+		"claude-sonnet-4-20250514":   mimoStandardModel,
+		"claude-haiku-4-5-20251001":  deepSeekFastModel,
+	}
+}
+
+func clearKnownRouterModelValue(env map[string]any, key string) {
+	value, ok := env[key].(string)
+	if ok && isKnownRouterDefaultModel(value) {
+		delete(env, key)
+	}
+}
+
+func removeClaudeRouterSettings(data map[string]any, env map[string]any) {
+	clearKnownRouterModelValue(env, "ANTHROPIC_MODEL")
+	clearKnownRouterModelValue(env, "CLAUDE_CODE_SUBAGENT_MODEL")
+	clearKnownRouterModelGroup(env, "ANTHROPIC_DEFAULT_OPUS_MODEL")
+	clearKnownRouterModelGroup(env, "ANTHROPIC_DEFAULT_SONNET_MODEL")
+	clearKnownRouterModelGroup(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL")
+	clearKnownRouterModelGroup(env, "ANTHROPIC_CUSTOM_MODEL_OPTION")
+	clearDeepSeekEffortOverride(env)
+	removeClaudeRouterAvailableModels(data)
+	removeClaudeRouterModelOverrides(data)
+}
+
+func removeClaudeRouterAvailableModels(data map[string]any) {
+	existing, ok := data["availableModels"].([]any)
+	if !ok {
+		return
+	}
+
+	known := map[string]bool{}
+	for _, model := range claudeRouterAvailableModels() {
+		known[model] = true
+	}
+
+	filtered := []string{}
+	for _, value := range existing {
+		text, ok := value.(string)
+		if !ok {
+			continue
+		}
+		text = strings.TrimSpace(text)
+		if text == "" || known[text] {
+			continue
+		}
+		filtered = append(filtered, text)
+	}
+	if len(filtered) == 0 {
+		delete(data, "availableModels")
+		return
+	}
+	data["availableModels"] = filtered
+}
+
+func removeClaudeRouterModelOverrides(data map[string]any) {
+	existing, ok := data["modelOverrides"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	for key, value := range claudeRouterModelOverrides() {
+		if existingValue, ok := existing[key].(string); ok && existingValue == value {
+			delete(existing, key)
+		}
+	}
+	if len(existing) == 0 {
+		delete(data, "modelOverrides")
+	}
+}
+
+func clearKnownRouterModelGroup(env map[string]any, key string) {
+	value, ok := env[key].(string)
+	if !ok || !isKnownRouterDefaultModel(value) {
+		return
+	}
+	delete(env, key)
+	delete(env, key+"_NAME")
+	delete(env, key+"_DESCRIPTION")
+	delete(env, key+"_SUPPORTED_CAPABILITIES")
+}
+
+func clearDeepSeekEffortOverride(env map[string]any) {
+	value, ok := env["CLAUDE_CODE_EFFORT_LEVEL"].(string)
+	if ok && strings.EqualFold(strings.TrimSpace(value), "max") {
+		delete(env, "CLAUDE_CODE_EFFORT_LEVEL")
+	}
+}
+
+func isKnownRouterDefaultModel(value string) bool {
+	model := strings.TrimSpace(value)
+	return strings.EqualFold(model, mimoModel) ||
+		strings.EqualFold(model, mimoStandardModel) ||
+		strings.EqualFold(model, deepSeekProModel) ||
+		strings.EqualFold(model, deepSeekFastModel) ||
+		strings.EqualFold(model, kimiCodingModel)
+}
+
+func writeMimoClaudeOnboarding(path string) error {
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+		return err
+	}
+	data["hasCompletedOnboarding"] = true
+	return writeJSONObject(path, data)
+}
+
+func readJSONObject(path string) (map[string]any, error) {
+	data := map[string]any{}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return data, nil
+		}
+		return nil, err
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return data, nil
+	}
+	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func writeJSONObject(path string, data map[string]any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(raw, '\n'), 0o600)
+}
+
+func backupFile(path string, backupPath string, missingContent []byte) error {
+	if _, err := os.Stat(backupPath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		raw = missingContent
+	}
+	if err := os.MkdirAll(filepath.Dir(backupPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(backupPath, raw, 0o600)
+}
+
+func restoreBackup(path string, backupPath string) error {
+	raw, err := os.ReadFile(backupPath)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, raw, 0o600)
+}

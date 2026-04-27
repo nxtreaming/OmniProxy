@@ -1,0 +1,579 @@
+package main
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/logs"
+	"OmniProxyBackend/internal/storage"
+	"OmniProxyBackend/internal/token"
+)
+
+func TestTokenValidationMarksInvalidToken(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{Name: "bad", Provider: "openai", TokenValue: "sk-invalid-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:       3000,
+			ControlPort:     3890,
+			UpstreamBaseURL: upstream.URL,
+			SwitchThreshold: 15,
+			MaxRetries:      1,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tokens/"+item.ID+"/validate", nil)
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != token.StatusInvalid {
+		t.Fatalf("expected invalid token status, got %s", updated.Status)
+	}
+}
+
+func TestAddCodexTokenRefreshesUsage(t *testing.T) {
+	var validationCalled bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		validationCalled = true
+		if got := r.Header.Get("Authorization"); got != "Bearer codex-access-token" {
+			t.Fatalf("unexpected auth header: %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"plan_type": "team",
+			"rate_limit": {
+				"primary_window": {"used_percent": 23, "reset_at": 1777299888},
+				"secondary_window": {"used_percent": 41, "reset_at": 1777798105}
+			}
+		}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:          3000,
+			ControlPort:        3890,
+			UpstreamBaseURL:    "https://api.openai.com",
+			SwitchThreshold:    15,
+			MaxRetries:         1,
+			CodexUsageEndpoint: upstream.URL,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	payload, err := json.Marshal(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForMainTest(t, "coder@example.com"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/tokens", strings.NewReader(string(payload)))
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", res.Code, res.Body.String())
+	}
+	if !validationCalled {
+		t.Fatal("expected codex usage validation to be called after add")
+	}
+
+	items := manager.List()
+	if len(items) != 1 {
+		t.Fatalf("expected 1 token, got %d", len(items))
+	}
+	if items[0].Remaining != 77 || items[0].Usage.PrimaryRemainingPercent != 77 || items[0].Usage.SecondaryRemainingPercent != 59 {
+		t.Fatalf("expected usage to be refreshed after add, got remaining=%d usage=%#v", items[0].Remaining, items[0].Usage)
+	}
+}
+
+func TestStartupRefreshesCodexUsage(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"plan_type": "team",
+			"rate_limit": {
+				"primary_window": {"used_percent": 35, "reset_at": 1777299888},
+				"secondary_window": {"used_percent": 12, "reset_at": 1777798105}
+			}
+		}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForMainTest(t, "startup@example.com"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:          3000,
+			ControlPort:        3890,
+			UpstreamBaseURL:    "https://api.openai.com",
+			SwitchThreshold:    15,
+			MaxRetries:         1,
+			CodexUsageEndpoint: upstream.URL,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	app.refreshCodexUsageOnStartup(context.Background())
+
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Remaining != 65 || updated.Usage.PrimaryRemainingPercent != 65 || updated.Usage.SecondaryRemainingPercent != 88 {
+		t.Fatalf("expected startup usage refresh, got remaining=%d usage=%#v", updated.Remaining, updated.Usage)
+	}
+}
+
+func TestConfigureCodexSyncsExistingAuthJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(codexDir, "auth.json"), []byte(codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "new-account", "new-access-token")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "old-account", "old-access-token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:       3000,
+			ControlPort:     3890,
+			UpstreamBaseURL: "https://api.openai.com",
+			SwitchThreshold: 15,
+			MaxRetries:      1,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	result, err := app.configureCodex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.AuthUpdated || result.ImportedAuth {
+		t.Fatalf("expected existing auth to be synced, got %#v", result)
+	}
+
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(updated.TokenValue, "new-access-token") || !strings.Contains(updated.TokenValue, "new-account") {
+		t.Fatalf("expected stored auth.json to be refreshed, got %s", updated.TokenValue)
+	}
+}
+
+func TestProxyConfigChanged(t *testing.T) {
+	base := config.Default()
+
+	if proxyConfigChanged(base, base) {
+		t.Fatal("same config should not require proxy restart")
+	}
+
+	thresholdOnly := base
+	thresholdOnly.SwitchThreshold = 30
+	if proxyConfigChanged(base, thresholdOnly) {
+		t.Fatal("threshold-only change should not require proxy restart")
+	}
+
+	next := base
+	next.UpstreamBaseURL = "https://example.com"
+	if !proxyConfigChanged(base, next) {
+		t.Fatal("upstream change should require proxy restart")
+	}
+
+	next = base
+	next.KimiBaseURL = "https://example.com/coding"
+	if !proxyConfigChanged(base, next) {
+		t.Fatal("kimi base url change should require proxy restart")
+	}
+}
+
+func TestChangeDataDirectoryMigratesFilesAndSavesBootstrap(t *testing.T) {
+	home := t.TempDir()
+	appData := t.TempDir()
+	t.Setenv("OMNIPROXY_DATA_DIR", "")
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", appData)
+	t.Setenv("XDG_CONFIG_HOME", appData)
+
+	currentDir := filepath.Join(t.TempDir(), "current")
+	nextDir := filepath.Join(t.TempDir(), "next")
+	if err := os.MkdirAll(currentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(currentDir, "config.json"), []byte(`{"proxyPort":3000}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(currentDir, "tokens.json"), []byte(`[]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	app := &appServer{
+		dataDir: currentDir,
+		cfg:     config.Default(),
+		logs:    logs.NewRecorder(10),
+	}
+	result, err := app.changeDataDirectory(nextDir, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.RestartRequired {
+		t.Fatal("expected data directory change to require restart")
+	}
+	for _, name := range []string{"config.json", "tokens.json"} {
+		if _, err := os.Stat(filepath.Join(nextDir, name)); err != nil {
+			t.Fatalf("expected migrated %s: %v", name, err)
+		}
+	}
+	bootstrap, err := os.ReadFile(config.BootstrapPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved struct {
+		DataDir string `json:"dataDir"`
+	}
+	if err := json.Unmarshal(bootstrap, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(filepath.Clean(saved.DataDir), filepath.Clean(nextDir)) {
+		t.Fatalf("expected bootstrap to point at next data dir, got %s", string(bootstrap))
+	}
+}
+
+func codexAuthJSONForMainTest(t *testing.T, email string) string {
+	return codexAuthJSONForMainTestWithCredentials(t, email, "account-123", "codex-access-token")
+}
+
+func codexAuthJSONForMainTestWithCredentials(t *testing.T, email string, accountID string, accessToken string) string {
+	t.Helper()
+
+	payload, err := json.Marshal(map[string]any{
+		"https://api.openai.com/profile": map[string]string{"email": email},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idToken := "header." + base64.RawURLEncoding.EncodeToString(payload) + ".signature"
+	authJSON, err := json.Marshal(map[string]any{
+		"tokens": map[string]string{
+			"access_token": accessToken,
+			"account_id":   accountID,
+			"id_token":     idToken,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(authJSON)
+}
+
+func TestWriteCodexOmniProxyConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	initial := strings.Join([]string{
+		`model = "gpt-5.5"`,
+		`model_provider = "openai"`,
+		`chatgpt_base_url = "http://127.0.0.1:3000/backend-api/"`,
+		``,
+		`[projects.'E:\go\OmniProxy']`,
+		`trust_level = "trusted"`,
+		``,
+		`[model_providers.omniproxy]`,
+		`base_url = "http://old.example/v1"`,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeCodexOmniProxyConfig(path, "http://127.0.0.1:3000/backend-api/codex"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`model_provider = "openai"`,
+		`openai_base_url = "http://127.0.0.1:3000/backend-api/codex"`,
+		`[projects.'E:\go\OmniProxy']`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
+		}
+	}
+	if strings.Contains(text, "old.example") {
+		t.Fatalf("old omniproxy section was not removed:\n%s", text)
+	}
+	if strings.Contains(text, "[model_providers.omniproxy]") {
+		t.Fatalf("legacy omniproxy section was not removed:\n%s", text)
+	}
+	if strings.Contains(text, "[model_providers.openai]") {
+		t.Fatalf("reserved openai provider section was not removed:\n%s", text)
+	}
+	if strings.Contains(text, "chatgpt_base_url") {
+		t.Fatalf("chatgpt_base_url should not be used for the model proxy:\n%s", text)
+	}
+	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
+		t.Fatalf("expected backup file: %v", err)
+	}
+}
+
+func TestWriteCodexOmniProxyConfigKeepsOriginalBackup(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	first := `model_provider = "openai"` + "\n"
+	if err := os.WriteFile(path, []byte(first), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCodexOmniProxyConfig(path, "http://127.0.0.1:3000/backend-api/codex"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCodexOmniProxyConfig(path, "http://127.0.0.1:3001/backend-api/codex"); err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := os.ReadFile(path + ".omniproxy.bak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(backup) != first {
+		t.Fatalf("backup should keep original config, got:\n%s", string(backup))
+	}
+}
+
+func TestWriteClaudeRouterSettingsUsesSingleModelOption(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	initial := `{"env":{"ANTHROPIC_BASE_URL":"https://api.anthropic.com","ANTHROPIC_MODEL":"deepseek-v4-pro[1m]","ANTHROPIC_DEFAULT_OPUS_MODEL":"deepseek-v4-pro[1m]","ANTHROPIC_DEFAULT_OPUS_MODEL_NAME":"Old DeepSeek","CLAUDE_CODE_EFFORT_LEVEL":"max","OTHER":"keep"},"availableModels":["custom-existing-model","claude-opus-4-7","kimi-for-coding"],"modelOverrides":{"claude-sonnet-4-0":"custom-existing","claude-opus-4-7":"mimo-v2.5-pro"}}` + "\n"
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeMimoClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/anthropic-router"`,
+		`"ANTHROPIC_AUTH_TOKEN": "omniproxy"`,
+		`"ANTHROPIC_MODEL": "mimo-v2.5-pro"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "mimo-v2.5-pro"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "MiMo-V2.5-Pro"`,
+		`"ANTHROPIC_DEFAULT_SONNET_MODEL": "mimo-v2.5"`,
+		`"ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "MiMo-V2.5"`,
+		`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "mimo-v2.5"`,
+		`"ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "MiMo-V2.5"`,
+		`"CLAUDE_CODE_SUBAGENT_MODEL": "mimo-v2.5"`,
+		`"ANTHROPIC_CUSTOM_MODEL_OPTION": "mimo-v2.5"`,
+		`"ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "MiMo-V2.5"`,
+		`"OTHER": "keep"`,
+		`"availableModels": [`,
+		`"custom-existing-model"`,
+		`"claude-sonnet-4-0": "custom-existing"`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
+		}
+	}
+	for _, unwanted := range []string{
+		`"Old DeepSeek"`,
+		`"CLAUDE_CODE_EFFORT_LEVEL"`,
+		`"claude-opus-4-7"`,
+		`"kimi-for-coding"`,
+		`"deepseek-v4-flash"`,
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
+		}
+	}
+	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
+		t.Fatalf("expected backup file: %v", err)
+	}
+}
+
+func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
+	cases := []struct {
+		name             string
+		write            func(string, string) error
+		defaultModel     string
+		opusModel        string
+		sonnetModel      string
+		haikuModel       string
+		subagentModel    string
+		label            string
+		unwanted         string
+		expectEffortMax  bool
+		expectCustomName bool
+	}{
+		{
+			name:             "mimo",
+			write:            writeMimoClaudeSettings,
+			defaultModel:     "mimo-v2.5-pro",
+			opusModel:        "mimo-v2.5-pro",
+			sonnetModel:      "mimo-v2.5",
+			haikuModel:       "mimo-v2.5",
+			subagentModel:    "mimo-v2.5",
+			label:            "MiMo-V2.5",
+			unwanted:         "deepseek-v4-pro[1m]",
+			expectCustomName: true,
+		},
+		{
+			name:            "deepseek",
+			write:           writeDeepSeekClaudeSettings,
+			defaultModel:    "deepseek-v4-pro[1m]",
+			opusModel:       "deepseek-v4-pro[1m]",
+			sonnetModel:     "deepseek-v4-pro[1m]",
+			haikuModel:      "deepseek-v4-flash",
+			subagentModel:   "deepseek-v4-flash",
+			label:           "DeepSeek V4 Flash",
+			unwanted:        "mimo-v2.5-pro",
+			expectEffortMax: true,
+		},
+		{
+			name:             "kimi",
+			write:            writeKimiClaudeSettings,
+			defaultModel:     "kimi-for-coding",
+			opusModel:        "kimi-for-coding",
+			sonnetModel:      "kimi-for-coding",
+			haikuModel:       "kimi-for-coding",
+			subagentModel:    "kimi-for-coding",
+			label:            "Kimi for Coding",
+			unwanted:         "mimo-v2.5-pro",
+			expectCustomName: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "settings.json")
+			if err := os.WriteFile(path, []byte(`{"env":{"OTHER":"keep"}}`+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := tc.write(path, "http://127.0.0.1:3000/anthropic-router"); err != nil {
+				t.Fatal(err)
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := string(content)
+			for _, expected := range []string{
+				`"ANTHROPIC_MODEL": "` + tc.defaultModel + `"`,
+				`"ANTHROPIC_DEFAULT_OPUS_MODEL": "` + tc.opusModel + `"`,
+				`"ANTHROPIC_DEFAULT_SONNET_MODEL": "` + tc.sonnetModel + `"`,
+				`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "` + tc.haikuModel + `"`,
+				`"CLAUDE_CODE_SUBAGENT_MODEL": "` + tc.subagentModel + `"`,
+			} {
+				if !strings.Contains(text, expected) {
+					t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
+				}
+			}
+			if tc.expectCustomName && !strings.Contains(text, `"ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "`+tc.label+`"`) {
+				t.Fatalf("expected settings to contain custom label %q, got:\n%s", tc.label, text)
+			}
+			if tc.expectEffortMax && !strings.Contains(text, `"CLAUDE_CODE_EFFORT_LEVEL": "max"`) {
+				t.Fatalf("expected deepseek settings to set max effort, got:\n%s", text)
+			}
+			if strings.Contains(text, tc.unwanted) {
+				t.Fatalf("expected settings not to contain %q, got:\n%s", tc.unwanted, text)
+			}
+		})
+	}
+}
+
+func TestWriteClaudeRouterSettingsAcceptsUTF8BOM(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	raw := append([]byte{0xEF, 0xBB, 0xBF}, []byte(`{"env":{"OTHER":"keep"}}`+"\n")...)
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeMimoClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(string(content), "\ufeff") {
+		t.Fatalf("expected rewritten settings to omit UTF-8 BOM, got:\n%s", string(content))
+	}
+	if !strings.Contains(string(content), `"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/anthropic-router"`) {
+		t.Fatalf("expected router base url, got:\n%s", string(content))
+	}
+}
