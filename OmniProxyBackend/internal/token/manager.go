@@ -165,6 +165,28 @@ func (m *Manager) AcquireMatching(provider string, credentialType string, exclud
 	return m.AcquirePreferredMatching(provider, credentialType, excluded, nil)
 }
 
+func (m *Manager) AcquireBalancedMatching(provider string, credentialType string, excluded map[string]bool) (Token, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	provider = NormalizeProvider(provider)
+	credentialType = strings.TrimSpace(strings.ToLower(credentialType))
+	if credentialType != "" {
+		if _, normalizedCredentialType, err := NormalizeProviderAndCredential(provider, credentialType); err == nil {
+			credentialType = normalizedCredentialType
+		}
+	}
+
+	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded); ok {
+		return token, nil
+	}
+	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded); ok {
+		return token, nil
+	}
+
+	return Token{}, ErrNoActiveToken
+}
+
 func (m *Manager) AcquirePreferredMatching(provider string, credentialType string, excluded map[string]bool, preferred func(Token) bool) (Token, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -378,6 +400,52 @@ func (m *Manager) firstUsablePreferredLocked(provider string, credentialType str
 		return item, true
 	}
 	return Token{}, false
+}
+
+func (m *Manager) bestBalancedLocked(provider string, credentialType string, status Status, excluded map[string]bool) (Token, bool) {
+	var selected Token
+	found := false
+	for _, item := range m.tokens {
+		if NormalizeProvider(item.Provider) != provider {
+			continue
+		}
+		if credentialType != "" && item.CredentialType != credentialType {
+			continue
+		}
+		if item.Status != status {
+			continue
+		}
+		if excluded != nil && excluded[item.ID] {
+			continue
+		}
+		if strings.TrimSpace(item.TokenValue) == "" {
+			continue
+		}
+		if !found || balancedTokenLess(item, selected) {
+			selected = item
+			found = true
+		}
+	}
+	return selected, found
+}
+
+func balancedTokenLess(left Token, right Token) bool {
+	if left.Remaining != right.Remaining {
+		return left.Remaining > right.Remaining
+	}
+	if left.LastUsedAt == nil && right.LastUsedAt != nil {
+		return true
+	}
+	if left.LastUsedAt != nil && right.LastUsedAt == nil {
+		return false
+	}
+	if left.LastUsedAt != nil && right.LastUsedAt != nil && !left.LastUsedAt.Equal(*right.LastUsedAt) {
+		return left.LastUsedAt.Before(*right.LastUsedAt)
+	}
+	if left.Stats.RequestCount != right.Stats.RequestCount {
+		return left.Stats.RequestCount < right.Stats.RequestCount
+	}
+	return left.CreatedAt.Before(right.CreatedAt)
 }
 
 func (m *Manager) nameExistsLocked(name string, provider string, exceptID string) bool {

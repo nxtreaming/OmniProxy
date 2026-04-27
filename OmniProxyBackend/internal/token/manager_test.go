@@ -64,6 +64,71 @@ func TestManagerAcquireFallsBackToLowTokens(t *testing.T) {
 	}
 }
 
+func TestManagerAcquireBalancedRotatesAcrossAccounts(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := manager.Add(UpsertRequest{Name: "first", Provider: "openai", TokenValue: "sk-first-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := manager.Add(UpsertRequest{Name: "second", Provider: "openai", TokenValue: "sk-second-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := manager.AcquireBalancedMatching(ProviderOpenAI, CredentialTypeAPIKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != first.ID {
+		t.Fatalf("expected older unused token first, got %s", selected.Name)
+	}
+	if err := manager.RecordProxyUsage(selected.ID, TokenConsumption{TotalTokens: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err = manager.AcquireBalancedMatching(ProviderOpenAI, CredentialTypeAPIKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != second.ID {
+		t.Fatalf("expected next unused token after one task, got %s", selected.Name)
+	}
+}
+
+func TestManagerAcquireBalancedPrefersHigherRemainingQuota(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lower, err := manager.Add(UpsertRequest{Name: "lower", Provider: "openai", TokenValue: "sk-lower-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	higher, err := manager.Add(UpsertRequest{Name: "higher", Provider: "openai", TokenValue: "sk-higher-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(lower.ID, 40); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(higher.ID, 80); err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := manager.AcquireBalancedMatching(ProviderOpenAI, CredentialTypeAPIKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != higher.ID {
+		t.Fatalf("expected higher remaining token, got %s", selected.Name)
+	}
+}
+
 func TestManagerAllowsSameNameAcrossProviders(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {

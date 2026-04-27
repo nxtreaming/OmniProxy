@@ -58,6 +58,17 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if isCodexResponsesWebSocket(r) {
+		if s.cfg.WebSocketMode == config.WebSocketModeDisabled {
+			s.logs.Add(logs.Entry{
+				Level:   logs.LevelWarn,
+				Method:  r.Method,
+				Path:    r.URL.RequestURI(),
+				Status:  http.StatusForbidden,
+				Message: "websocket proxy disabled",
+			})
+			http.Error(w, "websocket proxy disabled", http.StatusForbidden)
+			return
+		}
 		s.serveCodexWebSocket(w, r)
 		return
 	}
@@ -97,10 +108,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var lastErr error
 	var lastStatus int
 	route := s.routeForRequest(r.URL, bodyBytes)
-	route.PreferredAccountID = strings.TrimSpace(r.Header.Get("ChatGPT-Account-Id"))
-	if route.CredentialType == "" && route.PreferredAccountID != "" {
-		route.CredentialType = token.CredentialTypeCodexAuthJSON
-	}
 
 	for attempt := 1; attempt <= attempts; attempt++ {
 		selected, err := s.acquireToken(route, excluded)
@@ -206,7 +213,6 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	route := s.routeForRequest(r.URL, nil)
 	route.CredentialType = token.CredentialTypeCodexAuthJSON
-	route.PreferredAccountID = strings.TrimSpace(r.Header.Get("ChatGPT-Account-Id"))
 
 	excluded := map[string]bool{}
 	attempts := s.cfg.MaxRetries + 1
@@ -379,22 +385,17 @@ func (s *Service) targetURL(route routeInfo, selected token.Token) (string, erro
 }
 
 type routeInfo struct {
-	Provider           string
-	CredentialType     string
-	Protocol           string
-	Model              string
-	Path               string
-	RawQuery           string
-	PreferredAccountID string
+	Provider       string
+	CredentialType string
+	Protocol       string
+	Model          string
+	Path           string
+	RawQuery       string
 }
 
 func (s *Service) acquireToken(route routeInfo, excluded map[string]bool) (token.Token, error) {
-	if route.CredentialType == token.CredentialTypeCodexAuthJSON && route.PreferredAccountID != "" {
-		preferredAccountID := route.PreferredAccountID
-		return s.tokens.AcquirePreferredMatching(route.Provider, route.CredentialType, excluded, func(item token.Token) bool {
-			accountID, ok := codexAccountID(item.TokenValue)
-			return ok && strings.EqualFold(accountID, preferredAccountID)
-		})
+	if s.cfg.SchedulingMode == config.SchedulingModeBalanced {
+		return s.tokens.AcquireBalancedMatching(route.Provider, route.CredentialType, excluded)
 	}
 	return s.tokens.AcquireMatching(route.Provider, route.CredentialType, excluded)
 }

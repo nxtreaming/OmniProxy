@@ -4,13 +4,24 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 
 	"OmniProxyBackend/internal/storage"
+)
+
+const (
+	SchedulingModeQueue    = "queue"
+	SchedulingModeBalanced = "balanced"
+
+	WebSocketModeEnabled  = "enabled"
+	WebSocketModeDisabled = "disabled"
 )
 
 type Config struct {
 	ProxyPort                       int    `json:"proxyPort"`
 	ControlPort                     int    `json:"controlPort"`
+	SchedulingMode                  string `json:"schedulingMode"`
+	WebSocketMode                   string `json:"websocketMode"`
 	UpstreamBaseURL                 string `json:"upstreamBaseUrl"`
 	OpenAIBaseURL                   string `json:"openaiBaseUrl"`
 	AnthropicBaseURL                string `json:"anthropicBaseUrl"`
@@ -32,6 +43,8 @@ func Default() Config {
 	return Config{
 		ProxyPort:                       3000,
 		ControlPort:                     3890,
+		SchedulingMode:                  SchedulingModeQueue,
+		WebSocketMode:                   WebSocketModeEnabled,
 		UpstreamBaseURL:                 "https://api.openai.com",
 		OpenAIBaseURL:                   "https://api.openai.com",
 		AnthropicBaseURL:                "https://api.anthropic.com",
@@ -76,6 +89,8 @@ func (s *Store) Load() (Config, error) {
 	var saved struct {
 		ProxyPort                       *int    `json:"proxyPort"`
 		ControlPort                     *int    `json:"controlPort"`
+		SchedulingMode                  *string `json:"schedulingMode"`
+		WebSocketMode                   *string `json:"websocketMode"`
 		UpstreamBaseURL                 *string `json:"upstreamBaseUrl"`
 		OpenAIBaseURL                   *string `json:"openaiBaseUrl"`
 		AnthropicBaseURL                *string `json:"anthropicBaseUrl"`
@@ -101,6 +116,12 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.ControlPort != nil && *saved.ControlPort > 0 {
 		cfg.ControlPort = *saved.ControlPort
+	}
+	if saved.SchedulingMode != nil {
+		cfg.SchedulingMode = *saved.SchedulingMode
+	}
+	if saved.WebSocketMode != nil {
+		cfg.WebSocketMode = *saved.WebSocketMode
 	}
 	if saved.UpstreamBaseURL != nil && *saved.UpstreamBaseURL != "" {
 		cfg.UpstreamBaseURL = *saved.UpstreamBaseURL
@@ -149,7 +170,7 @@ func (s *Store) Load() (Config, error) {
 	if saved.CodexUsageEndpoint != nil && *saved.CodexUsageEndpoint != "" {
 		cfg.CodexUsageEndpoint = *saved.CodexUsageEndpoint
 	}
-	return cfg, nil
+	return Normalize(cfg), nil
 }
 
 func (s *Store) Save(cfg Config) error {
@@ -163,6 +184,22 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.ControlPort <= 0 {
 		cfg.ControlPort = defaults.ControlPort
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.SchedulingMode)) {
+	case SchedulingModeBalanced:
+		cfg.SchedulingMode = SchedulingModeBalanced
+	case SchedulingModeQueue, "":
+		cfg.SchedulingMode = SchedulingModeQueue
+	default:
+		cfg.SchedulingMode = defaults.SchedulingMode
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.WebSocketMode)) {
+	case WebSocketModeDisabled:
+		cfg.WebSocketMode = WebSocketModeDisabled
+	case WebSocketModeEnabled, "":
+		cfg.WebSocketMode = WebSocketModeEnabled
+	default:
+		cfg.WebSocketMode = defaults.WebSocketMode
 	}
 	if cfg.UpstreamBaseURL == "" {
 		cfg.UpstreamBaseURL = defaults.UpstreamBaseURL

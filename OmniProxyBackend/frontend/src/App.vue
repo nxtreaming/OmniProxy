@@ -75,6 +75,8 @@ const proxyStatus = reactive({ running: false, port: 3000 })
 const config = reactive({
   proxyPort: 3000,
   controlPort: 3890,
+  schedulingMode: 'queue',
+  websocketMode: 'enabled',
   upstreamBaseUrl: 'https://api.openai.com',
   openaiBaseUrl: 'https://api.openai.com',
   anthropicBaseUrl: 'https://api.anthropic.com',
@@ -339,6 +341,8 @@ async function persistConfig() {
     const saved = await saveConfig({
       proxyPort: Number(config.proxyPort),
       controlPort: Number(config.controlPort),
+      schedulingMode: config.schedulingMode,
+      websocketMode: config.websocketMode,
       upstreamBaseUrl: config.upstreamBaseUrl.trim(),
       openaiBaseUrl: config.openaiBaseUrl.trim(),
       anthropicBaseUrl: config.anthropicBaseUrl.trim(),
@@ -1093,6 +1097,22 @@ async function refreshQuota(item) {
           <label>
             <span>控制端口</span>
             <input v-model="config.controlPort" type="number" min="1" max="65535" />
+          </label>
+          <label>
+            <span>账号调度模式</span>
+            <select v-model="config.schedulingMode">
+              <option value="queue">队列模式</option>
+              <option value="balanced">优先平衡使用</option>
+            </select>
+          </label>
+          <label class="toggle-field">
+            <span>启用 Codex WebSocket</span>
+            <input
+              v-model="config.websocketMode"
+              type="checkbox"
+              true-value="enabled"
+              false-value="disabled"
+            />
           </label>
           <label class="wide-field">
             <span>OpenAI API Base URL</span>

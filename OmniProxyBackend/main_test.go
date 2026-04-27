@@ -255,6 +255,18 @@ func TestProxyConfigChanged(t *testing.T) {
 	if !proxyConfigChanged(base, next) {
 		t.Fatal("kimi base url change should require proxy restart")
 	}
+
+	next = base
+	next.SchedulingMode = config.SchedulingModeBalanced
+	if !proxyConfigChanged(base, next) {
+		t.Fatal("scheduling mode change should require proxy restart")
+	}
+
+	next = base
+	next.WebSocketMode = config.WebSocketModeDisabled
+	if !proxyConfigChanged(base, next) {
+		t.Fatal("websocket mode change should require proxy restart")
+	}
 }
 
 func TestChangeDataDirectoryMigratesFilesAndSavesBootstrap(t *testing.T) {

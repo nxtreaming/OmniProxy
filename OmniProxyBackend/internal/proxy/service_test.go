@@ -231,7 +231,7 @@ func TestServiceRoutesCodexAuthJSONToCodexBackend(t *testing.T) {
 	}
 }
 
-func TestServicePrefersIncomingCodexAccountID(t *testing.T) {
+func TestServiceIgnoresIncomingCodexAccountIDForGatewayScheduling(t *testing.T) {
 	var gotAuth string
 	var gotAccount string
 
@@ -288,11 +288,79 @@ func TestServicePrefersIncomingCodexAccountID(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
 	}
-	if gotAuth != "Bearer preferred-access-token" {
-		t.Fatalf("expected preferred account auth, got %q", gotAuth)
+	if gotAuth != "Bearer other-access-token" {
+		t.Fatalf("expected gateway-selected account auth, got %q", gotAuth)
 	}
-	if gotAccount != "account-preferred" {
-		t.Fatalf("expected preferred account id, got %q", gotAccount)
+	if gotAccount != "account-other" {
+		t.Fatalf("expected gateway-selected account id, got %q", gotAccount)
+	}
+}
+
+func TestServiceBalancedSchedulingChoosesHigherRemainingCodexAccount(t *testing.T) {
+	var gotAuth string
+	var gotAccount string
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("ChatGPT-Account-Id")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":4,"output_tokens":2,"total_tokens":6}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "balanced-codex-tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lower, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTestWithCredentials(t, "lower@example.com", "account-lower", "lower-access-token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	higher, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTestWithCredentials(t, "higher@example.com", "account-higher", "higher-access-token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(lower.ID, 35); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(higher.ID, 90); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:          3000,
+		ControlPort:        3890,
+		SchedulingMode:     config.SchedulingModeBalanced,
+		CodexBaseURL:       upstream.URL + "/backend-api/codex",
+		SwitchThreshold:    15,
+		MaxRetries:         0,
+		CodexUsageEndpoint: "https://chatgpt.com/backend-api/wham/usage",
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/v1/responses", stringsReader(`{"input":"hello"}`))
+	req.Header.Set("ChatGPT-Account-Id", "account-lower")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if gotAuth != "Bearer higher-access-token" {
+		t.Fatalf("expected balanced scheduler to choose higher quota auth, got %q", gotAuth)
+	}
+	if gotAccount != "account-higher" {
+		t.Fatalf("expected balanced scheduler to choose higher quota account, got %q", gotAccount)
 	}
 }
 
@@ -429,6 +497,44 @@ func TestServiceProxiesCodexResponsesWebSocket(t *testing.T) {
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}
+	}
+}
+
+func TestServiceRejectsCodexResponsesWebSocketWhenDisabled(t *testing.T) {
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "ws-disabled-tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		CodexBaseURL:    "https://chatgpt.com/backend-api/codex",
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+		WebSocketMode:   config.WebSocketModeDisabled,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := httptest.NewServer(service)
+	defer local.Close()
+
+	dialURL := "ws" + strings.TrimPrefix(local.URL, "http") + "/backend-api/codex/responses"
+	conn, resp, err := websocket.DefaultDialer.Dial(dialURL, http.Header{
+		"OpenAI-Beta": []string{"responses_websockets=2026-02-06"},
+	})
+	if conn != nil {
+		_ = conn.Close()
+	}
+	if err == nil {
+		t.Fatal("expected websocket dial to fail when disabled")
+	}
+	if resp == nil {
+		t.Fatal("expected handshake response")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d", resp.StatusCode)
 	}
 }
 

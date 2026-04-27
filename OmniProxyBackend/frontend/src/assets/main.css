@@ -1162,6 +1162,19 @@ tr:last-child td {
   grid-column: span 2;
 }
 
+.toggle-field {
+  min-height: 44px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.toggle-field input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--brand);
+}
+
 input,
 select,
 textarea {

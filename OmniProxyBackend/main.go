@@ -659,6 +659,8 @@ func (a *appServer) restartProxy() error {
 
 func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 	return oldCfg.ProxyPort != nextCfg.ProxyPort ||
+		oldCfg.SchedulingMode != nextCfg.SchedulingMode ||
+		oldCfg.WebSocketMode != nextCfg.WebSocketMode ||
 		oldCfg.UpstreamBaseURL != nextCfg.UpstreamBaseURL ||
 		oldCfg.OpenAIBaseURL != nextCfg.OpenAIBaseURL ||
 		oldCfg.AnthropicBaseURL != nextCfg.AnthropicBaseURL ||
