@@ -735,7 +735,8 @@ async function refreshQuota(item) {
         </div>
       </div>
 
-      <section v-if="activeTab === 'dashboard'" class="view-grid">
+      <Transition name="page-switch" mode="out-in" appear>
+      <section v-if="activeTab === 'dashboard'" key="dashboard" class="view-grid">
         <article class="metric-card account-status-card">
           <span>账号状态</span>
           <div class="account-status-metrics">
@@ -839,7 +840,7 @@ async function refreshQuota(item) {
         </section>
       </section>
 
-      <section v-if="activeTab === 'quotas'" class="panel">
+      <section v-else-if="activeTab === 'quotas'" key="quotas" class="panel">
         <div class="section-heading">
           <div>
             <h2>账号状态</h2>
@@ -958,7 +959,7 @@ async function refreshQuota(item) {
         </div>
       </section>
 
-      <section v-if="activeTab === 'tokens'" class="panel">
+      <section v-else-if="activeTab === 'tokens'" key="tokens" class="panel">
         <div class="section-heading">
           <div>
             <h2>账号管理</h2>
@@ -1046,7 +1047,7 @@ async function refreshQuota(item) {
         </div>
       </section>
 
-      <section v-if="activeTab === 'logs'" class="panel">
+      <section v-else-if="activeTab === 'logs'" key="logs" class="panel">
         <div class="section-heading">
           <div>
             <h2>实时日志</h2>
@@ -1070,7 +1071,7 @@ async function refreshQuota(item) {
         </div>
       </section>
 
-      <section v-if="activeTab === 'settings'" class="panel settings-panel">
+      <section v-else-if="activeTab === 'settings'" key="settings" class="panel settings-panel">
         <div class="section-heading">
           <div>
             <h2>代理设置</h2>
@@ -1185,7 +1186,7 @@ async function refreshQuota(item) {
         </div>
       </section>
 
-      <section v-if="activeTab === 'quickstart'" class="panel help-panel">
+      <section v-else-if="activeTab === 'quickstart'" key="quickstart" class="panel help-panel">
         <div class="section-heading">
           <div>
             <h2>一键配置</h2>
@@ -1233,7 +1234,7 @@ Kimi model: kimi-for-coding</code></pre>
         </div>
       </section>
 
-      <section v-if="activeTab === 'help'" class="panel help-panel">
+      <section v-else-if="activeTab === 'help'" key="help" class="panel help-panel">
         <div class="section-heading">
           <div>
             <h2>使用说明</h2>
@@ -1260,6 +1261,7 @@ Kimi model: kimi-for-coding</code></pre>
           </article>
         </div>
       </section>
+      </Transition>
 
       <TokenEditorModal
         v-if="form.visible"
