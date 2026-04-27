@@ -1,0 +1,91 @@
+package token
+
+import "time"
+
+type Status string
+
+const (
+	StatusActive    Status = "active"
+	StatusLow       Status = "low"
+	StatusExhausted Status = "exhausted"
+	StatusInvalid   Status = "invalid"
+)
+
+const (
+	ProviderOpenAI    = "openai"
+	ProviderAnthropic = "anthropic"
+	ProviderDeepSeek  = "deepseek"
+	ProviderKimi      = "kimi"
+	ProviderXiaomi    = "xiaomi"
+)
+
+const (
+	CredentialTypeAPIKey        = "api_key"
+	CredentialTypeCodexAuthJSON = "codex_auth_json"
+	CredentialTypeMimoTokenPlan = "mimo_token_plan"
+)
+
+type Token struct {
+	ID             string     `json:"id"`
+	Name           string     `json:"name"`
+	Provider       string     `json:"provider"`
+	CredentialType string     `json:"credentialType"`
+	TokenValue     string     `json:"tokenValue"`
+	Remaining      int        `json:"remaining"`
+	Usage          UsageInfo  `json:"usage"`
+	Stats          TokenStats `json:"stats"`
+	Status         Status     `json:"status"`
+	LastUsedAt     *time.Time `json:"lastUsedAt,omitempty"`
+	LastError      string     `json:"lastError,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+}
+
+type UsageInfo struct {
+	Source                     string     `json:"source,omitempty"`
+	PlanType                   string     `json:"planType,omitempty"`
+	LimitReached               bool       `json:"limitReached,omitempty"`
+	PrimaryUsedPercent         int        `json:"primaryUsedPercent,omitempty"`
+	PrimaryRemainingPercent    int        `json:"primaryRemainingPercent,omitempty"`
+	PrimaryResetAt             int64      `json:"primaryResetAt,omitempty"`
+	SecondaryUsedPercent       int        `json:"secondaryUsedPercent,omitempty"`
+	SecondaryRemainingPercent  int        `json:"secondaryRemainingPercent,omitempty"`
+	SecondaryResetAt           int64      `json:"secondaryResetAt,omitempty"`
+	APIRemaining               int        `json:"apiRemaining,omitempty"`
+	SubscriptionQuotaAvailable bool       `json:"subscriptionQuotaAvailable,omitempty"`
+	Message                    string     `json:"message,omitempty"`
+	UpdatedAt                  *time.Time `json:"updatedAt,omitempty"`
+}
+
+type TokenStats struct {
+	RequestCount     int64             `json:"requestCount"`
+	InputTokens      int64             `json:"inputTokens"`
+	OutputTokens     int64             `json:"outputTokens"`
+	TotalTokens      int64             `json:"totalTokens"`
+	LastInputTokens  int               `json:"lastInputTokens,omitempty"`
+	LastOutputTokens int               `json:"lastOutputTokens,omitempty"`
+	LastTotalTokens  int               `json:"lastTotalTokens,omitempty"`
+	Daily            []DailyTokenUsage `json:"daily,omitempty"`
+	UpdatedAt        *time.Time        `json:"updatedAt,omitempty"`
+}
+
+type DailyTokenUsage struct {
+	Date         string `json:"date"`
+	RequestCount int64  `json:"requestCount"`
+	InputTokens  int64  `json:"inputTokens"`
+	OutputTokens int64  `json:"outputTokens"`
+	TotalTokens  int64  `json:"totalTokens"`
+}
+
+type TokenConsumption struct {
+	InputTokens  int `json:"inputTokens"`
+	OutputTokens int `json:"outputTokens"`
+	TotalTokens  int `json:"totalTokens"`
+}
+
+type UpsertRequest struct {
+	Name           string `json:"name"`
+	Provider       string `json:"provider"`
+	CredentialType string `json:"credentialType"`
+	TokenValue     string `json:"tokenValue"`
+}
