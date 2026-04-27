@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"OmniProxyBackend/internal/storage"
 )
@@ -99,6 +100,38 @@ func TestManagerAcquireBalancedRotatesAcrossAccounts(t *testing.T) {
 	}
 }
 
+func TestManagerAcquireAvoidsInFlightQueueToken(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	backup, err := manager.Add(UpsertRequest{Name: "backup", Provider: "openai", TokenValue: "sk-backup-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary, err := manager.Add(UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := manager.Acquire(ProviderOpenAI, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != primary.ID {
+		t.Fatalf("expected primary token first, got %s", selected.Name)
+	}
+
+	selected, err = manager.Acquire(ProviderOpenAI, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != backup.ID {
+		t.Fatalf("expected busy primary to be skipped, got %s", selected.Name)
+	}
+}
+
 func TestManagerAcquireBalancedPrefersHigherRemainingQuota(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {
@@ -176,6 +209,44 @@ func TestManagerValidatesXiaomiCredentialFormats(t *testing.T) {
 	}
 }
 
+func TestManagerUpdatePreservesTokenValueWhenBlank(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{Name: "primary", Provider: ProviderOpenAI, TokenValue: "sk-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := manager.Update(item.ID, UpsertRequest{Name: "renamed", Provider: ProviderOpenAI, CredentialType: CredentialTypeAPIKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Name != "renamed" {
+		t.Fatalf("expected updated name, got %q", updated.Name)
+	}
+	if updated.TokenValue != "sk-primary-token" {
+		t.Fatalf("expected token value to be preserved, got %q", updated.TokenValue)
+	}
+}
+
+func TestManagerUpdateRequiresTokenValueWhenCredentialTypeChanges(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{Name: "primary", Provider: ProviderOpenAI, TokenValue: "sk-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = manager.Update(item.ID, UpsertRequest{Name: "primary", Provider: ProviderOpenAI, CredentialType: CredentialTypeCodexAuthJSON})
+	if err == nil {
+		t.Fatal("expected credential type change without token value to fail")
+	}
+}
+
 func TestManagerUsesCodexEmailAsName(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {
@@ -232,6 +303,40 @@ func TestManagerRecordsProxyUsageTotalsAndDailyStats(t *testing.T) {
 	}
 }
 
+func TestManagerBatchesUsagePersistenceUntilFlush(t *testing.T) {
+	store := &countingTokenStore{}
+	manager, err := NewManager(store, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.persistDelay = time.Hour
+
+	item, err := manager.Add(UpsertRequest{Name: "metered", Provider: ProviderOpenAI, TokenValue: "sk-metered-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.saves != 1 {
+		t.Fatalf("expected add to persist immediately, got %d saves", store.saves)
+	}
+
+	if err := manager.RecordProxyUsage(item.ID, TokenConsumption{TotalTokens: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if store.saves != 1 {
+		t.Fatalf("expected usage update to be deferred, got %d saves", store.saves)
+	}
+
+	if err := manager.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if store.saves != 2 {
+		t.Fatalf("expected flush to persist deferred usage, got %d saves", store.saves)
+	}
+	if store.tokens[0].Stats.TotalTokens != 10 {
+		t.Fatalf("expected flushed stats, got %#v", store.tokens[0].Stats)
+	}
+}
+
 func codexAuthJSONForTest(t *testing.T, email string) string {
 	t.Helper()
 
@@ -258,4 +363,22 @@ func codexAuthJSONForTest(t *testing.T, email string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+type countingTokenStore struct {
+	tokens []Token
+	saves  int
+}
+
+func (s *countingTokenStore) Load() ([]Token, error) {
+	out := make([]Token, len(s.tokens))
+	copy(out, s.tokens)
+	return out, nil
+}
+
+func (s *countingTokenStore) Save(tokens []Token) error {
+	s.saves++
+	s.tokens = make([]Token, len(tokens))
+	copy(s.tokens, tokens)
+	return nil
 }

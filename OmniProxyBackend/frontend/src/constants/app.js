@@ -1,0 +1,30 @@
+export const tabs = [
+  { key: 'dashboard', label: '仪表盘' },
+  { key: 'quotas', label: '额度' },
+  { key: 'tokens', label: '账号管理' },
+  { key: 'logs', label: '实时日志' },
+  { key: 'quickstart', label: '一键配置' },
+  { key: 'settings', label: '全局设置' },
+  { key: 'help', label: '使用说明' },
+]
+
+export const providers = [
+  { key: 'openai', label: 'OpenAI', note: '支持 API Key 和 Codex auth.json' },
+  { key: 'anthropic', label: 'Anthropic', note: 'API Key' },
+  { key: 'deepseek', label: 'DeepSeek', note: 'API Key' },
+  { key: 'kimi', label: 'Kimi Code', note: 'API Key，Claude Code 模型 kimi-for-coding' },
+  { key: 'xiaomi', label: 'Xiaomi MiMo', note: '按量 API Key 或 Token Plan' },
+]
+
+export const credentialTypes = {
+  api_key: 'API Key',
+  codex_auth_json: 'Codex auth.json',
+  mimo_token_plan: 'MiMo Token Plan',
+}
+
+export const statusMeta = {
+  active: { label: '正常', className: 'success' },
+  low: { label: '低额度', className: 'warning' },
+  exhausted: { label: '耗尽', className: 'muted' },
+  invalid: { label: '无效', className: 'danger' },
+}

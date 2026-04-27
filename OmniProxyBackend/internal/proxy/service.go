@@ -26,6 +26,10 @@ type Service struct {
 	client *http.Client
 }
 
+const maxProxyRequestBodyBytes = 32 * 1024 * 1024
+
+var errRequestBodyTooLarge = errors.New("request body too large")
+
 func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorder) (*Service, error) {
 	cfg = config.Normalize(cfg)
 	for provider, baseURL := range map[string]string{
@@ -90,13 +94,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := readProxyRequestBody(r.Body)
 	if err != nil {
+		if errors.Is(err, errRequestBodyTooLarge) {
+			http.Error(w, errRequestBodyTooLarge.Error(), http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
-	}
-	if r.Body != nil {
-		_ = r.Body.Close()
 	}
 
 	excluded := map[string]bool{}
@@ -120,6 +125,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			lastErr = err
 			_ = s.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
+			s.tokens.Release(selected.ID)
 			excluded[selected.ID] = true
 			s.logs.Add(logs.Entry{
 				Level:     logs.LevelWarn,
@@ -145,6 +151,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			excluded[selected.ID] = true
 			closeBody(resp.Body)
+			s.tokens.Release(selected.ID)
 			s.logs.Add(logs.Entry{
 				Level:     logs.LevelWarn,
 				Method:    r.Method,
@@ -158,6 +165,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		consumption := s.writeResponse(w, resp)
 		_ = s.tokens.RecordProxyUsage(selected.ID, consumption)
+		s.tokens.Release(selected.ID)
+		s.refreshQuotaAfterTask(selected)
 		s.logs.Add(logs.Entry{
 			Level:     levelForStatus(resp.StatusCode),
 			Method:    r.Method,
@@ -209,6 +218,36 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 	return s.client.Do(req)
 }
 
+func (s *Service) refreshQuotaAfterTask(selected token.Token) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		validator, err := NewValidator(s.cfg)
+		if err != nil {
+			s.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: selected.Name, Message: fmt.Sprintf("post-task quota refresh skipped: %v", err)})
+			return
+		}
+
+		result, err := validator.Validate(ctx, selected)
+		if result.Remaining != nil {
+			_ = s.tokens.RecordUsage(selected.ID, *result.Remaining)
+		}
+		if result.Usage != nil {
+			_ = s.tokens.RecordUsageInfo(selected.ID, *result.Usage)
+		}
+		if result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden {
+			_ = s.tokens.MarkInvalid(selected.ID, fmt.Sprintf("post-task quota refresh returned %d", result.Status))
+		}
+		if result.Status == http.StatusTooManyRequests {
+			_ = s.tokens.MarkExhausted(selected.ID, "post-task quota refresh returned 429")
+		}
+		if err != nil {
+			s.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: selected.Name, Message: fmt.Sprintf("post-task quota refresh failed: %v", err)})
+		}
+	}()
+}
+
 func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	route := s.routeForRequest(r.URL, nil)
@@ -237,12 +276,14 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		targetURL, err := s.targetWebSocketURL(route, selected)
 		if err != nil {
 			lastErr = err
+			s.tokens.Release(selected.ID)
 			break
 		}
 
 		header := websocketRequestHeader(r.Header)
 		if err := applyRouteAuth(header, selected, route); err != nil {
 			lastErr = err
+			s.tokens.Release(selected.ID)
 			break
 		}
 
@@ -268,6 +309,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			excluded[selected.ID] = true
 			closeBody(upstreamRespBody(upstreamResp))
+			s.tokens.Release(selected.ID)
 			s.logs.Add(logs.Entry{
 				Level:     logs.LevelWarn,
 				Method:    r.Method,
@@ -278,6 +320,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			})
 			continue
 		}
+		s.tokens.Release(selected.ID)
 		break
 	}
 
@@ -314,6 +357,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	client, err := upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
+		s.tokens.Release(selected.ID)
 		s.logs.Add(logs.Entry{
 			Level:     logs.LevelError,
 			Method:    r.Method,
@@ -330,6 +374,8 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	_ = s.tokens.RecordUsage(selected.ID, -1)
 	consumption, err := proxyWebSocketMessages(client, upstream)
 	_ = s.tokens.RecordProxyUsage(selected.ID, consumption)
+	s.tokens.Release(selected.ID)
+	s.refreshQuotaAfterTask(selected)
 
 	level := logs.LevelInfo
 	message := proxyLogMessage(route.Model, consumption, "websocket proxied")
@@ -814,6 +860,23 @@ func upstreamRespBody(resp *http.Response) io.Closer {
 		return nil
 	}
 	return resp.Body
+}
+
+func readProxyRequestBody(body io.ReadCloser) ([]byte, error) {
+	if body == nil {
+		return nil, nil
+	}
+	defer closeBody(body)
+
+	limited := io.LimitReader(body, maxProxyRequestBodyBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxProxyRequestBodyBytes {
+		return nil, errRequestBodyTooLarge
+	}
+	return data, nil
 }
 
 func closeBody(body io.Closer) {

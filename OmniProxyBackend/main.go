@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -197,7 +199,7 @@ func (a *appServer) routes() http.Handler {
 func (a *appServer) handleTokens(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, a.tokens.List())
+		writeJSON(w, http.StatusOK, tokenResponses(a.tokens.List()))
 	case http.MethodPost:
 		var req token.UpsertRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -218,7 +220,7 @@ func (a *appServer) handleTokens(w http.ResponseWriter, r *http.Request) {
 				item = updated
 			}
 		}
-		writeJSON(w, http.StatusCreated, item)
+		writeJSON(w, http.StatusCreated, tokenResponseFor(item))
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -255,7 +257,7 @@ func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token updated"})
-		writeJSON(w, http.StatusOK, item)
+		writeJSON(w, http.StatusOK, tokenResponseFor(item))
 	case http.MethodDelete:
 		if err := a.tokens.Delete(id); err != nil {
 			writeDomainError(w, err)
@@ -371,31 +373,45 @@ func (a *appServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
-		cfg = config.Normalize(cfg)
-		if err := a.configStore.Save(cfg); err != nil {
+		saved, err := a.saveConfig(cfg)
+		if err != nil {
+			if isConfigValidationError(err) {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-
-		a.mu.Lock()
-		oldCfg := a.cfg
-		shouldRestartProxy := a.proxyServer != nil && proxyConfigChanged(oldCfg, cfg)
-		a.cfg = cfg
-		a.mu.Unlock()
-		a.tokens.SetThreshold(cfg.SwitchThreshold)
-
-		if shouldRestartProxy {
-			if err := a.restartProxy(); err != nil {
-				writeError(w, http.StatusInternalServerError, err.Error())
-				return
-			}
-		}
-
-		a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "configuration updated"})
-		writeJSON(w, http.StatusOK, cfg)
+		writeJSON(w, http.StatusOK, saved)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+func (a *appServer) saveConfig(cfg config.Config) (config.Config, error) {
+	cfg = config.Normalize(cfg)
+	if err := validateConfiguredPorts(cfg); err != nil {
+		return config.Config{}, err
+	}
+	if err := a.configStore.Save(cfg); err != nil {
+		return config.Config{}, err
+	}
+
+	a.mu.Lock()
+	oldCfg := a.cfg
+	shouldRestartProxy := a.proxyServer != nil && proxyConfigChanged(oldCfg, cfg)
+	a.cfg = cfg
+	a.mu.Unlock()
+	a.tokens.SetThreshold(cfg.SwitchThreshold)
+
+	if shouldRestartProxy {
+		if err := a.restartProxy(); err != nil {
+			return config.Config{}, err
+		}
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "configuration updated"})
+	return cfg, nil
 }
 
 func (a *appServer) handleLogs(w http.ResponseWriter, r *http.Request) {
@@ -555,21 +571,30 @@ func (a *appServer) startProxy() error {
 	if a.proxyServer != nil {
 		return nil
 	}
+	if err := validateConfiguredPorts(a.cfg); err != nil {
+		return err
+	}
 
 	svc, err := proxy.NewService(a.cfg, a.tokens, a.logs)
 	if err != nil {
 		return err
 	}
 
+	addr := fmt.Sprintf("127.0.0.1:%d", a.cfg.ProxyPort)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("start proxy listener on %s: %w", addr, err)
+	}
+
 	server := &http.Server{
-		Addr:              fmt.Sprintf("127.0.0.1:%d", a.cfg.ProxyPort),
+		Addr:              addr,
 		Handler:           svc,
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 	a.proxyServer = server
 
 	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			a.logs.Add(logs.Entry{Level: logs.LevelError, Message: fmt.Sprintf("proxy stopped: %v", err)})
 			log.Printf("proxy stopped: %v", err)
 		}
@@ -591,16 +616,25 @@ func (a *appServer) startControl() error {
 	if a.control != nil {
 		return nil
 	}
+	if err := validateConfiguredPorts(a.cfg); err != nil {
+		return err
+	}
+
+	addr := fmt.Sprintf("127.0.0.1:%d", a.cfg.ControlPort)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("start control API listener on %s: %w", addr, err)
+	}
 
 	server := &http.Server{
-		Addr:              fmt.Sprintf("127.0.0.1:%d", a.cfg.ControlPort),
+		Addr:              addr,
 		Handler:           withCORS(a.routes()),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	a.control = server
 
 	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			a.logs.Add(logs.Entry{Level: logs.LevelError, Message: fmt.Sprintf("control API stopped: %v", err)})
 			log.Printf("control API stopped: %v", err)
 		}
@@ -676,9 +710,100 @@ func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 		oldCfg.MaxRetries != nextCfg.MaxRetries
 }
 
+type tokenResponse struct {
+	ID               string           `json:"id"`
+	Name             string           `json:"name"`
+	Provider         string           `json:"provider"`
+	CredentialType   string           `json:"credentialType"`
+	HasTokenValue    bool             `json:"hasTokenValue"`
+	MaskedTokenValue string           `json:"maskedTokenValue,omitempty"`
+	Remaining        int              `json:"remaining"`
+	Usage            token.UsageInfo  `json:"usage"`
+	Stats            token.TokenStats `json:"stats"`
+	Status           token.Status     `json:"status"`
+	LastUsedAt       *time.Time       `json:"lastUsedAt,omitempty"`
+	LastError        string           `json:"lastError,omitempty"`
+	CreatedAt        time.Time        `json:"createdAt"`
+	UpdatedAt        time.Time        `json:"updatedAt"`
+}
+
+func tokenResponses(items []token.Token) []tokenResponse {
+	out := make([]tokenResponse, len(items))
+	for i, item := range items {
+		out[i] = tokenResponseFor(item)
+	}
+	return out
+}
+
+func tokenResponseFor(item token.Token) tokenResponse {
+	return tokenResponse{
+		ID:               item.ID,
+		Name:             item.Name,
+		Provider:         item.Provider,
+		CredentialType:   item.CredentialType,
+		HasTokenValue:    strings.TrimSpace(item.TokenValue) != "",
+		MaskedTokenValue: maskedTokenValue(item),
+		Remaining:        item.Remaining,
+		Usage:            item.Usage,
+		Stats:            item.Stats,
+		Status:           item.Status,
+		LastUsedAt:       item.LastUsedAt,
+		LastError:        item.LastError,
+		CreatedAt:        item.CreatedAt,
+		UpdatedAt:        item.UpdatedAt,
+	}
+}
+
+func maskedTokenValue(item token.Token) string {
+	if strings.TrimSpace(item.TokenValue) == "" {
+		return ""
+	}
+	if item.CredentialType == token.CredentialTypeCodexAuthJSON {
+		return "auth.json"
+	}
+	value := strings.TrimSpace(item.TokenValue)
+	if len(value) <= 12 {
+		return value[:3] + "..."
+	}
+	return value[:7] + "..." + value[len(value)-4:]
+}
+
+func validateConfiguredPorts(cfg config.Config) error {
+	if err := validateTCPPort("proxy port", cfg.ProxyPort); err != nil {
+		return err
+	}
+	if err := validateTCPPort("control port", cfg.ControlPort); err != nil {
+		return err
+	}
+	if cfg.ProxyPort == cfg.ControlPort {
+		return errors.New("proxy port and control port must be different")
+	}
+	return nil
+}
+
+func validateTCPPort(name string, port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("%s must be between 1 and 65535", name)
+	}
+	return nil
+}
+
+func isConfigValidationError(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "port")
+}
+
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin != "" {
+			if !isAllowedControlOrigin(origin) {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
 		if r.Method == http.MethodOptions {
@@ -687,6 +812,25 @@ func withCORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isAllowedControlOrigin(origin string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme == "wails" && host == "wails.localhost" {
+		return true
+	}
+	if host == "wails.localhost" {
+		return true
+	}
+	if scheme != "http" && scheme != "https" {
+		return false
+	}
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
 func writeDomainError(w http.ResponseWriter, err error) {

@@ -17,6 +17,8 @@ var (
 	ErrTokenNotFound = errors.New("token not found")
 )
 
+const defaultUsagePersistDelay = 250 * time.Millisecond
+
 type Store interface {
 	Load() ([]Token, error)
 	Save([]Token) error
@@ -27,6 +29,11 @@ type Manager struct {
 	store     Store
 	tokens    []Token
 	threshold int
+	inFlight  map[string]int
+
+	persistDelay time.Duration
+	saveTimer    *time.Timer
+	dirty        bool
 }
 
 func NewManager(store Store, threshold int) (*Manager, error) {
@@ -43,9 +50,11 @@ func NewManager(store Store, threshold int) (*Manager, error) {
 	}
 
 	return &Manager{
-		store:     store,
-		tokens:    tokens,
-		threshold: threshold,
+		store:        store,
+		tokens:       tokens,
+		threshold:    threshold,
+		inFlight:     map[string]int{},
+		persistDelay: defaultUsagePersistDelay,
 	}, nil
 }
 
@@ -112,34 +121,46 @@ func (m *Manager) Add(req UpsertRequest) (Token, error) {
 }
 
 func (m *Manager) Update(id string, req UpsertRequest) (Token, error) {
-	name, provider, credentialType, value, err := normalizeRequest(req)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	index := -1
+	for i := range m.tokens {
+		if m.tokens[i].ID == id {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return Token{}, ErrTokenNotFound
+	}
+
+	existing := m.tokens[index]
+	if strings.TrimSpace(req.Provider) == "" {
+		req.Provider = existing.Provider
+	}
+	if strings.TrimSpace(req.CredentialType) == "" {
+		req.CredentialType = existing.CredentialType
+	}
+
+	name, provider, credentialType, value, err := normalizeUpdateRequest(existing, req)
 	if err != nil {
 		return Token{}, err
 	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	if m.nameExistsLocked(name, provider, id) {
 		return Token{}, ErrDuplicateName
 	}
 
-	for i := range m.tokens {
-		if m.tokens[i].ID != id {
-			continue
-		}
-		m.tokens[i].Name = name
-		m.tokens[i].Provider = provider
-		m.tokens[i].CredentialType = credentialType
-		m.tokens[i].TokenValue = value
-		m.tokens[i].UpdatedAt = time.Now()
-		if m.tokens[i].Status == "" {
-			m.tokens[i].Status = StatusActive
-		}
-		return m.tokens[i], m.persistLocked()
+	m.tokens[index].Name = name
+	m.tokens[index].Provider = provider
+	m.tokens[index].CredentialType = credentialType
+	m.tokens[index].TokenValue = value
+	m.tokens[index].UpdatedAt = time.Now()
+	if m.tokens[index].Status == "" {
+		m.tokens[index].Status = StatusActive
 	}
-
-	return Token{}, ErrTokenNotFound
+	return m.tokens[index], m.persistLocked()
 }
 
 func (m *Manager) Delete(id string) error {
@@ -166,8 +187,8 @@ func (m *Manager) AcquireMatching(provider string, credentialType string, exclud
 }
 
 func (m *Manager) AcquireBalancedMatching(provider string, credentialType string, excluded map[string]bool) (Token, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	provider = NormalizeProvider(provider)
 	credentialType = strings.TrimSpace(strings.ToLower(credentialType))
@@ -178,18 +199,18 @@ func (m *Manager) AcquireBalancedMatching(provider string, credentialType string
 	}
 
 	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded); ok {
-		return token, nil
+		return m.reserveLocked(token), nil
 	}
 	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded); ok {
-		return token, nil
+		return m.reserveLocked(token), nil
 	}
 
 	return Token{}, ErrNoActiveToken
 }
 
 func (m *Manager) AcquirePreferredMatching(provider string, credentialType string, excluded map[string]bool, preferred func(Token) bool) (Token, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	provider = NormalizeProvider(provider)
 	credentialType = strings.TrimSpace(strings.ToLower(credentialType))
@@ -201,20 +222,31 @@ func (m *Manager) AcquirePreferredMatching(provider string, credentialType strin
 
 	if preferred != nil {
 		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusActive, excluded, preferred); ok {
-			return token, nil
+			return m.reserveLocked(token), nil
 		}
 		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusLow, excluded, preferred); ok {
-			return token, nil
+			return m.reserveLocked(token), nil
 		}
 	}
 	if token, ok := m.firstUsableLocked(provider, credentialType, StatusActive, excluded); ok {
-		return token, nil
+		return m.reserveLocked(token), nil
 	}
 	if token, ok := m.firstUsableLocked(provider, credentialType, StatusLow, excluded); ok {
-		return token, nil
+		return m.reserveLocked(token), nil
 	}
 
 	return Token{}, ErrNoActiveToken
+}
+
+func (m *Manager) Release(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.inFlight[id] <= 1 {
+		delete(m.inFlight, id)
+		return
+	}
+	m.inFlight[id]--
 }
 
 func (m *Manager) FindByName(provider string, name string) (Token, error) {
@@ -262,7 +294,7 @@ func (m *Manager) RecordUsage(id string, remaining int) error {
 			}
 		}
 
-		return m.persistLocked()
+		return m.schedulePersistLocked()
 	}
 
 	return ErrTokenNotFound
@@ -294,7 +326,7 @@ func (m *Manager) RecordUsageInfo(id string, usage UsageInfo) error {
 			}
 		}
 
-		return m.persistLocked()
+		return m.schedulePersistLocked()
 	}
 
 	return ErrTokenNotFound
@@ -324,7 +356,7 @@ func (m *Manager) RecordProxyUsage(id string, consumption TokenConsumption) erro
 		m.tokens[i].Stats.UpdatedAt = &now
 		m.tokens[i].Stats.Daily = recordDailyUsage(m.tokens[i].Stats.Daily, now, consumption)
 
-		return m.persistLocked()
+		return m.schedulePersistLocked()
 	}
 
 	return ErrTokenNotFound
@@ -356,6 +388,8 @@ func (m *Manager) setStatus(id string, status Status, reason string) error {
 }
 
 func (m *Manager) firstUsableLocked(provider string, credentialType string, status Status, excluded map[string]bool) (Token, bool) {
+	var busy Token
+	hasBusy := false
 	for _, item := range m.tokens {
 		if NormalizeProvider(item.Provider) != provider {
 			continue
@@ -372,12 +406,20 @@ func (m *Manager) firstUsableLocked(provider string, credentialType string, stat
 		if strings.TrimSpace(item.TokenValue) == "" {
 			continue
 		}
-		return item, true
+		if m.inFlight[item.ID] == 0 {
+			return item, true
+		}
+		if !hasBusy {
+			busy = item
+			hasBusy = true
+		}
 	}
-	return Token{}, false
+	return busy, hasBusy
 }
 
 func (m *Manager) firstUsablePreferredLocked(provider string, credentialType string, status Status, excluded map[string]bool, preferred func(Token) bool) (Token, bool) {
+	var busy Token
+	hasBusy := false
 	for _, item := range m.tokens {
 		if NormalizeProvider(item.Provider) != provider {
 			continue
@@ -397,9 +439,30 @@ func (m *Manager) firstUsablePreferredLocked(provider string, credentialType str
 		if !preferred(item) {
 			continue
 		}
-		return item, true
+		if m.inFlight[item.ID] == 0 {
+			return item, true
+		}
+		if !hasBusy {
+			busy = item
+			hasBusy = true
+		}
 	}
-	return Token{}, false
+	return busy, hasBusy
+}
+
+func (m *Manager) reserveLocked(item Token) Token {
+	now := time.Now()
+	m.inFlight[item.ID]++
+	for i := range m.tokens {
+		if m.tokens[i].ID != item.ID {
+			continue
+		}
+		m.tokens[i].LastUsedAt = &now
+		item = m.tokens[i]
+		return item
+	}
+	item.LastUsedAt = &now
+	return item
 }
 
 func (m *Manager) bestBalancedLocked(provider string, credentialType string, status Status, excluded map[string]bool) (Token, bool) {
@@ -421,7 +484,7 @@ func (m *Manager) bestBalancedLocked(provider string, credentialType string, sta
 		if strings.TrimSpace(item.TokenValue) == "" {
 			continue
 		}
-		if !found || balancedTokenLess(item, selected) {
+		if !found || m.balancedTokenLessLocked(item, selected) {
 			selected = item
 			found = true
 		}
@@ -429,7 +492,12 @@ func (m *Manager) bestBalancedLocked(provider string, credentialType string, sta
 	return selected, found
 }
 
-func balancedTokenLess(left Token, right Token) bool {
+func (m *Manager) balancedTokenLessLocked(left Token, right Token) bool {
+	leftInFlight := m.inFlight[left.ID]
+	rightInFlight := m.inFlight[right.ID]
+	if leftInFlight != rightInFlight {
+		return leftInFlight < rightInFlight
+	}
 	if left.Remaining != right.Remaining {
 		return left.Remaining > right.Remaining
 	}
@@ -526,9 +594,42 @@ func trimDailyUsage(existing []DailyTokenUsage) []DailyTokenUsage {
 }
 
 func (m *Manager) persistLocked() error {
+	if m.saveTimer != nil {
+		m.saveTimer.Stop()
+		m.saveTimer = nil
+	}
 	snapshot := make([]Token, len(m.tokens))
 	copy(snapshot, m.tokens)
-	return m.store.Save(snapshot)
+	err := m.store.Save(snapshot)
+	m.dirty = err != nil
+	return err
+}
+
+func (m *Manager) schedulePersistLocked() error {
+	m.dirty = true
+	if m.persistDelay <= 0 {
+		return m.persistLocked()
+	}
+	if m.saveTimer == nil {
+		m.saveTimer = time.AfterFunc(m.persistDelay, func() {
+			_ = m.Flush()
+		})
+	}
+	return nil
+}
+
+func (m *Manager) Flush() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.saveTimer != nil {
+		m.saveTimer.Stop()
+		m.saveTimer = nil
+	}
+	if !m.dirty {
+		return nil
+	}
+	return m.persistLocked()
 }
 
 func normalizeRequest(req UpsertRequest) (string, string, string, string, error) {
@@ -563,6 +664,34 @@ func normalizeRequest(req UpsertRequest) (string, string, string, string, error)
 		return "", "", "", "", errors.New("token name is required")
 	}
 
+	return name, provider, credentialType, value, nil
+}
+
+func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, string, string, error) {
+	if strings.TrimSpace(req.TokenValue) != "" {
+		return normalizeRequest(req)
+	}
+
+	provider, credentialType, err := NormalizeProviderAndCredential(req.Provider, req.CredentialType)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	if provider != NormalizeProvider(existing.Provider) || credentialType != existing.CredentialType {
+		return "", "", "", "", errors.New("token value is required when changing provider or credential type")
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if credentialType == CredentialTypeCodexAuthJSON {
+		name = existing.Name
+	}
+	if name == "" {
+		return "", "", "", "", errors.New("token name is required")
+	}
+
+	value := strings.TrimSpace(existing.TokenValue)
+	if value == "" {
+		return "", "", "", "", errors.New("existing token value is empty")
+	}
 	return name, provider, credentialType, value, nil
 }
 

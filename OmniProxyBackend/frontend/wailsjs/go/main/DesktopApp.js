@@ -6,10 +6,86 @@ export function ChooseDataDirectory(arg1) {
   return window['go']['main']['DesktopApp']['ChooseDataDirectory'](arg1);
 }
 
+export function Config() {
+  return window['go']['main']['DesktopApp']['Config']();
+}
+
+export function ConfigureCodex() {
+  return window['go']['main']['DesktopApp']['ConfigureCodex']();
+}
+
+export function ConfigureDeepSeekClaude() {
+  return window['go']['main']['DesktopApp']['ConfigureDeepSeekClaude']();
+}
+
+export function ConfigureKimiClaude() {
+  return window['go']['main']['DesktopApp']['ConfigureKimiClaude']();
+}
+
+export function ConfigureMimoClaude() {
+  return window['go']['main']['DesktopApp']['ConfigureMimoClaude']();
+}
+
 export function ControlAPI() {
   return window['go']['main']['DesktopApp']['ControlAPI']();
 }
 
+export function CreateToken(arg1) {
+  return window['go']['main']['DesktopApp']['CreateToken'](arg1);
+}
+
 export function DataDirectory() {
   return window['go']['main']['DesktopApp']['DataDirectory']();
+}
+
+export function DeleteToken(arg1) {
+  return window['go']['main']['DesktopApp']['DeleteToken'](arg1);
+}
+
+export function Logs() {
+  return window['go']['main']['DesktopApp']['Logs']();
+}
+
+export function ProxyStatus() {
+  return window['go']['main']['DesktopApp']['ProxyStatus']();
+}
+
+export function RestoreCodex() {
+  return window['go']['main']['DesktopApp']['RestoreCodex']();
+}
+
+export function RestoreDeepSeekClaude() {
+  return window['go']['main']['DesktopApp']['RestoreDeepSeekClaude']();
+}
+
+export function RestoreKimiClaude() {
+  return window['go']['main']['DesktopApp']['RestoreKimiClaude']();
+}
+
+export function RestoreMimoClaude() {
+  return window['go']['main']['DesktopApp']['RestoreMimoClaude']();
+}
+
+export function SaveConfig(arg1) {
+  return window['go']['main']['DesktopApp']['SaveConfig'](arg1);
+}
+
+export function StartProxy() {
+  return window['go']['main']['DesktopApp']['StartProxy']();
+}
+
+export function StopProxy() {
+  return window['go']['main']['DesktopApp']['StopProxy']();
+}
+
+export function Tokens() {
+  return window['go']['main']['DesktopApp']['Tokens']();
+}
+
+export function UpdateToken(arg1, arg2) {
+  return window['go']['main']['DesktopApp']['UpdateToken'](arg1, arg2);
+}
+
+export function ValidateToken(arg1) {
+  return window['go']['main']['DesktopApp']['ValidateToken'](arg1);
 }

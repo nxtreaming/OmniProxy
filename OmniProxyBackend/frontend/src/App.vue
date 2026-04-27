@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ChooseDataDirectory, DataDirectory } from '../wailsjs/go/main/DesktopApp'
+import TokenEditorModal from './components/TokenEditorModal.vue'
+import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
 import {
   configureCodex,
   configureDeepSeekClaude,
@@ -27,30 +29,6 @@ import {
   RefreshRight,
   SwitchButton,
 } from '@element-plus/icons-vue'
-
-const tabs = [
-  { key: 'dashboard', label: '仪表盘' },
-  { key: 'quotas', label: '额度' },
-  { key: 'tokens', label: '账号管理' },
-  { key: 'logs', label: '实时日志' },
-  { key: 'quickstart', label: '一键配置' },
-  { key: 'settings', label: '全局设置' },
-  { key: 'help', label: '使用说明' },
-]
-
-const providers = [
-  { key: 'openai', label: 'OpenAI', note: '支持 API Key 和 Codex auth.json' },
-  { key: 'anthropic', label: 'Anthropic', note: 'API Key' },
-  { key: 'deepseek', label: 'DeepSeek', note: 'API Key' },
-  { key: 'kimi', label: 'Kimi Code', note: 'API Key，Claude Code 模型 kimi-for-coding' },
-  { key: 'xiaomi', label: 'Xiaomi MiMo', note: '按量 API Key 或 Token Plan' },
-]
-
-const credentialTypes = {
-  api_key: 'API Key',
-  codex_auth_json: 'Codex auth.json',
-  mimo_token_plan: 'MiMo Token Plan',
-}
 
 const activeTab = ref('dashboard')
 const activeProvider = ref('openai')
@@ -106,7 +84,9 @@ const form = reactive({
   editingId: '',
   name: '',
   provider: 'openai',
+  originalProvider: 'openai',
   credentialType: 'api_key',
+  originalCredentialType: 'api_key',
   tokenValue: '',
 })
 
@@ -144,13 +124,6 @@ const todayProxyTokens = computed(
 const isCodexForm = computed(
   () => form.provider === 'openai' && form.credentialType === 'codex_auth_json',
 )
-
-const statusMeta = {
-  active: { label: '正常', className: 'success' },
-  low: { label: '低额度', className: 'warning' },
-  exhausted: { label: '耗尽', className: 'muted' },
-  invalid: { label: '无效', className: 'danger' },
-}
 
 onMounted(async () => {
   if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
@@ -222,7 +195,9 @@ function openCreateForm(provider = 'openai') {
     editingId: '',
     name: '',
     provider,
+    originalProvider: provider,
     credentialType: 'api_key',
+    originalCredentialType: 'api_key',
     tokenValue: '',
   })
 }
@@ -233,8 +208,10 @@ function openEditForm(token) {
     editingId: token.id,
     name: token.name,
     provider: token.provider,
+    originalProvider: token.provider,
     credentialType: token.credentialType || 'api_key',
-    tokenValue: token.tokenValue,
+    originalCredentialType: token.credentialType || 'api_key',
+    tokenValue: '',
   })
 }
 
@@ -249,6 +226,8 @@ async function submitForm() {
   const tokenValue = form.tokenValue.trim()
   const provider = form.provider.trim() || 'openai'
   const credentialType = normalizedCredentialType(provider, form.credentialType)
+  const isEditing = Boolean(form.editingId)
+  const replacingCredential = tokenValue !== ''
 
   if (!isCodexForm.value && !name) {
     errorMessage.value = '账号名称不能为空'
@@ -265,20 +244,28 @@ async function submitForm() {
     errorMessage.value = '同一厂商下账号名称不可重复'
     return
   }
-  if (credentialType === 'codex_auth_json') {
+  if (
+    isEditing &&
+    !replacingCredential &&
+    (provider !== form.originalProvider || credentialType !== form.originalCredentialType)
+  ) {
+    errorMessage.value = '更改厂商或凭据类型时需要重新填写凭据'
+    return
+  }
+  if (credentialType === 'codex_auth_json' && (!isEditing || replacingCredential)) {
     try {
       JSON.parse(tokenValue)
     } catch {
       errorMessage.value = 'Codex auth.json 内容不是有效 JSON'
       return
     }
-  } else if (provider === 'xiaomi' && credentialType === 'mimo_token_plan' && !tokenValue.startsWith('tp-')) {
+  } else if (replacingCredential && provider === 'xiaomi' && credentialType === 'mimo_token_plan' && !tokenValue.startsWith('tp-')) {
     errorMessage.value = 'MiMo Token Plan Key 必须以 tp- 开头'
     return
-  } else if (provider === 'xiaomi' && credentialType === 'api_key' && !tokenValue.startsWith('sk-')) {
+  } else if (replacingCredential && provider === 'xiaomi' && credentialType === 'api_key' && !tokenValue.startsWith('sk-')) {
     errorMessage.value = 'MiMo 按量 API Key 必须以 sk- 开头'
     return
-  } else if (tokenValue.length < 12) {
+  } else if ((!isEditing || replacingCredential) && tokenValue.length < 12) {
     errorMessage.value = 'Token 长度过短'
     return
   }
@@ -495,10 +482,29 @@ async function toggleProxy() {
   }
 }
 
-function maskToken(value) {
-  if (!value) return ''
-  if (value.length <= 12) return `${value.slice(0, 3)}...`
-  return `${value.slice(0, 7)}...${value.slice(-4)}`
+function credentialDisplay(item) {
+  if (item.maskedTokenValue) return item.maskedTokenValue
+  if (item.credentialType === 'codex_auth_json') return 'auth.json'
+  return item.hasTokenValue ? '已保存' : '-'
+}
+
+function credentialPlaceholder() {
+  if (form.editingId) {
+    return '留空表示保留当前凭据'
+  }
+  if (form.credentialType === 'codex_auth_json') {
+    return '粘贴 ~/.codex/auth.json 的完整 JSON 内容'
+  }
+  if (form.credentialType === 'mimo_token_plan') {
+    return '粘贴 tp- 开头的 MiMo Token Plan Key'
+  }
+  if (form.provider === 'xiaomi') {
+    return '粘贴 sk- 开头的 MiMo 按量 API Key'
+  }
+  if (form.provider === 'kimi') {
+    return '粘贴 Kimi Code API Key'
+  }
+  return '粘贴 API Key'
 }
 
 function providerTokens(provider) {
@@ -525,6 +531,9 @@ function normalizedCredentialType(provider, credentialType) {
 
 function onProviderChange() {
   form.credentialType = normalizedCredentialType(form.provider, form.credentialType)
+  if (form.editingId && form.provider !== form.originalProvider) {
+    form.tokenValue = ''
+  }
 }
 
 function formatTime(value) {
@@ -1008,7 +1017,7 @@ async function refreshQuota(item) {
                   <small v-if="item.lastError">{{ item.lastError }}</small>
                 </td>
                 <td>{{ credentialLabel(item) }}</td>
-                <td class="mono">{{ item.credentialType === 'codex_auth_json' ? 'auth.json' : maskToken(item.tokenValue) }}</td>
+                <td class="mono">{{ credentialDisplay(item) }}</td>
                 <td>{{ item.remaining }}%</td>
                 <td>
                   {{ formatNumber(item.stats?.totalTokens) }}
@@ -1249,52 +1258,16 @@ Kimi model: kimi-for-coding</code></pre>
         </div>
       </section>
 
-      <div v-if="form.visible" class="modal-backdrop" @click.self="closeForm">
-        <form class="modal" @submit.prevent="submitForm">
-          <div class="section-heading">
-            <div>
-              <h2>{{ form.editingId ? '编辑账号' : '添加账号' }}</h2>
-              <p>{{ isCodexForm ? 'Codex 将自动使用 auth.json 中的邮箱作为账号名称' : '账号名称必填且不可重复' }}</p>
-            </div>
-            <button type="button" class="icon-button" @click="closeForm">×</button>
-          </div>
-          <label v-if="!isCodexForm">
-            <span>账号名称</span>
-            <input v-model="form.name" autofocus />
-          </label>
-          <div v-else class="form-hint">
-            账号名称会从 `tokens.id_token` 自动解析邮箱，无需手动填写。
-          </div>
-          <label>
-            <span>厂商</span>
-            <select v-model="form.provider" @change="onProviderChange">
-              <option v-for="provider in providers" :key="provider.key" :value="provider.key">
-                {{ provider.label }}
-              </option>
-            </select>
-          </label>
-          <label>
-            <span>凭据类型</span>
-            <select v-model="form.credentialType" :disabled="form.provider !== 'openai' && form.provider !== 'xiaomi'">
-              <option value="api_key">{{ form.provider === 'xiaomi' ? 'MiMo 按量 API Key (sk-)' : 'API Key' }}</option>
-              <option v-if="form.provider === 'openai'" value="codex_auth_json">Codex auth.json</option>
-              <option v-if="form.provider === 'xiaomi'" value="mimo_token_plan">MiMo Token Plan (tp-)</option>
-            </select>
-          </label>
-          <label>
-            <span>{{ form.credentialType === 'codex_auth_json' ? 'auth.json 内容' : form.credentialType === 'mimo_token_plan' ? 'Token Plan Key' : 'API Key' }}</span>
-            <textarea
-              v-model="form.tokenValue"
-              :rows="form.credentialType === 'codex_auth_json' ? 9 : 4"
-              :placeholder="form.credentialType === 'codex_auth_json' ? '粘贴 ~/.codex/auth.json 的完整 JSON 内容' : form.credentialType === 'mimo_token_plan' ? '粘贴 tp- 开头的 MiMo Token Plan Key' : form.provider === 'xiaomi' ? '粘贴 sk- 开头的 MiMo 按量 API Key' : form.provider === 'kimi' ? '粘贴 Kimi Code API Key' : '粘贴 API Key'"
-            ></textarea>
-          </label>
-          <div class="modal-actions">
-            <button type="button" class="ghost-button" @click="closeForm">取消</button>
-            <button type="submit" class="primary-button">保存</button>
-          </div>
-        </form>
-      </div>
+      <TokenEditorModal
+        v-if="form.visible"
+        :form="form"
+        :providers="providers"
+        :is-codex-form="isCodexForm"
+        :placeholder="credentialPlaceholder()"
+        @close="closeForm"
+        @submit="submitForm"
+        @provider-change="onProviderChange"
+      />
 
       <div v-if="loading" class="loading">加载中...</div>
     </main>

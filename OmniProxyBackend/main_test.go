@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -61,6 +62,57 @@ func TestTokenValidationMarksInvalidToken(t *testing.T) {
 	}
 	if updated.Status != token.StatusInvalid {
 		t.Fatalf("expected invalid token status, got %s", updated.Status)
+	}
+}
+
+func TestTokenListDoesNotExposeTokenValue(t *testing.T) {
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"}); err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{
+		cfg:    config.Default(),
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tokens", nil)
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if strings.Contains(res.Body.String(), "tokenValue") || strings.Contains(res.Body.String(), "sk-primary-token") {
+		t.Fatalf("token list leaked secret: %s", res.Body.String())
+	}
+	var payload []struct {
+		HasTokenValue    bool   `json:"hasTokenValue"`
+		MaskedTokenValue string `json:"maskedTokenValue"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload) != 1 || !payload[0].HasTokenValue || payload[0].MaskedTokenValue != "sk-prim...oken" {
+		t.Fatalf("unexpected sanitized token payload: %#v", payload)
+	}
+}
+
+func TestControlCORSRejectsNonLocalOrigin(t *testing.T) {
+	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/tokens", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d", res.Code)
 	}
 }
 
@@ -269,6 +321,78 @@ func TestProxyConfigChanged(t *testing.T) {
 	}
 }
 
+func TestValidateConfiguredPortsRejectsInvalidPorts(t *testing.T) {
+	cfg := config.Default()
+	cfg.ControlPort = cfg.ProxyPort
+	if err := validateConfiguredPorts(cfg); err == nil {
+		t.Fatal("expected matching proxy and control ports to fail")
+	}
+
+	cfg = config.Default()
+	cfg.ProxyPort = 70000
+	if err := validateConfiguredPorts(cfg); err == nil {
+		t.Fatal("expected out-of-range proxy port to fail")
+	}
+}
+
+func TestStartProxyReturnsErrorWhenPortOccupied(t *testing.T) {
+	listener, port := listenOnLocalhost(t)
+	defer listener.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Default()
+	cfg.ProxyPort = port
+	app := &appServer{
+		cfg:    cfg,
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	err = app.startProxy()
+	if err == nil {
+		t.Fatal("expected occupied proxy port to fail")
+	}
+	if !strings.Contains(err.Error(), "start proxy listener") {
+		t.Fatalf("expected listener error, got %v", err)
+	}
+	if app.proxyServer != nil {
+		t.Fatal("proxy server should not be marked running after listen failure")
+	}
+}
+
+func TestStartControlReturnsErrorWhenPortOccupied(t *testing.T) {
+	listener, port := listenOnLocalhost(t)
+	defer listener.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Default()
+	cfg.ControlPort = port
+	app := &appServer{
+		cfg:    cfg,
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	err = app.startControl()
+	if err == nil {
+		t.Fatal("expected occupied control API port to fail")
+	}
+	if !strings.Contains(err.Error(), "start control API listener") {
+		t.Fatalf("expected listener error, got %v", err)
+	}
+	if app.control != nil {
+		t.Fatal("control server should not be marked running after listen failure")
+	}
+}
+
 func TestChangeDataDirectoryMigratesFilesAndSavesBootstrap(t *testing.T) {
 	home := t.TempDir()
 	appData := t.TempDir()
@@ -320,6 +444,21 @@ func TestChangeDataDirectoryMigratesFilesAndSavesBootstrap(t *testing.T) {
 	if !strings.EqualFold(filepath.Clean(saved.DataDir), filepath.Clean(nextDir)) {
 		t.Fatalf("expected bootstrap to point at next data dir, got %s", string(bootstrap))
 	}
+}
+
+func listenOnLocalhost(t *testing.T) (net.Listener, int) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = listener.Close()
+		t.Fatalf("expected TCP listener, got %T", listener.Addr())
+	}
+	return listener, addr.Port
 }
 
 func codexAuthJSONForMainTest(t *testing.T, email string) string {

@@ -2,7 +2,13 @@ import 'element-plus/dist/index.css'
 import './assets/main.css'
 
 import { createApp } from 'vue'
-import ElementPlus from 'element-plus'
+import { ElButton, ElCard, ElProgress, ElTag, ElTooltip } from 'element-plus'
 import App from './App.vue'
 
-createApp(App).use(ElementPlus).mount('#app')
+const app = createApp(App)
+
+for (const component of [ElButton, ElCard, ElProgress, ElTag, ElTooltip]) {
+  app.use(component)
+}
+
+app.mount('#app')

@@ -158,6 +158,31 @@ func TestServiceRecordsTokenUsageFromJSONResponse(t *testing.T) {
 	}
 }
 
+func TestServiceRejectsOversizedRequestBody(t *testing.T) {
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		UpstreamBaseURL: "https://api.openai.com",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", io.LimitReader(repeatingReader{}, maxProxyRequestBodyBytes+1))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected status 413, got %d body=%s", res.Code, res.Body.String())
+	}
+}
+
 func TestServiceRoutesCodexAuthJSONToCodexBackend(t *testing.T) {
 	var gotPath string
 	var gotAuth string
@@ -228,6 +253,147 @@ func TestServiceRoutesCodexAuthJSONToCodexBackend(t *testing.T) {
 	}
 	if gotBody != requestBody {
 		t.Fatalf("expected codex request body to be preserved, got %q", gotBody)
+	}
+}
+
+func TestServiceRefreshesCodexQuotaAfterTask(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}`))
+	}))
+	defer upstream.Close()
+
+	usage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer codex-access-token" {
+			t.Fatalf("unexpected quota refresh auth header: %q", r.Header.Get("Authorization"))
+		}
+		if r.Header.Get("ChatGPT-Account-Id") != "account-123" {
+			t.Fatalf("unexpected quota refresh account header: %q", r.Header.Get("ChatGPT-Account-Id"))
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"plan_type": "team",
+			"rate_limit": {
+				"primary_window": {"used_percent": 34, "reset_at": 1777299888},
+				"secondary_window": {"used_percent": 50, "reset_at": 1777798105}
+			}
+		}`))
+	}))
+	defer usage.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTest(t, "coder@example.com"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:          3000,
+		ControlPort:        3890,
+		CodexBaseURL:       upstream.URL + "/backend-api/codex",
+		SwitchThreshold:    15,
+		MaxRetries:         0,
+		CodexUsageEndpoint: usage.URL,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/v1/responses", stringsReader(`{"input":"hello"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	deadline := time.After(2 * time.Second)
+	for {
+		updated, err := manager.Get(item.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Remaining == 66 && updated.Usage.PrimaryRemainingPercent == 66 && updated.Usage.SecondaryRemainingPercent == 50 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for post-task quota refresh: remaining=%d usage=%#v", updated.Remaining, updated.Usage)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func TestServiceRefreshesAPIKeyQuotaAfterTask(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/responses":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}`))
+		case "/v1/models":
+			if r.Header.Get("Authorization") != "Bearer sk-primary-token" {
+				t.Fatalf("unexpected quota refresh auth header: %q", r.Header.Get("Authorization"))
+			}
+			w.Header().Set("x-ratelimit-remaining-tokens", "64")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: token.ProviderOpenAI, TokenValue: "sk-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		OpenAIBaseURL:   upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", stringsReader(`{"input":"hello"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	deadline := time.After(2 * time.Second)
+	for {
+		updated, err := manager.Get(item.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Remaining == 64 && updated.Usage.APIRemaining == 64 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for post-task API key quota refresh: remaining=%d usage=%#v", updated.Remaining, updated.Usage)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 
@@ -577,6 +743,12 @@ func TestServiceRoutesXiaomiByCredentialTypeAndProtocol(t *testing.T) {
 	var gotPaths []string
 	var gotKeys []string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			w.Header().Set("x-ratelimit-remaining-tokens", "90")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+			return
+		}
 		gotPaths = append(gotPaths, r.URL.Path)
 		gotKeys = append(gotKeys, r.Header.Get("Api-Key"))
 		w.WriteHeader(http.StatusOK)
@@ -666,6 +838,11 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	var officialKey string
 
 	mimoUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+			return
+		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatal(err)
@@ -679,6 +856,11 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	defer mimoUpstream.Close()
 
 	deepSeekUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+			return
+		}
 		deepSeekPath = r.URL.Path
 		deepSeekKey = r.Header.Get("X-Api-Key")
 		deepSeekAuthorization = r.Header.Get("Authorization")
@@ -688,6 +870,11 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	defer deepSeekUpstream.Close()
 
 	kimiUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+			return
+		}
 		kimiPath = r.URL.Path
 		kimiKey = r.Header.Get("X-Api-Key")
 		kimiAuthorization = r.Header.Get("Authorization")
@@ -697,6 +884,11 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	defer kimiUpstream.Close()
 
 	officialUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+			return
+		}
 		officialPath = r.URL.Path
 		officialKey = r.Header.Get("X-Api-Key")
 		w.WriteHeader(http.StatusOK)
@@ -889,6 +1081,15 @@ func TestParseTokenConsumptionFromSSE(t *testing.T) {
 
 func stringsReader(value string) io.Reader {
 	return strings.NewReader(value)
+}
+
+type repeatingReader struct{}
+
+func (repeatingReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 'x'
+	}
+	return len(p), nil
 }
 
 func codexAuthJSONForServiceTest(t *testing.T, email string) string {
