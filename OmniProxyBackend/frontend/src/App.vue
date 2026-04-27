@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ChooseDataDirectory, DataDirectory } from '../wailsjs/go/main/DesktopApp'
 import TokenEditorModal from './components/TokenEditorModal.vue'
+import appIconUrl from './assets/appicon.png'
 import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
 import {
   configureCodex,
@@ -23,15 +24,30 @@ import {
   restoreMimoClaude,
 } from './services/api'
 import {
+  Coin,
   Connection,
+  DataBoard,
+  HelpFilled,
+  Key,
   MagicStick,
   Refresh,
   RefreshRight,
+  Setting,
   SwitchButton,
+  Tickets,
 } from '@element-plus/icons-vue'
 
 const activeTab = ref('dashboard')
 const activeProvider = ref('openai')
+const tabIcons = {
+  dashboard: DataBoard,
+  quotas: Coin,
+  tokens: Key,
+  logs: Tickets,
+  quickstart: MagicStick,
+  settings: Setting,
+  help: HelpFilled,
+}
 const isDark = ref(false)
 const loading = ref(false)
 const codexConfiguring = ref(false)
@@ -682,7 +698,9 @@ async function refreshQuota(item) {
   <div class="shell" :class="{ dark: isDark }">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">OP</div>
+        <div class="brand-mark">
+          <img :src="appIconUrl" alt="" />
+        </div>
         <div>
           <strong>OmniProxy</strong>
           <span>AI 令牌调度网关</span>
@@ -697,7 +715,8 @@ async function refreshQuota(item) {
           :class="{ active: activeTab === tab.key }"
           @click="activeTab = tab.key"
         >
-          {{ tab.label }}
+          <component :is="tabIcons[tab.key]" class="nav-icon" aria-hidden="true" />
+          <span>{{ tab.label }}</span>
         </button>
       </nav>
 
@@ -916,8 +935,9 @@ async function refreshQuota(item) {
                     :show-text="false"
                     :stroke-width="8"
                   />
-                  <small v-if="item.usage?.subscriptionQuotaAvailable">
-                    已用 {{ item.usage.primaryUsedPercent }}% · 重置 {{ formatResetTime(item.usage.primaryResetAt) }}
+                  <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
+                    <span>已用 <strong>{{ item.usage.primaryUsedPercent }}%</strong></span>
+                    <span>重置 <strong>{{ formatResetTime(item.usage.primaryResetAt) }}</strong></span>
                   </small>
                   <small v-else>{{ isCodexToken(item) ? '点击刷新额度获取' : 'API Key 暂无订阅额度' }}</small>
                 </div>
@@ -933,8 +953,9 @@ async function refreshQuota(item) {
                     :show-text="false"
                     :stroke-width="8"
                   />
-                  <small v-if="item.usage?.subscriptionQuotaAvailable">
-                    已用 {{ item.usage.secondaryUsedPercent }}% · 重置 {{ formatResetTime(item.usage.secondaryResetAt) }}
+                  <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
+                    <span>已用 <strong>{{ item.usage.secondaryUsedPercent }}%</strong></span>
+                    <span>重置 <strong>{{ formatResetTime(item.usage.secondaryResetAt) }}</strong></span>
                   </small>
                   <small v-else>{{ isCodexToken(item) ? '点击刷新额度获取' : 'API Key 暂无订阅额度' }}</small>
                 </div>
@@ -948,7 +969,7 @@ async function refreshQuota(item) {
                 <div class="quota-stat">
                   <span>代理请求</span>
                   <strong>{{ formatNumber(item.stats?.requestCount) }} 次</strong>
-                  <small>{{ tokenUsageSummary(item) }}</small>
+                  <small class="quota-detail token-usage-detail">{{ tokenUsageSummary(item) }}</small>
                 </div>
               </div>
             </div>

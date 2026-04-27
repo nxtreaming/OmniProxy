@@ -1,20 +1,33 @@
-# OmniProxy
+# 🚀 OmniProxy
 
-OmniProxy 是一个运行在本地的 AI API 令牌调度与无感代理网关。它把多个账号、多个厂商和多个客户端工具收拢到一个轻量桌面应用里，让 Codex、Claude Code 以及兼容 OpenAI / Anthropic 协议的请求可以自动选择可用账号、记录用量、在失败时切换，并在后台刷新额度。
+> 本地 AI API 令牌调度、额度观测与无感代理网关。一个桌面应用，把多账号、多厂商、多客户端工具收拢到同一个本地控制台里。
 
-如果你也经常在本地开发时遇到额度耗尽、账号切换、不同厂商配置分散、请求日志不可见这些问题，OmniProxy 试图把它们变成一个可控、可观察、可恢复的本地工作流。
+[English](README_EN.md) · 中文
 
-## 为什么需要 OmniProxy
+OmniProxy 面向本地 AI 开发工作流设计。它可以让 Codex、Claude Code 以及兼容 OpenAI / Anthropic 协议的客户端先连接到本机代理，再由 OmniProxy 根据账号状态自动选择可用账号、记录用量、刷新额度、失败重试并切换账号。
 
-本地 AI 编程工具越来越多，但它们通常有几个共同痛点：
+如果你经常遇到这些场景，OmniProxy 大概率能帮上忙：
 
-- 账号和 Token 分散在不同配置文件里，切换成本高。
-- 单个账号触发 `429` 或临时上游错误时，客户端侧经常直接失败。
-- 额度、请求历史、正在使用哪个账号不透明。
-- OpenAI、Anthropic、DeepSeek、Kimi、Xiaomi MiMo 等入口的认证方式和 Base URL 各不相同。
-- Codex / Claude Code 的本地配置修改容易出错，也不方便恢复。
+- 🪫 单个账号额度耗尽，客户端请求直接失败。
+- 🔁 多个账号来回手动切换，配置文件越改越乱。
+- 🧩 OpenAI、Anthropic、DeepSeek、Kimi、Xiaomi MiMo 的入口和鉴权方式不一致。
+- 🕵️ 请求到底用了哪个账号、用了多少 Token、失败在哪里都不透明。
+- 🛠️ Codex / Claude Code 本地配置想自动写入，也希望能一键恢复。
 
-OmniProxy 的思路很简单：在本机启动一个透明代理，把客户端请求先交给 OmniProxy，再由 OmniProxy 根据账号池状态转发到真实上游。
+## ✨ 核心亮点
+
+- 🖥️ **桌面端闭环**：Wails + Go + Vue 3，一站式管理账号、代理、日志、额度和设置。
+- 🔐 **本地透明代理**：客户端只连 `127.0.0.1`，真实上游 Token 由 OmniProxy 自动注入。
+- 🧠 **多账号调度**：支持队列模式和优先平衡使用模式，并避开正在请求中的账号。
+- 🧯 **失败自动切换**：遇到 `429`、`502`、`503`、`504` 等错误时可换账号重试。
+- 📊 **额度与用量观测**：展示剩余额度、重置时间、请求次数、输入 / 输出 / 总 Token。
+- ⚡ **任务结束后刷新额度**：Codex 和可验证账号在任务结束后会尽量刷新额度状态。
+- 🧭 **Claude Code 快速接入**：支持将 Claude Code 指向 DeepSeek、Kimi、Xiaomi MiMo 的本地路由。
+- 🧵 **Codex WebSocket 代理**：可在设置页开启或关闭，并继续记录请求用量。
+- 🧱 **本地持久化**：配置、账号、统计数据写入本地 JSON 文件，用量统计批量落盘。
+- 🎨 **更顺手的控制台**：页面切换动画、当前账号高亮、导航图标、桌面图标已统一。
+
+## 🧠 工作方式
 
 ```text
 Codex / Claude Code / API Client
@@ -24,29 +37,15 @@ Codex / Claude Code / API Client
               |
               v
         OmniProxy Gateway
-      Token Pool + Scheduler
+   Token Pool + Scheduler + Logs
               |
               v
 OpenAI / Anthropic / DeepSeek / Kimi / Xiaomi MiMo
 ```
 
-## 当前能力
+OmniProxy 不改变客户端的使用方式。你只需要把客户端的 Base URL 指向本机代理，后续账号选择、鉴权头注入、重试切换、额度更新和日志记录都由本地程序完成。
 
-- 桌面端闭环：Wails + Go + Vue，启动后即可管理账号、代理、日志和设置。
-- 本地透明代理：自动替换上游鉴权头，客户端无需感知实际使用的 Token。
-- 多账号调度：支持队列模式与优先平衡使用模式，并避开正在请求中的账号。
-- 自动重试切换：遇到 `429`、`502`、`503`、`504` 时可切换到下一个可用账号重试。
-- 额度识别：解析 `x-ratelimit-remaining-tokens`、`x-ratelimit-remaining`、`x-ratelimit-remaining-requests`。
-- Codex 额度刷新：Codex `auth.json` 账号在添加、启动和任务结束后会刷新订阅额度。
-- 多厂商分组：OpenAI、Anthropic、DeepSeek、Kimi、Xiaomi MiMo 独立管理。
-- Codex 支持：OpenAI 分组支持 API Key 和 Codex `auth.json`，兼容 `tokens.access_token` 与 `tokens.account_id`。
-- Claude Code 快速接入：支持将 Claude Code 指向 DeepSeek、Kimi、Xiaomi MiMo 的本地路由。
-- WebSocket 代理：Codex WebSocket 代理可在设置页开启或关闭，并记录请求用量。
-- 实时日志：查看请求状态、耗时、使用账号和切换信息。
-- 本地持久化：配置和账号数据写入本地 JSON 文件，关键状态立即保存，用量统计批量落盘。
-- 安全边界：默认只监听 `127.0.0.1`，适合作为个人本地开发工具使用。
-
-## 项目结构
+## 📦 项目结构
 
 ```text
 .
@@ -56,33 +55,42 @@ OpenAI / Anthropic / DeepSeek / Kimi / Xiaomi MiMo
 │   ├── internal/proxy/            # 代理、路由、鉴权、用量解析、WebSocket
 │   ├── internal/storage/          # JSON 本地存储
 │   ├── internal/token/            # Token 池、调度、状态、统计
-│   └── frontend/                  # 桌面应用内嵌 Vue 3 + Vite 前端
+│   └── frontend/                  # Vue 3 + Vite + Element Plus 前端
 ├── scripts/dev.ps1                # Wails 桌面开发启动脚本
-└── README.md
+├── README.md                      # 中文文档
+└── README_EN.md                   # English README
 ```
 
 默认端口和数据位置：
 
-- 控制 API：`http://127.0.0.1:3890/api`
-- 代理服务：`http://127.0.0.1:3000`
-- 本地数据：默认写入 `%USERPROFILE%\.omniproxy`
+| 项目 | 默认值 |
+| --- | --- |
+| 🧩 控制 API | `http://127.0.0.1:3890/api` |
+| 🚪 代理服务 | `http://127.0.0.1:3000` |
+| 💾 本地数据 | `%USERPROFILE%\.omniproxy` |
 
-## 快速开始
+## ⚡ 快速开始
 
-前置环境：
+### 1. 准备环境
 
 - Go
 - Node.js
 - Wails v2 CLI
 
-开发运行：
+### 2. 开发运行
 
 ```powershell
 cd .\OmniProxyBackend
 C:\Users\mimanchi\go\bin\wails.exe dev
 ```
 
-构建桌面应用：
+也可以使用脚本：
+
+```powershell
+.\scripts\dev.ps1
+```
+
+### 3. 构建桌面应用
 
 ```powershell
 cd .\OmniProxyBackend
@@ -95,13 +103,14 @@ C:\Users\mimanchi\go\bin\wails.exe build
 .\OmniProxyBackend\build\bin\OmniProxy.exe
 ```
 
-## 使用方式
+## 🧭 使用流程
 
-1. 启动 OmniProxy。
-2. 在账号管理里添加需要使用的厂商账号。
-3. 在全局设置里确认代理端口和各厂商 Base URL。
-4. 启动本地代理。
-5. 将 Codex、Claude Code 或其他 API 客户端指向本地代理地址。
+1. 🚀 启动 OmniProxy。
+2. 🔑 在「账号管理」里添加 OpenAI、Anthropic、DeepSeek、Kimi 或 Xiaomi MiMo 账号。
+3. ⚙️ 在「全局设置」里确认代理端口和各厂商 Base URL。
+4. 🟢 启动本地代理。
+5. 🧩 将 Codex、Claude Code 或其他 API 客户端指向本地代理地址。
+6. 📊 在「仪表盘」和「额度」页面查看当前账号、额度重置时间、Token 明细和实时日志。
 
 常见代理地址：
 
@@ -111,9 +120,9 @@ Codex backend:     http://127.0.0.1:3000/backend-api/codex
 Claude router:     http://127.0.0.1:3000/anthropic-router
 ```
 
-桌面应用内也提供了一键配置入口，可将本机 Codex 或 Claude Code 写入 OmniProxy 本地代理地址，并保留原始配置备份用于恢复。
+桌面端也提供「一键配置」入口，可将本机 Codex 或 Claude Code 写入 OmniProxy 本地代理地址，并保留原始配置备份用于恢复。
 
-## 支持的账号类型
+## 🔌 支持的账号类型
 
 | 厂商 | 凭据类型 | 说明 |
 | --- | --- | --- |
@@ -125,7 +134,7 @@ Claude router:     http://127.0.0.1:3000/anthropic-router
 | Xiaomi MiMo | API Key | 按量 API Key，通常以 `sk-` 开头 |
 | Xiaomi MiMo | Token Plan | Token Plan Key，通常以 `tp-` 开头 |
 
-## 控制 API
+## 🧰 控制 API
 
 桌面前端优先通过 Wails 绑定调用后端。控制 API 仍保留给本地调试、外部脚本和兼容旧开发方式使用：
 
@@ -149,7 +158,7 @@ Claude router:     http://127.0.0.1:3000/anthropic-router
 - `POST /api/kimi/claude/configure`
 - `POST /api/kimi/claude/restore`
 
-## 验证
+## ✅ 验证命令
 
 后端测试：
 
@@ -165,45 +174,52 @@ cd .\OmniProxyBackend\frontend
 npm run build
 ```
 
-## 安全说明
+桌面打包：
+
+```powershell
+cd .\OmniProxyBackend
+C:\Users\mimanchi\go\bin\wails.exe build
+```
+
+## 🛡️ 安全说明
 
 OmniProxy 面向本地个人开发场景设计，默认只绑定 `127.0.0.1`。账号凭据保存在你选择的数据目录中，不会主动上传到任何第三方服务。
 
 仍然建议：
 
-- 不要把 `auth.json`、`.env`、`tokens.json` 或任何真实凭据提交到 Git。
-- 不要把控制 API 暴露到公网或局域网。
-- 使用前确认本地代理端口没有被其他程序占用。
-- 分享日志或截图前检查是否包含账号名、路径或敏感配置。
+- 🚫 不要把 `auth.json`、`.env`、`tokens.json` 或任何真实凭据提交到 Git。
+- 🔒 不要把控制 API 暴露到公网或局域网。
+- 🧪 使用前确认本地代理端口没有被其他程序占用。
+- 🧹 分享日志或截图前检查是否包含账号名、路径或敏感配置。
 
-## 路线图
+## 🗺️ 路线图
 
-- 继续收紧控制 API 的安全边界，并补充更细的本地访问控制。
-- 拆分前端状态和页面结构，引入更清晰的组件边界。
-- 增加请求历史图表、额度趋势和更细粒度的统计视图。
-- 完善多厂商路由策略和鉴权策略。
-- 增加 SSE、WebSocket、并发调度和异常恢复的端到端测试。
-- 继续收敛桌面端调用链和发布流程，减少维护噪音。
+- 📈 增加额度趋势图、请求历史图表和更细粒度的统计视图。
+- 🔐 继续收紧控制 API 的安全边界，补充更细的本地访问控制。
+- 🧩 完善更多厂商和更多协议适配。
+- 🧪 增加 SSE、WebSocket、并发调度和异常恢复的端到端测试。
+- 🧱 继续拆分前端状态和页面结构，让组件边界更清晰。
+- 📦 优化发布流程，降低桌面端打包和分发成本。
 
-## 参与贡献
+## 🤝 参与贡献
 
 欢迎一起把 OmniProxy 打磨成更顺手的本地 AI 网关。
 
 如果你遇到了问题，欢迎提交 Issue，并尽量附上：
 
-- 操作系统和运行方式。
-- 你使用的客户端工具，例如 Codex、Claude Code 或自定义 API 客户端。
-- 相关厂商、路由路径和错误日志。
-- 预期行为和实际行为。
+- 🖥️ 操作系统和运行方式。
+- 🧰 使用的客户端工具，例如 Codex、Claude Code 或自定义 API 客户端。
+- 🔌 相关厂商、路由路径和错误日志。
+- 🎯 预期行为和实际行为。
 
 如果你想贡献代码，欢迎提交 Pull Request。比较适合优先参与的方向：
 
-- 新厂商或新协议适配。
-- 代理稳定性、并发调度、重试策略优化。
-- 前端交互、可视化、配置体验改进。
-- 测试覆盖、文档示例、问题复现用例。
+- ✨ 新厂商或新协议适配。
+- 🧠 代理稳定性、并发调度、重试策略优化。
+- 🎨 前端交互、可视化、配置体验改进。
+- ✅ 测试覆盖、文档示例、问题复现用例。
 
-提交 PR 前建议先跑：
+提交 PR 前建议先跑测试和构建：
 
 ```powershell
 cd .\OmniProxyBackend
@@ -215,8 +231,8 @@ cd .\OmniProxyBackend\frontend
 npm run build
 ```
 
-## 支持项目
+## ⭐ 支持项目
 
-如果 OmniProxy 对你的本地 AI 开发流程有帮助，欢迎点一个 Star。Star 会让更多有相同痛点的人看到这个项目，也能帮助后续功能优先级更清晰。
+如果 OmniProxy 对你的本地 AI 开发流程有帮助，欢迎点一个 Star。⭐
 
-也欢迎通过 Issue 提问题、提建议，或者直接提交 PR。真实使用场景里的反馈，比任何路线图都更有价值。
+Star 会让更多有相同痛点的人看到这个项目，也能帮助后续功能优先级更清晰。也欢迎通过 Issue 提问题、提建议，或者直接提交 PR。真实使用场景里的反馈，比任何路线图都更有价值。
