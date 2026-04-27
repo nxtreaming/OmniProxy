@@ -50,16 +50,19 @@ jobs:
         working-directory: OmniProxyBackend
         run: |
           $version = "${{ github.ref_name }}"
-          $installer = Get-ChildItem -Path "build\bin" -Filter "*-installer.exe" | Select-Object -First 1
+          Get-ChildItem -Path "build" -Recurse -File | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
+
+          $installer = Get-ChildItem -Path "build" -Recurse -Filter "*.exe" |
+            Where-Object { $_.Name -match "(?i)(installer|setup)" } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+
           if (-not $installer) {
-            throw "NSIS installer was not found in build\bin"
+            throw "NSIS installer was not found under build"
           }
 
           $installerAsset = "OmniProxy-Setup-$version-windows-amd64.exe"
           Copy-Item -LiteralPath $installer.FullName -Destination $installerAsset -Force
-
-          $portableAsset = "OmniProxy-$version-windows-amd64-portable.zip"
-          Compress-Archive -Path "build\bin\OmniProxy.exe" -DestinationPath $portableAsset -Force
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -67,7 +70,6 @@ jobs:
           name: OmniProxy ${{ github.ref_name }}
           files: |
             OmniProxyBackend/OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe
-            OmniProxyBackend/OmniProxy-${{ github.ref_name }}-windows-amd64-portable.zip
           body: |
             # OmniProxy ${{ github.ref_name }} 🎉
 
@@ -76,7 +78,6 @@ jobs:
             ## 下载
 
             - `OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe`：Windows 安装包，推荐下载。
-            - `OmniProxy-${{ github.ref_name }}-windows-amd64-portable.zip`：便携版 exe 备份。
 
             ## 亮点
 
