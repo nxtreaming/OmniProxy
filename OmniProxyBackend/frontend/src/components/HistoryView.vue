@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Download, Refresh, View } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -43,8 +43,44 @@ const filters = reactive({
   token: '',
   search: '',
 })
+const historyPage = ref(1)
+const historyPageSize = 200
 
 const filteredHistory = computed(() => filterHistory(props.entries, filters))
+const historySummary = computed(() => summarizeHistory(filteredHistory.value))
+const historyDailyRows = computed(() => aggregateHistoryByDay(filteredHistory.value).slice(-14))
+const historyTrendMax = computed(() => Math.max(1, ...historyDailyRows.value.map((row) => row.totalTokens)))
+const historyTrendColumns = computed(() => `repeat(${Math.max(1, historyDailyRows.value.length)}, minmax(0, 1fr))`)
+const providerRanks = computed(() =>
+  rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5),
+)
+const modelRanks = computed(() =>
+  rankHistory(filteredHistory.value, (entry) => entry.model || entry.protocol || '未记录模型', 'totalTokens').slice(0, 5),
+)
+const tokenFailureRanks = computed(() =>
+  rankHistory(
+    filteredHistory.value.filter(isFailedHistory),
+    (entry) => entry.tokenName || '未记录账号',
+    'count',
+  ).slice(0, 5),
+)
+const failureReasonRanks = computed(() =>
+  rankHistory(
+    filteredHistory.value.filter(isFailedHistory),
+    (entry) => failureReasonLabel(entry),
+    'count',
+  ).slice(0, 5),
+)
+const historyTotalPages = computed(() => Math.max(1, Math.ceil(filteredHistory.value.length / historyPageSize)))
+const pagedHistory = computed(() => {
+  const page = Math.min(historyPage.value, historyTotalPages.value)
+  const start = (page - 1) * historyPageSize
+  return filteredHistory.value.slice(start, start + historyPageSize)
+})
+
+watch([() => props.entries, filters], () => {
+  historyPage.value = 1
+}, { deep: true })
 
 function exportRequestHistory(format) {
   emit('export', {
@@ -84,6 +120,68 @@ function filterHistory(items, currentFilters) {
         .toLowerCase()
         .includes(search)
     })
+}
+
+function summarizeHistory(items) {
+  const total = items.length
+  const failed = items.filter(isFailedHistory).length
+  const totalTokens = items.reduce((sum, item) => sum + Number(item.totalTokens || 0), 0)
+  const totalDuration = items.reduce((sum, item) => sum + Number(item.durationMs || 0), 0)
+  return {
+    total,
+    failed,
+    failureRate: total ? Math.round((failed / total) * 100) : 0,
+    totalTokens,
+    averageDuration: total ? Math.round(totalDuration / total) : 0,
+  }
+}
+
+function aggregateHistoryByDay(items) {
+  const byDay = new Map()
+  for (const entry of items) {
+    const day = String(entry.time || '').slice(0, 10) || 'unknown'
+    const current = byDay.get(day) || { date: day, requestCount: 0, failedCount: 0, totalTokens: 0 }
+    current.requestCount += 1
+    if (isFailedHistory(entry)) current.failedCount += 1
+    current.totalTokens += Number(entry.totalTokens || 0)
+    byDay.set(day, current)
+  }
+  return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+function rankHistory(items, labelFn, mode) {
+  const groups = new Map()
+  for (const entry of items) {
+    const label = labelFn(entry)
+    const current = groups.get(label) || { label, count: 0, totalTokens: 0, failedCount: 0 }
+    current.count += 1
+    current.totalTokens += Number(entry.totalTokens || 0)
+    if (isFailedHistory(entry)) current.failedCount += 1
+    groups.set(label, current)
+  }
+  const metric = mode === 'totalTokens' ? 'totalTokens' : 'count'
+  return [...groups.values()].sort((a, b) => b[metric] - a[metric] || b.count - a.count)
+}
+
+function failureReasonLabel(entry) {
+  const status = entry.status ? `${entry.status}` : '无状态码'
+  const message = String(entry.message || '').trim()
+  if (!message) return status
+  return `${status} · ${message}`
+}
+
+function historyTrendHeight(row) {
+  const value = Number(row.totalTokens || 0)
+  if (value <= 0) return '4%'
+  return `${Math.max(8, Math.round((value / historyTrendMax.value) * 100))}%`
+}
+
+function previousHistoryPage() {
+  historyPage.value = Math.max(1, historyPage.value - 1)
+}
+
+function nextHistoryPage() {
+  historyPage.value = Math.min(historyTotalPages.value, historyPage.value + 1)
 }
 
 function historyStatusMatches(entry, status) {
@@ -189,6 +287,105 @@ function isFailedHistory(entry) {
       </label>
     </div>
 
+    <div class="history-summary-grid">
+      <div>
+        <span>请求数</span>
+        <strong>{{ formatNumber(historySummary.total) }}</strong>
+      </div>
+      <div>
+        <span>失败率</span>
+        <strong>{{ historySummary.failureRate }}%</strong>
+        <small>{{ formatNumber(historySummary.failed) }} 次失败</small>
+      </div>
+      <div>
+        <span>Token</span>
+        <strong>{{ formatNumber(historySummary.totalTokens) }}</strong>
+      </div>
+      <div>
+        <span>平均耗时</span>
+        <strong>{{ formatDuration(historySummary.averageDuration) }}</strong>
+      </div>
+    </div>
+
+    <div class="history-insights">
+      <div class="history-insight-panel history-trend-panel">
+        <div class="history-insight-head">
+          <span>每日用量</span>
+          <strong>{{ formatNumber(historySummary.totalTokens) }}</strong>
+        </div>
+        <div v-if="historyDailyRows.length" class="usage-trend compact-history-trend" :style="{ gridTemplateColumns: historyTrendColumns }">
+          <div
+            v-for="row in historyDailyRows"
+            :key="row.date"
+            class="trend-column"
+            :title="`${row.date} · ${formatNumber(row.totalTokens)} Token · ${formatNumber(row.requestCount)} 次请求`"
+          >
+            <div class="trend-bar">
+              <span :style="{ height: historyTrendHeight(row) }"></span>
+            </div>
+            <small>{{ row.date.slice(5) }}</small>
+          </div>
+        </div>
+        <div v-else class="empty compact-empty">暂无趋势数据</div>
+      </div>
+
+      <div class="history-insight-panel">
+        <div class="history-insight-head">
+          <span>模型消耗</span>
+          <strong>{{ modelRanks.length }}</strong>
+        </div>
+        <div class="rank-list">
+          <div v-for="item in modelRanks" :key="item.label" class="rank-row">
+            <span :title="item.label">{{ item.label }}</span>
+            <strong>{{ formatNumber(item.totalTokens) }}</strong>
+          </div>
+          <div v-if="!modelRanks.length" class="empty compact-empty">暂无模型数据</div>
+        </div>
+      </div>
+
+      <div class="history-insight-panel">
+        <div class="history-insight-head">
+          <span>厂商分布</span>
+          <strong>{{ providerRanks.length }}</strong>
+        </div>
+        <div class="rank-list">
+          <div v-for="item in providerRanks" :key="item.label" class="rank-row">
+            <span :title="item.label">{{ item.label }}</span>
+            <strong>{{ formatNumber(item.count) }} 次</strong>
+          </div>
+          <div v-if="!providerRanks.length" class="empty compact-empty">暂无厂商数据</div>
+        </div>
+      </div>
+
+      <div class="history-insight-panel">
+        <div class="history-insight-head">
+          <span>失败账号</span>
+          <strong>{{ tokenFailureRanks.length }}</strong>
+        </div>
+        <div class="rank-list">
+          <div v-for="item in tokenFailureRanks" :key="item.label" class="rank-row">
+            <span :title="item.label">{{ item.label }}</span>
+            <strong>{{ formatNumber(item.count) }} 次</strong>
+          </div>
+          <div v-if="!tokenFailureRanks.length" class="empty compact-empty">暂无失败账号</div>
+        </div>
+      </div>
+
+      <div class="history-insight-panel wide-history-panel">
+        <div class="history-insight-head">
+          <span>失败原因</span>
+          <strong>{{ failureReasonRanks.length }}</strong>
+        </div>
+        <div class="rank-list">
+          <div v-for="item in failureReasonRanks" :key="item.label" class="rank-row">
+            <span :title="item.label">{{ item.label }}</span>
+            <strong>{{ formatNumber(item.count) }} 次</strong>
+          </div>
+          <div v-if="!failureReasonRanks.length" class="empty compact-empty">暂无失败原因</div>
+        </div>
+      </div>
+    </div>
+
     <div class="table-wrap">
       <table class="account-table history-table">
         <colgroup>
@@ -215,7 +412,7 @@ function isFailedHistory(entry) {
         </thead>
         <tbody>
           <tr
-            v-for="entry in filteredHistory.slice(0, 300)"
+            v-for="entry in pagedHistory"
             :key="entry.id"
             class="clickable-history-row"
             @click="openHistoryDiagnosis(entry)"
@@ -249,6 +446,14 @@ function isFailedHistory(entry) {
         </tbody>
       </table>
       <div v-if="!filteredHistory.length" class="empty">暂无匹配的请求历史</div>
+      <div v-else class="history-pagination">
+        <span>共 {{ formatNumber(filteredHistory.length) }} 条，每页 {{ historyPageSize }} 条</span>
+        <div>
+          <el-button size="small" :disabled="historyPage <= 1" @click="previousHistoryPage">上一页</el-button>
+          <strong>{{ historyPage }} / {{ historyTotalPages }}</strong>
+          <el-button size="small" :disabled="historyPage >= historyTotalPages" @click="nextHistoryPage">下一页</el-button>
+        </div>
+      </div>
     </div>
   </section>
 </template>

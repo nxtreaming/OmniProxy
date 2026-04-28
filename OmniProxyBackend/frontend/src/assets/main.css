@@ -1337,6 +1337,117 @@ tr:last-child td {
   grid-column: span 2;
 }
 
+.history-summary-grid,
+.history-insights {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.history-summary-grid > div,
+.history-insight-panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.history-summary-grid > div {
+  min-height: 86px;
+  padding: 14px;
+}
+
+.history-summary-grid span,
+.history-summary-grid small,
+.history-insight-head span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.history-summary-grid strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-strong);
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.history-summary-grid small {
+  display: block;
+  margin-top: 4px;
+}
+
+.history-insights {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.history-insight-panel {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+}
+
+.history-trend-panel,
+.wide-history-panel {
+  grid-column: span 2;
+}
+
+.history-insight-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-insight-head strong {
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.compact-history-trend {
+  height: 142px;
+}
+
+.compact-history-trend .trend-bar {
+  min-height: 88px;
+}
+
+.rank-list {
+  display: grid;
+  gap: 8px;
+}
+
+.rank-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.rank-row span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-row strong {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.compact-empty {
+  padding: 12px 0;
+}
+
 .history-table {
   width: max(100%, 920px);
   min-width: 920px;
@@ -1432,6 +1543,26 @@ tr:last-child td {
 
 .clickable-history-row:hover td {
   background: var(--surface-soft);
+}
+
+.history-pagination {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.history-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.history-pagination strong {
+  color: var(--text-strong);
 }
 
 .drawer-backdrop {
@@ -1861,7 +1992,9 @@ textarea:focus {
   .quota-row,
   .usage-row,
   .trend-panels,
-  .history-filters {
+  .history-filters,
+  .history-summary-grid,
+  .history-insights {
     grid-template-columns: 1fr;
   }
 
@@ -1883,5 +2016,15 @@ textarea:focus {
 
   .history-search {
     grid-column: span 1;
+  }
+
+  .history-trend-panel,
+  .wide-history-panel {
+    grid-column: span 1;
+  }
+
+  .history-pagination {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
