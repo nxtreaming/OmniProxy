@@ -137,6 +137,78 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	}
 }
 
+func TestServiceRetries500AndShortCoolsTransientToken(t *testing.T) {
+	attempts := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":{"message":"temporary upstream failure"}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, err := manager.Add(token.UpsertRequest{Name: "backup", Provider: "openai", TokenValue: "sk-backup-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		UpstreamBaseURL: upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	}, manager, logs.NewRecorder(10), recorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", stringsReader(`{"model":"gpt-5.5"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK || attempts != 2 {
+		t.Fatalf("expected retry to recover with 200 after 2 attempts, got status=%d attempts=%d body=%s", res.Code, attempts, res.Body.String())
+	}
+	primaryState, err := manager.Get(primary.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if primaryState.Status != token.StatusExhausted || primaryState.CooldownUntil == nil || !primaryState.CooldownUntil.After(time.Now()) {
+		t.Fatalf("expected primary to enter short transient cooldown, got %#v", primaryState)
+	}
+	backupState, err := manager.Get(backup.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backupState.Status != token.StatusActive {
+		t.Fatalf("expected backup to stay active, got %s", backupState.Status)
+	}
+	entries := recorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 || len(entries[0].RetryChain) != 2 {
+		t.Fatalf("expected one history entry with two retry attempts, got %#v", entries)
+	}
+	if entries[0].RetryChain[0].Status != http.StatusInternalServerError || !entries[0].RetryChain[0].CooldownTriggered {
+		t.Fatalf("expected 500 retry attempt to record transient cooldown, got %#v", entries[0].RetryChain[0])
+	}
+}
+
 func TestServiceRecordsTokenUsageFromJSONResponse(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

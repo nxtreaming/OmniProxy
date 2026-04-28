@@ -25,6 +25,8 @@ type Service struct {
 	tokens  *token.Manager
 	logs    *logs.Recorder
 	history *history.Recorder
+	router  Router
+	retry   RetryPolicy
 	client  *http.Client
 }
 
@@ -64,6 +66,8 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 		tokens:  tokens,
 		logs:    recorder,
 		history: requestHistory,
+		router:  NewRouter(cfg),
+		retry:   NewRetryPolicy(cfg),
 		client:  &http.Client{Timeout: 0},
 	}, nil
 }
@@ -116,14 +120,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	excluded := map[string]bool{}
-	attempts := s.cfg.MaxRetries + 1
-	if attempts < 1 {
-		attempts = 1
-	}
+	attempts := s.retry.Attempts()
 
 	var lastErr error
 	var lastStatus int
-	route := s.routeForRequest(r.URL, bodyBytes)
+	route := s.router.Route(r.URL, bodyBytes)
 	retryChain := make([]history.RetryAttempt, 0, attempts)
 
 	for attempt := 1; attempt <= attempts; attempt++ {
@@ -159,10 +160,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = s.tokens.RecordUsage(selected.ID, -1)
 		}
 
-		if shouldRetry(resp.StatusCode) && attempt < attempts {
+		if s.retry.ShouldRetryStatus(resp.StatusCode, attempt) {
 			_ = s.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
-			if resp.StatusCode == http.StatusTooManyRequests {
-				_ = s.tokens.MarkExhaustedUntil(selected.ID, "upstream returned 429", cooldownUntilFromHeaders(resp.Header))
+			cooldownUntil := s.retry.CooldownUntil(resp.StatusCode, resp.Header)
+			cooldownTriggered := cooldownUntil != nil
+			if cooldownTriggered {
+				_ = s.tokens.MarkExhaustedUntil(selected.ID, fmt.Sprintf("upstream returned %d", resp.StatusCode), cooldownUntil)
 			}
 			excluded[selected.ID] = true
 			closeBody(resp.Body)
@@ -175,15 +178,16 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				TokenName: selected.Name,
 				Message:   proxyLogMessage(route.Model, token.TokenConsumption{}, "switching token after retryable upstream response"),
 			})
-			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, resp.StatusCode, time.Since(attemptStart).Milliseconds(), resp.StatusCode == http.StatusTooManyRequests, "switching token after retryable upstream response")
+			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, resp.StatusCode, time.Since(attemptStart).Milliseconds(), cooldownTriggered, "switching token after retryable upstream response")
 			continue
 		}
 
 		consumption, responseBody := s.writeResponse(w, resp)
 		_ = s.tokens.RecordProxyUsage(selected.ID, consumption)
-		cooldownTriggered := resp.StatusCode == http.StatusTooManyRequests
+		cooldownUntil := s.retry.CooldownUntil(resp.StatusCode, resp.Header)
+		cooldownTriggered := cooldownUntil != nil
 		if cooldownTriggered {
-			_ = s.tokens.MarkExhaustedUntil(selected.ID, "upstream returned 429", cooldownUntilFromHeaders(resp.Header))
+			_ = s.tokens.MarkExhaustedUntil(selected.ID, fmt.Sprintf("upstream returned %d", resp.StatusCode), cooldownUntil)
 		}
 		s.tokens.Release(selected.ID)
 		s.refreshQuotaAfterTask(selected)
@@ -226,7 +230,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) forward(ctx context.Context, original *http.Request, route routeInfo, body []byte, selected token.Token) (*http.Response, error) {
-	targetURL, err := s.targetURL(route, selected)
+	targetURL, err := s.router.TargetURL(route, selected)
 	if err != nil {
 		return nil, err
 	}
@@ -280,14 +284,11 @@ func (s *Service) refreshQuotaAfterTask(selected token.Token) {
 
 func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	route := s.routeForRequest(r.URL, nil)
+	route := s.router.Route(r.URL, nil)
 	route.CredentialType = token.CredentialTypeCodexAuthJSON
 
 	excluded := map[string]bool{}
-	attempts := s.cfg.MaxRetries + 1
-	if attempts < 1 {
-		attempts = 1
-	}
+	attempts := s.retry.Attempts()
 
 	var selected token.Token
 	var upstream *websocket.Conn
@@ -306,7 +307,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 		selected = next
 
-		targetURL, err := s.targetWebSocketURL(route, selected)
+		targetURL, err := s.router.TargetWebSocketURL(route, selected)
 		if err != nil {
 			lastErr = err
 			s.tokens.Release(selected.ID)
@@ -337,10 +338,12 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		if upstreamResp != nil {
 			lastStatus = upstreamResp.StatusCode
 		}
-		if shouldRetry(lastStatus) && attempt < attempts {
+		if s.retry.ShouldRetryStatus(lastStatus, attempt) {
 			_ = s.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
-			if lastStatus == http.StatusTooManyRequests {
-				_ = s.tokens.MarkExhaustedUntil(selected.ID, "upstream websocket returned 429", cooldownUntilFromHeaders(responseHeaders(upstreamResp)))
+			cooldownUntil := s.retry.CooldownUntil(lastStatus, responseHeaders(upstreamResp))
+			cooldownTriggered := cooldownUntil != nil
+			if cooldownTriggered {
+				_ = s.tokens.MarkExhaustedUntil(selected.ID, fmt.Sprintf("upstream websocket returned %d", lastStatus), cooldownUntil)
 			}
 			excluded[selected.ID] = true
 			closeBody(upstreamRespBody(upstreamResp))
@@ -353,7 +356,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 				TokenName: selected.Name,
 				Message:   "switching token after retryable upstream websocket response",
 			})
-			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, lastStatus, time.Since(attemptStart).Milliseconds(), lastStatus == http.StatusTooManyRequests, "switching token after retryable upstream websocket response")
+			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, lastStatus, time.Since(attemptStart).Milliseconds(), cooldownTriggered, "switching token after retryable upstream websocket response")
 			continue
 		}
 		retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, lastStatus, time.Since(attemptStart).Milliseconds(), false, fmt.Sprintf("upstream websocket failed: %v", err))
@@ -440,261 +443,11 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.recordHistory(r, route, &selected, http.StatusSwitchingProtocols, time.Since(start).Milliseconds(), consumption, level, message, retryChain...)
 }
 
-func (s *Service) targetWebSocketURL(route routeInfo, selected token.Token) (string, error) {
-	targetURL, err := s.targetURL(route, selected)
-	if err != nil {
-		return "", err
-	}
-	parsed, err := url.Parse(targetURL)
-	if err != nil {
-		return "", err
-	}
-	switch parsed.Scheme {
-	case "https":
-		parsed.Scheme = "wss"
-	case "http":
-		parsed.Scheme = "ws"
-	default:
-		return "", fmt.Errorf("unsupported websocket upstream scheme %q", parsed.Scheme)
-	}
-	return parsed.String(), nil
-}
-
-func (s *Service) targetURL(route routeInfo, selected token.Token) (string, error) {
-	baseURL := s.baseURL(route, selected)
-	if baseURL == "" {
-		return "", fmt.Errorf("%s upstream base url is not configured", route.Provider)
-	}
-	base, err := url.Parse(baseURL)
-	if err != nil {
-		return "", err
-	}
-
-	out := *base
-	out.Path = singleJoiningSlash(base.Path, upstreamPath(route.Path, selected))
-	out.RawQuery = route.RawQuery
-	return out.String(), nil
-}
-
-type routeInfo struct {
-	Provider       string
-	CredentialType string
-	Protocol       string
-	Model          string
-	Path           string
-	RawQuery       string
-}
-
 func (s *Service) acquireToken(route routeInfo, excluded map[string]bool) (token.Token, error) {
 	if s.cfg.SchedulingMode == config.SchedulingModeBalanced {
 		return s.tokens.AcquireBalancedMatching(route.Provider, route.CredentialType, excluded)
 	}
 	return s.tokens.AcquireMatching(route.Provider, route.CredentialType, excluded)
-}
-
-func (s *Service) routeForRequest(incoming *url.URL, body []byte) routeInfo {
-	provider := token.ProviderOpenAI
-	credentialType := ""
-	path := incoming.Path
-	model := requestModel(body)
-	if isAnthropicRouterPath(path) {
-		return routeInfo{
-			Provider: providerForModel(model),
-			Protocol: "anthropic",
-			Model:    model,
-			Path:     stripPathPrefix(path, "/anthropic-router"),
-			RawQuery: incoming.RawQuery,
-		}
-	}
-
-	trimmed := strings.TrimPrefix(path, "/")
-	parts := strings.SplitN(trimmed, "/", 2)
-	if len(parts) > 0 {
-		candidate := strings.ToLower(parts[0])
-		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi:
-			provider = candidate
-			if len(parts) == 2 {
-				path = "/" + parts[1]
-			} else {
-				path = "/"
-			}
-		case "codex":
-			provider = token.ProviderOpenAI
-			credentialType = token.CredentialTypeCodexAuthJSON
-			if len(parts) == 2 {
-				path = "/" + parts[1]
-			} else {
-				path = "/"
-			}
-		}
-	}
-	if isCodexProxyPath(path) {
-		credentialType = token.CredentialTypeCodexAuthJSON
-	}
-	protocol := "openai"
-	if provider == token.ProviderAnthropic {
-		protocol = "anthropic"
-	}
-	if provider == token.ProviderDeepSeek {
-		if path == "/anthropic" {
-			path = "/"
-			protocol = "anthropic"
-		} else if strings.HasPrefix(path, "/anthropic/") {
-			path = "/" + strings.TrimPrefix(path, "/anthropic/")
-			protocol = "anthropic"
-		}
-	}
-	if provider == token.ProviderKimi {
-		if path == "/anthropic" {
-			path = "/"
-			protocol = "anthropic"
-		} else if strings.HasPrefix(path, "/anthropic/") {
-			path = "/" + strings.TrimPrefix(path, "/anthropic/")
-			protocol = "anthropic"
-		}
-	}
-	if provider == token.ProviderXiaomi {
-		if path == "/anthropic" {
-			path = "/"
-			protocol = "anthropic"
-		} else if strings.HasPrefix(path, "/anthropic/") {
-			path = "/" + strings.TrimPrefix(path, "/anthropic/")
-			protocol = "anthropic"
-		}
-	}
-	return routeInfo{Provider: provider, CredentialType: credentialType, Protocol: protocol, Model: model, Path: path, RawQuery: incoming.RawQuery}
-}
-
-func isAnthropicRouterPath(path string) bool {
-	return path == "/anthropic-router" || strings.HasPrefix(path, "/anthropic-router/")
-}
-
-func isAnthropicRouterProbe(r *http.Request) bool {
-	if r.URL == nil || r.URL.Path != "/anthropic-router" {
-		return false
-	}
-	return r.Method == http.MethodHead || r.Method == http.MethodGet
-}
-
-func isCodexResponsesProbe(r *http.Request) bool {
-	if r.URL == nil || (r.Method != http.MethodHead && r.Method != http.MethodGet) {
-		return false
-	}
-	if isWebSocketUpgrade(r) {
-		return false
-	}
-	path := stripPathPrefix(r.URL.Path, "/backend-api/codex")
-	path = stripPathPrefix(path, "/v1")
-	return path == "/responses"
-}
-
-func isCodexResponsesWebSocket(r *http.Request) bool {
-	if r.URL == nil || r.Method != http.MethodGet || !isWebSocketUpgrade(r) {
-		return false
-	}
-	path := stripPathPrefix(r.URL.Path, "/backend-api/codex")
-	path = stripPathPrefix(path, "/v1")
-	return path == "/responses"
-}
-
-func isWebSocketUpgrade(r *http.Request) bool {
-	return tokenListContains(r.Header.Get("Connection"), "upgrade") &&
-		strings.EqualFold(strings.TrimSpace(r.Header.Get("Upgrade")), "websocket")
-}
-
-func requestModel(body []byte) string {
-	var payload struct {
-		Model string `json:"model"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(payload.Model)
-}
-
-func providerForModel(model string) string {
-	model = strings.ToLower(strings.TrimSpace(model))
-	if model == "" {
-		return token.ProviderAnthropic
-	}
-
-	if strings.HasPrefix(model, "mimo-") {
-		return token.ProviderXiaomi
-	}
-	if strings.HasPrefix(model, "deepseek-") {
-		return token.ProviderDeepSeek
-	}
-	if strings.HasPrefix(model, "kimi-") {
-		return token.ProviderKimi
-	}
-	return token.ProviderAnthropic
-}
-
-func (s *Service) baseURL(route routeInfo, selected token.Token) string {
-	if isCodexCredential(selected) {
-		return s.cfg.CodexBaseURL
-	}
-
-	switch token.NormalizeProvider(route.Provider) {
-	case token.ProviderAnthropic:
-		return s.cfg.AnthropicBaseURL
-	case token.ProviderDeepSeek:
-		if route.Protocol == "anthropic" {
-			return s.cfg.DeepSeekAnthropicBaseURL
-		}
-		return s.cfg.DeepSeekBaseURL
-	case token.ProviderKimi:
-		return s.cfg.KimiBaseURL
-	case token.ProviderXiaomi:
-		if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
-			if route.Protocol == "anthropic" {
-				return s.cfg.XiaomiTokenPlanAnthropicBaseURL
-			}
-			return s.cfg.XiaomiTokenPlanBaseURL
-		}
-		if route.Protocol == "anthropic" {
-			return s.cfg.XiaomiAPIAnthropicBaseURL
-		}
-		return s.cfg.XiaomiAPIBaseURL
-	default:
-		if s.cfg.OpenAIBaseURL != "" {
-			return s.cfg.OpenAIBaseURL
-		}
-		return s.cfg.UpstreamBaseURL
-	}
-}
-
-func isCodexCredential(selected token.Token) bool {
-	return token.NormalizeProvider(selected.Provider) == token.ProviderOpenAI &&
-		selected.CredentialType == token.CredentialTypeCodexAuthJSON
-}
-
-func upstreamPath(path string, selected token.Token) string {
-	if !isCodexCredential(selected) {
-		return path
-	}
-	next := stripPathPrefix(path, "/backend-api/codex")
-	next = stripPathPrefix(next, "/v1")
-	if next == "" {
-		return "/"
-	}
-	return next
-}
-
-func stripPathPrefix(path string, prefix string) string {
-	if path == prefix {
-		return "/"
-	}
-	withSlash := prefix + "/"
-	if strings.HasPrefix(path, withSlash) {
-		return "/" + strings.TrimPrefix(path, withSlash)
-	}
-	return path
-}
-
-func isCodexProxyPath(path string) bool {
-	return path == "/backend-api/codex" || strings.HasPrefix(path, "/backend-api/codex/")
 }
 
 func (s *Service) writeResponse(w http.ResponseWriter, resp *http.Response) (token.TokenConsumption, []byte) {
@@ -731,10 +484,6 @@ func parseRemaining(header http.Header) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-func shouldRetry(status int) bool {
-	return status == http.StatusTooManyRequests || status == http.StatusBadGateway || status == http.StatusServiceUnavailable || status == http.StatusGatewayTimeout
 }
 
 func levelForStatus(status int) logs.Level {
@@ -1026,15 +775,6 @@ func isNormalWebSocketClose(err error) bool {
 		websocket.CloseNoStatusReceived)
 }
 
-func tokenListContains(value string, token string) bool {
-	for _, part := range strings.Split(value, ",") {
-		if strings.EqualFold(strings.TrimSpace(part), token) {
-			return true
-		}
-	}
-	return false
-}
-
 func upstreamRespBody(resp *http.Response) io.Closer {
 	if resp == nil {
 		return nil
@@ -1047,52 +787,6 @@ func responseHeaders(resp *http.Response) http.Header {
 		return nil
 	}
 	return resp.Header
-}
-
-func cooldownUntilFromHeaders(header http.Header) *time.Time {
-	now := time.Now()
-	for _, key := range []string{
-		"Retry-After",
-		"X-RateLimit-Reset",
-		"X-RateLimit-Reset-Requests",
-		"X-RateLimit-Reset-Tokens",
-	} {
-		value := strings.TrimSpace(header.Get(key))
-		if value == "" {
-			continue
-		}
-		if until, ok := parseCooldownTime(now, value); ok && until.After(now) {
-			return &until
-		}
-	}
-	until := now.Add(5 * time.Minute)
-	return &until
-}
-
-func cooldownUntilFromValidation(result ValidationResult) *time.Time {
-	now := time.Now()
-	if result.Usage != nil && result.Usage.PrimaryResetAt > now.Unix() {
-		until := time.Unix(result.Usage.PrimaryResetAt, 0)
-		return &until
-	}
-	until := now.Add(5 * time.Minute)
-	return &until
-}
-
-func parseCooldownTime(now time.Time, value string) (time.Time, bool) {
-	if seconds, err := strconv.Atoi(value); err == nil {
-		if seconds > 1_000_000_000 {
-			return time.Unix(int64(seconds), 0), true
-		}
-		return now.Add(time.Duration(seconds) * time.Second), true
-	}
-	if parsed, err := http.ParseTime(value); err == nil {
-		return parsed, true
-	}
-	if duration, err := time.ParseDuration(value); err == nil {
-		return now.Add(duration), true
-	}
-	return time.Time{}, false
 }
 
 func readProxyRequestBody(body io.ReadCloser) ([]byte, error) {
@@ -1115,19 +809,6 @@ func readProxyRequestBody(body io.ReadCloser) ([]byte, error) {
 func closeBody(body io.Closer) {
 	if body != nil {
 		_ = body.Close()
-	}
-}
-
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasPrefix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		return a + "/" + b
-	default:
-		return a + b
 	}
 }
 
