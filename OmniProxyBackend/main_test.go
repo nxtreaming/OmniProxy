@@ -336,6 +336,26 @@ func TestCurrentQuotaRefreshCandidateSkipsValidationOnlyUsage(t *testing.T) {
 	}
 }
 
+func TestCurrentQuotaRefreshCandidateSkipsBackoff(t *testing.T) {
+	now := time.Now()
+	nextCheckAt := now.Add(time.Minute)
+	usedAt := now.Add(-time.Second)
+	item := token.Token{
+		ID:         "backoff",
+		TokenValue: "sk-backoff-token",
+		Status:     token.StatusActive,
+		Health: token.HealthInfo{
+			NextCheckAt: &nextCheckAt,
+		},
+		Stats: token.TokenStats{
+			UpdatedAt: &usedAt,
+		},
+	}
+	if selected, ok := currentQuotaRefreshCandidate([]token.Token{item}, now); ok {
+		t.Fatalf("expected backoff token to be skipped, got %#v", selected)
+	}
+}
+
 func TestConfigureCodexSyncsExistingAuthJSON(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

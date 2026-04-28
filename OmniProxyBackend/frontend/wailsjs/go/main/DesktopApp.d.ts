@@ -4,8 +4,6 @@ import {main} from '../models';
 import {config} from '../models';
 import {token} from '../models';
 import {history} from '../models';
-import {logs} from '../models';
-import {proxy} from '../models';
 
 export function AutoStartStatus():Promise<Record<string, any>>;
 
@@ -33,11 +31,11 @@ export function DeleteToken(arg1:string):Promise<void>;
 
 export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<string>;
 
-export function Logs():Promise<Array<logs.Entry>>;
+export function Logs():Promise<Array<main.logResponse>>;
 
 export function ProxyStatus():Promise<Record<string, any>>;
 
-export function RequestHistory(arg1:history.Filter):Promise<Array<history.Entry>>;
+export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyResponse>>;
 
 export function RestoreCodex():Promise<main.codexConfigureResult>;
 
@@ -59,4 +57,4 @@ export function Tokens():Promise<Array<main.tokenResponse>>;
 
 export function UpdateToken(arg1:string,arg2:token.UpsertRequest):Promise<main.tokenResponse>;
 
-export function ValidateToken(arg1:string):Promise<proxy.ValidationResult>;
+export function ValidateToken(arg1:string):Promise<main.validationResponse>;

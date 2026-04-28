@@ -18,7 +18,6 @@ import (
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/proxy"
 	"OmniProxyBackend/internal/token"
 	"OmniProxyBackend/internal/tray"
 
@@ -200,10 +199,10 @@ func (a *DesktopApp) DeleteToken(id string) error {
 	return nil
 }
 
-func (a *DesktopApp) ValidateToken(id string) (proxy.ValidationResult, error) {
+func (a *DesktopApp) ValidateToken(id string) (validationResponse, error) {
 	selected, err := a.server.tokens.Get(id)
 	if err != nil {
-		return proxy.ValidationResult{}, err
+		return validationResponse{}, err
 	}
 
 	result, err := a.server.validateAndRecordToken(a.callContext(), selected)
@@ -218,7 +217,7 @@ func (a *DesktopApp) ValidateToken(id string) (proxy.ValidationResult, error) {
 		TokenName: selected.Name,
 		Message:   "token validation completed",
 	})
-	return result, err
+	return validationResponseFor(result), err
 }
 
 func (a *DesktopApp) Config() config.Config {
@@ -231,18 +230,18 @@ func (a *DesktopApp) SaveConfig(cfg config.Config) (config.Config, error) {
 	return a.server.saveConfig(cfg)
 }
 
-func (a *DesktopApp) Logs() []logs.Entry {
-	return a.server.logs.List()
+func (a *DesktopApp) Logs() []logResponse {
+	return logResponses(a.server.logs.List())
 }
 
-func (a *DesktopApp) RequestHistory(filter history.Filter) []history.Entry {
+func (a *DesktopApp) RequestHistory(filter history.Filter) []historyResponse {
 	if a.server.history == nil {
-		return []history.Entry{}
+		return []historyResponse{}
 	}
 	if filter.Limit <= 0 {
 		filter.Limit = 5000
 	}
-	return a.server.history.List(filter)
+	return historyResponses(a.server.history.List(filter))
 }
 
 func (a *DesktopApp) ExportRequestHistory(format string, filter history.Filter) (string, error) {

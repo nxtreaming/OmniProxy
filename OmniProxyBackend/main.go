@@ -364,10 +364,10 @@ func (a *appServer) handleTokenValidate(w http.ResponseWriter, r *http.Request, 
 	})
 
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, result)
+		writeJSON(w, http.StatusBadGateway, validationResponseFor(result))
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, validationResponseFor(result))
 }
 
 func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.Token) (proxy.ValidationResult, error) {
@@ -515,6 +515,9 @@ func currentQuotaRefreshCandidate(items []token.Token, now time.Time) (token.Tok
 		if item.CooldownUntil != nil && now.Before(*item.CooldownUntil) {
 			continue
 		}
+		if item.Health.NextCheckAt != nil && now.Before(*item.Health.NextCheckAt) {
+			continue
+		}
 		if !found || item.Stats.UpdatedAt.After(*selected.Stats.UpdatedAt) {
 			selected = item
 			found = true
@@ -656,7 +659,7 @@ func (a *appServer) handleLogs(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	writeJSON(w, http.StatusOK, a.logs.List())
+	writeJSON(w, http.StatusOK, logResponses(a.logs.List()))
 }
 
 func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -669,7 +672,7 @@ func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 	recorder := a.history
 	a.mu.Unlock()
 	if recorder == nil {
-		writeJSON(w, http.StatusOK, []history.Entry{})
+		writeJSON(w, http.StatusOK, []historyResponse{})
 		return
 	}
 
@@ -688,7 +691,7 @@ func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 		Search:   strings.TrimSpace(r.URL.Query().Get("search")),
 		Limit:    limit,
 	}
-	writeJSON(w, http.StatusOK, recorder.List(filter))
+	writeJSON(w, http.StatusOK, historyResponses(recorder.List(filter)))
 }
 
 func (a *appServer) handleProxyStatus(w http.ResponseWriter, r *http.Request) {
@@ -998,54 +1001,6 @@ func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 		oldCfg.XiaomiTokenPlanAnthropicBaseURL != nextCfg.XiaomiTokenPlanAnthropicBaseURL ||
 		oldCfg.CodexBaseURL != nextCfg.CodexBaseURL ||
 		oldCfg.MaxRetries != nextCfg.MaxRetries
-}
-
-type tokenResponse struct {
-	ID               string           `json:"id"`
-	Name             string           `json:"name"`
-	Provider         string           `json:"provider"`
-	CredentialType   string           `json:"credentialType"`
-	HasTokenValue    bool             `json:"hasTokenValue"`
-	MaskedTokenValue string           `json:"maskedTokenValue,omitempty"`
-	Remaining        int              `json:"remaining"`
-	Usage            token.UsageInfo  `json:"usage"`
-	Stats            token.TokenStats `json:"stats"`
-	Health           token.HealthInfo `json:"health"`
-	Status           token.Status     `json:"status"`
-	LastUsedAt       *time.Time       `json:"lastUsedAt,omitempty"`
-	LastError        string           `json:"lastError,omitempty"`
-	CooldownUntil    *time.Time       `json:"cooldownUntil,omitempty"`
-	CreatedAt        time.Time        `json:"createdAt"`
-	UpdatedAt        time.Time        `json:"updatedAt"`
-}
-
-func tokenResponses(items []token.Token) []tokenResponse {
-	out := make([]tokenResponse, len(items))
-	for i, item := range items {
-		out[i] = tokenResponseFor(item)
-	}
-	return out
-}
-
-func tokenResponseFor(item token.Token) tokenResponse {
-	return tokenResponse{
-		ID:               item.ID,
-		Name:             item.Name,
-		Provider:         item.Provider,
-		CredentialType:   item.CredentialType,
-		HasTokenValue:    strings.TrimSpace(item.TokenValue) != "",
-		MaskedTokenValue: maskedTokenValue(item),
-		Remaining:        item.Remaining,
-		Usage:            item.Usage,
-		Stats:            item.Stats,
-		Health:           item.Health,
-		Status:           item.Status,
-		LastUsedAt:       item.LastUsedAt,
-		LastError:        item.LastError,
-		CooldownUntil:    item.CooldownUntil,
-		CreatedAt:        item.CreatedAt,
-		UpdatedAt:        item.UpdatedAt,
-	}
 }
 
 func maskedTokenValue(item token.Token) string {
