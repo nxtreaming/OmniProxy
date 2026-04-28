@@ -104,8 +104,10 @@ FunctionEnd
 
 Function ensureAppNotRunning
 check:
-    FindWindow $0 "" "${INFO_PRODUCTNAME}"
-    ${If} $0 == 0
+    nsExec::ExecToStack 'cmd /C tasklist /FI $\"IMAGENAME eq ${PRODUCT_EXECUTABLE}$\" /NH | find /I $\"${PRODUCT_EXECUTABLE}$\" >NUL'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
         Return
     ${EndIf}
 
