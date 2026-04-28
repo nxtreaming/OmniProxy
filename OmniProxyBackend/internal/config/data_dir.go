@@ -156,7 +156,7 @@ func CopyDataFiles(srcDir string, dstDir string) ([]string, []string, error) {
 
 	var copied []string
 	var skipped []string
-	for _, name := range []string{"config.json", "tokens.json", "request_history.json"} {
+	for _, name := range []string{"config.json", "tokens.json", "request_history.db", "request_history.json"} {
 		srcPath := filepath.Join(src, name)
 		dstPath := filepath.Join(dst, name)
 		if _, err := os.Stat(srcPath); err != nil {
@@ -198,7 +198,7 @@ func readBootstrapDataDir(path string) (string, error) {
 }
 
 func dataDirHasFiles(dataDir string) bool {
-	for _, name := range []string{"config.json", "tokens.json", "request_history.json"} {
+	for _, name := range []string{"config.json", "tokens.json", "request_history.db", "request_history.json"} {
 		if _, err := os.Stat(filepath.Join(dataDir, name)); err == nil {
 			return true
 		}

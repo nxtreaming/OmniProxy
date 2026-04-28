@@ -78,7 +78,7 @@ func (a *DesktopApp) shutdown(ctx context.Context) {
 		}
 	}
 	if a.server.history != nil {
-		if err := a.server.history.Flush(); err != nil {
+		if err := a.server.history.Close(); err != nil {
 			log.Printf("request history flush failed: %v", err)
 		}
 	}

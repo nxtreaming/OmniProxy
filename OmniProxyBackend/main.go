@@ -130,9 +130,17 @@ func (a *appServer) loadData(dataDir string) error {
 	if err != nil {
 		return fmt.Errorf("load tokens: %w", err)
 	}
-	historyStore := storage.NewJSONStore[[]history.Entry](filepath.Join(dataDir, "request_history.json"))
+	historyStore, err := history.NewSQLiteStore(filepath.Join(dataDir, "request_history.db"))
+	if err != nil {
+		return fmt.Errorf("open request history database: %w", err)
+	}
+	if err := migrateLegacyRequestHistory(historyStore, filepath.Join(dataDir, "request_history.json")); err != nil {
+		_ = historyStore.Close()
+		return fmt.Errorf("migrate request history: %w", err)
+	}
 	historyRecorder, err := history.NewRecorder(historyStore, 5000)
 	if err != nil {
+		_ = historyStore.Close()
 		return fmt.Errorf("load request history: %w", err)
 	}
 
@@ -144,6 +152,26 @@ func (a *appServer) loadData(dataDir string) error {
 	a.history = historyRecorder
 	a.mu.Unlock()
 	return nil
+}
+
+func migrateLegacyRequestHistory(store history.Store, legacyPath string) error {
+	existing, err := store.Load()
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		return nil
+	}
+
+	legacyStore := storage.NewJSONStore[[]history.Entry](legacyPath)
+	entries, err := legacyStore.Load()
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	return store.Save(entries)
 }
 
 func (a *appServer) isLoaded() bool {

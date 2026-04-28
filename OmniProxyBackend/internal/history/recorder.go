@@ -15,6 +15,13 @@ type Store interface {
 	Save([]Entry) error
 }
 
+type QueryStore interface {
+	Store
+	Append(Entry) error
+	List(Filter, int) ([]Entry, error)
+	Prune(int) error
+}
+
 type Entry struct {
 	ID                int64          `json:"id"`
 	Time              time.Time      `json:"time"`
@@ -62,6 +69,7 @@ type Filter struct {
 type Recorder struct {
 	mu           sync.RWMutex
 	store        Store
+	queryStore   QueryStore
 	max          int
 	nextID       int64
 	entries      []Entry
@@ -92,6 +100,7 @@ func NewRecorder(store Store, max int) (*Recorder, error) {
 
 	return &Recorder{
 		store:        store,
+		queryStore:   queryStore(store),
 		max:          max,
 		nextID:       nextID,
 		entries:      entries,
@@ -115,18 +124,26 @@ func (r *Recorder) Add(entry Entry) Entry {
 	if len(r.entries) > r.max {
 		r.entries = r.entries[len(r.entries)-r.max:]
 	}
+	if r.queryStore != nil {
+		if err := r.queryStore.Append(entry); err == nil {
+			_ = r.queryStore.Prune(r.max)
+			return entry
+		}
+	}
 	_ = r.schedulePersistLocked()
 	return entry
 }
 
 func (r *Recorder) List(filter Filter) []Entry {
+	limit := r.limit(filter)
+	if r.queryStore != nil {
+		if out, err := r.queryStore.List(filter, limit); err == nil {
+			return out
+		}
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	limit := filter.Limit
-	if limit <= 0 || limit > r.max {
-		limit = r.max
-	}
 
 	out := make([]Entry, 0, len(r.entries))
 	for _, entry := range r.entries {
@@ -144,6 +161,16 @@ func (r *Recorder) List(filter Filter) []Entry {
 	return out
 }
 
+func (r *Recorder) Close() error {
+	if err := r.Flush(); err != nil {
+		return err
+	}
+	if closer, ok := r.store.(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
 func (r *Recorder) Flush() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -158,6 +185,17 @@ func (r *Recorder) Flush() error {
 	return r.persistLocked()
 }
 
+func (r *Recorder) limit(filter Filter) int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	limit := filter.Limit
+	if limit <= 0 || limit > r.max {
+		limit = r.max
+	}
+	return limit
+}
+
 func (r *Recorder) schedulePersistLocked() error {
 	r.dirty = true
 	if r.persistDelay <= 0 {
@@ -169,6 +207,14 @@ func (r *Recorder) schedulePersistLocked() error {
 		})
 	}
 	return nil
+}
+
+func queryStore(store Store) QueryStore {
+	query, ok := store.(QueryStore)
+	if !ok {
+		return nil
+	}
+	return query
 }
 
 func (r *Recorder) persistLocked() error {
