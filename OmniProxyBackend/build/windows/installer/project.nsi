@@ -77,10 +77,25 @@ ManifestDPIAware true
 Name "${INFO_PRODUCTNAME}"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
 InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}" # Default installing folder ($PROGRAMFILES is Program Files folder).
+InstallDirRegKey HKLM "${UNINST_KEY}" "InstallLocation"
 ShowInstDetails show # This will always show the installation details.
 
 Function .onInit
    !insertmacro wails.checkArchitecture
+   SetRegView 64
+
+   ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
+   ${If} $0 != ""
+       StrCpy $INSTDIR "$0"
+       Return
+   ${EndIf}
+
+   # Older installers did not persist InstallLocation. Reuse DisplayIcon to
+   # recover the existing install directory for upgrades from those versions.
+   ReadRegStr $0 HKLM "${UNINST_KEY}" "DisplayIcon"
+   ${If} $0 != ""
+       ${GetParent} "$0" $INSTDIR
+   ${EndIf}
 FunctionEnd
 
 Section
@@ -99,6 +114,9 @@ Section
     !insertmacro wails.associateCustomProtocols
 
     !insertmacro wails.writeUninstaller
+
+    SetRegView 64
+    WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
 SectionEnd
 
 Section "uninstall"
