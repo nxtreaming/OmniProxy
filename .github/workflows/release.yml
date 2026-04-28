@@ -52,8 +52,9 @@ jobs:
       - name: Build NSIS installer
         working-directory: OmniProxyBackend
         run: |
+          $version = "${{ github.ref_name }}"
           $wails = Join-Path (go env GOPATH) "bin\wails.exe"
-          & $wails build -clean -nsis
+          & $wails build -clean -nsis -ldflags "-X main.appVersion=$version"
 
       - name: Prepare release assets
         working-directory: OmniProxyBackend

@@ -391,6 +391,30 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class updateInfo {
+	    currentVersion: string;
+	    latestVersion?: string;
+	    updateAvailable: boolean;
+	    releaseUrl?: string;
+	    downloadUrl?: string;
+	    name?: string;
+	    body?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new updateInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.updateAvailable = source["updateAvailable"];
+	        this.releaseUrl = source["releaseUrl"];
+	        this.downloadUrl = source["downloadUrl"];
+	        this.name = source["name"];
+	        this.body = source["body"];
+	    }
+	}
 
 }
 
@@ -625,4 +649,3 @@ export namespace token {
 	}
 
 }
-

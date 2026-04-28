@@ -6,6 +6,10 @@ export function AutoStartStatus() {
   return window['go']['main']['DesktopApp']['AutoStartStatus']();
 }
 
+export function CheckForUpdates() {
+  return window['go']['main']['DesktopApp']['CheckForUpdates']();
+}
+
 export function ChooseDataDirectory(arg1) {
   return window['go']['main']['DesktopApp']['ChooseDataDirectory'](arg1);
 }

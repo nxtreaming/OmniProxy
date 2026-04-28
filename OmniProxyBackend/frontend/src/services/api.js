@@ -1,4 +1,5 @@
 import * as DesktopApp from '../../wailsjs/go/main/DesktopApp'
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 
 const API_BASE = import.meta.env.VITE_OMNIPROXY_API || 'http://127.0.0.1:3890/api'
 
@@ -222,6 +223,21 @@ export function startProxy() {
 
 export function stopProxy() {
   return useWailsBindings() ? DesktopApp.StopProxy() : request('/proxy/stop', { method: 'POST' })
+}
+
+export function checkForUpdates() {
+  return useWailsBindings() && DesktopApp.CheckForUpdates
+    ? DesktopApp.CheckForUpdates()
+    : request('/update/check')
+}
+
+export function openExternalURL(url) {
+  if (!url) return
+  if (useWailsBindings() && window.runtime?.BrowserOpenURL) {
+    BrowserOpenURL(url)
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 export function getAutoStartStatus() {

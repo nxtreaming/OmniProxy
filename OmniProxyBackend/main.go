@@ -250,6 +250,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/proxy/status", a.handleProxyStatus)
 	mux.HandleFunc("/api/proxy/start", a.handleProxyStart)
 	mux.HandleFunc("/api/proxy/stop", a.handleProxyStop)
+	mux.HandleFunc("/api/update/check", a.handleUpdateCheck)
 	mux.HandleFunc("/api/data-directory", a.handleDataDirectory)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
@@ -726,6 +727,19 @@ func (a *appServer) handleProxyStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"running": false})
+}
+
+func (a *appServer) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	info, err := checkForUpdates(r.Context(), http.DefaultClient)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 func (a *appServer) handleDataDirectory(w http.ResponseWriter, r *http.Request) {

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
 import HistoryView from './components/HistoryView.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
@@ -12,6 +13,7 @@ import {
   configureMimoClaude,
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
+  checkForUpdates,
   deleteToken,
   exportHistory,
   getAutoStartStatus,
@@ -21,6 +23,7 @@ import {
   getLogs,
   getProxyStatus,
   getTokens,
+  openExternalURL,
   saveConfig,
   setAutoStart,
   startProxy,
@@ -76,8 +79,10 @@ const codexAuthImporting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const toastAutoCloseMs = 4000
+const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
 let toastTimer = null
 let realtimeTimer = null
+let updateCheckTimer = null
 const validatingIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
@@ -176,6 +181,7 @@ onMounted(async () => {
     isDark.value = true
   }
   await refreshAll()
+  updateCheckTimer = window.setTimeout(checkForAvailableUpdate, 2500)
   realtimeTimer = window.setInterval(refreshRealtime, 3000)
 })
 
@@ -183,6 +189,10 @@ onBeforeUnmount(() => {
   if (realtimeTimer) {
     window.clearInterval(realtimeTimer)
     realtimeTimer = null
+  }
+  if (updateCheckTimer) {
+    window.clearTimeout(updateCheckTimer)
+    updateCheckTimer = null
   }
   if (toastTimer) {
     window.clearTimeout(toastTimer)
@@ -257,6 +267,38 @@ async function refreshRealtime() {
     }
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+async function checkForAvailableUpdate() {
+  let promptedVersion = ''
+  try {
+    const update = await checkForUpdates()
+    if (!update?.updateAvailable || !update.latestVersion) {
+      return
+    }
+    promptedVersion = update.latestVersion
+    if (window.localStorage?.getItem(skippedUpdateVersionKey) === update.latestVersion) {
+      return
+    }
+
+    const releaseURL = update.downloadUrl || update.releaseUrl
+    const currentVersion = update.currentVersion || '当前版本'
+    await ElMessageBox.confirm(
+      `当前版本：${currentVersion}\n最新版本：${update.latestVersion}\n\n是否下载更新安装包？`,
+      `发现新版本 ${update.latestVersion}`,
+      {
+        confirmButtonText: '下载更新',
+        cancelButtonText: '跳过此版本',
+        distinguishCancelAndClose: true,
+        type: 'info',
+      },
+    )
+    openExternalURL(releaseURL)
+  } catch (action) {
+    if (typeof action === 'string' && action === 'cancel' && promptedVersion) {
+      window.localStorage?.setItem(skippedUpdateVersionKey, promptedVersion)
+    }
   }
 }
 

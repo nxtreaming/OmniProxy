@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -320,6 +321,10 @@ func (a *DesktopApp) StopProxy() (map[string]any, error) {
 		return nil, err
 	}
 	return map[string]any{"running": false}, nil
+}
+
+func (a *DesktopApp) CheckForUpdates() (updateInfo, error) {
+	return checkForUpdates(a.callContext(), http.DefaultClient)
 }
 
 func (a *DesktopApp) AutoStartStatus() (map[string]any, error) {
