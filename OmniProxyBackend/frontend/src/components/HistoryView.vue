@@ -45,6 +45,7 @@ const filters = reactive({
 })
 const historyPage = ref(1)
 const historyPageSize = 200
+const modelPieColors = ['#2563eb', '#159a5b', '#e0a11a', '#c43b3b', '#7c3aed', '#0891b2']
 
 const filteredHistory = computed(() => filterHistory(props.entries, filters))
 const historySummary = computed(() => summarizeHistory(filteredHistory.value))
@@ -54,9 +55,31 @@ const historyTrendColumns = computed(() => `repeat(${Math.max(1, historyDailyRow
 const providerRanks = computed(() =>
   rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5),
 )
-const modelRanks = computed(() =>
-  rankHistory(filteredHistory.value, (entry) => entry.model || entry.protocol || '未记录模型', 'totalTokens').slice(0, 5),
+const allModelRanks = computed(() =>
+  rankHistory(filteredHistory.value, (entry) => entry.model || entry.protocol || '未记录模型', 'totalTokens'),
 )
+const modelRanks = computed(() =>
+  allModelRanks.value.slice(0, 5),
+)
+const modelPieSegments = computed(() => buildModelPieSegments(allModelRanks.value))
+const modelPieTotal = computed(() =>
+  modelPieSegments.value.reduce((sum, item) => sum + Number(item.totalTokens || 0), 0),
+)
+const modelPieGradient = computed(() => {
+  const total = modelPieTotal.value
+  if (total <= 0 || !modelPieSegments.value.length) return ''
+
+  let cursor = 0
+  const parts = modelPieSegments.value.map((item, index) => {
+    const start = cursor
+    const end = index === modelPieSegments.value.length - 1
+      ? 360
+      : cursor + (Number(item.totalTokens || 0) / total) * 360
+    cursor = end
+    return `${item.color} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`
+  })
+  return `conic-gradient(${parts.join(', ')})`
+})
 const tokenFailureRanks = computed(() =>
   rankHistory(
     filteredHistory.value.filter(isFailedHistory),
@@ -161,6 +184,24 @@ function rankHistory(items, labelFn, mode) {
   }
   const metric = mode === 'totalTokens' ? 'totalTokens' : 'count'
   return [...groups.values()].sort((a, b) => b[metric] - a[metric] || b.count - a.count)
+}
+
+function buildModelPieSegments(rows) {
+  const ranked = rows.filter((item) => Number(item.totalTokens || 0) > 0)
+  const top = ranked.slice(0, 5)
+  const rest = ranked.slice(5)
+  const restTotal = rest.reduce((sum, item) => sum + Number(item.totalTokens || 0), 0)
+  const restCount = rest.reduce((sum, item) => sum + Number(item.count || 0), 0)
+  const segments = restTotal > 0
+    ? [...top, { label: '其他模型', count: restCount, totalTokens: restTotal, failedCount: 0 }]
+    : top
+  const total = segments.reduce((sum, item) => sum + Number(item.totalTokens || 0), 0)
+
+  return segments.map((item, index) => ({
+    ...item,
+    color: modelPieColors[index % modelPieColors.length],
+    percent: total ? Math.round((Number(item.totalTokens || 0) / total) * 1000) / 10 : 0,
+  }))
 }
 
 function failureReasonLabel(entry) {
@@ -351,10 +392,35 @@ function isFailedHistory(entry) {
         <div v-else class="empty compact-empty">暂无趋势数据</div>
       </div>
 
-      <div class="history-insight-panel">
+      <div class="history-insight-panel model-insight-panel">
         <div class="history-insight-head">
           <span>模型消耗</span>
           <strong>{{ modelRanks.length }}</strong>
+        </div>
+        <div v-if="modelPieSegments.length" class="model-pie-layout">
+          <div
+            class="model-pie-chart"
+            :style="{ background: modelPieGradient }"
+            role="img"
+            :aria-label="`模型 Token 消耗占比，共 ${formatNumber(modelPieTotal)} Token`"
+          >
+            <div>
+              <span>{{ formatNumber(modelPieTotal) }}</span>
+              <small>Token</small>
+            </div>
+          </div>
+          <div class="model-pie-legend">
+            <div
+              v-for="item in modelPieSegments"
+              :key="item.label"
+              class="model-pie-item"
+              :title="`${item.label} · ${formatNumber(item.totalTokens)} Token · ${item.percent}%`"
+            >
+              <i :style="{ background: item.color }"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.percent }}%</strong>
+            </div>
+          </div>
         </div>
         <div class="rank-list">
           <div v-for="item in modelRanks" :key="item.label" class="rank-row">
