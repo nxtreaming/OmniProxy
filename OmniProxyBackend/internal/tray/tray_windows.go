@@ -63,8 +63,10 @@ var (
 	procAppendMenu          = user32.NewProc("AppendMenuW")
 	procTrackPopupMenu      = user32.NewProc("TrackPopupMenu")
 	procDestroyMenu         = user32.NewProc("DestroyMenu")
+	procDestroyIcon         = user32.NewProc("DestroyIcon")
 	procGetModuleHandle     = kernel32.NewProc("GetModuleHandleW")
 	procShellNotifyIcon     = shell32.NewProc("Shell_NotifyIconW")
+	procExtractIconEx       = shell32.NewProc("ExtractIconExW")
 
 	activeMu      sync.RWMutex
 	activeManager *Manager
@@ -74,6 +76,7 @@ var (
 type Manager struct {
 	opts  Options
 	hwnd  uintptr
+	hicon uintptr
 	ready chan error
 	done  chan struct{}
 	once  sync.Once
@@ -213,6 +216,7 @@ func (m *Manager) run() {
 		procDispatchMessage.Call(uintptr(unsafe.Pointer(&message)))
 	}
 	_ = m.deleteIcon()
+	m.destroyIcon()
 }
 
 func (m *Manager) addIcon() error {
@@ -222,7 +226,7 @@ func (m *Manager) addIcon() error {
 		UID:              trayIconID,
 		UFlags:           nifMessage | nifIcon | nifTip,
 		UCallbackMessage: trayCallbackMessage,
-		HIcon:            loadIcon(),
+		HIcon:            m.loadIcon(),
 	}
 	copyUTF16(nid.SzTip[:], m.opts.Tooltip)
 	return shellNotifyIcon(nimAdd, &nid)
@@ -235,6 +239,50 @@ func (m *Manager) deleteIcon() error {
 		UID:    trayIconID,
 	}
 	return shellNotifyIcon(nimDelete, &nid)
+}
+
+func (m *Manager) loadIcon() uintptr {
+	hicon := extractExecutableIcon()
+	if hicon != 0 {
+		m.hicon = hicon
+		return hicon
+	}
+	ret, _, _ := procLoadIcon.Call(0, idiApplication)
+	return ret
+}
+
+func (m *Manager) destroyIcon() {
+	if m.hicon == 0 {
+		return
+	}
+	procDestroyIcon.Call(m.hicon)
+	m.hicon = 0
+}
+
+func extractExecutableIcon() uintptr {
+	executable, err := os.Executable()
+	if err != nil {
+		return 0
+	}
+	var largeIcon uintptr
+	var smallIcon uintptr
+	count, _, _ := procExtractIconEx.Call(
+		uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(executable))),
+		0,
+		uintptr(unsafe.Pointer(&largeIcon)),
+		uintptr(unsafe.Pointer(&smallIcon)),
+		1,
+	)
+	if count == 0 {
+		return 0
+	}
+	if smallIcon != 0 {
+		if largeIcon != 0 {
+			procDestroyIcon.Call(largeIcon)
+		}
+		return smallIcon
+	}
+	return largeIcon
 }
 
 func (m *Manager) handleMessage(hwnd uintptr, message uint32, wParam uintptr, lParam uintptr) uintptr {
@@ -409,11 +457,6 @@ func createHiddenWindow(instance uintptr, className *uint16) (uintptr, error) {
 		return 0, errorFromSyscall("CreateWindowEx", err)
 	}
 	return ret, nil
-}
-
-func loadIcon() uintptr {
-	ret, _, _ := procLoadIcon.Call(0, idiApplication)
-	return ret
 }
 
 func shellNotifyIcon(message uint32, nid *notifyIconData) error {
