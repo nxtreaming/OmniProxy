@@ -58,6 +58,8 @@ ManifestDPIAware true
 !define MUI_UNICON "..\icon.ico"
 # !define MUI_WELCOMEFINISHPAGE_BITMAP "resources\leftimage.bmp" #Include this to add a bitmap on the left side of the Welcome Page. Must be a size of 164x314
 !define MUI_FINISHPAGE_NOAUTOCLOSE # Wait on the INSTFILES page so the user can take a look into the details of the installation steps
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
+!define MUI_FINISHPAGE_RUN_TEXT "立即启动 OmniProxy"
 !define MUI_ABORTWARNING # This will warn the user if they exit from the installer.
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
@@ -80,6 +82,8 @@ InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}" # Default i
 InstallDirRegKey HKLM "${UNINST_KEY}" "InstallLocation"
 ShowInstDetails show # This will always show the installation details.
 
+Var RemoveUserData
+
 Function .onInit
    !insertmacro wails.checkArchitecture
    SetRegView 64
@@ -98,8 +102,40 @@ Function .onInit
    ${EndIf}
 FunctionEnd
 
+Function ensureAppNotRunning
+check:
+    FindWindow $0 "" "${INFO_PRODUCTNAME}"
+    ${If} $0 == 0
+        Return
+    ${EndIf}
+
+    MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "检测到 OmniProxy 正在运行。$\r$\n$\r$\n选择“是”将尝试自动关闭后继续安装；选择“否”可手动关闭后重试；选择“取消”退出安装。" IDYES close IDNO manual IDCANCEL cancel
+
+close:
+    DetailPrint "正在关闭 OmniProxy..."
+    nsExec::ExecToLog 'taskkill /IM "${PRODUCT_EXECUTABLE}" /T'
+    Sleep 1500
+    Goto check
+
+manual:
+    MessageBox MB_OK "请关闭 OmniProxy 后点击确定继续。"
+    Goto check
+
+cancel:
+    Abort
+FunctionEnd
+
+Function un.onInit
+    StrCpy $RemoveUserData "0"
+    MessageBox MB_YESNO|MB_ICONQUESTION "是否保留 OmniProxy 本地数据？$\r$\n$\r$\n选择“是”会保留账号、配置和请求历史；选择“否”会删除默认数据目录和数据目录配置。" IDYES keep IDNO remove
+remove:
+    StrCpy $RemoveUserData "1"
+keep:
+FunctionEnd
+
 Section
     !insertmacro wails.setShellContext
+    Call ensureAppNotRunning
 
     !insertmacro wails.webview2runtime
 
@@ -125,6 +161,11 @@ Section "uninstall"
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
     RMDir /r $INSTDIR
+
+    ${If} $RemoveUserData == "1"
+        RMDir /r "$PROFILE\.omniproxy"
+        RMDir /r "$APPDATA\OmniProxy"
+    ${EndIf}
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
