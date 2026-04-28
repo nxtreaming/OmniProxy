@@ -119,6 +119,20 @@ export function getHistory(filters = {}) {
   return request(`/history?${historyQuery(filters)}`)
 }
 
+export function getDataDirectory() {
+  if (useWailsBindings() && DesktopApp.DataDirectory) {
+    return DesktopApp.DataDirectory()
+  }
+  return request('/data-directory')
+}
+
+export function chooseDataDirectory(migrate = true) {
+  if (useWailsBindings() && DesktopApp.ChooseDataDirectory) {
+    return DesktopApp.ChooseDataDirectory(Boolean(migrate))
+  }
+  return Promise.reject(new Error('更改数据目录需要在桌面客户端中操作'))
+}
+
 export async function exportHistory(format, filters = {}, entries = []) {
   if (useWailsBindings() && DesktopApp.ExportRequestHistory) {
     return DesktopApp.ExportRequestHistory(format, historyFilter(filters))

@@ -1,6 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ChooseDataDirectory, DataDirectory } from '../wailsjs/go/main/DesktopApp'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
 import HistoryView from './components/HistoryView.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
@@ -12,10 +11,12 @@ import {
   configureKimiClaude,
   configureMimoClaude,
   createToken,
+  chooseDataDirectory as chooseDataDirectoryWithDialog,
   deleteToken,
   exportHistory,
   getAutoStartStatus,
   getConfig,
+  getDataDirectory,
   getHistory,
   getLogs,
   getProxyStatus,
@@ -42,6 +43,7 @@ import {
   RefreshRight,
   Setting,
   SwitchButton,
+  Upload,
 } from '@element-plus/icons-vue'
 
 const activeTab = ref('dashboard')
@@ -69,10 +71,13 @@ const dataDirChanging = ref(false)
 const autoStartChanging = ref(false)
 const autoStartEnabled = ref(false)
 const exportingHistory = ref('')
+const codexAuthInput = ref(null)
+const codexAuthImporting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const toastAutoCloseMs = 4000
 let toastTimer = null
+let realtimeTimer = null
 const validatingIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
@@ -128,8 +133,8 @@ const coolingTokens = computed(() => tokens.value.filter((item) => isCooling(ite
 const currentToken = computed(() => {
   const usable = [...activeTokens.value, ...lowTokens.value]
   const lastUsed = usable
-    .filter((item) => item.lastUsedAt)
-    .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime())[0]
+    .filter((item) => item.stats?.updatedAt)
+    .sort((a, b) => new Date(b.stats.updatedAt).getTime() - new Date(a.stats.updatedAt).getTime())[0]
   return lastUsed || usable[0] || null
 })
 const activeProviderInfo = computed(
@@ -171,7 +176,18 @@ onMounted(async () => {
     isDark.value = true
   }
   await refreshAll()
-  window.setInterval(refreshRealtime, 3000)
+  realtimeTimer = window.setInterval(refreshRealtime, 3000)
+})
+
+onBeforeUnmount(() => {
+  if (realtimeTimer) {
+    window.clearInterval(realtimeTimer)
+    realtimeTimer = null
+  }
+  if (toastTimer) {
+    window.clearTimeout(toastTimer)
+    toastTimer = null
+  }
 })
 
 watch([errorMessage, successMessage], ([error, success]) => {
@@ -189,22 +205,26 @@ watch([errorMessage, successMessage], ([error, success]) => {
   }, toastAutoCloseMs)
 })
 
+watch(activeTab, (tab) => {
+  if (tab === 'history') {
+    refreshHistory()
+  }
+})
+
 async function refreshAll() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [loadedTokens, loadedConfig, loadedLogs, loadedStatus, loadedDataDirectory, loadedHistory, loadedAutoStart] = await Promise.all([
+    const [loadedTokens, loadedConfig, loadedLogs, loadedStatus, loadedDataDirectory, loadedAutoStart] = await Promise.all([
       getTokens(),
       getConfig(),
       getLogs(),
       getProxyStatus(),
-      DataDirectory(),
-      getHistory(),
+      getDataDirectory(),
       getAutoStartStatus(),
     ])
     tokens.value = loadedTokens
     logs.value = loadedLogs
-    requestHistory.value = loadedHistory
     Object.assign(config, loadedConfig)
     Object.assign(proxyStatus, loadedStatus)
     Object.assign(dataDirectory, loadedDataDirectory, {
@@ -212,6 +232,9 @@ async function refreshAll() {
       restartRequired: false,
     })
     autoStartEnabled.value = Boolean(loadedAutoStart?.enabled)
+    if (activeTab.value === 'history') {
+      await refreshHistory()
+    }
   } catch (error) {
     errorMessage.value = error.message
   } finally {
@@ -221,16 +244,25 @@ async function refreshAll() {
 
 async function refreshRealtime() {
   try {
-    const [loadedLogs, loadedStatus, loadedTokens, loadedHistory] = await Promise.all([
+    const [loadedLogs, loadedStatus, loadedTokens] = await Promise.all([
       getLogs(),
       getProxyStatus(),
       getTokens(),
-      getHistory(),
     ])
     logs.value = loadedLogs
     tokens.value = loadedTokens
-    requestHistory.value = loadedHistory
     Object.assign(proxyStatus, loadedStatus)
+    if (activeTab.value === 'history') {
+      await refreshHistory()
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+  }
+}
+
+async function refreshHistory(filters = {}) {
+  try {
+    requestHistory.value = await getHistory(filters)
   } catch (error) {
     errorMessage.value = error.message
   }
@@ -370,6 +402,133 @@ async function verifyToken(token) {
   }
 }
 
+function openCodexAuthFilePicker() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  codexAuthInput.value?.click()
+}
+
+async function importCodexAuthFiles(event) {
+  const fileInput = event.target
+  const files = Array.from(fileInput.files || [])
+  fileInput.value = ''
+  if (!files.length) {
+    return
+  }
+
+  activeProvider.value = 'openai'
+  errorMessage.value = ''
+  successMessage.value = ''
+  codexAuthImporting.value = true
+
+  const knownCodexTokens = new Map()
+  const knownOpenAITokens = new Map()
+  tokens.value.forEach((item) => {
+    if (item.provider !== 'openai') return
+    knownOpenAITokens.set(item.name.toLowerCase(), item)
+    if (isCodexToken(item)) {
+      knownCodexTokens.set(item.name.toLowerCase(), item)
+    }
+  })
+
+  const summary = {
+    created: 0,
+    updated: 0,
+    failed: [],
+  }
+
+  try {
+    for (const file of files) {
+      try {
+        const tokenValue = (await file.text()).trim()
+        const email = codexEmailFromAuthJSON(tokenValue)
+        const key = email.toLowerCase()
+        const sameNameToken = knownOpenAITokens.get(key)
+        if (sameNameToken && !isCodexToken(sameNameToken)) {
+          throw new Error(`同名 OpenAI 账号已存在，且不是 Codex auth.json`)
+        }
+
+        const payload = {
+          name: '',
+          provider: 'openai',
+          credentialType: 'codex_auth_json',
+          tokenValue,
+        }
+        const existing = knownCodexTokens.get(key)
+        if (existing) {
+          const updated = await updateToken(existing.id, payload)
+          knownCodexTokens.set(key, updated)
+          knownOpenAITokens.set(key, updated)
+          summary.updated += 1
+        } else {
+          const created = await createToken(payload)
+          knownCodexTokens.set(key, created)
+          knownOpenAITokens.set(key, created)
+          summary.created += 1
+        }
+      } catch (error) {
+        summary.failed.push(`${file.name}: ${error.message}`)
+      }
+    }
+
+    await refreshAll()
+    const importedCount = summary.created + summary.updated
+    if (importedCount) {
+      const parts = []
+      if (summary.created) parts.push(`新增 ${summary.created} 个`)
+      if (summary.updated) parts.push(`更新 ${summary.updated} 个`)
+      successMessage.value = `Codex auth 文件导入完成：${parts.join('，')}`
+    }
+    if (summary.failed.length) {
+      errorMessage.value = `导入失败 ${summary.failed.length} 个：${summary.failed.slice(0, 3).join('；')}`
+    }
+    if (!importedCount && !summary.failed.length) {
+      successMessage.value = '没有可导入的 auth 文件'
+    }
+  } finally {
+    codexAuthImporting.value = false
+  }
+}
+
+function codexEmailFromAuthJSON(text) {
+  let data
+  try {
+    data = JSON.parse(text)
+  } catch {
+    throw new Error('不是有效 JSON')
+  }
+
+  const idToken = data?.tokens?.id_token
+  if (typeof idToken !== 'string' || !idToken.trim()) {
+    throw new Error('缺少 tokens.id_token')
+  }
+  const parts = idToken.split('.')
+  if (parts.length !== 3) {
+    throw new Error('tokens.id_token 格式不正确')
+  }
+
+  let payload
+  try {
+    payload = JSON.parse(decodeBase64URL(parts[1]))
+  } catch {
+    throw new Error('无法解析 tokens.id_token')
+  }
+
+  const email = payload?.['https://api.openai.com/profile']?.email || payload?.email
+  if (typeof email !== 'string' || !email.trim()) {
+    throw new Error('tokens.id_token 中没有邮箱')
+  }
+  return email.trim()
+}
+
+function decodeBase64URL(value) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
+  const binary = window.atob(padded)
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
 async function persistConfig() {
   try {
     const saved = await saveConfig({
@@ -405,7 +564,7 @@ async function chooseDataDirectory() {
   dataDirChanging.value = true
   errorMessage.value = ''
   try {
-    const result = await ChooseDataDirectory(true)
+    const result = await chooseDataDirectoryWithDialog(true)
     if (result.cancelled) {
       return
     }
@@ -931,7 +1090,7 @@ async function refreshQuota(item) {
                   <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
                 </div>
                 <small v-if="currentToken?.id === item.id" class="current-usage-meta">
-                  {{ providerLabel(item.provider) }} · 最后使用 {{ formatTime(item.lastUsedAt) }}
+                  {{ providerLabel(item.provider) }} · 最后使用 {{ formatTime(item.stats?.updatedAt || item.lastUsedAt) }}
                 </small>
                 <small v-else class="current-usage-meta">{{ healthSummary(item) }}</small>
               </div>
@@ -954,7 +1113,10 @@ async function refreshQuota(item) {
           <div class="log-list compact">
             <div v-for="entry in logs.slice(0, 6)" :key="entry.id" class="log-row">
               <span :class="['dot', entry.level]"></span>
-              <p>{{ entry.message }}</p>
+              <p>
+                <span v-if="entry.model" class="log-inline-model">{{ entry.model }}</span>
+                {{ entry.message }}
+              </p>
               <small>{{ formatTime(entry.time) }}</small>
             </div>
             <div v-if="!logs.length" class="empty">暂无日志</div>
@@ -1176,9 +1338,27 @@ async function refreshQuota(item) {
             <h3>{{ activeProviderInfo.label }}</h3>
             <p>{{ activeProviderInfo.note }} · {{ activeProviderTokens.length }} 个账号</p>
           </div>
-          <el-button type="primary" :icon="Connection" @click="openCreateForm(activeProvider)">
-            添加 {{ activeProviderInfo.label }}
-          </el-button>
+          <div class="provider-summary-actions">
+            <input
+              ref="codexAuthInput"
+              class="hidden-file-input"
+              type="file"
+              accept=".json,application/json"
+              multiple
+              @change="importCodexAuthFiles"
+            />
+            <el-button
+              v-if="activeProvider === 'openai'"
+              :icon="Upload"
+              :loading="codexAuthImporting"
+              @click="openCodexAuthFilePicker"
+            >
+              {{ codexAuthImporting ? '导入中' : '导入 auth 文件' }}
+            </el-button>
+            <el-button type="primary" :icon="Connection" @click="openCreateForm(activeProvider)">
+              添加 {{ activeProviderInfo.label }}
+            </el-button>
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -1251,7 +1431,7 @@ async function refreshQuota(item) {
         :format-duration="formatDuration"
         :format-number="formatNumber"
         :provider-label="providerLabel"
-        @refresh="refreshRealtime"
+        @refresh="refreshHistory"
         @export="exportRequestHistory"
         @diagnose="selectedHistoryEntry = $event"
       />
@@ -1271,6 +1451,7 @@ async function refreshQuota(item) {
               <strong>{{ entry.method || 'SYSTEM' }} {{ entry.path || '' }}</strong>
               <p>{{ entry.message }}</p>
             </div>
+            <small class="log-model" :title="entry.model || '-'">{{ entry.model || '-' }}</small>
             <small class="log-status">{{ entry.status || '-' }}</small>
             <small class="log-duration">{{ formatDuration(entry.durationMs) }}</small>
             <small class="log-token" :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</small>

@@ -801,6 +801,21 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.provider-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hidden-file-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .section-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1079,7 +1094,7 @@ tr:last-child td {
 
 .log-row {
   display: grid;
-  grid-template-columns: 14px minmax(220px, 1fr) 52px 68px minmax(150px, 220px) 70px;
+  grid-template-columns: 14px minmax(220px, 1fr) minmax(100px, 160px) 52px 68px minmax(150px, 220px) 70px;
   gap: 12px;
   min-height: 48px;
   padding: 10px 12px;
@@ -1114,7 +1129,8 @@ tr:last-child td {
   white-space: nowrap;
 }
 
-.log-token {
+.log-token,
+.log-model {
   min-width: 0;
 }
 
@@ -1140,6 +1156,20 @@ tr:last-child td {
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+}
+
+.log-inline-model {
+  display: inline-block;
+  max-width: 140px;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  vertical-align: top;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .log-list.compact .log-row small {
@@ -1396,11 +1426,11 @@ tr:last-child td {
   padding-right: 8px;
 }
 
-.failed-history-row {
+.clickable-history-row {
   cursor: pointer;
 }
 
-.failed-history-row:hover td {
+.clickable-history-row:hover td {
   background: var(--surface-soft);
 }
 

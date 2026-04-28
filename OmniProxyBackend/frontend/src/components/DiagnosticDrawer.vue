@@ -44,7 +44,11 @@ function historyStatusLabel(entry) {
   return `${entry.status}`
 }
 
-function historyErrorSummary(entry) {
+function isProblemHistory(entry) {
+  return entry?.level === 'error' || entry?.level === 'warn' || Number(entry?.status || 0) >= 400
+}
+
+function historyMessageSummary(entry) {
   return entry?.message || historyStatusLabel(entry)
 }
 </script>
@@ -52,10 +56,10 @@ function historyErrorSummary(entry) {
 <template>
   <Transition name="diagnostic-panel">
     <div v-if="entry" class="drawer-backdrop" @click.self="emit('close')">
-      <aside class="diagnostic-drawer" aria-label="失败请求诊断">
+      <aside class="diagnostic-drawer" :aria-label="isProblemHistory(entry) ? '失败请求诊断' : '请求详情'">
         <div class="diagnostic-head">
           <div>
-            <h2>失败诊断</h2>
+            <h2>{{ isProblemHistory(entry) ? '失败诊断' : '请求详情' }}</h2>
             <p>{{ formatTime(entry.time) }} · {{ entry.method }} {{ entry.path }}</p>
           </div>
           <button type="button" aria-label="关闭诊断面板" @click="emit('close')">×</button>
@@ -93,12 +97,12 @@ function historyErrorSummary(entry) {
         </div>
 
         <div class="diagnostic-section">
-          <span>错误摘要</span>
-          <p>{{ historyErrorSummary(entry) }}</p>
+          <span>消息摘要</span>
+          <p>{{ historyMessageSummary(entry) }}</p>
         </div>
 
         <div class="diagnostic-section">
-          <span>重试链路</span>
+          <span>{{ entry.retryChain?.length ? '重试链路' : '请求链路' }}</span>
           <div class="retry-chain">
             <div
               v-for="attempt in diagnosticRetryChain(entry)"

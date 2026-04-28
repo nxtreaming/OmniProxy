@@ -55,7 +55,6 @@ function exportRequestHistory(format) {
 }
 
 function openHistoryDiagnosis(entry) {
-  if (!isFailedHistory(entry)) return
   emit('diagnose', entry)
 }
 
@@ -134,7 +133,7 @@ function isFailedHistory(entry) {
         <p>持久化记录代理请求、重试结果、账号、模型、耗时和 Token 用量</p>
       </div>
       <div class="section-actions">
-        <el-button :icon="Refresh" @click="emit('refresh')">刷新</el-button>
+        <el-button :icon="Refresh" @click="emit('refresh', { ...filters })">刷新</el-button>
         <el-button :icon="Download" :loading="exporting === 'csv'" @click="exportRequestHistory('csv')">
           导出 CSV
         </el-button>
@@ -211,14 +210,14 @@ function isFailedHistory(entry) {
             <th>耗时</th>
             <th>Token</th>
             <th>路径</th>
-            <th>诊断</th>
+            <th>详情</th>
           </tr>
         </thead>
         <tbody>
           <tr
             v-for="entry in filteredHistory.slice(0, 300)"
             :key="entry.id"
-            :class="{ 'failed-history-row': isFailedHistory(entry) }"
+            class="clickable-history-row"
             @click="openHistoryDiagnosis(entry)"
           >
             <td>{{ formatTime(entry.time) }}</td>
@@ -239,14 +238,12 @@ function isFailedHistory(entry) {
             <td class="mono" :title="`${entry.method} ${entry.path}`">{{ entry.method }} {{ entry.path }}</td>
             <td>
               <el-button
-                v-if="isFailedHistory(entry)"
                 size="small"
                 :icon="View"
                 @click.stop="openHistoryDiagnosis(entry)"
               >
-                诊断
+                {{ isFailedHistory(entry) ? '诊断' : '详情' }}
               </el-button>
-              <span v-else class="muted-text">-</span>
             </td>
           </tr>
         </tbody>
