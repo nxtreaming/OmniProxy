@@ -176,6 +176,28 @@ function historyTrendHeight(row) {
   return `${Math.max(8, Math.round((value / historyTrendMax.value) * 100))}%`
 }
 
+function historyDate(value) {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(parsed)
+}
+
+function historyClock(value) {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(parsed)
+}
+
 function previousHistoryPage() {
   historyPage.value = Math.max(1, historyPage.value - 1)
 }
@@ -417,7 +439,12 @@ function isFailedHistory(entry) {
             class="clickable-history-row"
             @click="openHistoryDiagnosis(entry)"
           >
-            <td>{{ formatTime(entry.time) }}</td>
+            <td>
+              <time class="history-time-cell" :datetime="entry.time">
+                <span>{{ historyDate(entry.time) }}</span>
+                <small>{{ historyClock(entry.time) }}</small>
+              </time>
+            </td>
             <td>
               <strong>{{ providerLabel(entry.provider) }}</strong>
               <small>{{ entry.model || entry.protocol || '-' }}</small>

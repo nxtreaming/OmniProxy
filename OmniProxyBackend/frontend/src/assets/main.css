@@ -1532,6 +1532,18 @@ tr:last-child td {
   white-space: normal;
 }
 
+.history-time-cell {
+  display: grid;
+  gap: 3px;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.history-time-cell small {
+  color: var(--text-muted);
+}
+
 .history-table .el-button {
   padding-left: 8px;
   padding-right: 8px;
