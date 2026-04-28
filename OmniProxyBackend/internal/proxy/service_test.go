@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
 	"OmniProxyBackend/internal/storage"
 	"OmniProxyBackend/internal/token"
@@ -54,6 +55,10 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	recorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	service, err := NewService(config.Config{
 		ProxyPort:       3000,
@@ -61,7 +66,7 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 		UpstreamBaseURL: upstream.URL,
 		SwitchThreshold: 15,
 		MaxRetries:      1,
-	}, manager, logs.NewRecorder(10))
+	}, manager, logs.NewRecorder(10), recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,12 +98,17 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	items := manager.List()
 	statusByID := map[string]token.Status{}
 	requestsByID := map[string]int64{}
+	cooldownByID := map[string]*time.Time{}
 	for _, item := range items {
 		statusByID[item.ID] = item.Status
 		requestsByID[item.ID] = item.Stats.RequestCount
+		cooldownByID[item.ID] = item.CooldownUntil
 	}
 	if statusByID[primary.ID] != token.StatusExhausted {
 		t.Fatalf("expected primary to be exhausted, got %s", statusByID[primary.ID])
+	}
+	if cooldownByID[primary.ID] == nil || !cooldownByID[primary.ID].After(time.Now()) {
+		t.Fatalf("expected primary to enter cooldown, got %v", cooldownByID[primary.ID])
 	}
 	if statusByID[backup.ID] != token.StatusActive {
 		t.Fatalf("expected backup to stay active, got %s", statusByID[backup.ID])
@@ -108,6 +118,22 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	}
 	if requestsByID[backup.ID] != 1 {
 		t.Fatalf("expected backup request count 1, got %d", requestsByID[backup.ID])
+	}
+	entries := recorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 {
+		t.Fatalf("expected one request history entry, got %#v", entries)
+	}
+	if !entries[0].CooldownTriggered {
+		t.Fatalf("expected request history to mark retry cooldown: %#v", entries[0])
+	}
+	if len(entries[0].RetryChain) != 2 {
+		t.Fatalf("expected retry chain to include both attempts, got %#v", entries[0].RetryChain)
+	}
+	if !entries[0].RetryChain[0].CooldownTriggered || entries[0].RetryChain[0].Status != http.StatusTooManyRequests {
+		t.Fatalf("expected first retry attempt to record 429 cooldown, got %#v", entries[0].RetryChain[0])
+	}
+	if entries[0].RetryChain[1].TokenName != "backup" || entries[0].RetryChain[1].Status != http.StatusOK {
+		t.Fatalf("expected second retry attempt to use backup successfully, got %#v", entries[0].RetryChain[1])
 	}
 }
 
@@ -155,6 +181,57 @@ func TestServiceRecordsTokenUsageFromJSONResponse(t *testing.T) {
 	}
 	if updated.Stats.RequestCount != 1 {
 		t.Fatalf("expected request count 1, got %d", updated.Stats.RequestCount)
+	}
+}
+
+func TestServiceRecordsPersistentRequestHistory(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":8,"output_tokens":5,"total_tokens":13}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"}); err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		OpenAIBaseURL:   upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10), recorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", stringsReader(`{"model":"gpt-test","input":"hello"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	entries := recorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 history entry, got %#v", entries)
+	}
+	entry := entries[0]
+	if entry.Provider != token.ProviderOpenAI || entry.Model != "gpt-test" || entry.Status != http.StatusOK {
+		t.Fatalf("unexpected history route metadata: %#v", entry)
+	}
+	if entry.TokenName != "primary" || entry.TotalTokens != 13 || entry.InputTokens != 8 || entry.OutputTokens != 5 {
+		t.Fatalf("unexpected history usage metadata: %#v", entry)
 	}
 }
 
