@@ -49,6 +49,7 @@ const (
 	healthCheckTick       = time.Minute
 	activeHealthInterval  = 15 * time.Minute
 	retryHealthInterval   = time.Minute
+	currentQuotaInterval  = 30 * time.Second
 	healthRequestTimeout  = 15 * time.Second
 	failedHealthRetryWait = 5 * time.Minute
 )
@@ -73,8 +74,12 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 238, G: 242, B: 247, A: 1},
-		OnStartup:        desktop.startup,
-		OnShutdown:       desktop.shutdown,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               singleInstanceUniqueID(),
+			OnSecondInstanceLaunch: desktop.secondInstanceLaunch,
+		},
+		OnStartup:  desktop.startup,
+		OnShutdown: desktop.shutdown,
 		Bind: []interface{}{
 			desktop,
 		},
@@ -245,6 +250,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/proxy/status", a.handleProxyStatus)
 	mux.HandleFunc("/api/proxy/start", a.handleProxyStart)
 	mux.HandleFunc("/api/proxy/stop", a.handleProxyStop)
+	mux.HandleFunc("/api/data-directory", a.handleDataDirectory)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
 	mux.HandleFunc("/api/mimo/claude/configure", a.handleMimoClaudeConfigure)
@@ -442,18 +448,78 @@ func (a *appServer) stopHealthMonitor() {
 }
 
 func (a *appServer) healthMonitor(ctx context.Context) {
-	timer := time.NewTimer(30 * time.Second)
-	defer timer.Stop()
+	healthTimer := time.NewTimer(30 * time.Second)
+	defer healthTimer.Stop()
+	currentQuotaTimer := time.NewTimer(currentQuotaInterval)
+	defer currentQuotaTimer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-timer.C:
+		case <-healthTimer.C:
 			a.runDueHealthChecks(ctx)
-			timer.Reset(healthCheckTick)
+			healthTimer.Reset(healthCheckTick)
+		case <-currentQuotaTimer.C:
+			a.refreshCurrentTokenUsage(ctx)
+			currentQuotaTimer.Reset(currentQuotaInterval)
 		}
 	}
+}
+
+func (a *appServer) refreshCurrentTokenUsage(ctx context.Context) {
+	a.mu.Lock()
+	manager := a.tokens
+	a.mu.Unlock()
+	if manager == nil {
+		return
+	}
+
+	selected, ok := currentQuotaRefreshCandidate(manager.List(), time.Now())
+	if !ok {
+		return
+	}
+
+	checkCtx, cancel := context.WithTimeout(ctx, healthRequestTimeout)
+	result, err := a.validateAndRecordToken(checkCtx, selected)
+	cancel()
+
+	message := result.Message
+	if err != nil {
+		message = err.Error()
+	}
+	_ = manager.RecordHealthCheck(selected.ID, result.OK, result.Status, message, nextHealthCheckAt(result, err))
+
+	if err != nil || !result.OK {
+		a.logs.Add(logs.Entry{
+			Level:     logs.LevelWarn,
+			Status:    result.Status,
+			Duration:  result.Duration,
+			TokenName: selected.Name,
+			Message:   fmt.Sprintf("current token quota refresh failed: %v", message),
+		})
+	}
+}
+
+func currentQuotaRefreshCandidate(items []token.Token, now time.Time) (token.Token, bool) {
+	var selected token.Token
+	found := false
+	for _, item := range items {
+		if strings.TrimSpace(item.TokenValue) == "" || item.Stats.UpdatedAt == nil {
+			continue
+		}
+		if item.Status == token.StatusInvalid {
+			continue
+		}
+		if item.CooldownUntil != nil && now.Before(*item.CooldownUntil) {
+			continue
+		}
+		if !found || item.Stats.UpdatedAt.After(*selected.Stats.UpdatedAt) {
+			selected = item
+			found = true
+		}
+	}
+	return selected, found
 }
 
 func (a *appServer) runDueHealthChecks(ctx context.Context) {
@@ -660,6 +726,14 @@ func (a *appServer) handleProxyStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"running": false})
+}
+
+func (a *appServer) handleDataDirectory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, a.dataDirectoryInfo())
 }
 
 func (a *appServer) handleCodexConfigure(w http.ResponseWriter, r *http.Request) {

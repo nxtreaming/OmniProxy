@@ -20,6 +20,8 @@ import (
 	"OmniProxyBackend/internal/proxy"
 	"OmniProxyBackend/internal/token"
 	"OmniProxyBackend/internal/tray"
+
+	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -84,6 +86,20 @@ func (a *DesktopApp) shutdown(ctx context.Context) {
 	}
 }
 
+func (a *DesktopApp) secondInstanceLaunch(data options.SecondInstanceData) {
+	log.Printf("second OmniProxy %s instance requested from %s with args: %v", appInstanceMode, data.WorkingDirectory, data.Args)
+	a.showMainWindow()
+}
+
+func (a *DesktopApp) showMainWindow() {
+	if a.ctx == nil {
+		return
+	}
+	runtime.Show(a.ctx)
+	runtime.WindowShow(a.ctx)
+	runtime.WindowUnminimise(a.ctx)
+}
+
 func (a *DesktopApp) setupTray() {
 	manager, err := tray.Start(tray.Options{
 		Tooltip: "OmniProxy",
@@ -114,12 +130,7 @@ func (a *DesktopApp) setupTray() {
 			return a.server.stopProxy()
 		},
 		ShowWindow: func() {
-			if a.ctx == nil {
-				return
-			}
-			runtime.Show(a.ctx)
-			runtime.WindowShow(a.ctx)
-			runtime.WindowUnminimise(a.ctx)
+			a.showMainWindow()
 		},
 		Quit: func() {
 			if a.ctx != nil {

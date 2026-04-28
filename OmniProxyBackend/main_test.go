@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/logs"
@@ -113,6 +114,30 @@ func TestControlCORSRejectsNonLocalOrigin(t *testing.T) {
 
 	if res.Code != http.StatusForbidden {
 		t.Fatalf("expected status 403, got %d", res.Code)
+	}
+}
+
+func TestDataDirectoryEndpointReturnsCurrentInfo(t *testing.T) {
+	dataDir := t.TempDir()
+	app := &appServer{
+		dataDir: dataDir,
+		cfg:     config.Default(),
+		logs:    logs.NewRecorder(10),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/data-directory", nil)
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	var payload config.DataDirectoryInfo
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(filepath.Clean(payload.DataDir), filepath.Clean(dataDir)) {
+		t.Fatalf("expected data dir %q, got %#v", dataDir, payload)
 	}
 }
 
@@ -225,6 +250,89 @@ func TestStartupRefreshesCodexUsage(t *testing.T) {
 	}
 	if updated.Remaining != 65 || updated.Usage.PrimaryRemainingPercent != 65 || updated.Usage.SecondaryRemainingPercent != 88 {
 		t.Fatalf("expected startup usage refresh, got remaining=%d usage=%#v", updated.Remaining, updated.Usage)
+	}
+}
+
+func TestCurrentTokenQuotaRefreshUsesLatestProxyUsage(t *testing.T) {
+	var seenAuth []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenAuth = append(seenAuth, r.Header.Get("Authorization"))
+		switch r.Header.Get("Authorization") {
+		case "Bearer sk-current-token":
+			w.Header().Set("x-ratelimit-remaining-tokens", "64")
+		case "Bearer sk-older-token":
+			w.Header().Set("x-ratelimit-remaining-tokens", "12")
+		default:
+			t.Fatalf("unexpected auth header: %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	older, err := manager.Add(token.UpsertRequest{Name: "older", Provider: token.ProviderOpenAI, TokenValue: "sk-older-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := manager.Add(token.UpsertRequest{Name: "current", Provider: token.ProviderOpenAI, TokenValue: "sk-current-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordProxyUsage(older.ID, token.TokenConsumption{TotalTokens: 1}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if err := manager.RecordProxyUsage(current.ID, token.TokenConsumption{TotalTokens: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:       3000,
+			ControlPort:     3890,
+			OpenAIBaseURL:   upstream.URL,
+			SwitchThreshold: 15,
+			MaxRetries:      1,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	app.refreshCurrentTokenUsage(context.Background())
+
+	if len(seenAuth) != 1 || seenAuth[0] != "Bearer sk-current-token" {
+		t.Fatalf("expected only current token to be refreshed, got %#v", seenAuth)
+	}
+	updatedCurrent, err := manager.Get(current.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedCurrent.Remaining != 64 || updatedCurrent.Usage.APIRemaining != 64 {
+		t.Fatalf("expected current token quota to refresh, got remaining=%d usage=%#v", updatedCurrent.Remaining, updatedCurrent.Usage)
+	}
+	updatedOlder, err := manager.Get(older.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedOlder.Remaining != 100 || updatedOlder.Usage.APIRemaining != 0 {
+		t.Fatalf("older token should not be refreshed, got remaining=%d usage=%#v", updatedOlder.Remaining, updatedOlder.Usage)
+	}
+}
+
+func TestCurrentQuotaRefreshCandidateSkipsValidationOnlyUsage(t *testing.T) {
+	now := time.Now()
+	validationOnly := token.Token{
+		ID:         "validation-only",
+		TokenValue: "sk-validation-only",
+		LastUsedAt: &now,
+		Status:     token.StatusActive,
+	}
+	if selected, ok := currentQuotaRefreshCandidate([]token.Token{validationOnly}, now); ok {
+		t.Fatalf("expected validation-only token to be skipped, got %#v", selected)
 	}
 }
 
