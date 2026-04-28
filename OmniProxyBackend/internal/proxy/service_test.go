@@ -276,13 +276,14 @@ func TestServiceRecordsPersistentRequestHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	logRecorder := logs.NewRecorder(10)
 	service, err := NewService(config.Config{
 		ProxyPort:       3000,
 		ControlPort:     3890,
 		OpenAIBaseURL:   upstream.URL,
 		SwitchThreshold: 15,
 		MaxRetries:      0,
-	}, manager, logs.NewRecorder(10), recorder)
+	}, manager, logRecorder, recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,6 +305,116 @@ func TestServiceRecordsPersistentRequestHistory(t *testing.T) {
 	}
 	if entry.TokenName != "primary" || entry.TotalTokens != 13 || entry.InputTokens != 8 || entry.OutputTokens != 5 {
 		t.Fatalf("unexpected history usage metadata: %#v", entry)
+	}
+	logEntries := logRecorder.List()
+	if len(logEntries) != 1 {
+		t.Fatalf("expected 1 log entry, got %#v", logEntries)
+	}
+	if logEntries[0].Model != "gpt-test" {
+		t.Fatalf("expected structured log model gpt-test, got %#v", logEntries[0])
+	}
+	if strings.Contains(logEntries[0].Message, "model=") {
+		t.Fatalf("log message should not carry structured model metadata: %#v", logEntries[0])
+	}
+}
+
+func TestServiceRecordsLogModelFromQuery(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"}); err != nil {
+		t.Fatal(err)
+	}
+
+	logRecorder := logs.NewRecorder(10)
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		OpenAIBaseURL:   upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logRecorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses?model=gpt-query", stringsReader(`{}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	logEntries := logRecorder.List()
+	if len(logEntries) != 1 {
+		t.Fatalf("expected 1 log entry, got %#v", logEntries)
+	}
+	if logEntries[0].Model != "gpt-query" {
+		t.Fatalf("expected query model in structured log, got %#v", logEntries[0])
+	}
+}
+
+func TestServiceRecordsCodexModelFromJSONResponse(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"model":"gpt-response","usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{
+		Name:           "coder@example.com",
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTest(t, "coder@example.com"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	historyRecorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logRecorder := logs.NewRecorder(10)
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		CodexBaseURL:    upstream.URL + "/backend-api/codex",
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logRecorder, historyRecorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/responses", stringsReader(`{"input":"hello"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	historyEntries := historyRecorder.List(history.Filter{Limit: 10})
+	if len(historyEntries) != 1 {
+		t.Fatalf("expected 1 history entry, got %#v", historyEntries)
+	}
+	if historyEntries[0].Model != "gpt-response" {
+		t.Fatalf("expected codex model from response, got %#v", historyEntries[0])
+	}
+	logEntries := logRecorder.List()
+	if len(logEntries) != 1 || logEntries[0].Model != "gpt-response" {
+		t.Fatalf("expected codex log model from response, got %#v", logEntries)
 	}
 }
 
@@ -405,20 +516,16 @@ func TestServiceRoutesCodexAuthJSONToCodexBackend(t *testing.T) {
 	}
 }
 
-func TestServiceRefreshesCodexQuotaAfterTask(t *testing.T) {
+func TestServiceDoesNotRefreshCodexQuotaAfterTask(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}`))
 	}))
 	defer upstream.Close()
 
+	quotaRefreshCalled := make(chan struct{}, 1)
 	usage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer codex-access-token" {
-			t.Fatalf("unexpected quota refresh auth header: %q", r.Header.Get("Authorization"))
-		}
-		if r.Header.Get("ChatGPT-Account-Id") != "account-123" {
-			t.Fatalf("unexpected quota refresh account header: %q", r.Header.Get("ChatGPT-Account-Id"))
-		}
+		quotaRefreshCalled <- struct{}{}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{
 			"plan_type": "team",
@@ -463,34 +570,30 @@ func TestServiceRefreshesCodexQuotaAfterTask(t *testing.T) {
 		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
 	}
 
-	deadline := time.After(2 * time.Second)
-	for {
-		updated, err := manager.Get(item.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if updated.Remaining == 66 && updated.Usage.PrimaryRemainingPercent == 66 && updated.Usage.SecondaryRemainingPercent == 50 {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("timed out waiting for post-task quota refresh: remaining=%d usage=%#v", updated.Remaining, updated.Usage)
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
+	select {
+	case <-quotaRefreshCalled:
+		t.Fatal("post-task codex quota refresh should not run from the proxy service")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Remaining != 100 || updated.Usage.SubscriptionQuotaAvailable {
+		t.Fatalf("expected quota to remain unchanged until scheduled refresh, got remaining=%d usage=%#v", updated.Remaining, updated.Usage)
 	}
 }
 
-func TestServiceRefreshesAPIKeyQuotaAfterTask(t *testing.T) {
+func TestServiceDoesNotRefreshAPIKeyQuotaAfterTask(t *testing.T) {
+	quotaRefreshCalled := make(chan struct{}, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/responses":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}`))
 		case "/v1/models":
-			if r.Header.Get("Authorization") != "Bearer sk-primary-token" {
-				t.Fatalf("unexpected quota refresh auth header: %q", r.Header.Get("Authorization"))
-			}
+			quotaRefreshCalled <- struct{}{}
 			w.Header().Set("x-ratelimit-remaining-tokens", "64")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"data":[]}`))
@@ -528,21 +631,18 @@ func TestServiceRefreshesAPIKeyQuotaAfterTask(t *testing.T) {
 		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
 	}
 
-	deadline := time.After(2 * time.Second)
-	for {
-		updated, err := manager.Get(item.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if updated.Remaining == 64 && updated.Usage.APIRemaining == 64 {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("timed out waiting for post-task API key quota refresh: remaining=%d usage=%#v", updated.Remaining, updated.Usage)
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
+	select {
+	case <-quotaRefreshCalled:
+		t.Fatal("post-task API key quota refresh should not run from the proxy service")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Remaining != 100 || updated.Usage.APIRemaining != 0 {
+		t.Fatalf("expected quota to remain unchanged until scheduled refresh, got remaining=%d usage=%#v", updated.Remaining, updated.Usage)
 	}
 }
 
@@ -1166,7 +1266,7 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	entries := service.logs.List()
 	hasStandardMimoLog := false
 	for _, entry := range entries {
-		if strings.Contains(entry.Message, "model=mimo-v2.5") {
+		if entry.Model == "mimo-v2.5" {
 			hasStandardMimoLog = true
 			break
 		}
@@ -1217,7 +1317,7 @@ func TestParseTokenConsumptionFromSSE(t *testing.T) {
 		`data: {"type":"response.output_text.delta","delta":"hello"}`,
 		``,
 		`event: response.completed`,
-		`data: {"type":"response.completed","response":{"usage":{"input_tokens":20,"output_tokens":8,"total_tokens":28}}}`,
+		`data: {"type":"response.completed","response":{"model":"gpt-5.5","usage":{"input_tokens":20,"output_tokens":8,"total_tokens":28}}}`,
 		``,
 		`data: [DONE]`,
 	}, "\n"))
@@ -1225,6 +1325,9 @@ func TestParseTokenConsumptionFromSSE(t *testing.T) {
 	usage := parseTokenConsumption(http.Header{"Content-Type": []string{"text/event-stream"}}, body)
 	if usage.TotalTokens != 28 || usage.InputTokens != 20 || usage.OutputTokens != 8 {
 		t.Fatalf("unexpected usage: %#v", usage)
+	}
+	if model := parseResponseModel(http.Header{"Content-Type": []string{"text/event-stream"}}, body); model != "gpt-5.5" {
+		t.Fatalf("expected response model gpt-5.5, got %q", model)
 	}
 }
 

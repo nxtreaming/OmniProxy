@@ -20,6 +20,7 @@ type Entry struct {
 	Level     Level     `json:"level"`
 	Method    string    `json:"method,omitempty"`
 	Path      string    `json:"path,omitempty"`
+	Model     string    `json:"model,omitempty"`
 	Status    int       `json:"status,omitempty"`
 	Duration  int64     `json:"durationMs,omitempty"`
 	TokenName string    `json:"tokenName,omitempty"`

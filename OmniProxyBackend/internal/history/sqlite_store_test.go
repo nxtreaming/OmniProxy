@@ -72,6 +72,10 @@ func TestSQLiteStoreListFiltersAndPrunes(t *testing.T) {
 	if len(deepseek) != 1 || deepseek[0].Protocol != "anthropic" {
 		t.Fatalf("expected filtered deepseek anthropic entry, got %#v", deepseek)
 	}
+	openai := recorder.List(Filter{Model: "gpt-5.5"})
+	if len(openai) != 1 || openai[0].Model != "gpt-5.5" {
+		t.Fatalf("expected persisted model metadata, got %#v", openai)
+	}
 	cooldown := recorder.List(Filter{Status: "429"})
 	if len(cooldown) != 1 || !cooldown[0].CooldownTriggered || len(cooldown[0].RetryChain) != 1 {
 		t.Fatalf("expected persisted retry chain and cooldown state, got %#v", cooldown)

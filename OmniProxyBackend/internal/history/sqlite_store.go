@@ -135,12 +135,12 @@ CREATE TABLE IF NOT EXISTS request_history (
   duration_ms INTEGER,
   token_id TEXT,
   token_name TEXT,
-  input_tokens INTEGER,
-  output_tokens INTEGER,
-  total_tokens INTEGER,
-  cooldown_triggered INTEGER,
-  retry_chain TEXT,
-  message TEXT NOT NULL
+	input_tokens INTEGER,
+	output_tokens INTEGER,
+	total_tokens INTEGER,
+	cooldown_triggered INTEGER,
+	retry_chain TEXT,
+	message TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_request_history_provider ON request_history(provider);
 CREATE INDEX IF NOT EXISTS idx_request_history_level ON request_history(level);

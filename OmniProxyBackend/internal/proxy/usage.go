@@ -48,6 +48,79 @@ func parseTokenConsumption(header http.Header, body []byte) token.TokenConsumpti
 	return usage
 }
 
+func parseResponseModel(header http.Header, body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+
+	contentType := strings.ToLower(header.Get("Content-Type"))
+	if strings.Contains(contentType, "text/event-stream") || bytes.Contains(body, []byte("data:")) {
+		if model := parseSSEResponseModel(body); model != "" {
+			return model
+		}
+	}
+
+	model, _ := parseJSONResponseModel(body)
+	return model
+}
+
+func parseSSEResponseModel(body []byte) string {
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxUsageCaptureBytes)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+		if model, ok := parseJSONResponseModel([]byte(data)); ok {
+			return model
+		}
+	}
+	return ""
+}
+
+func parseJSONResponseModel(body []byte) (string, bool) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+
+	var payload any
+	if err := decoder.Decode(&payload); err != nil {
+		return "", false
+	}
+	return findResponseModel(payload)
+}
+
+func findResponseModel(value any) (string, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if model, ok := stringFromAny(typed["model"]); ok {
+			return model, true
+		}
+		if response, ok := typed["response"]; ok {
+			if model, modelOK := findResponseModel(response); modelOK {
+				return model, true
+			}
+		}
+		for _, child := range typed {
+			if model, ok := findResponseModel(child); ok {
+				return model, true
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			if model, ok := findResponseModel(child); ok {
+				return model, true
+			}
+		}
+	}
+	return "", false
+}
+
 func parseSSETokenConsumption(body []byte) (token.TokenConsumption, bool) {
 	scanner := bufio.NewScanner(bytes.NewReader(body))
 	scanner.Buffer(make([]byte, 0, 64*1024), maxUsageCaptureBytes)
@@ -69,6 +142,15 @@ func parseSSETokenConsumption(body []byte) (token.TokenConsumption, bool) {
 		}
 	}
 	return found, ok
+}
+
+func stringFromAny(value any) (string, bool) {
+	text, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	text = strings.TrimSpace(text)
+	return text, text != ""
 }
 
 func parseJSONTokenConsumption(body []byte) (token.TokenConsumption, bool) {

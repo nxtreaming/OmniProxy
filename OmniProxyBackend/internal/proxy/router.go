@@ -32,7 +32,7 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 	provider := token.ProviderOpenAI
 	credentialType := ""
 	path := incoming.Path
-	model := requestModel(body)
+	model := requestModel(incoming, body)
 	if isAnthropicRouterPath(path) {
 		return routeInfo{
 			Provider: providerForModel(model),
@@ -197,14 +197,19 @@ func isWebSocketUpgrade(r *http.Request) bool {
 		strings.EqualFold(strings.TrimSpace(r.Header.Get("Upgrade")), "websocket")
 }
 
-func requestModel(body []byte) string {
+func requestModel(incoming *url.URL, body []byte) string {
 	var payload struct {
 		Model string `json:"model"`
 	}
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if err := json.Unmarshal(body, &payload); err == nil {
+		if model := strings.TrimSpace(payload.Model); model != "" {
+			return model
+		}
+	}
+	if incoming == nil {
 		return ""
 	}
-	return strings.TrimSpace(payload.Model)
+	return strings.TrimSpace(incoming.Query().Get("model"))
 }
 
 func providerForModel(model string) string {

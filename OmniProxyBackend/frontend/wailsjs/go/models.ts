@@ -228,6 +228,7 @@ export namespace logs {
 	    level: string;
 	    method?: string;
 	    path?: string;
+	    model?: string;
 	    status?: number;
 	    durationMs?: number;
 	    tokenName?: string;
@@ -244,6 +245,7 @@ export namespace logs {
 	        this.level = source["level"];
 	        this.method = source["method"];
 	        this.path = source["path"];
+	        this.model = source["model"];
 	        this.status = source["status"];
 	        this.durationMs = source["durationMs"];
 	        this.tokenName = source["tokenName"];

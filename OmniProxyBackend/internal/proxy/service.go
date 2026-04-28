@@ -146,6 +146,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Level:     logs.LevelWarn,
 				Method:    r.Method,
 				Path:      r.URL.RequestURI(),
+				Model:     route.Model,
 				TokenName: selected.Name,
 				Message:   proxyLogMessage(route.Model, token.TokenConsumption{}, "upstream request failed, trying next token"),
 			})
@@ -174,6 +175,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Level:     logs.LevelWarn,
 				Method:    r.Method,
 				Path:      r.URL.RequestURI(),
+				Model:     route.Model,
 				Status:    resp.StatusCode,
 				TokenName: selected.Name,
 				Message:   proxyLogMessage(route.Model, token.TokenConsumption{}, "switching token after retryable upstream response"),
@@ -183,6 +185,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		consumption, responseBody := s.writeResponse(w, resp)
+		if responseModel := parseResponseModel(resp.Header, responseBody); responseModel != "" {
+			route.Model = responseModel
+		}
 		_ = s.tokens.RecordProxyUsage(selected.ID, consumption)
 		cooldownUntil := s.retry.CooldownUntil(resp.StatusCode, resp.Header)
 		cooldownTriggered := cooldownUntil != nil
@@ -190,13 +195,13 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = s.tokens.MarkExhaustedUntil(selected.ID, fmt.Sprintf("upstream returned %d", resp.StatusCode), cooldownUntil)
 		}
 		s.tokens.Release(selected.ID)
-		s.refreshQuotaAfterTask(selected)
 		historyMessage := proxyHistoryMessage(resp.StatusCode, route.Model, consumption, "request proxied", responseBody)
 		retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, resp.StatusCode, time.Since(attemptStart).Milliseconds(), cooldownTriggered, historyMessage)
 		s.logs.Add(logs.Entry{
 			Level:     levelForStatus(resp.StatusCode),
 			Method:    r.Method,
 			Path:      r.URL.RequestURI(),
+			Model:     route.Model,
 			Status:    resp.StatusCode,
 			Duration:  time.Since(start).Milliseconds(),
 			TokenName: selected.Name,
@@ -218,6 +223,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Level:    logs.LevelError,
 		Method:   r.Method,
 		Path:     r.URL.RequestURI(),
+		Model:    route.Model,
 		Status:   status,
 		Duration: time.Since(start).Milliseconds(),
 		Message:  fmt.Sprintf("proxy failed: %v", lastErr),
@@ -247,39 +253,6 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 	req.Host = req.URL.Host
 
 	return s.client.Do(req)
-}
-
-func (s *Service) refreshQuotaAfterTask(selected token.Token) {
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-
-		validator, err := NewValidator(s.cfg)
-		if err != nil {
-			s.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: selected.Name, Message: fmt.Sprintf("post-task quota refresh skipped: %v", err)})
-			return
-		}
-
-		result, err := validator.Validate(ctx, selected)
-		if result.Remaining != nil {
-			_ = s.tokens.RecordUsage(selected.ID, *result.Remaining)
-		}
-		if result.Usage != nil {
-			_ = s.tokens.RecordUsageInfo(selected.ID, *result.Usage)
-		}
-		if result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden {
-			_ = s.tokens.MarkInvalid(selected.ID, fmt.Sprintf("post-task quota refresh returned %d", result.Status))
-		}
-		if result.Status == http.StatusTooManyRequests {
-			_ = s.tokens.MarkExhaustedUntil(selected.ID, "post-task quota refresh returned 429", cooldownUntilFromValidation(result))
-		}
-		if result.OK && result.Remaining == nil && result.Usage == nil {
-			_ = s.tokens.MarkActive(selected.ID)
-		}
-		if err != nil {
-			s.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: selected.Name, Message: fmt.Sprintf("post-task quota refresh failed: %v", err)})
-		}
-	}()
 }
 
 func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -352,6 +325,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 				Level:     logs.LevelWarn,
 				Method:    r.Method,
 				Path:      r.URL.RequestURI(),
+				Model:     route.Model,
 				Status:    lastStatus,
 				TokenName: selected.Name,
 				Message:   "switching token after retryable upstream websocket response",
@@ -377,6 +351,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			Level:    logs.LevelError,
 			Method:   r.Method,
 			Path:     r.URL.RequestURI(),
+			Model:    route.Model,
 			Status:   status,
 			Duration: time.Since(start).Milliseconds(),
 			Message:  fmt.Sprintf("websocket proxy failed: %v", lastErr),
@@ -406,6 +381,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			Level:     logs.LevelError,
 			Method:    r.Method,
 			Path:      r.URL.RequestURI(),
+			Model:     route.Model,
 			Status:    http.StatusBadRequest,
 			Duration:  time.Since(start).Milliseconds(),
 			TokenName: selected.Name,
@@ -420,7 +396,6 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	consumption, err := proxyWebSocketMessages(client, upstream)
 	_ = s.tokens.RecordProxyUsage(selected.ID, consumption)
 	s.tokens.Release(selected.ID)
-	s.refreshQuotaAfterTask(selected)
 
 	level := logs.LevelInfo
 	message := proxyLogMessage(route.Model, consumption, "websocket proxied")
@@ -432,6 +407,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		Level:     level,
 		Method:    r.Method,
 		Path:      r.URL.RequestURI(),
+		Model:     route.Model,
 		Status:    http.StatusSwitchingProtocols,
 		Duration:  time.Since(start).Milliseconds(),
 		TokenName: selected.Name,
@@ -629,19 +605,12 @@ func limitSummary(value string) string {
 	return value[:max] + "..."
 }
 
-func proxyLogMessage(model string, consumption token.TokenConsumption, fallback string) string {
+func proxyLogMessage(_ string, consumption token.TokenConsumption, fallback string) string {
 	message := fallback
 	if consumption.TotalTokens <= 0 {
-		if model == "" {
-			return message
-		}
-		return fmt.Sprintf("%s, model=%s", message, model)
-	}
-	message = fmt.Sprintf("%s, used %d tokens", message, consumption.TotalTokens)
-	if model == "" {
 		return message
 	}
-	return fmt.Sprintf("%s, model=%s", message, model)
+	return fmt.Sprintf("%s, used %d tokens", message, consumption.TotalTokens)
 }
 
 func copyHeader(dst, src http.Header) {
