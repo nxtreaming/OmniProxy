@@ -118,8 +118,20 @@ cancel:
 
 close:
     DetailPrint "正在关闭 OmniProxy..."
-    nsExec::ExecToLog 'taskkill /IM "${PRODUCT_EXECUTABLE}" /T'
-    Sleep 1500
+    nsExec::ExecToLog 'taskkill /IM "${PRODUCT_EXECUTABLE}"'
+    Sleep 2000
+    nsExec::ExecToStack 'cmd /C tasklist /FI $\"IMAGENAME eq ${PRODUCT_EXECUTABLE}$\" /NH | find /I $\"${PRODUCT_EXECUTABLE}$\" >NUL'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
+        Return
+    ${EndIf}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION "OmniProxy 主进程仍在运行。$\r$\n$\r$\n是否强制关闭 OmniProxy.exe 后继续安装？" IDYES force IDNO manual
+
+force:
+    DetailPrint "正在强制关闭 OmniProxy 主进程..."
+    nsExec::ExecToLog 'taskkill /F /IM "${PRODUCT_EXECUTABLE}"'
+    Sleep 1000
     Goto check
 
 manual:
