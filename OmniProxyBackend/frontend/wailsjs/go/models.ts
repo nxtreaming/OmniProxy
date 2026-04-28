@@ -95,6 +95,130 @@ export namespace config {
 
 }
 
+export namespace history {
+	
+	export class RetryAttempt {
+	    attempt: number;
+	    provider?: string;
+	    protocol?: string;
+	    model?: string;
+	    status?: number;
+	    durationMs?: number;
+	    tokenId?: string;
+	    tokenName?: string;
+	    cooldownTriggered?: boolean;
+	    message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RetryAttempt(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.attempt = source["attempt"];
+	        this.provider = source["provider"];
+	        this.protocol = source["protocol"];
+	        this.model = source["model"];
+	        this.status = source["status"];
+	        this.durationMs = source["durationMs"];
+	        this.tokenId = source["tokenId"];
+	        this.tokenName = source["tokenName"];
+	        this.cooldownTriggered = source["cooldownTriggered"];
+	        this.message = source["message"];
+	    }
+	}
+	export class Entry {
+	    id: number;
+	    // Go type: time
+	    time: any;
+	    level: string;
+	    method?: string;
+	    path?: string;
+	    provider?: string;
+	    protocol?: string;
+	    model?: string;
+	    status?: number;
+	    durationMs?: number;
+	    tokenId?: string;
+	    tokenName?: string;
+	    inputTokens?: number;
+	    outputTokens?: number;
+	    totalTokens?: number;
+	    cooldownTriggered?: boolean;
+	    retryChain?: RetryAttempt[];
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.time = this.convertValues(source["time"], null);
+	        this.level = source["level"];
+	        this.method = source["method"];
+	        this.path = source["path"];
+	        this.provider = source["provider"];
+	        this.protocol = source["protocol"];
+	        this.model = source["model"];
+	        this.status = source["status"];
+	        this.durationMs = source["durationMs"];
+	        this.tokenId = source["tokenId"];
+	        this.tokenName = source["tokenName"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.totalTokens = source["totalTokens"];
+	        this.cooldownTriggered = source["cooldownTriggered"];
+	        this.retryChain = this.convertValues(source["retryChain"], RetryAttempt);
+	        this.message = source["message"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Filter {
+	    provider?: string;
+	    level?: string;
+	    status?: string;
+	    model?: string;
+	    token?: string;
+	    search?: string;
+	    limit?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Filter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.level = source["level"];
+	        this.status = source["status"];
+	        this.model = source["model"];
+	        this.token = source["token"];
+	        this.search = source["search"];
+	        this.limit = source["limit"];
+	    }
+	}
+
+}
+
 export namespace logs {
 	
 	export class Entry {
@@ -211,10 +335,13 @@ export namespace main {
 	    remaining: number;
 	    usage: token.UsageInfo;
 	    stats: token.TokenStats;
+	    health: token.HealthInfo;
 	    status: string;
 	    // Go type: time
 	    lastUsedAt?: any;
 	    lastError?: string;
+	    // Go type: time
+	    cooldownUntil?: any;
 	    // Go type: time
 	    createdAt: any;
 	    // Go type: time
@@ -235,9 +362,11 @@ export namespace main {
 	        this.remaining = source["remaining"];
 	        this.usage = this.convertValues(source["usage"], token.UsageInfo);
 	        this.stats = this.convertValues(source["stats"], token.TokenStats);
+	        this.health = this.convertValues(source["health"], token.HealthInfo);
 	        this.status = source["status"];
 	        this.lastUsedAt = this.convertValues(source["lastUsedAt"], null);
 	        this.lastError = source["lastError"];
+	        this.cooldownUntil = this.convertValues(source["cooldownUntil"], null);
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
@@ -331,6 +460,46 @@ export namespace token {
 	        this.outputTokens = source["outputTokens"];
 	        this.totalTokens = source["totalTokens"];
 	    }
+	}
+	export class HealthInfo {
+	    // Go type: time
+	    lastCheckedAt?: any;
+	    // Go type: time
+	    nextCheckAt?: any;
+	    consecutiveErrors?: number;
+	    lastStatus?: number;
+	    lastMessage?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HealthInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lastCheckedAt = this.convertValues(source["lastCheckedAt"], null);
+	        this.nextCheckAt = this.convertValues(source["nextCheckAt"], null);
+	        this.consecutiveErrors = source["consecutiveErrors"];
+	        this.lastStatus = source["lastStatus"];
+	        this.lastMessage = source["lastMessage"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class TokenStats {
 	    requestCount: number;

@@ -11,11 +11,15 @@ import {
   configureMimoClaude,
   createToken,
   deleteToken,
+  exportHistory,
+  getAutoStartStatus,
   getConfig,
+  getHistory,
   getLogs,
   getProxyStatus,
   getTokens,
   saveConfig,
+  setAutoStart,
   startProxy,
   stopProxy,
   updateToken,
@@ -26,15 +30,18 @@ import {
 import {
   Coin,
   Connection,
+  Clock,
   DataBoard,
+  Download,
   HelpFilled,
   Key,
   MagicStick,
+  Memo,
   Refresh,
   RefreshRight,
   Setting,
   SwitchButton,
-  Tickets,
+  View,
 } from '@element-plus/icons-vue'
 
 const activeTab = ref('dashboard')
@@ -43,7 +50,8 @@ const tabIcons = {
   dashboard: DataBoard,
   quotas: Coin,
   tokens: Key,
-  logs: Tickets,
+  history: Clock,
+  logs: Memo,
   quickstart: MagicStick,
   settings: Setting,
   help: HelpFilled,
@@ -58,6 +66,9 @@ const kimiClaudeConfiguring = ref(false)
 const mimoClaudeRestoring = ref(false)
 const refreshingProvider = ref(false)
 const dataDirChanging = ref(false)
+const autoStartChanging = ref(false)
+const autoStartEnabled = ref(false)
+const exportingHistory = ref('')
 const errorMessage = ref('')
 const successMessage = ref('')
 const toastAutoCloseMs = 4000
@@ -65,6 +76,8 @@ let toastTimer = null
 const validatingIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
+const requestHistory = ref([])
+const selectedHistoryEntry = ref(null)
 const proxyStatus = reactive({ running: false, port: 3000 })
 const config = reactive({
   proxyPort: 3000,
@@ -105,11 +118,22 @@ const form = reactive({
   originalCredentialType: 'api_key',
   tokenValue: '',
 })
+const historyFilters = reactive({
+  provider: 'all',
+  level: 'all',
+  status: 'all',
+  model: '',
+  token: '',
+  search: '',
+})
 
 const activeTokens = computed(() => tokens.value.filter((item) => item.status === 'active'))
 const lowTokens = computed(() => tokens.value.filter((item) => item.status === 'low'))
-const exhaustedTokens = computed(() => tokens.value.filter((item) => item.status === 'exhausted'))
+const exhaustedTokens = computed(() =>
+  tokens.value.filter((item) => item.status === 'exhausted' && !isCooling(item)),
+)
 const invalidTokens = computed(() => tokens.value.filter((item) => item.status === 'invalid'))
+const coolingTokens = computed(() => tokens.value.filter((item) => isCooling(item)))
 const currentToken = computed(() => {
   const usable = [...activeTokens.value, ...lowTokens.value]
   const lastUsed = usable
@@ -137,6 +161,17 @@ const dailyUsageRows = computed(() => aggregateDailyUsage(tokens.value))
 const todayProxyTokens = computed(
   () => dailyUsageRows.value.find((row) => row.date === localDateKey())?.totalTokens || 0,
 )
+const recentDailyUsageRows = computed(() => dailyUsageRows.value.slice(0, 14).reverse())
+const usageTrendMax = computed(() =>
+  Math.max(1, ...recentDailyUsageRows.value.map((row) => Number(row.totalTokens || 0))),
+)
+const requestTrendMax = computed(() =>
+  Math.max(1, ...recentDailyUsageRows.value.map((row) => Number(row.requestCount || 0))),
+)
+const trendGridColumns = computed(
+  () => `repeat(${Math.max(1, recentDailyUsageRows.value.length)}, minmax(0, 1fr))`,
+)
+const filteredHistory = computed(() => filterHistory(requestHistory.value, historyFilters))
 const isCodexForm = computed(
   () => form.provider === 'openai' && form.credentialType === 'codex_auth_json',
 )
@@ -168,21 +203,25 @@ async function refreshAll() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [loadedTokens, loadedConfig, loadedLogs, loadedStatus, loadedDataDirectory] = await Promise.all([
+    const [loadedTokens, loadedConfig, loadedLogs, loadedStatus, loadedDataDirectory, loadedHistory, loadedAutoStart] = await Promise.all([
       getTokens(),
       getConfig(),
       getLogs(),
       getProxyStatus(),
       DataDirectory(),
+      getHistory(),
+      getAutoStartStatus(),
     ])
     tokens.value = loadedTokens
     logs.value = loadedLogs
+    requestHistory.value = loadedHistory
     Object.assign(config, loadedConfig)
     Object.assign(proxyStatus, loadedStatus)
     Object.assign(dataDirectory, loadedDataDirectory, {
       pendingDataDir: '',
       restartRequired: false,
     })
+    autoStartEnabled.value = Boolean(loadedAutoStart?.enabled)
   } catch (error) {
     errorMessage.value = error.message
   } finally {
@@ -192,13 +231,15 @@ async function refreshAll() {
 
 async function refreshRealtime() {
   try {
-    const [loadedLogs, loadedStatus, loadedTokens] = await Promise.all([
+    const [loadedLogs, loadedStatus, loadedTokens, loadedHistory] = await Promise.all([
       getLogs(),
       getProxyStatus(),
       getTokens(),
+      getHistory(),
     ])
     logs.value = loadedLogs
     tokens.value = loadedTokens
+    requestHistory.value = loadedHistory
     Object.assign(proxyStatus, loadedStatus)
   } catch (error) {
     errorMessage.value = error.message
@@ -498,6 +539,42 @@ async function toggleProxy() {
   }
 }
 
+async function toggleAutoStart() {
+  autoStartChanging.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+  try {
+    const next = !autoStartEnabled.value
+    const result = await setAutoStart(next)
+    autoStartEnabled.value = Boolean(result?.enabled)
+    successMessage.value = autoStartEnabled.value ? '已启用开机自启' : '已关闭开机自启'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    autoStartChanging.value = false
+  }
+}
+
+async function exportRequestHistory(format) {
+  if (!filteredHistory.value.length) {
+    errorMessage.value = '当前筛选条件下没有可导出的请求历史'
+    return
+  }
+  exportingHistory.value = format
+  errorMessage.value = ''
+  successMessage.value = ''
+  try {
+    const path = await exportHistory(format, historyFilters, filteredHistory.value)
+    if (path) {
+      successMessage.value = `请求历史已导出为 ${format.toUpperCase()}`
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    exportingHistory.value = ''
+  }
+}
+
 function credentialDisplay(item) {
   if (item.maskedTokenValue) return item.maskedTokenValue
   if (item.credentialType === 'codex_auth_json') return 'auth.json'
@@ -559,6 +636,18 @@ function formatTime(value) {
     minute: '2-digit',
     second: '2-digit',
   }).format(new Date(value))
+}
+
+function formatDuration(value) {
+  const ms = Number(value || 0)
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) {
+    const decimals = ms < 10000 ? 2 : 1
+    return `${(ms / 1000).toFixed(decimals)}s`
+  }
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.round((ms % 60000) / 1000)
+  return `${minutes}m ${seconds}s`
 }
 
 function statusLabel(status) {
@@ -649,11 +738,151 @@ function aggregateDailyUsage(items) {
   return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30)
 }
 
+function filterHistory(items, filters) {
+  const search = filters.search.trim().toLowerCase()
+  const model = filters.model.trim().toLowerCase()
+  const tokenName = filters.token.trim().toLowerCase()
+  return items
+    .filter((item) => filters.provider === 'all' || item.provider === filters.provider)
+    .filter((item) => filters.level === 'all' || item.level === filters.level)
+    .filter((item) => filters.status === 'all' || historyStatusMatches(item, filters.status))
+    .filter((item) => !model || String(item.model || '').toLowerCase().includes(model))
+    .filter((item) => !tokenName || String(item.tokenName || '').toLowerCase().includes(tokenName))
+    .filter((item) => {
+      if (!search) return true
+      return [
+        item.method,
+        item.path,
+        item.provider,
+        item.protocol,
+        item.model,
+        item.tokenName,
+        item.message,
+        String(item.status || ''),
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(search)
+    })
+}
+
+function historyStatusMatches(entry, status) {
+  if (status === 'success') {
+    return entry.status >= 200 && entry.status < 400
+  }
+  if (status === 'error') {
+    return !entry.status || entry.status >= 400
+  }
+  return String(entry.status || '') === status
+}
+
 function localDateKey(date = new Date()) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function isCooling(item) {
+  return item?.cooldownUntil && new Date(item.cooldownUntil).getTime() > Date.now()
+}
+
+function displayStatusLabel(item) {
+  if (isCooling(item)) return '冷却中'
+  return statusLabel(item.status)
+}
+
+function displayStatusClass(item) {
+  if (isCooling(item)) return 'warning'
+  return statusClass(item.status)
+}
+
+function displayStatusType(item) {
+  if (isCooling(item)) return 'warning'
+  return statusType(item.status)
+}
+
+function healthSummary(item) {
+  if (isCooling(item)) {
+    return `冷却到 ${formatTime(item.cooldownUntil)} 后自动复检`
+  }
+  if (item.health?.lastCheckedAt) {
+    const status = item.health.lastStatus ? ` · ${item.health.lastStatus}` : ''
+    return `健康检查 ${formatTime(item.health.lastCheckedAt)}${status}`
+  }
+  return '等待健康检查'
+}
+
+function trendHeight(row) {
+  const value = Number(row.totalTokens || 0)
+  if (value <= 0) return '4%'
+  return `${Math.max(8, Math.round((value / usageTrendMax.value) * 100))}%`
+}
+
+function requestTrendHeight(row) {
+  const value = Number(row.requestCount || 0)
+  if (value <= 0) return '4%'
+  return `${Math.max(8, Math.round((value / requestTrendMax.value) * 100))}%`
+}
+
+function historyStatusLabel(entry) {
+  if (!entry.status) return '-'
+  if (entry.status >= 200 && entry.status < 400) return `${entry.status}`
+  return `${entry.status}`
+}
+
+function historyTagClass(entry) {
+  if (entry.level === 'error') return 'danger'
+  if (entry.level === 'warn') return 'warning'
+  return 'success'
+}
+
+function historyUsageTotal(entry) {
+  const total = Number(entry.totalTokens || 0)
+  if (total <= 0) return '-'
+  return formatNumber(total)
+}
+
+function historyUsageDetail(entry) {
+  const total = Number(entry.totalTokens || 0)
+  if (total <= 0) return ''
+  return `入 ${formatNumber(entry.inputTokens)} · 出 ${formatNumber(entry.outputTokens)}`
+}
+
+function isFailedHistory(entry) {
+  return entry?.level === 'error' || entry?.level === 'warn' || Number(entry?.status || 0) >= 400
+}
+
+function openHistoryDiagnosis(entry) {
+  if (!isFailedHistory(entry)) return
+  selectedHistoryEntry.value = entry
+}
+
+function closeHistoryDiagnosis() {
+  selectedHistoryEntry.value = null
+}
+
+function diagnosticRetryChain(entry) {
+  if (entry?.retryChain?.length) {
+    return entry.retryChain
+  }
+  return [
+    {
+      attempt: 1,
+      provider: entry?.provider,
+      protocol: entry?.protocol,
+      model: entry?.model,
+      status: entry?.status,
+      durationMs: entry?.durationMs,
+      tokenName: entry?.tokenName,
+      cooldownTriggered: entry?.cooldownTriggered,
+      message: entry?.message,
+    },
+  ]
+}
+
+function historyErrorSummary(entry) {
+  return entry?.message || historyStatusLabel(entry)
 }
 
 async function refreshProviderQuotas() {
@@ -768,7 +997,7 @@ async function refreshQuota(item) {
               <small>无效账号</small>
             </div>
           </div>
-          <small>低额度 {{ lowTokens.length }} · 耗尽 {{ exhaustedTokens.length }}</small>
+          <small>低额度 {{ lowTokens.length }} · 冷却 {{ coolingTokens.length }} · 耗尽 {{ exhaustedTokens.length }}</small>
         </article>
         <article class="metric-card">
           <span>代理总 Token</span>
@@ -800,11 +1029,12 @@ async function refreshQuota(item) {
                 <div class="quota-account-title">
                   <strong>{{ item.name }}</strong>
                   <span v-if="currentToken?.id === item.id" class="current-usage-badge">正在使用</span>
-                  <span :class="['tag', statusClass(item.status)]">{{ statusLabel(item.status) }}</span>
+                  <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
                 </div>
                 <small v-if="currentToken?.id === item.id" class="current-usage-meta">
                   {{ providerLabel(item.provider) }} · 最后使用 {{ formatTime(item.lastUsedAt) }}
                 </small>
+                <small v-else class="current-usage-meta">{{ healthSummary(item) }}</small>
               </div>
               <div class="progress">
                 <span :style="{ width: `${Math.max(0, Math.min(100, item.remaining))}%` }"></span>
@@ -835,8 +1065,48 @@ async function refreshQuota(item) {
         <section class="panel full">
           <div class="section-heading">
             <div>
-              <h2>分天 Token 统计</h2>
-              <p>Token 数来自上游 usage；请求数统计成功通过代理返回的请求</p>
+              <h2>分天用量统计</h2>
+              <p>Token 数来自上游 usage；请求数按成功通过代理返回的请求统计</p>
+            </div>
+          </div>
+          <div v-if="recentDailyUsageRows.length" class="trend-panels">
+            <div class="trend-panel" aria-label="最近 Token 趋势">
+              <div class="trend-panel-head">
+                <span>Token 趋势</span>
+                <strong>{{ formatNumber(totalProxyTokens) }}</strong>
+              </div>
+              <div class="usage-trend" :style="{ gridTemplateColumns: trendGridColumns }">
+                <div
+                  v-for="row in recentDailyUsageRows"
+                  :key="row.date"
+                  class="trend-column"
+                  :title="`${row.date} · ${formatNumber(row.totalTokens)} Token`"
+                >
+                  <div class="trend-bar">
+                    <span :style="{ height: trendHeight(row) }"></span>
+                  </div>
+                  <small>{{ row.date.slice(5) }}</small>
+                </div>
+              </div>
+            </div>
+            <div class="trend-panel" aria-label="最近请求次数趋势">
+              <div class="trend-panel-head">
+                <span>请求次数趋势</span>
+                <strong>{{ formatNumber(totalProxyRequests) }}</strong>
+              </div>
+              <div class="usage-trend request-trend" :style="{ gridTemplateColumns: trendGridColumns }">
+                <div
+                  v-for="row in recentDailyUsageRows"
+                  :key="`requests-${row.date}`"
+                  class="trend-column"
+                  :title="`${row.date} · ${formatNumber(row.requestCount)} 次请求`"
+                >
+                  <div class="trend-bar">
+                    <span :style="{ height: requestTrendHeight(row) }"></span>
+                  </div>
+                  <small>{{ row.date.slice(5) }}</small>
+                </div>
+              </div>
             </div>
           </div>
           <div class="usage-table">
@@ -906,12 +1176,13 @@ async function refreshQuota(item) {
                 <div>
                   <strong class="account-name">{{ item.name }}</strong>
                   <span>{{ isCodexToken(item) ? 'Codex auth.json' : credentialLabel(item) }} · {{ providerLabel(item.provider) }}</span>
+                  <small class="health-line">{{ healthSummary(item) }}</small>
                 </div>
                 <div class="quota-head-actions">
                   <el-tag v-if="isCodexToken(item) && item.usage?.subscriptionQuotaAvailable" type="primary" effect="plain">
                     {{ planLabel(item.usage?.planType) }}
                   </el-tag>
-                  <el-tag :type="statusType(item.status)" effect="light" class="status-tag">{{ statusLabel(item.status) }}</el-tag>
+                  <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">{{ displayStatusLabel(item) }}</el-tag>
                   <el-tooltip content="刷新额度" placement="top">
                     <el-button
                       circle
@@ -1048,7 +1319,10 @@ async function refreshQuota(item) {
                   {{ formatNumber(item.stats?.totalTokens) }}
                   <small>{{ formatNumber(item.stats?.requestCount) }} 次请求</small>
                 </td>
-                <td><el-tag :type="statusType(item.status)" effect="light" class="status-tag">{{ statusLabel(item.status) }}</el-tag></td>
+                <td>
+                  <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">{{ displayStatusLabel(item) }}</el-tag>
+                  <small class="health-line">{{ healthSummary(item) }}</small>
+                </td>
                 <td>{{ formatTime(item.lastUsedAt) }}</td>
                 <td class="actions-cell">
                   <div class="row-actions">
@@ -1068,6 +1342,134 @@ async function refreshQuota(item) {
         </div>
       </section>
 
+      <section v-else-if="activeTab === 'history'" key="history" class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>请求历史</h2>
+            <p>持久化记录代理请求、重试结果、账号、模型、耗时和 Token 用量</p>
+          </div>
+          <div class="section-actions">
+            <el-button :icon="Refresh" @click="refreshRealtime">刷新</el-button>
+            <el-button :icon="Download" :loading="exportingHistory === 'csv'" @click="exportRequestHistory('csv')">
+              导出 CSV
+            </el-button>
+            <el-button :icon="Download" :loading="exportingHistory === 'json'" @click="exportRequestHistory('json')">
+              导出 JSON
+            </el-button>
+          </div>
+        </div>
+
+        <div class="history-filters">
+          <label>
+            <span>厂商</span>
+            <select v-model="historyFilters.provider">
+              <option value="all">全部厂商</option>
+              <option v-for="provider in providers" :key="provider.key" :value="provider.key">
+                {{ provider.label }}
+              </option>
+            </select>
+          </label>
+          <label>
+            <span>级别</span>
+            <select v-model="historyFilters.level">
+              <option value="all">全部级别</option>
+              <option value="info">正常</option>
+              <option value="warn">警告</option>
+              <option value="error">错误</option>
+            </select>
+          </label>
+          <label>
+            <span>状态</span>
+            <select v-model="historyFilters.status">
+              <option value="all">全部状态</option>
+              <option value="success">成功</option>
+              <option value="error">失败</option>
+              <option value="429">429</option>
+              <option value="500">500</option>
+              <option value="502">502</option>
+              <option value="503">503</option>
+              <option value="504">504</option>
+            </select>
+          </label>
+          <label>
+            <span>模型</span>
+            <input v-model="historyFilters.model" type="search" placeholder="模型名称" />
+          </label>
+          <label>
+            <span>账号</span>
+            <input v-model="historyFilters.token" type="search" placeholder="账号名称" />
+          </label>
+          <label class="history-search">
+            <span>搜索</span>
+            <input v-model="historyFilters.search" type="search" placeholder="模型、账号、路径或状态码" />
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table class="account-table history-table">
+            <colgroup>
+              <col class="history-col-time" />
+              <col class="history-col-route" />
+              <col class="history-col-token" />
+              <col class="history-col-status" />
+              <col class="history-col-duration" />
+              <col class="history-col-usage" />
+              <col class="history-col-path" />
+              <col class="history-col-actions" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>厂商 / 模型</th>
+                <th>账号</th>
+                <th>状态</th>
+                <th>耗时</th>
+                <th>Token</th>
+                <th>路径</th>
+                <th>诊断</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="entry in filteredHistory.slice(0, 300)"
+                :key="entry.id"
+                :class="{ 'failed-history-row': isFailedHistory(entry) }"
+                @click="openHistoryDiagnosis(entry)"
+              >
+                <td>{{ formatTime(entry.time) }}</td>
+                <td>
+                  <strong>{{ providerLabel(entry.provider) }}</strong>
+                  <small>{{ entry.model || entry.protocol || '-' }}</small>
+                </td>
+                <td :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</td>
+                <td>
+                  <span :class="['tag', historyTagClass(entry)]">{{ historyStatusLabel(entry) }}</span>
+                  <small :title="entry.message">{{ entry.message }}</small>
+                </td>
+                <td>{{ formatDuration(entry.durationMs) }}</td>
+                <td>
+                  <strong>{{ historyUsageTotal(entry) }}</strong>
+                  <small v-if="historyUsageDetail(entry)">{{ historyUsageDetail(entry) }}</small>
+                </td>
+                <td class="mono" :title="`${entry.method} ${entry.path}`">{{ entry.method }} {{ entry.path }}</td>
+                <td>
+                  <el-button
+                    v-if="isFailedHistory(entry)"
+                    size="small"
+                    :icon="View"
+                    @click.stop="openHistoryDiagnosis(entry)"
+                  >
+                    诊断
+                  </el-button>
+                  <span v-else class="muted-text">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="!filteredHistory.length" class="empty">暂无匹配的请求历史</div>
+        </div>
+      </section>
+
       <section v-else-if="activeTab === 'logs'" key="logs" class="panel">
         <div class="section-heading">
           <div>
@@ -1084,7 +1486,7 @@ async function refreshQuota(item) {
               <p>{{ entry.message }}</p>
             </div>
             <small class="log-status">{{ entry.status || '-' }}</small>
-            <small class="log-duration">{{ entry.durationMs || 0 }}ms</small>
+            <small class="log-duration">{{ formatDuration(entry.durationMs) }}</small>
             <small class="log-token" :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</small>
             <time class="log-time">{{ formatTime(entry.time) }}</time>
           </div>
@@ -1121,6 +1523,21 @@ async function refreshQuota(item) {
             @click="chooseDataDirectory"
           >
             {{ dataDirChanging ? '选择中' : '更改目录' }}
+          </button>
+        </div>
+        <div class="data-directory-row startup-row">
+          <div>
+            <span>常驻后台</span>
+            <strong>系统托盘与开机自启</strong>
+            <small>关闭主窗口时保留托盘入口，可从托盘启动/停止代理、查看端口、打开主界面或退出。</small>
+          </div>
+          <button
+            type="button"
+            class="ghost-button"
+            :disabled="autoStartChanging"
+            @click="toggleAutoStart"
+          >
+            {{ autoStartChanging ? '更新中' : autoStartEnabled ? '关闭自启' : '开启自启' }}
           </button>
         </div>
         <div class="settings-grid">
@@ -1282,6 +1699,80 @@ Kimi model: kimi-for-coding</code></pre>
           </article>
         </div>
       </section>
+      </Transition>
+
+      <Transition name="diagnostic-panel">
+        <div v-if="selectedHistoryEntry" class="drawer-backdrop" @click.self="closeHistoryDiagnosis">
+          <aside class="diagnostic-drawer" aria-label="失败请求诊断">
+            <div class="diagnostic-head">
+              <div>
+                <h2>失败诊断</h2>
+                <p>{{ formatTime(selectedHistoryEntry.time) }} · {{ selectedHistoryEntry.method }} {{ selectedHistoryEntry.path }}</p>
+              </div>
+              <button type="button" aria-label="关闭诊断面板" @click="closeHistoryDiagnosis">×</button>
+            </div>
+
+            <div class="diagnostic-grid">
+              <div>
+                <span>路由厂商</span>
+                <strong>{{ providerLabel(selectedHistoryEntry.provider) }}</strong>
+              </div>
+              <div>
+                <span>模型</span>
+                <strong>{{ selectedHistoryEntry.model || '-' }}</strong>
+              </div>
+              <div>
+                <span>账号</span>
+                <strong>{{ selectedHistoryEntry.tokenName || '-' }}</strong>
+              </div>
+              <div>
+                <span>协议</span>
+                <strong>{{ selectedHistoryEntry.protocol || '-' }}</strong>
+              </div>
+              <div>
+                <span>状态码</span>
+                <strong>{{ selectedHistoryEntry.status || '-' }}</strong>
+              </div>
+              <div>
+                <span>耗时</span>
+                <strong>{{ formatDuration(selectedHistoryEntry.durationMs) }}</strong>
+              </div>
+              <div>
+                <span>触发冷却</span>
+                <strong>{{ selectedHistoryEntry.cooldownTriggered ? '是' : '否' }}</strong>
+              </div>
+            </div>
+
+            <div class="diagnostic-section">
+              <span>错误摘要</span>
+              <p>{{ historyErrorSummary(selectedHistoryEntry) }}</p>
+            </div>
+
+            <div class="diagnostic-section">
+              <span>重试链路</span>
+              <div class="retry-chain">
+                <div
+                  v-for="attempt in diagnosticRetryChain(selectedHistoryEntry)"
+                  :key="`${selectedHistoryEntry.id}-${attempt.attempt}-${attempt.tokenName || 'none'}`"
+                  class="retry-step"
+                >
+                  <strong>#{{ attempt.attempt || '-' }}</strong>
+                  <div>
+                    <b>{{ providerLabel(attempt.provider) }}</b>
+                    <small>
+                      {{ attempt.model || selectedHistoryEntry.model || '-' }} ·
+                      {{ attempt.tokenName || '-' }} ·
+                      {{ attempt.status || '-' }} ·
+                      {{ formatDuration(attempt.durationMs) }}
+                      <template v-if="attempt.cooldownTriggered"> · 冷却</template>
+                    </small>
+                    <p>{{ attempt.message || '-' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
       </Transition>
 
       <TokenEditorModal

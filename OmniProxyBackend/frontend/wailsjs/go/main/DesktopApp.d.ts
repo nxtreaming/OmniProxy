@@ -3,8 +3,11 @@
 import {config} from '../models';
 import {main} from '../models';
 import {token} from '../models';
+import {history} from '../models';
 import {logs} from '../models';
 import {proxy} from '../models';
+
+export function AutoStartStatus():Promise<Record<string, any>>;
 
 export function ChooseDataDirectory(arg1:boolean):Promise<config.DataDirectoryChangeResult>;
 
@@ -26,9 +29,13 @@ export function DataDirectory():Promise<config.DataDirectoryInfo>;
 
 export function DeleteToken(arg1:string):Promise<void>;
 
+export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<string>;
+
 export function Logs():Promise<Array<logs.Entry>>;
 
 export function ProxyStatus():Promise<Record<string, any>>;
+
+export function RequestHistory(arg1:history.Filter):Promise<Array<history.Entry>>;
 
 export function RestoreCodex():Promise<main.codexConfigureResult>;
 
@@ -39,6 +46,8 @@ export function RestoreKimiClaude():Promise<main.mimoConfigureResult>;
 export function RestoreMimoClaude():Promise<main.mimoConfigureResult>;
 
 export function SaveConfig(arg1:config.Config):Promise<config.Config>;
+
+export function SetAutoStart(arg1:boolean):Promise<Record<string, any>>;
 
 export function StartProxy():Promise<Record<string, any>>;
 

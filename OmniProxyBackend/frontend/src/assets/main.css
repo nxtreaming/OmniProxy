@@ -461,6 +461,10 @@ td .el-tag {
   background: var(--muted-bg);
 }
 
+.muted-text {
+  color: var(--text-muted);
+}
+
 .toast-stack {
   position: fixed;
   top: 24px;
@@ -1151,6 +1155,93 @@ tr:last-child td {
   overflow: hidden;
 }
 
+.trend-panels {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 14px;
+}
+
+.trend-panel {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.trend-panel-head {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trend-panel-head span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.trend-panel-head strong {
+  min-width: 0;
+  font-size: 18px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.usage-trend {
+  min-width: 0;
+  height: 180px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+  overflow: hidden;
+  padding: 14px 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.trend-column {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.trend-bar {
+  position: relative;
+  min-height: 120px;
+  display: flex;
+  align-items: end;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--muted-bg);
+}
+
+.trend-bar span {
+  width: 100%;
+  min-height: 4px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--brand), var(--success));
+}
+
+.request-trend .trend-bar span {
+  background: linear-gradient(180deg, #7c8cff, var(--brand));
+}
+
+.trend-column small {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .usage-row {
   display: grid;
   grid-template-columns: minmax(120px, 1fr) repeat(4, minmax(96px, 0.7fr));
@@ -1171,6 +1262,326 @@ tr:last-child td {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.health-line {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.history-filters {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 12px;
+}
+
+.history-filters label {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.history-filters span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.history-filters input,
+.history-filters select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+}
+
+.history-search {
+  grid-column: span 2;
+}
+
+.history-table {
+  width: max(100%, 920px);
+  min-width: 920px;
+}
+
+.history-col-time {
+  width: 74px;
+}
+
+.history-col-route {
+  width: 118px;
+}
+
+.history-col-token {
+  width: 128px;
+}
+
+.history-col-status {
+  width: 186px;
+}
+
+.history-col-duration {
+  width: 72px;
+}
+
+.history-col-usage {
+  width: 116px;
+}
+
+.history-col-path {
+  width: 148px;
+}
+
+.history-col-actions {
+  width: 78px;
+}
+
+.history-table th,
+.history-table td {
+  padding: 12px 12px;
+}
+
+.history-table td {
+  vertical-align: top;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.history-table td > strong {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  font-size: 14px;
+}
+
+.history-table td small {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.history-table td:nth-child(3),
+.history-table td:nth-child(7) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.history-table td:nth-child(4) small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.history-table td:nth-child(7) {
+  max-width: none;
+  white-space: normal;
+}
+
+.history-table .el-button {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.failed-history-row {
+  cursor: pointer;
+}
+
+.failed-history-row:hover td {
+  background: var(--surface-soft);
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(6, 12, 20, 0.34);
+}
+
+.diagnostic-panel-enter-active,
+.diagnostic-panel-leave-active {
+  transition: background-color 180ms ease;
+}
+
+.diagnostic-panel-enter-from,
+.diagnostic-panel-leave-to {
+  background: rgba(6, 12, 20, 0);
+}
+
+.diagnostic-panel-enter-active .diagnostic-drawer,
+.diagnostic-panel-leave-active .diagnostic-drawer {
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    box-shadow 240ms ease;
+  will-change: transform, opacity;
+}
+
+.diagnostic-panel-enter-from .diagnostic-drawer,
+.diagnostic-panel-leave-to .diagnostic-drawer {
+  opacity: 0.82;
+  transform: translateX(100%);
+  box-shadow: none;
+}
+
+.diagnostic-drawer {
+  width: min(560px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: -18px 0 44px rgba(20, 32, 51, 0.2);
+  padding: 20px;
+}
+
+.diagnostic-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diagnostic-head p,
+.diagnostic-grid span,
+.diagnostic-section > span,
+.retry-step small {
+  color: var(--text-muted);
+}
+
+.diagnostic-head p {
+  margin-top: 4px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-head button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.diagnostic-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.diagnostic-grid > div,
+.diagnostic-section,
+.retry-step {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.diagnostic-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.diagnostic-grid strong,
+.diagnostic-section p,
+.retry-step p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.diagnostic-section {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.diagnostic-section > span,
+.diagnostic-grid span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.diagnostic-section p {
+  line-height: 1.5;
+}
+
+.retry-chain {
+  display: grid;
+  gap: 8px;
+}
+
+.retry-step {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.retry-step > strong {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--muted-bg);
+}
+
+.retry-step div {
+  min-width: 0;
+}
+
+.retry-step b,
+.retry-step small {
+  display: block;
+}
+
+.retry-step small {
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.retry-step p {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diagnostic-panel-enter-active,
+  .diagnostic-panel-leave-active,
+  .diagnostic-panel-enter-active .diagnostic-drawer,
+  .diagnostic-panel-leave-active .diagnostic-drawer {
+    transition: none;
+  }
+
+  .diagnostic-panel-enter-from .diagnostic-drawer,
+  .diagnostic-panel-leave-to .diagnostic-drawer {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .dot {
@@ -1418,8 +1829,15 @@ textarea:focus {
   .quota-layout,
   .quota-layout.codex-layout,
   .quota-row,
-  .usage-row {
+  .usage-row,
+  .trend-panels,
+  .history-filters {
     grid-template-columns: 1fr;
+  }
+
+  .usage-trend {
+    grid-template-columns: repeat(7, minmax(28px, 1fr));
+    height: auto;
   }
 
   .quota-percent {
@@ -1430,6 +1848,10 @@ textarea:focus {
   .full,
   .wide-help,
   .wide-field {
+    grid-column: span 1;
+  }
+
+  .history-search {
     grid-column: span 1;
   }
 }

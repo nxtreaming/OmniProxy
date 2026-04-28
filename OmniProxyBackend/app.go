@@ -1,23 +1,35 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
+	"OmniProxyBackend/internal/autostart"
 	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
 	"OmniProxyBackend/internal/proxy"
 	"OmniProxyBackend/internal/token"
+	"OmniProxyBackend/internal/tray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type DesktopApp struct {
 	ctx    context.Context
 	server *appServer
+	tray   *tray.Manager
 }
+
+const autoStartName = "OmniProxy"
 
 func NewDesktopApp(server *appServer) *DesktopApp {
 	return &DesktopApp{server: server}
@@ -44,9 +56,16 @@ func (a *DesktopApp) startup(ctx context.Context) {
 		log.Printf("proxy not started: %v", err)
 	}
 	go a.server.refreshCodexUsageOnStartup(ctx)
+	a.server.startHealthMonitor()
+	a.setupTray()
 }
 
 func (a *DesktopApp) shutdown(ctx context.Context) {
+	if a.tray != nil {
+		a.tray.Stop()
+		a.tray = nil
+	}
+	a.server.stopHealthMonitor()
 	if err := a.server.stopProxy(); err != nil {
 		log.Printf("proxy shutdown failed: %v", err)
 	}
@@ -58,6 +77,71 @@ func (a *DesktopApp) shutdown(ctx context.Context) {
 			log.Printf("token data flush failed: %v", err)
 		}
 	}
+	if a.server.history != nil {
+		if err := a.server.history.Flush(); err != nil {
+			log.Printf("request history flush failed: %v", err)
+		}
+	}
+}
+
+func (a *DesktopApp) setupTray() {
+	manager, err := tray.Start(tray.Options{
+		Tooltip: "OmniProxy",
+		StatusLabel: func() string {
+			a.server.mu.Lock()
+			running := a.server.proxyServer != nil
+			a.server.mu.Unlock()
+			if running {
+				return "代理运行中"
+			}
+			return "代理已停止"
+		},
+		PortLabel: func() string {
+			a.server.mu.Lock()
+			cfg := a.server.cfg
+			a.server.mu.Unlock()
+			return fmt.Sprintf("代理端口 :%d / 控制端口 :%d", cfg.ProxyPort, cfg.ControlPort)
+		},
+		IsProxyRunning: func() bool {
+			a.server.mu.Lock()
+			defer a.server.mu.Unlock()
+			return a.server.proxyServer != nil
+		},
+		StartProxy: func() error {
+			return a.server.startProxy()
+		},
+		StopProxy: func() error {
+			return a.server.stopProxy()
+		},
+		ShowWindow: func() {
+			if a.ctx == nil {
+				return
+			}
+			runtime.Show(a.ctx)
+			runtime.WindowShow(a.ctx)
+			runtime.WindowUnminimise(a.ctx)
+		},
+		Quit: func() {
+			if a.ctx != nil {
+				runtime.Quit(a.ctx)
+			}
+		},
+		Log: func(format string, args ...any) {
+			message := fmt.Sprintf(format, args...)
+			log.Print(message)
+			if a.server.logs != nil {
+				a.server.logs.Add(logs.Entry{Level: logs.LevelWarn, Message: message})
+			}
+		},
+	})
+	if err != nil {
+		log.Printf("tray not started: %v", err)
+		if a.server.logs != nil {
+			a.server.logs.Add(logs.Entry{Level: logs.LevelWarn, Message: fmt.Sprintf("tray not started: %v", err)})
+		}
+		return
+	}
+	a.tray = manager
 }
 
 func (a *DesktopApp) ControlAPI() string {
@@ -139,6 +223,71 @@ func (a *DesktopApp) Logs() []logs.Entry {
 	return a.server.logs.List()
 }
 
+func (a *DesktopApp) RequestHistory(filter history.Filter) []history.Entry {
+	if a.server.history == nil {
+		return []history.Entry{}
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 5000
+	}
+	return a.server.history.List(filter)
+}
+
+func (a *DesktopApp) ExportRequestHistory(format string, filter history.Filter) (string, error) {
+	if a.ctx == nil {
+		return "", errors.New("application is not ready")
+	}
+	if a.server.history == nil {
+		return "", errors.New("request history is not ready")
+	}
+
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format != "csv" && format != "json" {
+		return "", errors.New("export format must be csv or json")
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 5000
+	}
+	entries := a.server.history.List(filter)
+
+	var (
+		data       []byte
+		err        error
+		filterName runtime.FileFilter
+	)
+	switch format {
+	case "csv":
+		data, err = encodeHistoryCSV(entries)
+		filterName = runtime.FileFilter{DisplayName: "CSV 文件 (*.csv)", Pattern: "*.csv"}
+	case "json":
+		data, err = json.MarshalIndent(entries, "", "  ")
+		filterName = runtime.FileFilter{DisplayName: "JSON 文件 (*.json)", Pattern: "*.json"}
+	}
+	if err != nil {
+		return "", err
+	}
+
+	filename := fmt.Sprintf("omniproxy-request-history-%s.%s", time.Now().Format("20060102-150405"), format)
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "导出请求历史",
+		DefaultFilename: filename,
+		Filters:         []runtime.FileFilter{filterName},
+	})
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(path) == "" {
+		return "", nil
+	}
+	if strings.ToLower(filepath.Ext(path)) != "."+format {
+		path += "." + format
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func (a *DesktopApp) ProxyStatus() map[string]any {
 	a.server.mu.Lock()
 	defer a.server.mu.Unlock()
@@ -160,6 +309,21 @@ func (a *DesktopApp) StopProxy() (map[string]any, error) {
 		return nil, err
 	}
 	return map[string]any{"running": false}, nil
+}
+
+func (a *DesktopApp) AutoStartStatus() (map[string]any, error) {
+	enabled, err := autostart.Enabled(autoStartName)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"enabled": enabled}, nil
+}
+
+func (a *DesktopApp) SetAutoStart(enabled bool) (map[string]any, error) {
+	if err := autostart.Set(autoStartName, enabled, "--minimized"); err != nil {
+		return nil, err
+	}
+	return map[string]any{"enabled": enabled}, nil
 }
 
 func (a *DesktopApp) ConfigureCodex() (codexConfigureResult, error) {
@@ -264,4 +428,89 @@ func (a *DesktopApp) ensureDataDirectory(ctx context.Context) error {
 		return err
 	}
 	return a.server.loadData(selected)
+}
+
+func encodeHistoryCSV(entries []history.Entry) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteString("\xEF\xBB\xBF")
+	writer := csv.NewWriter(&buf)
+	if err := writer.Write([]string{
+		"时间",
+		"级别",
+		"方法",
+		"路径",
+		"路由厂商",
+		"协议",
+		"模型",
+		"状态码",
+		"耗时(ms)",
+		"账号",
+		"输入Token",
+		"输出Token",
+		"总Token",
+		"触发冷却",
+		"错误摘要",
+		"重试链路",
+	}); err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if err := writer.Write([]string{
+			entry.Time.Format(time.RFC3339),
+			entry.Level,
+			entry.Method,
+			entry.Path,
+			entry.Provider,
+			entry.Protocol,
+			entry.Model,
+			fmt.Sprintf("%d", entry.Status),
+			fmt.Sprintf("%d", entry.Duration),
+			entry.TokenName,
+			fmt.Sprintf("%d", entry.InputTokens),
+			fmt.Sprintf("%d", entry.OutputTokens),
+			fmt.Sprintf("%d", entry.TotalTokens),
+			formatBoolCN(entry.CooldownTriggered),
+			entry.Message,
+			formatRetryChain(entry.RetryChain),
+		}); err != nil {
+			return nil, err
+		}
+	}
+	writer.Flush()
+	return buf.Bytes(), writer.Error()
+}
+
+func formatBoolCN(value bool) string {
+	if value {
+		return "是"
+	}
+	return "否"
+}
+
+func formatRetryChain(chain []history.RetryAttempt) string {
+	if len(chain) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(chain))
+	for _, attempt := range chain {
+		label := fmt.Sprintf("#%d %s", attempt.Attempt, attempt.Provider)
+		if attempt.TokenName != "" {
+			label += " " + attempt.TokenName
+		}
+		if attempt.Status != 0 {
+			label += fmt.Sprintf(" %d", attempt.Status)
+		}
+		if attempt.Duration > 0 {
+			label += fmt.Sprintf(" %dms", attempt.Duration)
+		}
+		if attempt.CooldownTriggered {
+			label += " 冷却"
+		}
+		if attempt.Message != "" {
+			label += " " + attempt.Message
+		}
+		parts = append(parts, label)
+	}
+	return strings.Join(parts, " | ")
 }

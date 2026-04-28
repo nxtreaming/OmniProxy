@@ -10,12 +10,15 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
 	"OmniProxyBackend/internal/proxy"
 	"OmniProxyBackend/internal/storage"
@@ -36,9 +39,19 @@ type appServer struct {
 	configStore *config.Store
 	tokens      *token.Manager
 	logs        *logs.Recorder
+	history     *history.Recorder
 	proxyServer *http.Server
 	control     *http.Server
+	healthStop  context.CancelFunc
 }
+
+const (
+	healthCheckTick       = time.Minute
+	activeHealthInterval  = 15 * time.Minute
+	retryHealthInterval   = time.Minute
+	healthRequestTimeout  = 15 * time.Second
+	failedHealthRetryWait = 5 * time.Minute
+)
 
 func main() {
 	server, err := newAppServer()
@@ -49,11 +62,13 @@ func main() {
 	desktop := NewDesktopApp(server)
 
 	err = wails.Run(&options.App{
-		Title:     "OmniProxy",
-		Width:     1280,
-		Height:    860,
-		MinWidth:  1040,
-		MinHeight: 720,
+		Title:             "OmniProxy",
+		Width:             1280,
+		Height:            860,
+		MinWidth:          1040,
+		MinHeight:         720,
+		StartHidden:       startHiddenFromArgs(),
+		HideWindowOnClose: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -67,6 +82,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func startHiddenFromArgs() bool {
+	for _, arg := range os.Args[1:] {
+		switch strings.ToLower(strings.TrimSpace(arg)) {
+		case "--minimized", "--hidden", "/minimized", "/hidden":
+			return true
+		}
+	}
+	return false
 }
 
 func newAppServer() (*appServer, error) {
@@ -105,12 +130,18 @@ func (a *appServer) loadData(dataDir string) error {
 	if err != nil {
 		return fmt.Errorf("load tokens: %w", err)
 	}
+	historyStore := storage.NewJSONStore[[]history.Entry](filepath.Join(dataDir, "request_history.json"))
+	historyRecorder, err := history.NewRecorder(historyStore, 5000)
+	if err != nil {
+		return fmt.Errorf("load request history: %w", err)
+	}
 
 	a.mu.Lock()
 	a.dataDir = dataDir
 	a.cfg = cfg
 	a.configStore = cfgStore
 	a.tokens = tokenManager
+	a.history = historyRecorder
 	a.mu.Unlock()
 	return nil
 }
@@ -182,6 +213,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/tokens/", a.handleTokenByID)
 	mux.HandleFunc("/api/config", a.handleConfig)
 	mux.HandleFunc("/api/logs", a.handleLogs)
+	mux.HandleFunc("/api/history", a.handleHistory)
 	mux.HandleFunc("/api/proxy/status", a.handleProxyStatus)
 	mux.HandleFunc("/api/proxy/start", a.handleProxyStart)
 	mux.HandleFunc("/api/proxy/stop", a.handleProxyStop)
@@ -324,7 +356,10 @@ func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.T
 		_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("validation returned %d", result.Status))
 	}
 	if result.Status == http.StatusTooManyRequests {
-		_ = a.tokens.MarkExhausted(selected.ID, "validation returned 429")
+		_ = a.tokens.MarkExhaustedUntil(selected.ID, "validation returned 429", validationCooldownUntil(result))
+	}
+	if result.OK && result.Remaining == nil && result.Usage == nil {
+		_ = a.tokens.MarkActive(selected.ID)
 	}
 	return result, err
 }
@@ -355,9 +390,116 @@ func (a *appServer) refreshCodexUsageOnStartup(ctx context.Context) {
 	a.logs.Add(logs.Entry{Level: level, Message: message})
 }
 
+func (a *appServer) startHealthMonitor() {
+	a.mu.Lock()
+	if a.healthStop != nil || a.tokens == nil {
+		a.mu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	a.healthStop = cancel
+	a.mu.Unlock()
+
+	go a.healthMonitor(ctx)
+}
+
+func (a *appServer) stopHealthMonitor() {
+	a.mu.Lock()
+	cancel := a.healthStop
+	a.healthStop = nil
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (a *appServer) healthMonitor(ctx context.Context) {
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			a.runDueHealthChecks(ctx)
+			timer.Reset(healthCheckTick)
+		}
+	}
+}
+
+func (a *appServer) runDueHealthChecks(ctx context.Context) {
+	a.mu.Lock()
+	manager := a.tokens
+	a.mu.Unlock()
+	if manager == nil {
+		return
+	}
+
+	candidates := manager.HealthCheckCandidates(time.Now(), activeHealthInterval, retryHealthInterval)
+	if len(candidates) == 0 {
+		return
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: fmt.Sprintf("health check started: %d accounts", len(candidates))})
+	for _, item := range candidates {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		checkCtx, cancel := context.WithTimeout(ctx, healthRequestTimeout)
+		result, err := a.validateAndRecordToken(checkCtx, item)
+		cancel()
+
+		message := result.Message
+		if err != nil {
+			message = err.Error()
+		}
+		nextCheck := nextHealthCheckAt(result, err)
+		_ = manager.RecordHealthCheck(item.ID, result.OK, result.Status, message, nextCheck)
+
+		level := logs.LevelInfo
+		if err != nil || !result.OK {
+			level = logs.LevelWarn
+		}
+		a.logs.Add(logs.Entry{
+			Level:     level,
+			Status:    result.Status,
+			Duration:  result.Duration,
+			TokenName: item.Name,
+			Message:   "health check completed",
+		})
+	}
+}
+
+func nextHealthCheckAt(result proxy.ValidationResult, err error) *time.Time {
+	if result.Status == http.StatusTooManyRequests {
+		return validationCooldownUntil(result)
+	}
+	now := time.Now()
+	wait := activeHealthInterval
+	if err != nil || !result.OK {
+		wait = failedHealthRetryWait
+	}
+	next := now.Add(wait)
+	return &next
+}
+
 func isCodexToken(item token.Token) bool {
 	return token.NormalizeProvider(item.Provider) == token.ProviderOpenAI &&
 		item.CredentialType == token.CredentialTypeCodexAuthJSON
+}
+
+func validationCooldownUntil(result proxy.ValidationResult) *time.Time {
+	now := time.Now()
+	if result.Usage != nil && result.Usage.PrimaryResetAt > now.Unix() {
+		until := time.Unix(result.Usage.PrimaryResetAt, 0)
+		return &until
+	}
+	until := now.Add(5 * time.Minute)
+	return &until
 }
 
 func (a *appServer) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -420,6 +562,38 @@ func (a *appServer) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, a.logs.List())
+}
+
+func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		writeJSON(w, http.StatusOK, []history.Entry{})
+		return
+	}
+
+	limit := 1000
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	filter := history.Filter{
+		Provider: strings.TrimSpace(r.URL.Query().Get("provider")),
+		Level:    strings.TrimSpace(r.URL.Query().Get("level")),
+		Status:   strings.TrimSpace(r.URL.Query().Get("status")),
+		Model:    strings.TrimSpace(r.URL.Query().Get("model")),
+		Token:    strings.TrimSpace(r.URL.Query().Get("token")),
+		Search:   strings.TrimSpace(r.URL.Query().Get("search")),
+		Limit:    limit,
+	}
+	writeJSON(w, http.StatusOK, recorder.List(filter))
 }
 
 func (a *appServer) handleProxyStatus(w http.ResponseWriter, r *http.Request) {
@@ -575,7 +749,7 @@ func (a *appServer) startProxy() error {
 		return err
 	}
 
-	svc, err := proxy.NewService(a.cfg, a.tokens, a.logs)
+	svc, err := proxy.NewService(a.cfg, a.tokens, a.logs, a.history)
 	if err != nil {
 		return err
 	}
@@ -720,9 +894,11 @@ type tokenResponse struct {
 	Remaining        int              `json:"remaining"`
 	Usage            token.UsageInfo  `json:"usage"`
 	Stats            token.TokenStats `json:"stats"`
+	Health           token.HealthInfo `json:"health"`
 	Status           token.Status     `json:"status"`
 	LastUsedAt       *time.Time       `json:"lastUsedAt,omitempty"`
 	LastError        string           `json:"lastError,omitempty"`
+	CooldownUntil    *time.Time       `json:"cooldownUntil,omitempty"`
 	CreatedAt        time.Time        `json:"createdAt"`
 	UpdatedAt        time.Time        `json:"updatedAt"`
 }
@@ -746,9 +922,11 @@ func tokenResponseFor(item token.Token) tokenResponse {
 		Remaining:        item.Remaining,
 		Usage:            item.Usage,
 		Stats:            item.Stats,
+		Health:           item.Health,
 		Status:           item.Status,
 		LastUsedAt:       item.LastUsedAt,
 		LastError:        item.LastError,
+		CooldownUntil:    item.CooldownUntil,
 		CreatedAt:        item.CreatedAt,
 		UpdatedAt:        item.UpdatedAt,
 	}
