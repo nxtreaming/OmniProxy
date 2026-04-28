@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ChooseDataDirectory, DataDirectory } from '../wailsjs/go/main/DesktopApp'
+import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
+import HistoryView from './components/HistoryView.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
 import appIconUrl from './assets/appicon.png'
 import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
@@ -32,7 +34,6 @@ import {
   Connection,
   Clock,
   DataBoard,
-  Download,
   HelpFilled,
   Key,
   MagicStick,
@@ -41,7 +42,6 @@ import {
   RefreshRight,
   Setting,
   SwitchButton,
-  View,
 } from '@element-plus/icons-vue'
 
 const activeTab = ref('dashboard')
@@ -118,15 +118,6 @@ const form = reactive({
   originalCredentialType: 'api_key',
   tokenValue: '',
 })
-const historyFilters = reactive({
-  provider: 'all',
-  level: 'all',
-  status: 'all',
-  model: '',
-  token: '',
-  search: '',
-})
-
 const activeTokens = computed(() => tokens.value.filter((item) => item.status === 'active'))
 const lowTokens = computed(() => tokens.value.filter((item) => item.status === 'low'))
 const exhaustedTokens = computed(() =>
@@ -171,7 +162,6 @@ const requestTrendMax = computed(() =>
 const trendGridColumns = computed(
   () => `repeat(${Math.max(1, recentDailyUsageRows.value.length)}, minmax(0, 1fr))`,
 )
-const filteredHistory = computed(() => filterHistory(requestHistory.value, historyFilters))
 const isCodexForm = computed(
   () => form.provider === 'openai' && form.credentialType === 'codex_auth_json',
 )
@@ -555,8 +545,11 @@ async function toggleAutoStart() {
   }
 }
 
-async function exportRequestHistory(format) {
-  if (!filteredHistory.value.length) {
+async function exportRequestHistory(payload) {
+  const format = payload?.format
+  const filters = payload?.filters || {}
+  const entries = payload?.entries || []
+  if (!entries.length) {
     errorMessage.value = '当前筛选条件下没有可导出的请求历史'
     return
   }
@@ -564,7 +557,7 @@ async function exportRequestHistory(format) {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    const path = await exportHistory(format, historyFilters, filteredHistory.value)
+    const path = await exportHistory(format, filters, entries)
     if (path) {
       successMessage.value = `请求历史已导出为 ${format.toUpperCase()}`
     }
@@ -738,44 +731,6 @@ function aggregateDailyUsage(items) {
   return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30)
 }
 
-function filterHistory(items, filters) {
-  const search = filters.search.trim().toLowerCase()
-  const model = filters.model.trim().toLowerCase()
-  const tokenName = filters.token.trim().toLowerCase()
-  return items
-    .filter((item) => filters.provider === 'all' || item.provider === filters.provider)
-    .filter((item) => filters.level === 'all' || item.level === filters.level)
-    .filter((item) => filters.status === 'all' || historyStatusMatches(item, filters.status))
-    .filter((item) => !model || String(item.model || '').toLowerCase().includes(model))
-    .filter((item) => !tokenName || String(item.tokenName || '').toLowerCase().includes(tokenName))
-    .filter((item) => {
-      if (!search) return true
-      return [
-        item.method,
-        item.path,
-        item.provider,
-        item.protocol,
-        item.model,
-        item.tokenName,
-        item.message,
-        String(item.status || ''),
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(search)
-    })
-}
-
-function historyStatusMatches(entry, status) {
-  if (status === 'success') {
-    return entry.status >= 200 && entry.status < 400
-  }
-  if (status === 'error') {
-    return !entry.status || entry.status >= 400
-  }
-  return String(entry.status || '') === status
-}
-
 function localDateKey(date = new Date()) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -825,64 +780,8 @@ function requestTrendHeight(row) {
   return `${Math.max(8, Math.round((value / requestTrendMax.value) * 100))}%`
 }
 
-function historyStatusLabel(entry) {
-  if (!entry.status) return '-'
-  if (entry.status >= 200 && entry.status < 400) return `${entry.status}`
-  return `${entry.status}`
-}
-
-function historyTagClass(entry) {
-  if (entry.level === 'error') return 'danger'
-  if (entry.level === 'warn') return 'warning'
-  return 'success'
-}
-
-function historyUsageTotal(entry) {
-  const total = Number(entry.totalTokens || 0)
-  if (total <= 0) return '-'
-  return formatNumber(total)
-}
-
-function historyUsageDetail(entry) {
-  const total = Number(entry.totalTokens || 0)
-  if (total <= 0) return ''
-  return `入 ${formatNumber(entry.inputTokens)} · 出 ${formatNumber(entry.outputTokens)}`
-}
-
-function isFailedHistory(entry) {
-  return entry?.level === 'error' || entry?.level === 'warn' || Number(entry?.status || 0) >= 400
-}
-
-function openHistoryDiagnosis(entry) {
-  if (!isFailedHistory(entry)) return
-  selectedHistoryEntry.value = entry
-}
-
 function closeHistoryDiagnosis() {
   selectedHistoryEntry.value = null
-}
-
-function diagnosticRetryChain(entry) {
-  if (entry?.retryChain?.length) {
-    return entry.retryChain
-  }
-  return [
-    {
-      attempt: 1,
-      provider: entry?.provider,
-      protocol: entry?.protocol,
-      model: entry?.model,
-      status: entry?.status,
-      durationMs: entry?.durationMs,
-      tokenName: entry?.tokenName,
-      cooldownTriggered: entry?.cooldownTriggered,
-      message: entry?.message,
-    },
-  ]
-}
-
-function historyErrorSummary(entry) {
-  return entry?.message || historyStatusLabel(entry)
 }
 
 async function refreshProviderQuotas() {
@@ -1342,133 +1241,20 @@ async function refreshQuota(item) {
         </div>
       </section>
 
-      <section v-else-if="activeTab === 'history'" key="history" class="panel">
-        <div class="section-heading">
-          <div>
-            <h2>请求历史</h2>
-            <p>持久化记录代理请求、重试结果、账号、模型、耗时和 Token 用量</p>
-          </div>
-          <div class="section-actions">
-            <el-button :icon="Refresh" @click="refreshRealtime">刷新</el-button>
-            <el-button :icon="Download" :loading="exportingHistory === 'csv'" @click="exportRequestHistory('csv')">
-              导出 CSV
-            </el-button>
-            <el-button :icon="Download" :loading="exportingHistory === 'json'" @click="exportRequestHistory('json')">
-              导出 JSON
-            </el-button>
-          </div>
-        </div>
-
-        <div class="history-filters">
-          <label>
-            <span>厂商</span>
-            <select v-model="historyFilters.provider">
-              <option value="all">全部厂商</option>
-              <option v-for="provider in providers" :key="provider.key" :value="provider.key">
-                {{ provider.label }}
-              </option>
-            </select>
-          </label>
-          <label>
-            <span>级别</span>
-            <select v-model="historyFilters.level">
-              <option value="all">全部级别</option>
-              <option value="info">正常</option>
-              <option value="warn">警告</option>
-              <option value="error">错误</option>
-            </select>
-          </label>
-          <label>
-            <span>状态</span>
-            <select v-model="historyFilters.status">
-              <option value="all">全部状态</option>
-              <option value="success">成功</option>
-              <option value="error">失败</option>
-              <option value="429">429</option>
-              <option value="500">500</option>
-              <option value="502">502</option>
-              <option value="503">503</option>
-              <option value="504">504</option>
-            </select>
-          </label>
-          <label>
-            <span>模型</span>
-            <input v-model="historyFilters.model" type="search" placeholder="模型名称" />
-          </label>
-          <label>
-            <span>账号</span>
-            <input v-model="historyFilters.token" type="search" placeholder="账号名称" />
-          </label>
-          <label class="history-search">
-            <span>搜索</span>
-            <input v-model="historyFilters.search" type="search" placeholder="模型、账号、路径或状态码" />
-          </label>
-        </div>
-
-        <div class="table-wrap">
-          <table class="account-table history-table">
-            <colgroup>
-              <col class="history-col-time" />
-              <col class="history-col-route" />
-              <col class="history-col-token" />
-              <col class="history-col-status" />
-              <col class="history-col-duration" />
-              <col class="history-col-usage" />
-              <col class="history-col-path" />
-              <col class="history-col-actions" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>厂商 / 模型</th>
-                <th>账号</th>
-                <th>状态</th>
-                <th>耗时</th>
-                <th>Token</th>
-                <th>路径</th>
-                <th>诊断</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="entry in filteredHistory.slice(0, 300)"
-                :key="entry.id"
-                :class="{ 'failed-history-row': isFailedHistory(entry) }"
-                @click="openHistoryDiagnosis(entry)"
-              >
-                <td>{{ formatTime(entry.time) }}</td>
-                <td>
-                  <strong>{{ providerLabel(entry.provider) }}</strong>
-                  <small>{{ entry.model || entry.protocol || '-' }}</small>
-                </td>
-                <td :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</td>
-                <td>
-                  <span :class="['tag', historyTagClass(entry)]">{{ historyStatusLabel(entry) }}</span>
-                  <small :title="entry.message">{{ entry.message }}</small>
-                </td>
-                <td>{{ formatDuration(entry.durationMs) }}</td>
-                <td>
-                  <strong>{{ historyUsageTotal(entry) }}</strong>
-                  <small v-if="historyUsageDetail(entry)">{{ historyUsageDetail(entry) }}</small>
-                </td>
-                <td class="mono" :title="`${entry.method} ${entry.path}`">{{ entry.method }} {{ entry.path }}</td>
-                <td>
-                  <el-button
-                    v-if="isFailedHistory(entry)"
-                    size="small"
-                    :icon="View"
-                    @click.stop="openHistoryDiagnosis(entry)"
-                  >
-                    诊断
-                  </el-button>
-                  <span v-else class="muted-text">-</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div v-if="!filteredHistory.length" class="empty">暂无匹配的请求历史</div>
-        </div>
-      </section>
+      <HistoryView
+        v-else-if="activeTab === 'history'"
+        key="history"
+        :entries="requestHistory"
+        :providers="providers"
+        :exporting="exportingHistory"
+        :format-time="formatTime"
+        :format-duration="formatDuration"
+        :format-number="formatNumber"
+        :provider-label="providerLabel"
+        @refresh="refreshRealtime"
+        @export="exportRequestHistory"
+        @diagnose="selectedHistoryEntry = $event"
+      />
 
       <section v-else-if="activeTab === 'logs'" key="logs" class="panel">
         <div class="section-heading">
@@ -1701,79 +1487,13 @@ Kimi model: kimi-for-coding</code></pre>
       </section>
       </Transition>
 
-      <Transition name="diagnostic-panel">
-        <div v-if="selectedHistoryEntry" class="drawer-backdrop" @click.self="closeHistoryDiagnosis">
-          <aside class="diagnostic-drawer" aria-label="失败请求诊断">
-            <div class="diagnostic-head">
-              <div>
-                <h2>失败诊断</h2>
-                <p>{{ formatTime(selectedHistoryEntry.time) }} · {{ selectedHistoryEntry.method }} {{ selectedHistoryEntry.path }}</p>
-              </div>
-              <button type="button" aria-label="关闭诊断面板" @click="closeHistoryDiagnosis">×</button>
-            </div>
-
-            <div class="diagnostic-grid">
-              <div>
-                <span>路由厂商</span>
-                <strong>{{ providerLabel(selectedHistoryEntry.provider) }}</strong>
-              </div>
-              <div>
-                <span>模型</span>
-                <strong>{{ selectedHistoryEntry.model || '-' }}</strong>
-              </div>
-              <div>
-                <span>账号</span>
-                <strong>{{ selectedHistoryEntry.tokenName || '-' }}</strong>
-              </div>
-              <div>
-                <span>协议</span>
-                <strong>{{ selectedHistoryEntry.protocol || '-' }}</strong>
-              </div>
-              <div>
-                <span>状态码</span>
-                <strong>{{ selectedHistoryEntry.status || '-' }}</strong>
-              </div>
-              <div>
-                <span>耗时</span>
-                <strong>{{ formatDuration(selectedHistoryEntry.durationMs) }}</strong>
-              </div>
-              <div>
-                <span>触发冷却</span>
-                <strong>{{ selectedHistoryEntry.cooldownTriggered ? '是' : '否' }}</strong>
-              </div>
-            </div>
-
-            <div class="diagnostic-section">
-              <span>错误摘要</span>
-              <p>{{ historyErrorSummary(selectedHistoryEntry) }}</p>
-            </div>
-
-            <div class="diagnostic-section">
-              <span>重试链路</span>
-              <div class="retry-chain">
-                <div
-                  v-for="attempt in diagnosticRetryChain(selectedHistoryEntry)"
-                  :key="`${selectedHistoryEntry.id}-${attempt.attempt}-${attempt.tokenName || 'none'}`"
-                  class="retry-step"
-                >
-                  <strong>#{{ attempt.attempt || '-' }}</strong>
-                  <div>
-                    <b>{{ providerLabel(attempt.provider) }}</b>
-                    <small>
-                      {{ attempt.model || selectedHistoryEntry.model || '-' }} ·
-                      {{ attempt.tokenName || '-' }} ·
-                      {{ attempt.status || '-' }} ·
-                      {{ formatDuration(attempt.durationMs) }}
-                      <template v-if="attempt.cooldownTriggered"> · 冷却</template>
-                    </small>
-                    <p>{{ attempt.message || '-' }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>
-      </Transition>
+      <DiagnosticDrawer
+        :entry="selectedHistoryEntry"
+        :format-time="formatTime"
+        :format-duration="formatDuration"
+        :provider-label="providerLabel"
+        @close="closeHistoryDiagnosis"
+      />
 
       <TokenEditorModal
         v-if="form.visible"
