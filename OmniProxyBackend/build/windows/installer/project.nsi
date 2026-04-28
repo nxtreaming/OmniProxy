@@ -1,4 +1,4 @@
-Unicode true
+﻿Unicode true
 
 ####
 ## Please note: Template replacements don't work in this file. They are provided with default defines like
@@ -109,7 +109,10 @@ check:
         Return
     ${EndIf}
 
-    MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "检测到 OmniProxy 正在运行。$\r$\n$\r$\n选择“是”将尝试自动关闭后继续安装；选择“否”可手动关闭后重试；选择“取消”退出安装。" IDYES close IDNO manual IDCANCEL cancel
+    MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "检测到 OmniProxy 正在运行。$\r$\n$\r$\n选择“是”将尝试自动关闭后继续安装；选择“否”可手动关闭后重试；选择“取消”退出安装。" IDYES close IDNO manual
+
+cancel:
+    Abort
 
 close:
     DetailPrint "正在关闭 OmniProxy..."
@@ -120,9 +123,6 @@ close:
 manual:
     MessageBox MB_OK "请关闭 OmniProxy 后点击确定继续。"
     Goto check
-
-cancel:
-    Abort
 FunctionEnd
 
 Function un.onInit
