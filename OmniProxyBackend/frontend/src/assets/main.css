@@ -1875,6 +1875,61 @@ tr:last-child td {
   gap: 16px;
 }
 
+.settings-stack {
+  margin-top: 20px;
+  display: grid;
+  gap: 22px;
+}
+
+.settings-section {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings-section-head {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-section-head h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.settings-section-head p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.settings-action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-action-list .data-directory-row,
+.settings-section .settings-grid {
+  margin-top: 0;
+}
+
+.compact-settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .data-directory-row {
   margin-top: 18px;
   display: grid;
@@ -2120,6 +2175,16 @@ textarea:focus {
 
   .history-search {
     grid-column: span 1;
+  }
+
+  .data-directory-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .data-directory-row > button,
+  .data-directory-row > .el-button {
+    justify-self: start;
   }
 
   .history-trend-panel,
