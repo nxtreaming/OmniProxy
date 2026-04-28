@@ -4,6 +4,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"OmniProxyBackend/internal/sanitize"
 )
 
 type Level string
@@ -50,6 +52,8 @@ func (r *Recorder) Add(entry Entry) Entry {
 	if entry.Time.IsZero() {
 		entry.Time = time.Now()
 	}
+	entry.Path = sanitize.Text(entry.Path)
+	entry.Message = sanitize.Text(entry.Message)
 	r.entries = append(r.entries, entry)
 	if len(r.entries) > r.max {
 		r.entries = r.entries[len(r.entries)-r.max:]

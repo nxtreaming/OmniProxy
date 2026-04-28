@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"OmniProxyBackend/internal/sanitize"
 )
 
 const defaultPersistDelay = 500 * time.Millisecond
@@ -119,6 +121,11 @@ func (r *Recorder) Add(entry Entry) Entry {
 	}
 	if entry.Level == "" {
 		entry.Level = "info"
+	}
+	entry.Path = sanitize.Text(entry.Path)
+	entry.Message = sanitize.Text(entry.Message)
+	for i := range entry.RetryChain {
+		entry.RetryChain[i].Message = sanitize.Text(entry.RetryChain[i].Message)
 	}
 	r.entries = append(r.entries, entry)
 	if len(r.entries) > r.max {
