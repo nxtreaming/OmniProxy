@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows build and test
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: OmniProxyBackend/go.mod
+          cache-dependency-path: OmniProxyBackend/go.sum
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: OmniProxyBackend/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: OmniProxyBackend/frontend
+        run: npm ci
+
+      - name: Test backend
+        working-directory: OmniProxyBackend
+        run: go test ./...
+
+      - name: Build frontend
+        working-directory: OmniProxyBackend/frontend
+        run: npm run build
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Build desktop app
+        working-directory: OmniProxyBackend
+        run: |
+          $wails = Join-Path (go env GOPATH) "bin\wails.exe"
+          & $wails build -clean -ldflags "-X main.appVersion=ci"

@@ -73,6 +73,9 @@ jobs:
 
           $installerAsset = "OmniProxy-Setup-$version-windows-amd64.exe"
           Copy-Item -LiteralPath $installer.FullName -Destination $installerAsset -Force
+          $shaAsset = "$installerAsset.sha256"
+          $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $installerAsset
+          "$($hash.Hash.ToLowerInvariant())  $installerAsset" | Set-Content -Path $shaAsset -Encoding ascii
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -81,6 +84,7 @@ jobs:
           overwrite_files: true
           files: |
             OmniProxyBackend/OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe
+            OmniProxyBackend/OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe.sha256
           body: |
             # OmniProxy ${{ github.ref_name }} 🎉
 
@@ -89,6 +93,7 @@ jobs:
             ## 下载
 
             - `OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe`：Windows 安装包，推荐下载。
+            - `OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe.sha256`：安装包 SHA256 校验文件。
 
             ## 亮点
 
