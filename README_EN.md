@@ -21,7 +21,7 @@ OmniProxy is useful when you run into problems like:
 - 🧠 **Multi-account scheduling**: queue mode and balanced mode, with in-flight account avoidance.
 - 🧯 **Automatic failover**: retry with another usable account on `429`, `502`, `503`, and `504`.
 - 📊 **Quota and usage visibility**: remaining quota, reset time, request counts, input / output / total tokens.
-- ⚡ **Quota refresh after tasks**: Codex and verifiable accounts refresh quota state after completed requests when possible.
+- ⚡ **Active account quota refresh**: Codex and verifiable active accounts refresh quota state automatically every 30 seconds.
 - 🧭 **Claude Code routing**: route Claude Code locally to DeepSeek, Kimi, or Xiaomi MiMo.
 - 🧵 **Codex WebSocket proxy**: optional Codex WebSocket proxying with usage logging.
 - 🧱 **Local persistence**: config, accounts, and usage stats are stored as local JSON files.
