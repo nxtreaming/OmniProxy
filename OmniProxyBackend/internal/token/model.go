@@ -34,9 +34,11 @@ type Token struct {
 	Remaining      int        `json:"remaining"`
 	Usage          UsageInfo  `json:"usage"`
 	Stats          TokenStats `json:"stats"`
+	Health         HealthInfo `json:"health"`
 	Status         Status     `json:"status"`
 	LastUsedAt     *time.Time `json:"lastUsedAt,omitempty"`
 	LastError      string     `json:"lastError,omitempty"`
+	CooldownUntil  *time.Time `json:"cooldownUntil,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	UpdatedAt      time.Time  `json:"updatedAt"`
 }
@@ -67,6 +69,14 @@ type TokenStats struct {
 	LastTotalTokens  int               `json:"lastTotalTokens,omitempty"`
 	Daily            []DailyTokenUsage `json:"daily,omitempty"`
 	UpdatedAt        *time.Time        `json:"updatedAt,omitempty"`
+}
+
+type HealthInfo struct {
+	LastCheckedAt     *time.Time `json:"lastCheckedAt,omitempty"`
+	NextCheckAt       *time.Time `json:"nextCheckAt,omitempty"`
+	ConsecutiveErrors int        `json:"consecutiveErrors,omitempty"`
+	LastStatus        int        `json:"lastStatus,omitempty"`
+	LastMessage       string     `json:"lastMessage,omitempty"`
 }
 
 type DailyTokenUsage struct {

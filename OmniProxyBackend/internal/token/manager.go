@@ -279,6 +279,7 @@ func (m *Manager) RecordUsage(id string, remaining int) error {
 		m.tokens[i].LastUsedAt = &now
 		m.tokens[i].UpdatedAt = now
 		m.tokens[i].LastError = ""
+		m.tokens[i].CooldownUntil = nil
 
 		if remaining >= 0 {
 			m.tokens[i].Remaining = remaining
@@ -313,6 +314,8 @@ func (m *Manager) RecordUsageInfo(id string, usage UsageInfo) error {
 		usage.UpdatedAt = &now
 		m.tokens[i].Usage = usage
 		m.tokens[i].UpdatedAt = now
+		m.tokens[i].LastError = ""
+		m.tokens[i].CooldownUntil = nil
 
 		if usage.SubscriptionQuotaAvailable {
 			m.tokens[i].Remaining = usage.PrimaryRemainingPercent
@@ -363,11 +366,36 @@ func (m *Manager) RecordProxyUsage(id string, consumption TokenConsumption) erro
 }
 
 func (m *Manager) MarkExhausted(id string, reason string) error {
-	return m.setStatus(id, StatusExhausted, reason)
+	return m.MarkExhaustedUntil(id, reason, nil)
+}
+
+func (m *Manager) MarkExhaustedUntil(id string, reason string, until *time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := range m.tokens {
+		if m.tokens[i].ID != id {
+			continue
+		}
+		m.tokens[i].Status = StatusExhausted
+		m.tokens[i].LastError = reason
+		m.tokens[i].CooldownUntil = until
+		if until != nil {
+			m.tokens[i].Health.NextCheckAt = until
+		}
+		m.tokens[i].UpdatedAt = time.Now()
+		return m.persistLocked()
+	}
+
+	return ErrTokenNotFound
 }
 
 func (m *Manager) MarkInvalid(id string, reason string) error {
 	return m.setStatus(id, StatusInvalid, reason)
+}
+
+func (m *Manager) MarkActive(id string) error {
+	return m.setStatus(id, StatusActive, "")
 }
 
 func (m *Manager) setStatus(id string, status Status, reason string) error {
@@ -380,11 +408,76 @@ func (m *Manager) setStatus(id string, status Status, reason string) error {
 		}
 		m.tokens[i].Status = status
 		m.tokens[i].LastError = reason
+		if status != StatusExhausted {
+			m.tokens[i].CooldownUntil = nil
+		}
 		m.tokens[i].UpdatedAt = time.Now()
 		return m.persistLocked()
 	}
 
 	return ErrTokenNotFound
+}
+
+func (m *Manager) RecordHealthCheck(id string, ok bool, status int, message string, nextCheckAt *time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := range m.tokens {
+		if m.tokens[i].ID != id {
+			continue
+		}
+		now := time.Now()
+		m.tokens[i].Health.LastCheckedAt = &now
+		m.tokens[i].Health.LastStatus = status
+		m.tokens[i].Health.LastMessage = strings.TrimSpace(message)
+		m.tokens[i].Health.NextCheckAt = nextCheckAt
+		if ok {
+			m.tokens[i].Health.ConsecutiveErrors = 0
+			m.tokens[i].CooldownUntil = nil
+			m.tokens[i].LastError = ""
+		} else {
+			m.tokens[i].Health.ConsecutiveErrors++
+		}
+		m.tokens[i].UpdatedAt = now
+		return m.schedulePersistLocked()
+	}
+
+	return ErrTokenNotFound
+}
+
+func (m *Manager) HealthCheckCandidates(now time.Time, activeInterval time.Duration, retryInterval time.Duration) []Token {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if activeInterval <= 0 {
+		activeInterval = 15 * time.Minute
+	}
+	if retryInterval <= 0 {
+		retryInterval = time.Minute
+	}
+
+	out := []Token{}
+	for _, item := range m.tokens {
+		if strings.TrimSpace(item.TokenValue) == "" {
+			continue
+		}
+		if item.Health.NextCheckAt != nil && now.Before(*item.Health.NextCheckAt) {
+			continue
+		}
+		if item.CooldownUntil != nil && now.Before(*item.CooldownUntil) {
+			continue
+		}
+
+		interval := activeInterval
+		if item.Status == StatusExhausted || item.Status == StatusInvalid {
+			interval = retryInterval
+		}
+		if item.Health.LastCheckedAt != nil && now.Sub(*item.Health.LastCheckedAt) < interval {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func (m *Manager) firstUsableLocked(provider string, credentialType string, status Status, excluded map[string]bool) (Token, bool) {

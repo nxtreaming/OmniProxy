@@ -337,6 +337,46 @@ func TestManagerBatchesUsagePersistenceUntilFlush(t *testing.T) {
 	}
 }
 
+func TestManagerHealthCooldownCandidatesAndRecovery(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{Name: "primary", Provider: ProviderOpenAI, TokenValue: "sk-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+	cooldownUntil := now.Add(time.Hour)
+	if err := manager.MarkExhaustedUntil(item.ID, "upstream returned 429", &cooldownUntil); err != nil {
+		t.Fatal(err)
+	}
+	if candidates := manager.HealthCheckCandidates(now, time.Minute, time.Minute); len(candidates) != 0 {
+		t.Fatalf("expected active cooldown to skip health check, got %#v", candidates)
+	}
+
+	afterCooldown := cooldownUntil.Add(time.Second)
+	candidates := manager.HealthCheckCandidates(afterCooldown, time.Minute, time.Minute)
+	if len(candidates) != 1 || candidates[0].ID != item.ID {
+		t.Fatalf("expected expired cooldown to be checked, got %#v", candidates)
+	}
+
+	if err := manager.RecordUsage(item.ID, 80); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordHealthCheck(item.ID, true, 200, "OK", nil); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != StatusActive || updated.CooldownUntil != nil || updated.Health.ConsecutiveErrors != 0 {
+		t.Fatalf("expected health recovery to clear cooldown and restore active status, got %#v", updated)
+	}
+}
+
 func codexAuthJSONForTest(t *testing.T, email string) string {
 	t.Helper()
 
