@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
 	"OmniProxyBackend/internal/storage"
 	"OmniProxyBackend/internal/token"
@@ -486,6 +487,108 @@ func TestConfigureCodexSyncsExistingAuthJSON(t *testing.T) {
 	}
 	if !strings.Contains(updated.TokenValue, "new-access-token") || !strings.Contains(updated.TokenValue, "new-account") {
 		t.Fatalf("expected stored auth.json to be refreshed, got %s", updated.TokenValue)
+	}
+}
+
+func TestConfigureCodexReportsAlreadyImportedAuthJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	authValue := codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "same-account", "same-access-token")
+	if err := os.WriteFile(filepath.Join(codexDir, "auth.json"), []byte(authValue), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     authValue,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:       3000,
+			ControlPort:     3890,
+			UpstreamBaseURL: "https://api.openai.com",
+			SwitchThreshold: 15,
+			MaxRetries:      1,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	result, err := app.configureCodex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.AuthAlreadyAdded || result.AuthUpdated || result.ImportedAuth {
+		t.Fatalf("expected auth to be reported as already imported, got %#v", result)
+	}
+	if !strings.Contains(result.Message, "auth.json 账号已存在") {
+		t.Fatalf("expected already-added message, got %q", result.Message)
+	}
+	if items := manager.List(); len(items) != 1 {
+		t.Fatalf("expected no duplicate token to be created, got %d", len(items))
+	}
+}
+
+func TestMigrateLegacyRequestHistoryAssignsIDsForZeroIDEntries(t *testing.T) {
+	dataDir := t.TempDir()
+	legacyPath := filepath.Join(dataDir, "request_history.json")
+	now := time.Now()
+	entries := []history.Entry{
+		{
+			Time:     now.Add(-time.Minute),
+			Level:    "info",
+			Provider: "openai",
+			Status:   http.StatusOK,
+			Message:  "first legacy entry",
+		},
+		{
+			Time:     now,
+			Level:    "warn",
+			Provider: "openai",
+			Status:   http.StatusTooManyRequests,
+			Message:  "second legacy entry",
+		},
+	}
+	raw, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacyPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := history.NewSQLiteStore(filepath.Join(dataDir, "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if err := migrateLegacyRequestHistory(store, legacyPath); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.List(history.Filter{}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("expected both legacy entries to be imported, got %#v", loaded)
+	}
+	if loaded[0].ID == 0 || loaded[1].ID == 0 || loaded[0].ID == loaded[1].ID {
+		t.Fatalf("expected generated unique IDs, got %#v", loaded)
 	}
 }
 
