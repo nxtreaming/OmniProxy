@@ -102,6 +102,21 @@ jobs:
         working-directory: OmniProxyBackend
         run: |
           $version = "${{ steps.release.outputs.tag }}"
+          $curatedNotes = Join-Path ".." "docs/releases/$version.md"
+          if (Test-Path $curatedNotes) {
+            Copy-Item -LiteralPath $curatedNotes -Destination release-notes.md -Force
+            return
+          }
+
+          & git fetch origin "master:refs/remotes/origin/master" --depth=1
+          if ($LASTEXITCODE -eq 0) {
+            $curatedNotesFromMaster = & git show "origin/master:docs/releases/$version.md" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $curatedNotesFromMaster) {
+              $curatedNotesFromMaster | Set-Content -Path release-notes.md -Encoding utf8
+              return
+            }
+          }
+
           $previousTag = & git describe --tags --abbrev=0 "$version^" 2>$null
           if ($LASTEXITCODE -ne 0) {
             $previousTag = ""
