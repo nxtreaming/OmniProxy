@@ -29,3 +29,7 @@ wails_reference2/
 **/node_modules/
 **/dist/*
 !**/dist/.gitkeep
+
+# Local promo video artifacts and tooling
+promo-video/
+tools/
