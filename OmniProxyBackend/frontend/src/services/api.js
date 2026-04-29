@@ -1,24 +1,39 @@
-import * as DesktopApp from '../../wailsjs/go/main/DesktopApp'
-import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
+import * as DesktopApp from '../../wailsjs/go/main/DesktopApp.js'
 
-const API_BASE = import.meta.env.VITE_OMNIPROXY_API || 'http://127.0.0.1:3890/api'
+const API_BASE = import.meta.env?.VITE_OMNIPROXY_API || 'http://127.0.0.1:3890/api'
+const CONTROL_TOKEN_HEADER = 'X-OmniProxy-Control-Token'
+let controlTokenPromise = null
 
 function useWailsBindings() {
   return (
-    !import.meta.env.VITE_OMNIPROXY_API &&
+    !import.meta.env?.VITE_OMNIPROXY_API &&
     typeof window !== 'undefined' &&
     Boolean(window.go?.main?.DesktopApp)
   )
 }
 
 async function request(path, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  }
+  const token = await getHTTPControlToken()
+  if (token) {
+    headers[CONTROL_TOKEN_HEADER] = token
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
     ...options,
+    headers,
   })
+
+  if (response.status === 401 && token) {
+    controlTokenPromise = null
+    const retryToken = await getHTTPControlToken()
+    if (retryToken && retryToken !== token) {
+      return request(path, options)
+    }
+  }
 
   if (response.status === 204) {
     return null
@@ -29,6 +44,31 @@ async function request(path, options = {}) {
     throw new Error(data?.error || `请求失败：${response.status}`)
   }
   return data
+}
+
+async function getHTTPControlToken() {
+  if (useWailsBindings()) {
+    return ''
+  }
+  if (!controlTokenPromise) {
+    controlTokenPromise = fetch(`${API_BASE}/control-token`, {
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(data?.error || `控制令牌获取失败：${response.status}`)
+        }
+        return data?.token || ''
+      })
+      .catch((error) => {
+        controlTokenPromise = null
+        throw error
+      })
+  }
+  return controlTokenPromise
 }
 
 function historyFilter(filters = {}) {
@@ -152,6 +192,18 @@ export async function exportHistory(format, filters = {}, entries = []) {
   return link.download
 }
 
+export function exportTokens() {
+  return useWailsBindings() && DesktopApp.ExportTokens
+    ? DesktopApp.ExportTokens()
+    : Promise.reject(new Error('导出账号池需要在桌面客户端中操作'))
+}
+
+export function exportCodexAuthFiles() {
+  return useWailsBindings() && DesktopApp.ExportCodexAuthFiles
+    ? DesktopApp.ExportCodexAuthFiles()
+    : Promise.reject(new Error('导出 Codex auth 文件需要在桌面客户端中操作'))
+}
+
 function historyCSV(entries) {
   const header = [
     '时间',
@@ -234,7 +286,7 @@ export function checkForUpdates() {
 export function openExternalURL(url) {
   if (!url) return
   if (useWailsBindings() && window.runtime?.BrowserOpenURL) {
-    BrowserOpenURL(url)
+    window.runtime.BrowserOpenURL(url)
     return
   }
   window.open(url, '_blank', 'noopener,noreferrer')

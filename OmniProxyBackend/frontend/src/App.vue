@@ -3,9 +3,13 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
 import HistoryView from './components/HistoryView.vue'
+import LogsView from './components/LogsView.vue'
+import SettingsView from './components/SettingsView.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
+import TokensView from './components/TokensView.vue'
 import appIconUrl from './assets/appicon.png'
 import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
+import { formatDuration, formatNumber, formatResetTime, formatTime, localDateKey } from './utils/format'
 import {
   configureCodex,
   configureDeepSeekClaude,
@@ -15,7 +19,9 @@ import {
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   checkForUpdates,
   deleteToken,
+  exportCodexAuthFiles,
   exportHistory,
+  exportTokens,
   getAutoStartStatus,
   getConfig,
   getDataDirectory,
@@ -35,7 +41,6 @@ import {
 } from './services/api'
 import {
   Coin,
-  Connection,
   Clock,
   DataBoard,
   HelpFilled,
@@ -46,7 +51,6 @@ import {
   RefreshRight,
   Setting,
   SwitchButton,
-  Upload,
 } from '@element-plus/icons-vue'
 
 const activeTab = ref('dashboard')
@@ -75,7 +79,8 @@ const autoStartChanging = ref(false)
 const autoStartEnabled = ref(false)
 const updateChecking = ref(false)
 const exportingHistory = ref('')
-const codexAuthInput = ref(null)
+const exportingTokens = ref(false)
+const exportingCodexAuth = ref(false)
 const codexAuthImporting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -486,7 +491,6 @@ async function verifyToken(token) {
 function openCodexAuthFilePicker() {
   errorMessage.value = ''
   successMessage.value = ''
-  codexAuthInput.value?.click()
 }
 
 async function importCodexAuthFiles(event) {
@@ -808,6 +812,38 @@ async function exportRequestHistory(payload) {
   }
 }
 
+async function exportTokenBackup() {
+  exportingTokens.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+  try {
+    const result = await exportTokens()
+    if (result?.path) {
+      successMessage.value = result.message || `账号池已导出：${result.count || 0} 个账号`
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    exportingTokens.value = false
+  }
+}
+
+async function exportCodexAuthBackups() {
+  exportingCodexAuth.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+  try {
+    const result = await exportCodexAuthFiles()
+    if (result?.directory) {
+      successMessage.value = result.message || `Codex auth.json 已导出：${result.count || 0} 个文件`
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    exportingCodexAuth.value = false
+  }
+}
+
 function credentialDisplay(item) {
   if (item.maskedTokenValue) return item.maskedTokenValue
   if (item.credentialType === 'codex_auth_json') return 'auth.json'
@@ -862,27 +898,6 @@ function onProviderChange() {
   }
 }
 
-function formatTime(value) {
-  if (!value) return '-'
-  return new Intl.DateTimeFormat('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(value))
-}
-
-function formatDuration(value) {
-  const ms = Number(value || 0)
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60000) {
-    const decimals = ms < 10000 ? 2 : 1
-    return `${(ms / 1000).toFixed(decimals)}s`
-  }
-  const minutes = Math.floor(ms / 60000)
-  const seconds = Math.round((ms % 60000) / 1000)
-  return `${minutes}m ${seconds}s`
-}
-
 function statusLabel(status) {
   return statusMeta[status]?.label || status
 }
@@ -917,26 +932,12 @@ function planLabel(plan) {
   return labels[normalized] || plan || '未知'
 }
 
-function formatResetTime(value) {
-  if (!value) return '-'
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value * 1000))
-}
-
 function usageUpdatedAt(item) {
   return item.usage?.updatedAt ? formatTime(item.usage.updatedAt) : '-'
 }
 
 function isCodexToken(item) {
   return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
-}
-
-function formatNumber(value) {
-  return new Intl.NumberFormat('zh-CN').format(Number(value || 0))
 }
 
 function tokenUsageSummary(item) {
@@ -969,13 +970,6 @@ function aggregateDailyUsage(items) {
     }
   }
   return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30)
-}
-
-function localDateKey(date = new Date()) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 function isCooling(item) {
@@ -1393,114 +1387,35 @@ async function refreshQuota(item) {
         </div>
       </section>
 
-      <section v-else-if="activeTab === 'tokens'" key="tokens" class="panel">
-        <div class="section-heading">
-          <div>
-            <h2>账号管理</h2>
-            <p>按厂商独立管理账号池，新添加账号默认显示在对应分组顶部</p>
-          </div>
-        </div>
-
-        <div class="provider-switch" aria-label="厂商选择">
-          <button
-            v-for="provider in providers"
-            :key="provider.key"
-            type="button"
-            :class="{ active: activeProvider === provider.key }"
-            @click="selectProvider(provider.key)"
-          >
-            {{ provider.label }}
-            <span>{{ providerTokens(provider.key).length }}</span>
-          </button>
-        </div>
-
-        <div class="provider-summary">
-          <div>
-            <h3>{{ activeProviderInfo.label }}</h3>
-            <p>{{ activeProviderInfo.note }} · {{ activeProviderTokens.length }} 个账号</p>
-          </div>
-          <div class="provider-summary-actions">
-            <input
-              ref="codexAuthInput"
-              class="hidden-file-input"
-              type="file"
-              accept=".json,application/json"
-              multiple
-              @change="importCodexAuthFiles"
-            />
-            <el-button
-              v-if="activeProvider === 'openai'"
-              :icon="Upload"
-              :loading="codexAuthImporting"
-              @click="openCodexAuthFilePicker"
-            >
-              {{ codexAuthImporting ? '导入中' : '导入 auth 文件' }}
-            </el-button>
-            <el-button type="primary" :icon="Connection" @click="openCreateForm(activeProvider)">
-              添加 {{ activeProviderInfo.label }}
-            </el-button>
-          </div>
-        </div>
-
-        <div class="table-wrap">
-          <table class="account-table">
-            <colgroup>
-              <col class="account-col-name" />
-              <col class="account-col-credential-type" />
-              <col class="account-col-credential" />
-              <col class="account-col-quota" />
-              <col class="account-col-usage" />
-              <col class="account-col-status" />
-              <col class="account-col-last-used" />
-              <col class="account-col-actions" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>账号名称</th>
-                <th>凭据类型</th>
-                <th>凭据</th>
-                <th>额度</th>
-                <th>代理用量</th>
-                <th>状态</th>
-                <th>最后使用</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in activeProviderTokens" :key="item.id">
-                <td>
-                  <strong>{{ item.name }}</strong>
-                  <small v-if="item.lastError">{{ item.lastError }}</small>
-                </td>
-                <td>{{ credentialLabel(item) }}</td>
-                <td class="mono">{{ credentialDisplay(item) }}</td>
-                <td>{{ item.remaining }}%</td>
-                <td>
-                  {{ formatNumber(item.stats?.totalTokens) }}
-                  <small>{{ formatNumber(item.stats?.requestCount) }} 次请求</small>
-                </td>
-                <td>
-                  <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">{{ displayStatusLabel(item) }}</el-tag>
-                  <small class="health-line">{{ healthSummary(item) }}</small>
-                </td>
-                <td>{{ formatTime(item.lastUsedAt) }}</td>
-                <td class="actions-cell">
-                  <div class="row-actions">
-                    <el-button size="small" :icon="Refresh" :loading="validatingIds[item.id]" @click="verifyToken(item)">
-                      {{ validatingIds[item.id] ? '验证中' : '验证' }}
-                    </el-button>
-                    <el-button size="small" @click="openEditForm(item)">编辑</el-button>
-                    <el-button size="small" type="danger" plain @click="removeToken(item)">删除</el-button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div v-if="!activeProviderTokens.length" class="empty">
-            暂无 {{ activeProviderInfo.label }} 账号
-          </div>
-        </div>
-      </section>
+      <TokensView
+        v-else-if="activeTab === 'tokens'"
+        key="tokens"
+        :providers="providers"
+        :active-provider="activeProvider"
+        :active-provider-info="activeProviderInfo"
+        :active-provider-tokens="activeProviderTokens"
+        :exporting-tokens="exportingTokens"
+        :exporting-codex-auth="exportingCodexAuth"
+        :codex-auth-importing="codexAuthImporting"
+        :validating-ids="validatingIds"
+        :provider-tokens="providerTokens"
+        :credential-label="credentialLabel"
+        :credential-display="credentialDisplay"
+        :display-status-type="displayStatusType"
+        :display-status-label="displayStatusLabel"
+        :health-summary="healthSummary"
+        :format-time="formatTime"
+        :format-number="formatNumber"
+        @select-provider="selectProvider"
+        @export-token-backup="exportTokenBackup"
+        @open-codex-auth-file-picker="openCodexAuthFilePicker"
+        @import-codex-auth-files="importCodexAuthFiles"
+        @export-codex-auth-backups="exportCodexAuthBackups"
+        @open-create-form="openCreateForm"
+        @verify-token="verifyToken"
+        @open-edit-form="openEditForm"
+        @remove-token="removeToken"
+      />
 
       <HistoryView
         v-else-if="activeTab === 'history'"
@@ -1517,224 +1432,29 @@ async function refreshQuota(item) {
         @diagnose="selectedHistoryEntry = $event"
       />
 
-      <section v-else-if="activeTab === 'logs'" key="logs" class="panel">
-        <div class="section-heading">
-          <div>
-            <h2>实时日志</h2>
-            <p>每 3 秒自动刷新</p>
-          </div>
-          <button type="button" class="ghost-button" @click="refreshRealtime">刷新</button>
-        </div>
-        <div class="log-list">
-          <div v-for="entry in logs" :key="entry.id" class="log-row">
-            <span :class="['dot', entry.level]"></span>
-            <div>
-              <strong>{{ entry.method || 'SYSTEM' }} {{ entry.path || '' }}</strong>
-              <p>{{ entry.message }}</p>
-            </div>
-            <small class="log-model" :title="entry.model || '-'">{{ entry.model || '-' }}</small>
-            <small class="log-status">{{ entry.status || '-' }}</small>
-            <small class="log-duration">{{ formatDuration(entry.durationMs) }}</small>
-            <small class="log-token" :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</small>
-            <time class="log-time">{{ formatTime(entry.time) }}</time>
-          </div>
-          <div v-if="!logs.length" class="empty">暂无日志</div>
-        </div>
-      </section>
+      <LogsView
+        v-else-if="activeTab === 'logs'"
+        key="logs"
+        :logs="logs"
+        :format-time="formatTime"
+        :format-duration="formatDuration"
+        @refresh="refreshRealtime"
+      />
 
-      <section v-else-if="activeTab === 'settings'" key="settings" class="panel settings-panel">
-        <div class="section-heading">
-          <div>
-            <h2>代理设置</h2>
-            <p>保存后新请求会使用最新配置，端口变更需要重启代理</p>
-          </div>
-          <button type="button" class="primary-button" @click="persistConfig">保存设置</button>
-        </div>
-        <div class="settings-stack">
-          <section class="settings-section">
-            <div class="settings-section-head">
-              <div>
-                <h3>应用维护</h3>
-                <p>本地数据、后台常驻和版本更新集中放在这里。</p>
-              </div>
-            </div>
-            <div class="settings-action-list">
-              <div class="data-directory-row">
-                <div>
-                  <span>数据目录</span>
-                  <strong>{{ dataDirectory.dataDir || '未加载' }}</strong>
-                  <small v-if="dataDirectory.pendingDataDir && dataDirectory.restartRequired">
-                    重启后使用：{{ dataDirectory.pendingDataDir }}
-                  </small>
-                  <small v-else-if="dataDirectory.envOverride">
-                    当前由 OMNIPROXY_DATA_DIR 环境变量控制
-                  </small>
-                  <small v-else-if="dataDirectory.bootstrapPath">
-                    指针文件：{{ dataDirectory.bootstrapPath }}
-                  </small>
-                </div>
-                <button
-                  type="button"
-                  class="ghost-button"
-                  :disabled="dataDirectory.envOverride || dataDirChanging"
-                  @click="chooseDataDirectory"
-                >
-                  {{ dataDirChanging ? '选择中' : '更改目录' }}
-                </button>
-              </div>
-              <div class="data-directory-row startup-row">
-                <div>
-                  <span>常驻后台</span>
-                  <strong>系统托盘与开机自启</strong>
-                  <small>关闭主窗口时保留托盘入口，可从托盘启动/停止代理、查看端口、打开主界面或退出。</small>
-                </div>
-                <button
-                  type="button"
-                  class="ghost-button"
-                  :disabled="autoStartChanging"
-                  @click="toggleAutoStart"
-                >
-                  {{ autoStartChanging ? '更新中' : autoStartEnabled ? '关闭自启' : '开启自启' }}
-                </button>
-              </div>
-              <div class="data-directory-row">
-                <div>
-                  <span>软件更新</span>
-                  <strong>手动检查新版本</strong>
-                  <small>启动时会自动检查；手动检查会忽略已经跳过的版本。</small>
-                </div>
-                <el-button :icon="RefreshRight" :loading="updateChecking" @click="manualCheckForUpdates">
-                  {{ updateChecking ? '检查中' : '检查更新' }}
-                </el-button>
-              </div>
-            </div>
-          </section>
-
-          <section class="settings-section">
-            <div class="settings-section-head">
-              <div>
-                <h3>本机服务</h3>
-                <p>端口和本地代理能力，端口变更后需要重启代理。</p>
-              </div>
-            </div>
-            <div class="settings-grid compact-settings-grid">
-              <label>
-                <span>代理端口</span>
-                <input v-model="config.proxyPort" type="number" min="1" max="65535" />
-              </label>
-              <label>
-                <span>控制端口</span>
-                <input v-model="config.controlPort" type="number" min="1" max="65535" />
-              </label>
-              <label class="toggle-field">
-                <span>启用 Codex WebSocket</span>
-                <input
-                  v-model="config.websocketMode"
-                  type="checkbox"
-                  true-value="enabled"
-                  false-value="disabled"
-                />
-              </label>
-            </div>
-          </section>
-
-          <section class="settings-section">
-            <div class="settings-section-head">
-              <div>
-                <h3>调度与保护</h3>
-                <p>控制账号轮换、低额度跳过和失败重试。</p>
-              </div>
-            </div>
-            <div class="settings-grid compact-settings-grid">
-              <label>
-                <span>账号调度模式</span>
-                <select v-model="config.schedulingMode">
-                  <option value="queue">队列模式</option>
-                  <option value="balanced">优先平衡使用</option>
-                </select>
-              </label>
-              <label>
-                <span>额度切换阈值</span>
-                <input v-model="config.switchThreshold" type="number" min="1" max="100" />
-              </label>
-              <label>
-                <span>自动重试次数</span>
-                <input v-model="config.maxRetries" type="number" min="0" max="5" />
-              </label>
-            </div>
-          </section>
-
-          <section class="settings-section">
-            <div class="settings-section-head">
-              <div>
-                <h3>OpenAI / Anthropic / Codex</h3>
-                <p>常用协议入口和 Codex 额度查询地址。</p>
-              </div>
-            </div>
-            <div class="settings-grid">
-              <label class="wide-field">
-                <span>OpenAI API Base URL</span>
-                <input v-model="config.openaiBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Anthropic API Base URL</span>
-                <input v-model="config.anthropicBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Codex ChatGPT Base URL</span>
-                <input v-model="config.codexBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Codex 限额查询地址</span>
-                <input v-model="config.codexUsageEndpoint" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>兼容旧版上游 API Base URL</span>
-                <input v-model="config.upstreamBaseUrl" type="url" />
-              </label>
-            </div>
-          </section>
-
-          <section class="settings-section">
-            <div class="settings-section-head">
-              <div>
-                <h3>第三方路由</h3>
-                <p>DeepSeek、Kimi 和 Xiaomi MiMo 的 OpenAI / Anthropic 兼容入口。</p>
-              </div>
-            </div>
-            <div class="settings-grid">
-              <label class="wide-field">
-                <span>DeepSeek API Base URL</span>
-                <input v-model="config.deepseekBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>DeepSeek Anthropic Base URL</span>
-                <input v-model="config.deepseekAnthropicBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Kimi Code Base URL</span>
-                <input v-model="config.kimiBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Xiaomi MiMo 按量 OpenAI Base URL</span>
-                <input v-model="config.xiaomiApiBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Xiaomi MiMo 按量 Anthropic Base URL</span>
-                <input v-model="config.xiaomiApiAnthropicBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Xiaomi MiMo Token Plan OpenAI Base URL</span>
-                <input v-model="config.xiaomiTokenPlanBaseUrl" type="url" />
-              </label>
-              <label class="wide-field">
-                <span>Xiaomi MiMo Token Plan Anthropic Base URL</span>
-                <input v-model="config.xiaomiTokenPlanAnthropicBaseUrl" type="url" />
-              </label>
-            </div>
-          </section>
-        </div>
-      </section>
+      <SettingsView
+        v-else-if="activeTab === 'settings'"
+        key="settings"
+        :config="config"
+        :data-directory="dataDirectory"
+        :data-dir-changing="dataDirChanging"
+        :auto-start-changing="autoStartChanging"
+        :auto-start-enabled="autoStartEnabled"
+        :update-checking="updateChecking"
+        @persist-config="persistConfig"
+        @choose-data-directory="chooseDataDirectory"
+        @toggle-auto-start="toggleAutoStart"
+        @manual-check-for-updates="manualCheckForUpdates"
+      />
 
       <section v-else-if="activeTab === 'quickstart'" key="quickstart" class="panel help-panel">
         <div class="section-heading">

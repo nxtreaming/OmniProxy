@@ -50,8 +50,16 @@ export function DeleteToken(arg1) {
   return window['go']['main']['DesktopApp']['DeleteToken'](arg1);
 }
 
+export function ExportCodexAuthFiles() {
+  return window['go']['main']['DesktopApp']['ExportCodexAuthFiles']();
+}
+
 export function ExportRequestHistory(arg1, arg2) {
   return window['go']['main']['DesktopApp']['ExportRequestHistory'](arg1, arg2);
+}
+
+export function ExportTokens() {
+  return window['go']['main']['DesktopApp']['ExportTokens']();
 }
 
 export function Logs() {

@@ -1,4 +1,4 @@
-export namespace config {
+﻿export namespace config {
 
 	export class Config {
 	    proxyPort: number;
@@ -126,6 +126,24 @@ export namespace history {
 
 export namespace main {
 
+	export class codexAuthExportResult {
+	    directory?: string;
+	    files?: string[];
+	    count: number;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new codexAuthExportResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.directory = source["directory"];
+	        this.files = source["files"];
+	        this.count = source["count"];
+	        this.message = source["message"];
+	    }
+	}
 	export class codexConfigureResult {
 	    configPath: string;
 	    authPath: string;
@@ -323,6 +341,22 @@ export namespace main {
 	    }
 	}
 
+	export class tokenExportResult {
+	    path?: string;
+	    count: number;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new tokenExportResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.count = source["count"];
+	        this.message = source["message"];
+	    }
+	}
 	export class tokenStatsResponse {
 	    requestCount: number;
 	    inputTokens: number;

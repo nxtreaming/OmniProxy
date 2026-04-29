@@ -29,7 +29,11 @@ export function DataDirectory():Promise<config.DataDirectoryInfo>;
 
 export function DeleteToken(arg1:string):Promise<void>;
 
+export function ExportCodexAuthFiles():Promise<main.codexAuthExportResult>;
+
 export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<string>;
+
+export function ExportTokens():Promise<main.tokenExportResult>;
 
 export function Logs():Promise<Array<main.logResponse>>;
 

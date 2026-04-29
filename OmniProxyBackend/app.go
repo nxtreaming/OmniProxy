@@ -299,6 +299,83 @@ func (a *DesktopApp) ExportRequestHistory(format string, filter history.Filter) 
 	return path, nil
 }
 
+func (a *DesktopApp) ExportTokens() (tokenExportResult, error) {
+	if a.ctx == nil {
+		return tokenExportResult{}, errors.New("application is not ready")
+	}
+	if a.server.tokens == nil {
+		return tokenExportResult{}, errors.New("token manager is not ready")
+	}
+
+	items := a.server.tokens.List()
+	data, err := encodeTokenExport(items, time.Now())
+	if err != nil {
+		return tokenExportResult{}, err
+	}
+
+	filename := fmt.Sprintf("omniproxy-tokens-%s.json", time.Now().Format("20060102-150405"))
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "导出账号池备份",
+		DefaultFilename: filename,
+		Filters:         []runtime.FileFilter{{DisplayName: "JSON 文件 (*.json)", Pattern: "*.json"}},
+	})
+	if err != nil {
+		return tokenExportResult{}, err
+	}
+	if strings.TrimSpace(path) == "" {
+		return tokenExportResult{Count: len(items), Message: "已取消导出账号池"}, nil
+	}
+	if strings.ToLower(filepath.Ext(path)) != ".json" {
+		path += ".json"
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return tokenExportResult{}, err
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: fmt.Sprintf("token backup exported: %d accounts", len(items))})
+	return tokenExportResult{
+		Path:    path,
+		Count:   len(items),
+		Message: fmt.Sprintf("账号池已导出：%d 个账号", len(items)),
+	}, nil
+}
+
+func (a *DesktopApp) ExportCodexAuthFiles() (codexAuthExportResult, error) {
+	if a.ctx == nil {
+		return codexAuthExportResult{}, errors.New("application is not ready")
+	}
+	if a.server.tokens == nil {
+		return codexAuthExportResult{}, errors.New("token manager is not ready")
+	}
+
+	files := codexAuthExportFiles(a.server.tokens.List(), time.Now().Format("20060102-150405"))
+	if len(files) == 0 {
+		return codexAuthExportResult{}, errors.New("没有可导出的 Codex auth.json 账号")
+	}
+
+	directory, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:                "选择 Codex auth.json 导出目录",
+		CanCreateDirectories: true,
+	})
+	if err != nil {
+		return codexAuthExportResult{}, err
+	}
+	if strings.TrimSpace(directory) == "" {
+		return codexAuthExportResult{Count: len(files), Message: "已取消导出 Codex auth.json"}, nil
+	}
+
+	written, err := writeCodexAuthExportFiles(directory, files)
+	if err != nil {
+		return codexAuthExportResult{}, err
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: fmt.Sprintf("codex auth files exported: %d files", len(written))})
+	return codexAuthExportResult{
+		Directory: directory,
+		Files:     written,
+		Count:     len(written),
+		Message:   fmt.Sprintf("Codex auth.json 已导出：%d 个文件", len(written)),
+	}, nil
+}
+
 func (a *DesktopApp) ProxyStatus() map[string]any {
 	a.server.mu.Lock()
 	defer a.server.mu.Unlock()

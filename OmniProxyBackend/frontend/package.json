@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node -e \"require('fs').writeFileSync('dist/.gitkeep','\\n')\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test src/utils/format.test.js src/services/api.test.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
