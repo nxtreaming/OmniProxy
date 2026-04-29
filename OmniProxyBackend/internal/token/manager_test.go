@@ -3,7 +3,9 @@ package token
 import (
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -334,6 +336,73 @@ func TestManagerBatchesUsagePersistenceUntilFlush(t *testing.T) {
 	}
 	if store.tokens[0].Stats.TotalTokens != 10 {
 		t.Fatalf("expected flushed stats, got %#v", store.tokens[0].Stats)
+	}
+}
+
+func TestSecureStoreProtectsTokenValuesAndMigratesPlaintext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tokens.json")
+	rawStore := storage.NewJSONStore[[]Token](path)
+	store := NewSecureStore(rawStore)
+
+	manager, err := NewManager(store, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{Name: "primary", Provider: ProviderOpenAI, TokenValue: "sk-secure-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "sk-secure-token") {
+		t.Fatalf("stored token file leaked plaintext secret: %s", string(raw))
+	}
+
+	reloaded, err := NewManager(store, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := reloaded.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.TokenValue != "sk-secure-token" {
+		t.Fatalf("expected decrypted token value, got %q", loaded.TokenValue)
+	}
+
+	if err := rawStore.Save([]Token{{
+		ID:             "legacy",
+		Name:           "legacy",
+		Provider:       ProviderOpenAI,
+		CredentialType: CredentialTypeAPIKey,
+		TokenValue:     "sk-legacy-token",
+		Remaining:      100,
+		Status:         StatusActive,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	migrated, err := NewManager(store, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := migrated.Get("legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.TokenValue != "sk-legacy-token" {
+		t.Fatalf("expected migrated legacy token to decrypt, got %q", legacy.TokenValue)
+	}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "sk-legacy-token") {
+		t.Fatalf("legacy token was not migrated to protected storage: %s", string(raw))
 	}
 }
 

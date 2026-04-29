@@ -149,7 +149,7 @@ func (a *appServer) loadData(dataDir string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	tokenStore := storage.NewJSONStore[[]token.Token](filepath.Join(dataDir, "tokens.json"))
+	tokenStore := token.NewSecureStore(storage.NewJSONStore[[]token.Token](filepath.Join(dataDir, "tokens.json")))
 	tokenManager, err := token.NewManager(tokenStore, cfg.SwitchThreshold)
 	if err != nil {
 		return fmt.Errorf("load tokens: %w", err)
