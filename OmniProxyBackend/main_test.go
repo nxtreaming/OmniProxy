@@ -117,6 +117,84 @@ func TestControlCORSRejectsNonLocalOrigin(t *testing.T) {
 	}
 }
 
+func TestControlCORSAllowsControlTokenHeader(t *testing.T) {
+	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodOptions, "/api/tokens", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", res.Code)
+	}
+	if !strings.Contains(res.Header().Get("Access-Control-Allow-Headers"), controlTokenHeader) {
+		t.Fatalf("expected CORS headers to allow %s, got %q", controlTokenHeader, res.Header().Get("Access-Control-Allow-Headers"))
+	}
+}
+
+func TestControlAPIRequiresControlTokenWhenConfigured(t *testing.T) {
+	app := &appServer{
+		cfg:          config.Default(),
+		logs:         logs.NewRecorder(10),
+		controlToken: "test-control-token",
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401 without token, got %d", res.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	req.Header.Set(controlTokenHeader, "test-control-token")
+	res = httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200 with token header, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	req.Header.Set("Authorization", "Bearer test-control-token")
+	res = httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200 with bearer token, got %d body=%s", res.Code, res.Body.String())
+	}
+}
+
+func TestControlTokenEndpointDoesNotRequireControlToken(t *testing.T) {
+	app := &appServer{
+		cfg:          config.Default(),
+		logs:         logs.NewRecorder(10),
+		controlToken: "test-control-token",
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/control-token", nil)
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if res.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("expected no-store cache header, got %q", res.Header().Get("Cache-Control"))
+	}
+	var payload struct {
+		Header string `json:"header"`
+		Token  string `json:"token"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Header != controlTokenHeader || payload.Token != "test-control-token" {
+		t.Fatalf("unexpected control token payload: %#v", payload)
+	}
+}
+
 func TestDataDirectoryEndpointReturnsCurrentInfo(t *testing.T) {
 	dataDir := t.TempDir()
 	app := &appServer{

@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,16 +36,18 @@ import (
 var assets embed.FS
 
 type appServer struct {
-	mu          sync.Mutex
-	dataDir     string
-	cfg         config.Config
-	configStore *config.Store
-	tokens      *token.Manager
-	logs        *logs.Recorder
-	history     *history.Recorder
-	proxyServer *http.Server
-	control     *http.Server
-	healthStop  context.CancelFunc
+	mu             sync.Mutex
+	codexRefreshMu sync.Mutex
+	dataDir        string
+	cfg            config.Config
+	configStore    *config.Store
+	tokens         *token.Manager
+	logs           *logs.Recorder
+	history        *history.Recorder
+	proxyServer    *http.Server
+	control        *http.Server
+	controlToken   string
+	healthStop     context.CancelFunc
 }
 
 const (
@@ -52,6 +57,7 @@ const (
 	currentQuotaInterval  = 30 * time.Second
 	healthRequestTimeout  = 15 * time.Second
 	failedHealthRetryWait = 5 * time.Minute
+	controlTokenHeader    = "X-OmniProxy-Control-Token"
 )
 
 func main() {
@@ -99,10 +105,23 @@ func startHiddenFromArgs() bool {
 	return false
 }
 
+func newControlToken() (string, error) {
+	var data [32]byte
+	if _, err := rand.Read(data[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(data[:]), nil
+}
+
 func newAppServer() (*appServer, error) {
+	controlToken, err := newControlToken()
+	if err != nil {
+		return nil, fmt.Errorf("generate control token: %w", err)
+	}
 	server := &appServer{
-		cfg:  config.Default(),
-		logs: logs.NewRecorder(500),
+		cfg:          config.Default(),
+		logs:         logs.NewRecorder(500),
+		controlToken: controlToken,
 	}
 	info, configured, err := config.ResolveDataDir()
 	if err != nil {
@@ -242,6 +261,7 @@ func (a *appServer) changeDataDirectory(dataDir string, migrate bool) (config.Da
 
 func (a *appServer) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/control-token", a.handleControlToken)
 	mux.HandleFunc("/api/tokens", a.handleTokens)
 	mux.HandleFunc("/api/tokens/", a.handleTokenByID)
 	mux.HandleFunc("/api/config", a.handleConfig)
@@ -260,7 +280,19 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/deepseek/claude/restore", a.handleDeepSeekClaudeRestore)
 	mux.HandleFunc("/api/kimi/claude/configure", a.handleKimiClaudeConfigure)
 	mux.HandleFunc("/api/kimi/claude/restore", a.handleKimiClaudeRestore)
-	return mux
+	return withControlTokenAuth(a.controlToken, mux)
+}
+
+func (a *appServer) handleControlToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]string{
+		"header": controlTokenHeader,
+		"token":  a.controlToken,
+	})
 }
 
 func (a *appServer) handleTokens(w http.ResponseWriter, r *http.Request) {
@@ -1054,13 +1086,52 @@ func withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization,"+controlTokenHeader)
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func withControlTokenAuth(expected string, next http.Handler) http.Handler {
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return next
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions || isControlTokenEndpoint(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !validControlToken(r, expected) {
+			w.Header().Set("Cache-Control", "no-store")
+			writeError(w, http.StatusUnauthorized, "control token required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isControlTokenEndpoint(r *http.Request) bool {
+	return r.URL != nil && r.URL.Path == "/api/control-token"
+}
+
+func validControlToken(r *http.Request, expected string) bool {
+	value := strings.TrimSpace(r.Header.Get(controlTokenHeader))
+	if value == "" {
+		auth := strings.TrimSpace(r.Header.Get("Authorization"))
+		const bearerPrefix = "bearer "
+		if len(auth) > len(bearerPrefix) && strings.EqualFold(auth[:len(bearerPrefix)], bearerPrefix) {
+			value = strings.TrimSpace(auth[len(bearerPrefix):])
+		}
+	}
+	if value == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(value), []byte(expected)) == 1
 }
 
 func isAllowedControlOrigin(origin string) bool {
