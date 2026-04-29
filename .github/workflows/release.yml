@@ -109,10 +109,10 @@ jobs:
 
           if ([string]::IsNullOrWhiteSpace($previousTag)) {
             $range = $version
-            $intro = "本次发布包含 `$version` 标签下的提交："
+            $intro = "本次发布包含 ``$version`` 标签下的提交："
           } else {
             $range = "$previousTag..$version"
-            $intro = "相对 `$previousTag` 的提交："
+            $intro = "相对 ``$previousTag`` 的提交："
           }
 
           $commits = & git log --pretty=format:"- %s (%h)" $range
@@ -123,7 +123,7 @@ jobs:
           $notes = @(
             "# OmniProxy $version",
             "",
-            "此版本由 GitHub Actions 根据 `$version` 标签构建发布。",
+            "此版本由 GitHub Actions 根据 ``$version`` 标签构建发布。",
             "",
             "## 下载",
             "",
