@@ -167,7 +167,7 @@ func insertEntry(stmt *sql.Stmt, entry Entry) error {
 func entryValues(entry Entry) []any {
 	retryChain, _ := json.Marshal(entry.RetryChain)
 	return []any{
-		entry.ID,
+		entryIDValue(entry.ID),
 		entry.Time.Format(time.RFC3339Nano),
 		entry.Level,
 		entry.Method,
@@ -186,6 +186,13 @@ func entryValues(entry Entry) []any {
 		string(retryChain),
 		entry.Message,
 	}
+}
+
+func entryIDValue(id int64) any {
+	if id <= 0 {
+		return nil
+	}
+	return id
 }
 
 func historyListQuery(filter Filter, limit int) (string, []any) {

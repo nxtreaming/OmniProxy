@@ -108,3 +108,39 @@ func TestSQLiteStoreSaveImportsLegacyEntries(t *testing.T) {
 		t.Fatalf("expected imported legacy entry, got %#v", loaded)
 	}
 }
+
+func TestSQLiteStoreSaveAssignsIDsForLegacyEntriesWithoutIDs(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	entries := []Entry{
+		{
+			Time:    time.Now().Add(-time.Minute),
+			Level:   "info",
+			Status:  200,
+			Message: "first legacy entry",
+		},
+		{
+			Time:    time.Now(),
+			Level:   "warn",
+			Status:  429,
+			Message: "second legacy entry",
+		},
+	}
+	if err := store.Save(entries); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.List(Filter{}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded) != 2 {
+		t.Fatalf("expected both legacy entries, got %#v", loaded)
+	}
+	if loaded[0].ID == 0 || loaded[1].ID == 0 || loaded[0].ID == loaded[1].ID {
+		t.Fatalf("expected generated unique IDs, got %#v", loaded)
+	}
+}
