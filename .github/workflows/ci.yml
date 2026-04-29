@@ -45,6 +45,10 @@ jobs:
         working-directory: OmniProxyBackend
         run: go test ./...
 
+      - name: Test frontend
+        working-directory: OmniProxyBackend/frontend
+        run: npm test
+
       - name: Build frontend
         working-directory: OmniProxyBackend/frontend
         run: npm run build
