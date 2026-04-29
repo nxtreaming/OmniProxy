@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and publish
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -18,8 +24,23 @@ jobs:
         shell: pwsh
 
     steps:
+      - name: Resolve release tag
+        id: release
+        run: |
+          $tag = "${{ github.event.inputs.tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = "${{ github.ref_name }}"
+          }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Invalid release tag: $tag"
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -52,14 +73,14 @@ jobs:
       - name: Build NSIS installer
         working-directory: OmniProxyBackend
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = "${{ steps.release.outputs.tag }}"
           $wails = Join-Path (go env GOPATH) "bin\wails.exe"
           & $wails build -clean -nsis -ldflags "-X main.appVersion=$version"
 
       - name: Prepare release assets
         working-directory: OmniProxyBackend
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = "${{ steps.release.outputs.tag }}"
           Get-ChildItem -Path "build" -Recurse -File | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
 
           $installer = Get-ChildItem -Path "build" -Recurse -Filter "*-installer.exe" |
@@ -77,41 +98,59 @@ jobs:
           $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $installerAsset
           "$($hash.Hash.ToLowerInvariant())  $installerAsset" | Set-Content -Path $shaAsset -Encoding ascii
 
+      - name: Generate release notes
+        working-directory: OmniProxyBackend
+        run: |
+          $version = "${{ steps.release.outputs.tag }}"
+          $previousTag = & git describe --tags --abbrev=0 "$version^" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            $previousTag = ""
+          }
+
+          if ([string]::IsNullOrWhiteSpace($previousTag)) {
+            $range = $version
+            $intro = "本次发布包含 `$version` 标签下的提交："
+          } else {
+            $range = "$previousTag..$version"
+            $intro = "相对 `$previousTag` 的提交："
+          }
+
+          $commits = & git log --pretty=format:"- %s (%h)" $range
+          if (-not $commits) {
+            $commits = @("- 无提交变更。")
+          }
+
+          $notes = @(
+            "# OmniProxy $version",
+            "",
+            "此版本由 GitHub Actions 根据 `$version` 标签构建发布。",
+            "",
+            "## 下载",
+            "",
+            "- ``OmniProxy-Setup-$version-windows-amd64.exe``：Windows 安装包，推荐下载。",
+            "- ``OmniProxy-Setup-$version-windows-amd64.exe.sha256``：安装包 SHA256 校验文件。",
+            "",
+            "## 本次变更",
+            "",
+            $intro,
+            ""
+          )
+          $notes += $commits
+          $notes += @(
+            "",
+            "## 安全提示",
+            "",
+            "OmniProxy 默认面向本地个人开发场景，只监听 ``127.0.0.1``。请不要把真实凭据提交到 GitHub。"
+          )
+          $notes | Set-Content -Path release-notes.md -Encoding utf8
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: OmniProxy ${{ github.ref_name }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: OmniProxy ${{ steps.release.outputs.tag }}
           overwrite_files: true
+          body_path: OmniProxyBackend/release-notes.md
           files: |
-            OmniProxyBackend/OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe
-            OmniProxyBackend/OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe.sha256
-          body: |
-            # OmniProxy ${{ github.ref_name }} 🎉
-
-            第四个公开版本，聚焦自动更新提示、安装升级体验、历史统计增强和发布验证自动化。
-
-            ## 下载
-
-            - `OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe`：Windows 安装包，推荐下载。
-            - `OmniProxy-Setup-${{ github.ref_name }}-windows-amd64.exe.sha256`：安装包 SHA256 校验文件。
-
-            ## 亮点
-
-            - 新增启动后的版本更新检测：发现新版本时提示用户下载，也可以跳过当前版本。
-            - 优化安装升级体验：安装包会复用上次安装目录，安装前检测正在运行的 OmniProxy，完成页可直接启动。
-            - 卸载时可选择是否保留本地数据目录，避免误删账号和历史配置。
-            - 历史页新增每日用量、厂商分布、模型消耗、失败账号和失败原因统计，并加入模型 Token 饼图。
-            - 请求历史时间拆分为日期和具体时间两行，长历史列表增加分页。
-            - 日志和历史中的敏感字段自动脱敏，降低导出和排查时泄露凭据的风险。
-            - 新增 push / PR CI 验证，Release 安装包附带 SHA256 校验文件，并修复本地 Wails 构建时的 time.Time 绑定警告。
-            - 修复开发实例构建标记，开发客户端和正式安装版可以继续共存。
-
-            ## 升级说明
-
-            - 从旧版本升级时，安装器会优先读取注册表中的上次安装目录。
-            - 如果安装时 OmniProxy 正在运行，可以按提示自动关闭后继续安装。
-            - 本地开发预览版请使用 `wails.exe build -tags omniproxy_dev` 构建，以保持和正式安装版的单实例标识隔离。
-
-            ## 安全提示
-
-            OmniProxy 默认面向本地个人开发场景，只监听 `127.0.0.1`。请不要把真实凭据提交到 GitHub。
+            OmniProxyBackend/OmniProxy-Setup-${{ steps.release.outputs.tag }}-windows-amd64.exe
+            OmniProxyBackend/OmniProxy-Setup-${{ steps.release.outputs.tag }}-windows-amd64.exe.sha256
