@@ -25,7 +25,8 @@ OmniProxy is useful when you run into problems like:
 - ⚡ **Active account quota refresh**: Codex and verifiable active accounts refresh quota state automatically every 30 seconds.
 - 🧭 **Claude Code routing**: route Claude Code locally to DeepSeek, Kimi, or Xiaomi MiMo.
 - 🧵 **Codex WebSocket proxy**: optional Codex WebSocket proxying with usage logging.
-- 🧱 **Local persistence**: config, accounts, and usage stats are stored as local JSON files.
+- 🧱 **Local persistence**: config, accounts, and usage stats are stored locally; on Windows, account credentials are encrypted at rest with DPAPI.
+- 📤 **Credential export**: export a full account-pool backup or export Codex auth.json values as separate files.
 - 🎨 **Polished desktop UX**: page transitions, highlighted active account, navigation icons, and a custom app icon.
 
 ## 🧠 How It Works
@@ -139,6 +140,7 @@ The desktop app also includes one-click setup actions for local Codex and Claude
 
 The desktop frontend prefers Wails bindings. The local HTTP control API is still available for debugging, scripts, and compatibility with older development flows:
 
+- `GET /api/control-token`
 - `GET /api/tokens`
 - `POST /api/tokens`
 - `PUT /api/tokens/{id}`
@@ -159,6 +161,8 @@ The desktop frontend prefers Wails bindings. The local HTTP control API is still
 - `POST /api/kimi/claude/configure`
 - `POST /api/kimi/claude/restore`
 
+When using the HTTP control API, every endpoint except `GET /api/control-token` requires the `X-OmniProxy-Control-Token` header. `Authorization: Bearer <token>` is also accepted.
+
 ## ✅ Verification
 
 Backend tests:
@@ -166,6 +170,13 @@ Backend tests:
 ```powershell
 cd .\OmniProxyBackend
 go test ./...
+```
+
+Frontend tests:
+
+```powershell
+cd .\OmniProxyBackend\frontend
+npm test
 ```
 
 Frontend build:
@@ -184,13 +195,14 @@ C:\Users\mimanchi\go\bin\wails.exe build
 
 ## 🛡️ Security Notes
 
-OmniProxy is designed for personal local development and binds to `127.0.0.1` by default. Credentials are stored in the local data directory you choose and are not uploaded by OmniProxy.
+OmniProxy is designed for personal local development and binds to `127.0.0.1` by default. Credentials are stored in the local data directory you choose and are not uploaded by OmniProxy. On Windows, real credential values in `tokens.json` are encrypted with the current user's DPAPI profile; use the desktop export feature before moving credentials to another machine or user.
 
 Recommendations:
 
 - 🚫 Do not commit `auth.json`, `.env`, `tokens.json`, or real credentials.
 - 🔒 Do not expose the control API to public networks or LAN environments.
 - 🧪 Check that the local proxy port is not already used by another process.
+- 📤 Exported account-pool backups and Codex auth.json files contain real credentials. Store them only in trusted directories.
 - 🧹 Before sharing logs or screenshots, check for account names, paths, or sensitive config.
 
 ## 🗺️ Roadmap
@@ -225,6 +237,11 @@ Before submitting a PR, please run:
 ```powershell
 cd .\OmniProxyBackend
 go test ./...
+```
+
+```powershell
+cd .\OmniProxyBackend\frontend
+npm test
 ```
 
 ```powershell
