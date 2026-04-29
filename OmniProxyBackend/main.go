@@ -407,12 +407,30 @@ func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.T
 	cfg := a.cfg
 	a.mu.Unlock()
 
+	refreshedSelected, _, refreshErr := a.refreshCodexTokenIfNeeded(ctx, selected, false)
+	if refreshErr != nil {
+		_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("codex token refresh failed: %v", refreshErr))
+		return proxy.ValidationResult{}, refreshErr
+	}
+	selected = refreshedSelected
+
 	validator, err := proxy.NewValidator(cfg)
 	if err != nil {
 		return proxy.ValidationResult{}, err
 	}
 
 	result, err := validator.Validate(ctx, selected)
+	if err == nil && isCodexToken(selected) && (result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden) {
+		refreshedSelected, refreshed, refreshErr := a.refreshCodexTokenIfNeeded(ctx, selected, true)
+		if refreshErr != nil {
+			_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("codex token refresh failed: %v", refreshErr))
+			return result, refreshErr
+		}
+		if refreshed {
+			selected = refreshedSelected
+			result, err = validator.Validate(ctx, selected)
+		}
+	}
 	if result.Remaining != nil {
 		_ = a.tokens.RecordUsage(selected.ID, *result.Remaining)
 	}
@@ -429,6 +447,34 @@ func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.T
 		_ = a.tokens.MarkActive(selected.ID)
 	}
 	return result, err
+}
+
+func (a *appServer) refreshCodexTokenIfNeeded(ctx context.Context, selected token.Token, force bool) (token.Token, bool, error) {
+	if !isCodexToken(selected) {
+		return selected, false, nil
+	}
+
+	a.codexRefreshMu.Lock()
+	defer a.codexRefreshMu.Unlock()
+
+	if latest, err := a.tokens.Get(selected.ID); err == nil {
+		selected = latest
+	}
+
+	client := &http.Client{Timeout: healthRequestTimeout}
+	updatedValue, refreshed, err := proxy.RefreshCodexAuthJSON(ctx, client, selected.TokenValue, force, time.Now())
+	if err != nil || !refreshed {
+		return selected, refreshed, err
+	}
+
+	updated, err := a.tokens.UpdateTokenValue(selected.ID, updatedValue)
+	if err != nil {
+		return selected, true, err
+	}
+	if a.logs != nil {
+		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: updated.Name, Message: "codex access token refreshed"})
+	}
+	return updated, true, nil
 }
 
 func (a *appServer) refreshCodexUsageOnStartup(ctx context.Context) {
@@ -904,6 +950,7 @@ func (a *appServer) startProxy() error {
 	if err != nil {
 		return err
 	}
+	svc.SetTokenRefresher(a.refreshCodexTokenIfNeeded)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", a.cfg.ProxyPort)
 	listener, err := net.Listen("tcp", addr)

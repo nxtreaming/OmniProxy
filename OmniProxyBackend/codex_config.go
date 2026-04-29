@@ -51,12 +51,13 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 	}
 
 	authBytes, err := os.ReadFile(result.AuthPath)
+	authValue := strings.TrimSpace(string(authBytes))
 	switch {
 	case err == nil:
 		req := token.UpsertRequest{
 			Provider:       token.ProviderOpenAI,
 			CredentialType: token.CredentialTypeCodexAuthJSON,
-			TokenValue:     string(authBytes),
+			TokenValue:     authValue,
 		}
 		item, addErr := a.tokens.Add(req)
 		if addErr == nil {
@@ -73,6 +74,11 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 			}
 			if existing.CredentialType != token.CredentialTypeCodexAuthJSON {
 				return codexConfigureResult{}, addErr
+			}
+			if strings.TrimSpace(existing.TokenValue) == authValue {
+				result.AuthAlreadyAdded = true
+				a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: existing.Name, Message: "codex auth already imported"})
+				break
 			}
 			updated, updateErr := a.tokens.Update(existing.ID, req)
 			if updateErr != nil {

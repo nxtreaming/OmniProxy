@@ -21,18 +21,21 @@ import (
 )
 
 type Service struct {
-	cfg     config.Config
-	tokens  *token.Manager
-	logs    *logs.Recorder
-	history *history.Recorder
-	router  Router
-	retry   RetryPolicy
-	client  *http.Client
+	cfg            config.Config
+	tokens         *token.Manager
+	logs           *logs.Recorder
+	history        *history.Recorder
+	router         Router
+	retry          RetryPolicy
+	client         *http.Client
+	tokenRefresher TokenRefresher
 }
 
 const maxProxyRequestBodyBytes = 32 * 1024 * 1024
 
 var errRequestBodyTooLarge = errors.New("request body too large")
+
+type TokenRefresher func(context.Context, token.Token, bool) (token.Token, bool, error)
 
 func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorder, historyRecorders ...*history.Recorder) (*Service, error) {
 	cfg = config.Normalize(cfg)
@@ -72,6 +75,10 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 	}, nil
 }
 
+func (s *Service) SetTokenRefresher(refresher TokenRefresher) {
+	s.tokenRefresher = refresher
+}
+
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if isCodexResponsesWebSocket(r) {
 		if s.cfg.WebSocketMode == config.WebSocketModeDisabled {
@@ -84,6 +91,18 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			})
 			s.recordHistory(r, routeInfo{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Protocol: "openai", Path: r.URL.Path, RawQuery: r.URL.RawQuery}, nil, http.StatusForbidden, 0, token.TokenConsumption{}, logs.LevelWarn, "websocket proxy disabled")
 			http.Error(w, "websocket proxy disabled", http.StatusForbidden)
+			return
+		}
+		if !isAllowedWebSocketOrigin(r) {
+			s.logs.Add(logs.Entry{
+				Level:   logs.LevelWarn,
+				Method:  r.Method,
+				Path:    r.URL.RequestURI(),
+				Status:  http.StatusForbidden,
+				Message: "websocket origin not allowed",
+			})
+			s.recordHistory(r, routeInfo{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Protocol: "openai", Path: r.URL.Path, RawQuery: r.URL.RawQuery}, nil, http.StatusForbidden, 0, token.TokenConsumption{}, logs.LevelWarn, "websocket origin not allowed")
+			http.Error(w, "websocket origin not allowed", http.StatusForbidden)
 			return
 		}
 		s.serveCodexWebSocket(w, r)
@@ -134,6 +153,23 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			lastErr = err
 			retryChain = appendRetryAttempt(retryChain, attempt, route, nil, 0, time.Since(attemptStart).Milliseconds(), false, err.Error())
 			break
+		}
+		selected, err = s.refreshSelectedToken(r.Context(), selected, false)
+		if err != nil {
+			lastErr = err
+			_ = s.tokens.MarkInvalid(selected.ID, fmt.Sprintf("codex token refresh failed: %v", err))
+			s.tokens.Release(selected.ID)
+			excluded[selected.ID] = true
+			s.logs.Add(logs.Entry{
+				Level:     logs.LevelWarn,
+				Method:    r.Method,
+				Path:      r.URL.RequestURI(),
+				Model:     route.Model,
+				TokenName: selected.Name,
+				Message:   fmt.Sprintf("codex token refresh failed: %v", err),
+			})
+			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, 0, time.Since(attemptStart).Milliseconds(), false, err.Error())
+			continue
 		}
 
 		resp, err := s.forward(r.Context(), r, route, bodyBytes, selected)
@@ -279,6 +315,23 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		selected = next
+		selected, err = s.refreshSelectedToken(r.Context(), selected, false)
+		if err != nil {
+			lastErr = err
+			_ = s.tokens.MarkInvalid(selected.ID, fmt.Sprintf("codex token refresh failed: %v", err))
+			s.tokens.Release(selected.ID)
+			excluded[selected.ID] = true
+			s.logs.Add(logs.Entry{
+				Level:     logs.LevelWarn,
+				Method:    r.Method,
+				Path:      r.URL.RequestURI(),
+				Model:     route.Model,
+				TokenName: selected.Name,
+				Message:   fmt.Sprintf("codex token refresh failed: %v", err),
+			})
+			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, 0, time.Since(attemptStart).Milliseconds(), false, err.Error())
+			continue
+		}
 
 		targetURL, err := s.router.TargetWebSocketURL(route, selected)
 		if err != nil {
@@ -371,7 +424,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		responseHeader.Set("Sec-Websocket-Protocol", subprotocol)
 	}
 	upgrader := websocket.Upgrader{
-		CheckOrigin:       func(*http.Request) bool { return true },
+		CheckOrigin:       isAllowedWebSocketOrigin,
 		EnableCompression: true,
 	}
 	client, err := upgrader.Upgrade(w, r, responseHeader)
@@ -424,6 +477,17 @@ func (s *Service) acquireToken(route routeInfo, excluded map[string]bool) (token
 		return s.tokens.AcquireBalancedMatching(route.Provider, route.CredentialType, excluded)
 	}
 	return s.tokens.AcquireMatching(route.Provider, route.CredentialType, excluded)
+}
+
+func (s *Service) refreshSelectedToken(ctx context.Context, selected token.Token, force bool) (token.Token, error) {
+	if s.tokenRefresher == nil || selected.CredentialType != token.CredentialTypeCodexAuthJSON {
+		return selected, nil
+	}
+	updated, _, err := s.tokenRefresher(ctx, selected, force)
+	if err != nil {
+		return selected, err
+	}
+	return updated, nil
 }
 
 func (s *Service) writeResponse(w http.ResponseWriter, resp *http.Response) (token.TokenConsumption, []byte) {
@@ -650,10 +714,28 @@ func websocketRequestHeader(src http.Header) http.Header {
 	return dst
 }
 
+func isAllowedWebSocketOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" && scheme != "wails" {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "wails.localhost"
+}
+
 func isWebSocketRequestHeader(key string) bool {
 	switch http.CanonicalHeaderKey(key) {
 	case "Connection",
 		"Host",
+		"Origin",
 		"Keep-Alive",
 		"Proxy-Authenticate",
 		"Proxy-Authorization",

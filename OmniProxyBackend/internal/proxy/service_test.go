@@ -785,6 +785,7 @@ func TestServiceProxiesCodexResponsesWebSocket(t *testing.T) {
 		auth    string
 		account string
 		beta    string
+		origin  string
 		message string
 		err     error
 	}
@@ -808,6 +809,7 @@ func TestServiceProxiesCodexResponsesWebSocket(t *testing.T) {
 			auth:    r.Header.Get("Authorization"),
 			account: r.Header.Get("ChatGPT-Account-Id"),
 			beta:    r.Header.Get("OpenAI-Beta"),
+			origin:  r.Header.Get("Origin"),
 			message: string(payload),
 		}
 		responsePayload := `{"type":"response.completed","response":{"usage":{"input_tokens":11,"output_tokens":7,"total_tokens":18}}}`
@@ -849,6 +851,7 @@ func TestServiceProxiesCodexResponsesWebSocket(t *testing.T) {
 	headers := http.Header{
 		"ChatGPT-Account-Id": []string{"account-ws"},
 		"OpenAI-Beta":        []string{"responses_websockets=2026-02-06"},
+		"Origin":             []string{"http://localhost:5173"},
 	}
 	conn, _, err := websocket.DefaultDialer.Dial(dialURL, headers)
 	if err != nil {
@@ -888,6 +891,9 @@ func TestServiceProxiesCodexResponsesWebSocket(t *testing.T) {
 	if got.beta != "responses_websockets=2026-02-06" {
 		t.Fatalf("expected websocket beta header to be preserved, got %q", got.beta)
 	}
+	if got.origin != "" {
+		t.Fatalf("expected local browser origin not to be forwarded upstream, got %q", got.origin)
+	}
 	if got.message != `{"type":"client_event"}` {
 		t.Fatalf("expected websocket message to be proxied, got %q", got.message)
 	}
@@ -912,6 +918,44 @@ func TestServiceProxiesCodexResponsesWebSocket(t *testing.T) {
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}
+	}
+}
+
+func TestServiceRejectsCodexResponsesWebSocketFromNonLocalOrigin(t *testing.T) {
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "ws-origin-tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:          3000,
+		ControlPort:        3890,
+		CodexBaseURL:       "https://chatgpt.com/backend-api/codex",
+		SwitchThreshold:    15,
+		MaxRetries:         0,
+		CodexUsageEndpoint: "https://chatgpt.com/backend-api/wham/usage",
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := httptest.NewServer(service)
+	defer local.Close()
+
+	dialURL := "ws" + strings.TrimPrefix(local.URL, "http") + "/backend-api/codex/responses"
+	conn, resp, err := websocket.DefaultDialer.Dial(dialURL, http.Header{
+		"Origin": []string{"https://evil.example"},
+	})
+	if conn != nil {
+		_ = conn.Close()
+	}
+	if err == nil {
+		t.Fatal("expected websocket dial to fail for non-local origin")
+	}
+	if resp == nil {
+		t.Fatal("expected handshake response")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d", resp.StatusCode)
 	}
 }
 

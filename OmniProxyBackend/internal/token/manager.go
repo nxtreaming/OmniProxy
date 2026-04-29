@@ -163,6 +163,48 @@ func (m *Manager) Update(id string, req UpsertRequest) (Token, error) {
 	return m.tokens[index], m.persistLocked()
 }
 
+func (m *Manager) UpdateTokenValue(id string, value string) (Token, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	index := -1
+	for i := range m.tokens {
+		if m.tokens[i].ID == id {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return Token{}, ErrTokenNotFound
+	}
+
+	existing := m.tokens[index]
+	req := UpsertRequest{
+		Name:           existing.Name,
+		Provider:       existing.Provider,
+		CredentialType: existing.CredentialType,
+		TokenValue:     value,
+	}
+	name, provider, credentialType, normalizedValue, err := normalizeRequest(req)
+	if err != nil {
+		return Token{}, err
+	}
+	if m.nameExistsLocked(name, provider, id) {
+		return Token{}, ErrDuplicateName
+	}
+
+	m.tokens[index].Name = name
+	m.tokens[index].Provider = provider
+	m.tokens[index].CredentialType = credentialType
+	m.tokens[index].TokenValue = normalizedValue
+	m.tokens[index].UpdatedAt = time.Now()
+	if m.tokens[index].Status == "" || m.tokens[index].Status == StatusInvalid {
+		m.tokens[index].Status = StatusActive
+	}
+	m.tokens[index].LastError = ""
+	return m.tokens[index], m.persistLocked()
+}
+
 func (m *Manager) Delete(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
