@@ -6,6 +6,7 @@ export const tabs = [
   { key: 'logs', label: '实时日志' },
   { key: 'quickstart', label: '一键配置' },
   { key: 'settings', label: '全局设置' },
+  { key: 'about', label: '关于应用' },
   { key: 'help', label: '使用说明' },
 ]
 

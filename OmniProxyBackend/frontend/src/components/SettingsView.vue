@@ -1,5 +1,8 @@
 <script setup>
-import { RefreshRight } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+
+const coreUrlsExpanded = ref(false)
+const thirdPartyUrlsExpanded = ref(false)
 
 defineProps({
   config: {
@@ -22,17 +25,12 @@ defineProps({
     type: Boolean,
     required: true,
   },
-  updateChecking: {
-    type: Boolean,
-    required: true,
-  },
 })
 
 defineEmits([
   'persist-config',
   'choose-data-directory',
   'toggle-auto-start',
-  'manual-check-for-updates',
 ])
 </script>
 
@@ -50,7 +48,7 @@ defineEmits([
         <div class="settings-section-head">
           <div>
             <h3>应用维护</h3>
-            <p>本地数据、后台常驻和版本更新集中放在这里。</p>
+            <p>本地数据目录和后台常驻集中放在这里。</p>
           </div>
         </div>
         <div class="settings-action-list">
@@ -91,16 +89,6 @@ defineEmits([
             >
               {{ autoStartChanging ? '更新中' : autoStartEnabled ? '关闭自启' : '开启自启' }}
             </button>
-          </div>
-          <div class="data-directory-row">
-            <div>
-              <span>软件更新</span>
-              <strong>手动检查新版本</strong>
-              <small>启动时会自动检查；手动检查会忽略已经跳过的版本。</small>
-            </div>
-            <el-button :icon="RefreshRight" :loading="updateChecking" @click="$emit('manual-check-for-updates')">
-              {{ updateChecking ? '检查中' : '检查更新' }}
-            </el-button>
           </div>
         </div>
       </section>
@@ -156,6 +144,25 @@ defineEmits([
             <span>自动重试次数</span>
             <input v-model="config.maxRetries" type="number" min="0" max="5" />
           </label>
+          <div class="settings-segmented-field">
+            <span>MiMo 优先使用</span>
+            <div class="settings-segmented" role="group" aria-label="MiMo 凭据优先级">
+              <button
+                type="button"
+                :class="{ active: config.xiaomiCredentialPriority === 'mimo_token_plan' }"
+                @click="config.xiaomiCredentialPriority = 'mimo_token_plan'"
+              >
+                Token Plan
+              </button>
+              <button
+                type="button"
+                :class="{ active: config.xiaomiCredentialPriority === 'api_key' }"
+                @click="config.xiaomiCredentialPriority = 'api_key'"
+              >
+                按量 API
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -165,8 +172,11 @@ defineEmits([
             <h3>OpenAI / Anthropic / Codex</h3>
             <p>常用协议入口和 Codex 额度查询地址。</p>
           </div>
+          <button type="button" class="ghost-button compact-button" @click="coreUrlsExpanded = !coreUrlsExpanded">
+            {{ coreUrlsExpanded ? '收起地址' : '展开地址' }}
+          </button>
         </div>
-        <div class="settings-grid">
+        <div v-if="coreUrlsExpanded" class="settings-grid">
           <label class="wide-field">
             <span>OpenAI API Base URL</span>
             <input v-model="config.openaiBaseUrl" type="url" />
@@ -196,8 +206,11 @@ defineEmits([
             <h3>第三方路由</h3>
             <p>DeepSeek、Kimi 和 Xiaomi MiMo 的 OpenAI / Anthropic 兼容入口。</p>
           </div>
+          <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
+            {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
+          </button>
         </div>
-        <div class="settings-grid">
+        <div v-if="thirdPartyUrlsExpanded" class="settings-grid">
           <label class="wide-field">
             <span>DeepSeek API Base URL</span>
             <input v-model="config.deepseekBaseUrl" type="url" />

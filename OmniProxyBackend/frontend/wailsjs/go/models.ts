@@ -1,4 +1,4 @@
-﻿export namespace config {
+export namespace config {
 
 	export class Config {
 	    proxyPort: number;
@@ -16,6 +16,7 @@
 	    xiaomiApiAnthropicBaseUrl: string;
 	    xiaomiTokenPlanBaseUrl: string;
 	    xiaomiTokenPlanAnthropicBaseUrl: string;
+	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
 	    switchThreshold: number;
 	    maxRetries: number;
@@ -42,6 +43,7 @@
 	        this.xiaomiApiAnthropicBaseUrl = source["xiaomiApiAnthropicBaseUrl"];
 	        this.xiaomiTokenPlanBaseUrl = source["xiaomiTokenPlanBaseUrl"];
 	        this.xiaomiTokenPlanAnthropicBaseUrl = source["xiaomiTokenPlanAnthropicBaseUrl"];
+	        this.xiaomiCredentialPriority = source["xiaomiCredentialPriority"];
 	        this.codexBaseUrl = source["codexBaseUrl"];
 	        this.switchThreshold = source["switchThreshold"];
 	        this.maxRetries = source["maxRetries"];
@@ -126,6 +128,32 @@ export namespace history {
 
 export namespace main {
 
+	export class appInfo {
+	    name: string;
+	    version: string;
+	    isDevelopment: boolean;
+	    updateEndpoint: string;
+	    platform: string;
+	    goVersion: string;
+	    executablePath?: string;
+	    startedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new appInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.isDevelopment = source["isDevelopment"];
+	        this.updateEndpoint = source["updateEndpoint"];
+	        this.platform = source["platform"];
+	        this.goVersion = source["goVersion"];
+	        this.executablePath = source["executablePath"];
+	        this.startedAt = source["startedAt"];
+	    }
+	}
 	export class codexAuthExportResult {
 	    directory?: string;
 	    files?: string[];

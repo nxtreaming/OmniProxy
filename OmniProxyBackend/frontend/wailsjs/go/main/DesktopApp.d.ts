@@ -5,6 +5,8 @@ import {config} from '../models';
 import {token} from '../models';
 import {history} from '../models';
 
+export function AppInfo():Promise<main.appInfo>;
+
 export function AutoStartStatus():Promise<Record<string, any>>;
 
 export function CheckForUpdates():Promise<main.updateInfo>;

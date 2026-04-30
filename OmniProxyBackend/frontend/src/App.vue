@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
+import AboutView from './components/AboutView.vue'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
 import HistoryView from './components/HistoryView.vue'
 import LogsView from './components/LogsView.vue'
@@ -23,6 +24,7 @@ import {
   exportHistory,
   exportTokens,
   getAutoStartStatus,
+  getAppInfo,
   getConfig,
   getDataDirectory,
   getHistory,
@@ -44,6 +46,7 @@ import {
   Clock,
   DataBoard,
   HelpFilled,
+  InfoFilled,
   Key,
   MagicStick,
   Memo,
@@ -63,6 +66,7 @@ const tabIcons = {
   logs: Memo,
   quickstart: MagicStick,
   settings: Setting,
+  about: InfoFilled,
   help: HelpFilled,
 }
 const isDark = ref(false)
@@ -78,6 +82,8 @@ const dataDirChanging = ref(false)
 const autoStartChanging = ref(false)
 const autoStartEnabled = ref(false)
 const updateChecking = ref(false)
+const lastUpdateInfo = ref(null)
+const lastUpdateCheckedAt = ref('')
 const exportingHistory = ref('')
 const exportingTokens = ref(false)
 const exportingCodexAuth = ref(false)
@@ -111,6 +117,7 @@ const config = reactive({
   xiaomiApiAnthropicBaseUrl: 'https://api.xiaomimimo.com/anthropic',
   xiaomiTokenPlanBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
   xiaomiTokenPlanAnthropicBaseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+  xiaomiCredentialPriority: 'mimo_token_plan',
   codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
   codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
   switchThreshold: 15,
@@ -123,6 +130,16 @@ const dataDirectory = reactive({
   source: '',
   pendingDataDir: '',
   restartRequired: false,
+})
+const appInfo = reactive({
+  name: 'OmniProxy',
+  version: 'dev',
+  isDevelopment: true,
+  updateEndpoint: '',
+  platform: '',
+  goVersion: '',
+  executablePath: '',
+  startedAt: '',
 })
 const form = reactive({
   visible: false,
@@ -231,13 +248,14 @@ async function refreshAll() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [loadedTokens, loadedConfig, loadedLogs, loadedStatus, loadedDataDirectory, loadedAutoStart] = await Promise.all([
+    const [loadedTokens, loadedConfig, loadedLogs, loadedStatus, loadedDataDirectory, loadedAutoStart, loadedAppInfo] = await Promise.all([
       getTokens(),
       getConfig(),
       getLogs(),
       getProxyStatus(),
       getDataDirectory(),
       getAutoStartStatus(),
+      getAppInfo(),
     ])
     tokens.value = loadedTokens
     logs.value = loadedLogs
@@ -248,6 +266,7 @@ async function refreshAll() {
       restartRequired: false,
     })
     autoStartEnabled.value = Boolean(loadedAutoStart?.enabled)
+    Object.assign(appInfo, loadedAppInfo)
     if (activeTab.value === 'history') {
       await refreshHistory()
     }
@@ -285,6 +304,19 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
   }
   try {
     const update = await checkForUpdates()
+    lastUpdateInfo.value = update
+    lastUpdateCheckedAt.value = new Date().toISOString()
+    if (update?.currentVersion) {
+      appInfo.version = update.currentVersion
+      const normalizedVersion = String(update.currentVersion).trim().toLowerCase()
+      appInfo.isDevelopment = normalizedVersion === 'dev' || normalizedVersion === 'development'
+    }
+    if (appInfo.isDevelopment) {
+      if (manual) {
+        successMessage.value = '开发版本不会请求远端更新接口'
+      }
+      return
+    }
     if (!update?.updateAvailable || !update.latestVersion) {
       if (manual) {
         successMessage.value = update?.currentVersion
@@ -632,6 +664,7 @@ async function persistConfig() {
       xiaomiApiAnthropicBaseUrl: config.xiaomiApiAnthropicBaseUrl.trim(),
       xiaomiTokenPlanBaseUrl: config.xiaomiTokenPlanBaseUrl.trim(),
       xiaomiTokenPlanAnthropicBaseUrl: config.xiaomiTokenPlanAnthropicBaseUrl.trim(),
+      xiaomiCredentialPriority: config.xiaomiCredentialPriority,
       codexBaseUrl: config.codexBaseUrl.trim(),
       codexUsageEndpoint: config.codexUsageEndpoint.trim(),
       switchThreshold: Number(config.switchThreshold),
@@ -1449,11 +1482,25 @@ async function refreshQuota(item) {
         :data-dir-changing="dataDirChanging"
         :auto-start-changing="autoStartChanging"
         :auto-start-enabled="autoStartEnabled"
-        :update-checking="updateChecking"
         @persist-config="persistConfig"
         @choose-data-directory="chooseDataDirectory"
         @toggle-auto-start="toggleAutoStart"
+      />
+
+      <AboutView
+        v-else-if="activeTab === 'about'"
+        key="about"
+        :app-info="appInfo"
+        :config="config"
+        :data-directory="dataDirectory"
+        :proxy-status="proxyStatus"
+        :auto-start-enabled="autoStartEnabled"
+        :update-checking="updateChecking"
+        :update-info="lastUpdateInfo"
+        :update-checked-at="lastUpdateCheckedAt"
+        :format-time="formatTime"
         @manual-check-for-updates="manualCheckForUpdates"
+        @open-url="openExternalURL"
       />
 
       <section v-else-if="activeTab === 'quickstart'" key="quickstart" class="panel help-panel">
@@ -1526,7 +1573,11 @@ Kimi model: kimi-for-coding</code></pre>
             <p>确认代理设置里的端口和各厂商 Base URL 后，点击右上角启动代理。客户端请求走本地代理端口，由程序按账号状态自动调度。</p>
           </article>
           <article>
-            <strong>4. 排查问题</strong>
+            <strong>4. 账号调度模式</strong>
+            <p>队列模式按账号列表顺序优先使用前面的可用账号；优先平衡使用会优先选择并发更少、剩余额度更高、最近更少使用的账号。</p>
+          </article>
+          <article>
+            <strong>5. 排查问题</strong>
             <p>请求失败时先看实时日志，再在账号管理里验证对应账号。额度过低或账号无效时，程序会按阈值跳过不可用账号。</p>
           </article>
         </div>

@@ -1,6 +1,8 @@
 import * as DesktopApp from '../../wailsjs/go/main/DesktopApp.js'
 
 const API_BASE = import.meta.env?.VITE_OMNIPROXY_API || 'http://127.0.0.1:3890/api'
+const STATIC_CONTROL_TOKEN =
+  import.meta.env?.VITE_OMNIPROXY_CONTROL_TOKEN || globalThis.__OMNIPROXY_CONTROL_TOKEN__ || ''
 const CONTROL_TOKEN_HEADER = 'X-OmniProxy-Control-Token'
 let controlTokenPromise = null
 
@@ -50,6 +52,9 @@ async function getHTTPControlToken() {
   if (useWailsBindings()) {
     return ''
   }
+  if (STATIC_CONTROL_TOKEN) {
+    return STATIC_CONTROL_TOKEN
+  }
   if (!controlTokenPromise) {
     controlTokenPromise = fetch(`${API_BASE}/control-token`, {
       headers: {
@@ -79,7 +84,7 @@ function historyFilter(filters = {}) {
     model: filters.model || '',
     token: filters.token || '',
     search: filters.search || '',
-    limit: Number(filters.limit || 5000),
+    limit: Number(filters.limit || 10000),
   }
 }
 
@@ -281,6 +286,12 @@ export function checkForUpdates() {
   return useWailsBindings() && DesktopApp.CheckForUpdates
     ? DesktopApp.CheckForUpdates()
     : request('/update/check')
+}
+
+export function getAppInfo() {
+  return useWailsBindings() && DesktopApp.AppInfo
+    ? DesktopApp.AppInfo()
+    : request('/app/info')
 }
 
 export function openExternalURL(url) {

@@ -291,7 +291,7 @@ function isFailedHistory(entry) {
     <div class="section-heading">
       <div>
         <h2>请求历史</h2>
-        <p>持久化记录代理请求、重试结果、账号、模型、耗时和 Token 用量</p>
+        <p>持久化记录代理请求、账号验证、额度刷新、重试结果、耗时和 Token 用量</p>
       </div>
       <div class="section-actions">
         <el-button :icon="Refresh" @click="emit('refresh', { ...filters })">刷新</el-button>
