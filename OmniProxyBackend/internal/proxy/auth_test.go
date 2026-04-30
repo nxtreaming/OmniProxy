@@ -34,3 +34,53 @@ func TestApplyAuthUsesCodexAuthJSONAccessTokenAndAccountID(t *testing.T) {
 		t.Fatalf("unexpected ChatGPT-Account-Id header: %q", got)
 	}
 }
+
+func TestApplyAuthClearsIncomingCodexAccountID(t *testing.T) {
+	header := http.Header{}
+	header.Set("Authorization", "Bearer caller-token")
+	header.Set("ChatGPT-Account-Id", "caller-account")
+	selected := token.Token{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue: `{
+			"auth_mode": "chatgpt",
+			"tokens": {
+				"access_token": "selected-access-token",
+				"id_token": "selected-id-token"
+			}
+		}`,
+	}
+
+	if err := applyAuth(header, selected); err != nil {
+		t.Fatal(err)
+	}
+	if got := header.Get("Authorization"); got != "Bearer selected-access-token" {
+		t.Fatalf("unexpected Authorization header: %q", got)
+	}
+	if got := header.Get("ChatGPT-Account-Id"); got != "" {
+		t.Fatalf("incoming ChatGPT-Account-Id should be cleared, got %q", got)
+	}
+}
+
+func TestApplyAuthUsesTopLevelCodexAccountID(t *testing.T) {
+	header := http.Header{}
+	selected := token.Token{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue: `{
+			"auth_mode": "chatgpt",
+			"account_id": "top-level-account",
+			"tokens": {
+				"access_token": "selected-access-token",
+				"id_token": "selected-id-token"
+			}
+		}`,
+	}
+
+	if err := applyAuth(header, selected); err != nil {
+		t.Fatal(err)
+	}
+	if got := header.Get("ChatGPT-Account-Id"); got != "top-level-account" {
+		t.Fatalf("unexpected ChatGPT-Account-Id header: %q", got)
+	}
+}

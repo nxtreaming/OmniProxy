@@ -473,10 +473,37 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) acquireToken(route routeInfo, excluded map[string]bool) (token.Token, error) {
-	if s.cfg.SchedulingMode == config.SchedulingModeBalanced {
-		return s.tokens.AcquireBalancedMatching(route.Provider, route.CredentialType, excluded)
+	provider := token.NormalizeProvider(route.Provider)
+	credentialType := strings.TrimSpace(route.CredentialType)
+	if provider == token.ProviderXiaomi && credentialType == "" {
+		preferred := preferredMimoCredentialType(s.cfg)
+		if s.cfg.SchedulingMode == config.SchedulingModeBalanced {
+			selected, err := s.tokens.AcquireBalancedMatching(provider, preferred, excluded)
+			if err == nil {
+				return selected, nil
+			}
+			if !errors.Is(err, token.ErrNoActiveToken) {
+				return token.Token{}, err
+			}
+			return s.tokens.AcquireBalancedMatching(provider, "", excluded)
+		}
+		return s.tokens.AcquirePreferredMatching(provider, "", excluded, func(item token.Token) bool {
+			return item.CredentialType == preferred
+		})
 	}
-	return s.tokens.AcquireMatching(route.Provider, route.CredentialType, excluded)
+
+	if s.cfg.SchedulingMode == config.SchedulingModeBalanced {
+		return s.tokens.AcquireBalancedMatching(provider, credentialType, excluded)
+	}
+	return s.tokens.AcquireMatching(provider, credentialType, excluded)
+}
+
+func preferredMimoCredentialType(cfg config.Config) string {
+	cfg = config.Normalize(cfg)
+	if cfg.XiaomiCredentialPriority == config.MimoCredentialPriorityAPIKey {
+		return token.CredentialTypeAPIKey
+	}
+	return token.CredentialTypeMimoTokenPlan
 }
 
 func (s *Service) refreshSelectedToken(ctx context.Context, selected token.Token, force bool) (token.Token, error) {

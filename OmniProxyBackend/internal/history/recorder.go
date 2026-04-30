@@ -10,7 +10,10 @@ import (
 	"OmniProxyBackend/internal/sanitize"
 )
 
-const defaultPersistDelay = 500 * time.Millisecond
+const (
+	defaultPersistDelay = 500 * time.Millisecond
+	defaultMaxEntries   = 50000
+)
 
 type Store interface {
 	Load() ([]Entry, error)
@@ -82,7 +85,7 @@ type Recorder struct {
 
 func NewRecorder(store Store, max int) (*Recorder, error) {
 	if max <= 0 {
-		max = 5000
+		max = defaultMaxEntries
 	}
 
 	entries, err := store.Load()

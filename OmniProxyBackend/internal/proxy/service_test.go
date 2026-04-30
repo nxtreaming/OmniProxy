@@ -711,6 +711,60 @@ func TestServiceIgnoresIncomingCodexAccountIDForGatewayScheduling(t *testing.T) 
 	}
 }
 
+func TestServiceClearsStaleIncomingCodexAccountID(t *testing.T) {
+	var gotAuth string
+	var gotAccount string
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("ChatGPT-Account-Id")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTestWithCredentials(t, "selected@example.com", "", "selected-access-token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:          3000,
+		ControlPort:        3890,
+		CodexBaseURL:       upstream.URL + "/backend-api/codex",
+		SwitchThreshold:    15,
+		MaxRetries:         0,
+		CodexUsageEndpoint: "https://chatgpt.com/backend-api/wham/usage",
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/v1/responses", stringsReader(`{"input":"hello"}`))
+	req.Header.Set("Authorization", "Bearer caller-access-token")
+	req.Header.Set("ChatGPT-Account-Id", "last-login-account")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if gotAuth != "Bearer selected-access-token" {
+		t.Fatalf("expected selected account auth, got %q", gotAuth)
+	}
+	if gotAccount != "" {
+		t.Fatalf("expected stale incoming account id to be cleared, got %q", gotAccount)
+	}
+}
+
 func TestServiceBalancedSchedulingChoosesHigherRemainingCodexAccount(t *testing.T) {
 	var gotAuth string
 	var gotAccount string
@@ -1114,6 +1168,91 @@ func TestServiceRoutesXiaomiByCredentialTypeAndProtocol(t *testing.T) {
 	}
 	if gotPaths[1] != "/token-plan/anthropic/v1/messages" || gotKeys[1] != "tp-token-plan-secret" {
 		t.Fatalf("unexpected token plan route path=%q key=%q", gotPaths[1], gotKeys[1])
+	}
+}
+
+func TestServicePrefersConfiguredXiaomiCredentialType(t *testing.T) {
+	tests := []struct {
+		name         string
+		priority     string
+		addOrder     []string
+		expectedPath string
+		expectedKey  string
+	}{
+		{
+			name:         "token plan priority overrides queue order",
+			priority:     config.MimoCredentialPriorityTokenPlan,
+			addOrder:     []string{token.CredentialTypeMimoTokenPlan, token.CredentialTypeAPIKey},
+			expectedPath: "/token-plan/anthropic/v1/messages",
+			expectedKey:  "tp-token-plan-secret",
+		},
+		{
+			name:         "api priority overrides queue order",
+			priority:     config.MimoCredentialPriorityAPIKey,
+			addOrder:     []string{token.CredentialTypeAPIKey, token.CredentialTypeMimoTokenPlan},
+			expectedPath: "/anthropic/v1/messages",
+			expectedKey:  "sk-paygo-secret",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotPath string
+			var gotKey string
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				gotKey = r.Header.Get("Api-Key")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+			}))
+			defer upstream.Close()
+
+			manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, credentialType := range tt.addOrder {
+				req := token.UpsertRequest{
+					Provider:       token.ProviderXiaomi,
+					CredentialType: credentialType,
+				}
+				if credentialType == token.CredentialTypeMimoTokenPlan {
+					req.Name = "token-plan"
+					req.TokenValue = "tp-token-plan-secret"
+				} else {
+					req.Name = "paygo"
+					req.TokenValue = "sk-paygo-secret"
+				}
+				if _, err := manager.Add(req); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			service, err := NewService(config.Config{
+				ProxyPort:                       3000,
+				ControlPort:                     3890,
+				XiaomiAPIBaseURL:                upstream.URL + "/v1",
+				XiaomiAPIAnthropicBaseURL:       upstream.URL + "/anthropic",
+				XiaomiTokenPlanBaseURL:          upstream.URL + "/token-plan/v1",
+				XiaomiTokenPlanAnthropicBaseURL: upstream.URL + "/token-plan/anthropic",
+				XiaomiCredentialPriority:        tt.priority,
+				SwitchThreshold:                 15,
+				MaxRetries:                      0,
+			}, manager, logs.NewRecorder(10))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"mimo-v2.5","messages":[]}`))
+			res := httptest.NewRecorder()
+			service.ServeHTTP(res, req)
+			if res.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+			}
+			if gotPath != tt.expectedPath || gotKey != tt.expectedKey {
+				t.Fatalf("unexpected preferred MiMo route path=%q key=%q", gotPath, gotKey)
+			}
+		})
 	}
 }
 

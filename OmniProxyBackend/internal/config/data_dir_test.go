@@ -81,6 +81,40 @@ func TestResolveDataDirKeepsLegacyDefaultData(t *testing.T) {
 	}
 }
 
+func TestDevRuntimeProfileUsesSeparateDefaults(t *testing.T) {
+	t.Cleanup(func() {
+		SetRuntimeProfile(RuntimeProfileProduction)
+	})
+	SetRuntimeProfile(RuntimeProfileDev)
+
+	home := t.TempDir()
+	appData := t.TempDir()
+	setDataDirTestEnv(t, home, appData)
+
+	if DefaultProxyPort() != 3001 || DefaultControlPort() != 3891 {
+		t.Fatalf("unexpected dev default ports: proxy=%d control=%d", DefaultProxyPort(), DefaultControlPort())
+	}
+	if !samePath(DefaultDataDir(), filepath.Join(home, ".omniproxy-dev")) {
+		t.Fatalf("unexpected dev default data dir: %q", DefaultDataDir())
+	}
+	if want := filepath.Join(appData, "OmniProxyDev", "bootstrap.json"); !samePath(BootstrapPath(), want) {
+		t.Fatalf("expected dev bootstrap path %q, got %q", want, BootstrapPath())
+	}
+
+	envDir := filepath.Join(t.TempDir(), "dev-env-data")
+	t.Setenv("OMNIPROXY_DEV_DATA_DIR", envDir)
+	info, configured, err := ResolveDataDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !configured || !info.EnvOverride || info.Source != "env" {
+		t.Fatalf("expected dev env data dir, got configured=%v info=%#v", configured, info)
+	}
+	if !samePath(info.DataDir, envDir) {
+		t.Fatalf("expected dev env data dir %q, got %q", envDir, info.DataDir)
+	}
+}
+
 func TestCopyDataFilesDoesNotOverwriteExistingTargetFiles(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()
@@ -116,6 +150,7 @@ func TestCopyDataFilesDoesNotOverwriteExistingTargetFiles(t *testing.T) {
 func setDataDirTestEnv(t *testing.T, home string, appData string) {
 	t.Helper()
 	t.Setenv("OMNIPROXY_DATA_DIR", "")
+	t.Setenv("OMNIPROXY_DEV_DATA_DIR", "")
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("APPDATA", appData)

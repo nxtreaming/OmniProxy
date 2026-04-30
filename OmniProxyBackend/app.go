@@ -31,7 +31,7 @@ type DesktopApp struct {
 	tray   *tray.Manager
 }
 
-const autoStartName = "OmniProxy"
+const autoStartNameBase = "OmniProxy"
 
 func NewDesktopApp(server *appServer) *DesktopApp {
 	return &DesktopApp{server: server}
@@ -87,7 +87,7 @@ func (a *DesktopApp) shutdown(ctx context.Context) {
 }
 
 func (a *DesktopApp) secondInstanceLaunch(data options.SecondInstanceData) {
-	log.Printf("second OmniProxy %s instance requested from %s with args: %v", appInstanceMode, data.WorkingDirectory, data.Args)
+	log.Printf("second OmniProxy %s instance requested from %s with args: %v", appRuntimeMode(), data.WorkingDirectory, data.Args)
 	a.showMainWindow()
 }
 
@@ -102,7 +102,7 @@ func (a *DesktopApp) showMainWindow() {
 
 func (a *DesktopApp) setupTray() {
 	manager, err := tray.Start(tray.Options{
-		Tooltip: "OmniProxy",
+		Tooltip: appDisplayName(),
 		StatusLabel: func() string {
 			a.server.mu.Lock()
 			running := a.server.proxyServer != nil
@@ -172,7 +172,9 @@ func (a *DesktopApp) CreateToken(req token.UpsertRequest) (tokenResponse, error)
 	}
 	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token added"})
 	if isCodexToken(item) {
-		if _, err := a.server.validateAndRecordToken(a.callContext(), item); err != nil {
+		result, err := a.server.validateAndRecordToken(a.callContext(), item)
+		a.server.recordTokenMaintenanceHistory(historyEventCodexRefreshAdd, item, result, err)
+		if err != nil {
 			a.server.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("codex usage refresh failed after add: %v", err)})
 		}
 		if updated, err := a.server.tokens.Get(item.ID); err == nil {
@@ -206,6 +208,7 @@ func (a *DesktopApp) ValidateToken(id string) (validationResponse, error) {
 	}
 
 	result, err := a.server.validateAndRecordToken(a.callContext(), selected)
+	a.server.recordTokenMaintenanceHistory(historyEventManualValidation, selected, result, err)
 	level := logs.LevelInfo
 	if err != nil || !result.OK {
 		level = logs.LevelWarn
@@ -239,7 +242,7 @@ func (a *DesktopApp) RequestHistory(filter history.Filter) []historyResponse {
 		return []historyResponse{}
 	}
 	if filter.Limit <= 0 {
-		filter.Limit = 5000
+		filter.Limit = defaultHistoryLimit
 	}
 	return historyResponses(a.server.history.List(filter))
 }
@@ -257,7 +260,7 @@ func (a *DesktopApp) ExportRequestHistory(format string, filter history.Filter) 
 		return "", errors.New("export format must be csv or json")
 	}
 	if filter.Limit <= 0 {
-		filter.Limit = 5000
+		filter.Limit = defaultHistoryLimit
 	}
 	entries := a.server.history.List(filter)
 
@@ -403,8 +406,12 @@ func (a *DesktopApp) CheckForUpdates() (updateInfo, error) {
 	return checkForUpdates(a.callContext(), http.DefaultClient)
 }
 
+func (a *DesktopApp) AppInfo() appInfo {
+	return currentAppInfo()
+}
+
 func (a *DesktopApp) AutoStartStatus() (map[string]any, error) {
-	enabled, err := autostart.Enabled(autoStartName)
+	enabled, err := autostart.Enabled(autoStartName())
 	if err != nil {
 		return nil, err
 	}
@@ -412,10 +419,17 @@ func (a *DesktopApp) AutoStartStatus() (map[string]any, error) {
 }
 
 func (a *DesktopApp) SetAutoStart(enabled bool) (map[string]any, error) {
-	if err := autostart.Set(autoStartName, enabled, "--minimized"); err != nil {
+	if err := autostart.Set(autoStartName(), enabled, "--minimized"); err != nil {
 		return nil, err
 	}
 	return map[string]any{"enabled": enabled}, nil
+}
+
+func autoStartName() string {
+	if isDevInstance() {
+		return autoStartNameBase + " Dev"
+	}
+	return autoStartNameBase
 }
 
 func (a *DesktopApp) ConfigureCodex() (codexConfigureResult, error) {

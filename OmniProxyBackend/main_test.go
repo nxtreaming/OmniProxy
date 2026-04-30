@@ -37,6 +37,10 @@ func TestTokenValidationMarksInvalidToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	historyRecorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	app := &appServer{
 		cfg: config.Config{
@@ -46,8 +50,9 @@ func TestTokenValidationMarksInvalidToken(t *testing.T) {
 			SwitchThreshold: 15,
 			MaxRetries:      1,
 		},
-		tokens: manager,
-		logs:   logs.NewRecorder(10),
+		tokens:  manager,
+		logs:    logs.NewRecorder(10),
+		history: historyRecorder,
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/tokens/"+item.ID+"/validate", nil)
@@ -64,6 +69,13 @@ func TestTokenValidationMarksInvalidToken(t *testing.T) {
 	}
 	if updated.Status != token.StatusInvalid {
 		t.Fatalf("expected invalid token status, got %s", updated.Status)
+	}
+	entries := historyRecorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 {
+		t.Fatalf("expected validation history entry, got %#v", entries)
+	}
+	if entries[0].Path != "/maintenance/token-validation" || entries[0].TokenName != "bad" || entries[0].Status != http.StatusUnauthorized {
+		t.Fatalf("unexpected validation history entry: %#v", entries[0])
 	}
 }
 
@@ -167,7 +179,7 @@ func TestControlAPIRequiresControlTokenWhenConfigured(t *testing.T) {
 	}
 }
 
-func TestControlTokenEndpointDoesNotRequireControlToken(t *testing.T) {
+func TestControlTokenEndpointRequiresTrustedDesktopOrigin(t *testing.T) {
 	app := &appServer{
 		cfg:          config.Default(),
 		logs:         logs.NewRecorder(10),
@@ -177,7 +189,22 @@ func TestControlTokenEndpointDoesNotRequireControlToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/control-token", nil)
 	res := httptest.NewRecorder()
 	app.routes().ServeHTTP(res, req)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403 without trusted origin, got %d body=%s", res.Code, res.Body.String())
+	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/control-token", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	res = httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403 for local browser origin, got %d body=%s", res.Code, res.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/control-token", nil)
+	req.Header.Set("Origin", "wails://wails.localhost")
+	res = httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
 	}
@@ -217,6 +244,63 @@ func TestDataDirectoryEndpointReturnsCurrentInfo(t *testing.T) {
 	}
 	if !strings.EqualFold(filepath.Clean(payload.DataDir), filepath.Clean(dataDir)) {
 		t.Fatalf("expected data dir %q, got %#v", dataDir, payload)
+	}
+}
+
+func TestAppInfoEndpointReturnsVersionMetadata(t *testing.T) {
+	restore := overrideUpdateGlobals("v1.2.3", "https://example.com/releases/latest")
+	defer restore()
+
+	app := &appServer{
+		cfg:  config.Default(),
+		logs: logs.NewRecorder(10),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/app/info", nil)
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	var payload appInfo
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Name != "OmniProxy" || payload.Version != "v1.2.3" || payload.IsDevelopment {
+		t.Fatalf("unexpected app info: %#v", payload)
+	}
+	if payload.UpdateEndpoint != "https://example.com/releases/latest" || payload.Platform == "" || payload.GoVersion == "" || payload.StartedAt == "" {
+		t.Fatalf("missing app metadata: %#v", payload)
+	}
+}
+
+func TestRuntimeModeControlsSingleInstanceID(t *testing.T) {
+	restore := overrideUpdateGlobals("v1.2.3", "")
+	wantReleaseMode := "production"
+	if appInstanceMode == "dev" {
+		wantReleaseMode = "dev"
+	}
+	if got := appRuntimeMode(); got != wantReleaseMode {
+		restore()
+		t.Fatalf("expected %s runtime mode for release version, got %q", wantReleaseMode, got)
+	}
+	if got := singleInstanceUniqueID(); got != singleInstanceIDBase+"."+wantReleaseMode {
+		restore()
+		t.Fatalf("expected %s single instance ID, got %q", wantReleaseMode, got)
+	}
+	restore()
+
+	restore = overrideUpdateGlobals("dev", "")
+	defer restore()
+	if got := appRuntimeMode(); got != "dev" {
+		t.Fatalf("expected dev runtime mode for dev version, got %q", got)
+	}
+	if got := singleInstanceUniqueID(); got != singleInstanceIDBase+".dev" {
+		t.Fatalf("expected dev single instance ID, got %q", got)
+	}
+	if got := appDisplayName(); got != "OmniProxy Dev" {
+		t.Fatalf("expected dev display name, got %q", got)
 	}
 }
 
@@ -368,6 +452,10 @@ func TestCurrentTokenQuotaRefreshUsesLatestProxyUsage(t *testing.T) {
 	if err := manager.RecordProxyUsage(current.ID, token.TokenConsumption{TotalTokens: 1}); err != nil {
 		t.Fatal(err)
 	}
+	historyRecorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	app := &appServer{
 		cfg: config.Config{
@@ -377,8 +465,9 @@ func TestCurrentTokenQuotaRefreshUsesLatestProxyUsage(t *testing.T) {
 			SwitchThreshold: 15,
 			MaxRetries:      1,
 		},
-		tokens: manager,
-		logs:   logs.NewRecorder(10),
+		tokens:  manager,
+		logs:    logs.NewRecorder(10),
+		history: historyRecorder,
 	}
 
 	app.refreshCurrentTokenUsage(context.Background())
@@ -399,6 +488,16 @@ func TestCurrentTokenQuotaRefreshUsesLatestProxyUsage(t *testing.T) {
 	}
 	if updatedOlder.Remaining != 100 || updatedOlder.Usage.APIRemaining != 0 {
 		t.Fatalf("older token should not be refreshed, got remaining=%d usage=%#v", updatedOlder.Remaining, updatedOlder.Usage)
+	}
+	entries := historyRecorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 {
+		t.Fatalf("expected quota refresh history entry, got %#v", entries)
+	}
+	if entries[0].Path != "/maintenance/current-token-quota-refresh" || entries[0].Protocol != "quota-refresh" || entries[0].TokenName != "current" || entries[0].Status != http.StatusOK {
+		t.Fatalf("unexpected quota refresh history entry: %#v", entries[0])
+	}
+	if !strings.Contains(entries[0].Message, "remaining=64%") {
+		t.Fatalf("expected remaining quota in history message, got %q", entries[0].Message)
 	}
 }
 
@@ -699,6 +798,101 @@ func TestStartControlReturnsErrorWhenPortOccupied(t *testing.T) {
 	}
 	if app.control != nil {
 		t.Fatal("control server should not be marked running after listen failure")
+	}
+}
+
+func TestSaveConfigRejectsInvalidURLBeforePersisting(t *testing.T) {
+	dataDir := t.TempDir()
+	store := config.NewStore(filepath.Join(dataDir, "config.json"))
+	initial := config.Default()
+	if err := store.Save(initial); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(dataDir, "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{
+		cfg:         initial,
+		configStore: store,
+		tokens:      manager,
+		logs:        logs.NewRecorder(10),
+	}
+
+	bad := initial
+	bad.OpenAIBaseURL = "://bad-url"
+	if _, err := app.saveConfig(bad); err == nil {
+		t.Fatal("expected invalid url to be rejected")
+	}
+
+	reloaded, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.OpenAIBaseURL != initial.OpenAIBaseURL {
+		t.Fatalf("invalid url should not be persisted, got %q", reloaded.OpenAIBaseURL)
+	}
+	if app.cfg.OpenAIBaseURL != initial.OpenAIBaseURL {
+		t.Fatalf("invalid url should not update runtime config, got %q", app.cfg.OpenAIBaseURL)
+	}
+}
+
+func TestSaveConfigRestartsControlAPIWhenPortChanges(t *testing.T) {
+	firstListener, firstPort := listenOnLocalhost(t)
+	secondListener, secondPort := listenOnLocalhost(t)
+	proxyListener, proxyPort := listenOnLocalhost(t)
+	firstListener.Close()
+	secondListener.Close()
+	proxyListener.Close()
+
+	dataDir := t.TempDir()
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(dataDir, "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.ProxyPort = proxyPort
+	cfg.ControlPort = firstPort
+	app := &appServer{
+		cfg:          cfg,
+		configStore:  config.NewStore(filepath.Join(dataDir, "config.json")),
+		tokens:       manager,
+		logs:         logs.NewRecorder(10),
+		controlToken: "test-control-token",
+	}
+	if err := app.startControl(); err != nil {
+		t.Fatal(err)
+	}
+	defer app.stopControl()
+
+	next := cfg
+	next.ControlPort = secondPort
+	if _, err := app.saveConfig(next); err != nil {
+		t.Fatal(err)
+	}
+
+	app.mu.Lock()
+	addr := ""
+	if app.control != nil {
+		addr = app.control.Addr
+	}
+	app.mu.Unlock()
+	if !strings.HasSuffix(addr, intToString(secondPort)) {
+		t.Fatalf("expected control API to move to port %d, got %q", secondPort, addr)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+intToString(secondPort)+"/api/logs", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(controlTokenHeader, "test-control-token")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected new control API port to respond, got %d", res.StatusCode)
 	}
 }
 

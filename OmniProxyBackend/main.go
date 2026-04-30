@@ -58,9 +58,21 @@ const (
 	healthRequestTimeout  = 15 * time.Second
 	failedHealthRetryWait = 5 * time.Minute
 	controlTokenHeader    = "X-OmniProxy-Control-Token"
+	requestHistoryMax     = 50000
+	defaultHistoryLimit   = 10000
+)
+
+const (
+	historyEventManualValidation  = "manual-validation"
+	historyEventCodexRefreshAdd   = "codex-refresh-after-add"
+	historyEventStartupCodexUsage = "startup-codex-usage-refresh"
+	historyEventCurrentQuota      = "current-quota-refresh"
+	historyEventHealthCheck       = "health-check"
 )
 
 func main() {
+	config.SetRuntimeProfile(appRuntimeMode())
+
 	server, err := newAppServer()
 	if err != nil {
 		log.Fatalf("initialise app: %v", err)
@@ -69,7 +81,7 @@ func main() {
 	desktop := NewDesktopApp(server)
 
 	err = wails.Run(&options.App{
-		Title:             "OmniProxy",
+		Title:             appDisplayName(),
 		Width:             1280,
 		Height:            860,
 		MinWidth:          1040,
@@ -162,7 +174,7 @@ func (a *appServer) loadData(dataDir string) error {
 		_ = historyStore.Close()
 		return fmt.Errorf("migrate request history: %w", err)
 	}
-	historyRecorder, err := history.NewRecorder(historyStore, 5000)
+	historyRecorder, err := history.NewRecorder(historyStore, requestHistoryMax)
 	if err != nil {
 		_ = historyStore.Close()
 		return fmt.Errorf("load request history: %w", err)
@@ -270,6 +282,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/proxy/status", a.handleProxyStatus)
 	mux.HandleFunc("/api/proxy/start", a.handleProxyStart)
 	mux.HandleFunc("/api/proxy/stop", a.handleProxyStop)
+	mux.HandleFunc("/api/app/info", a.handleAppInfo)
 	mux.HandleFunc("/api/update/check", a.handleUpdateCheck)
 	mux.HandleFunc("/api/data-directory", a.handleDataDirectory)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
@@ -286,6 +299,11 @@ func (a *appServer) routes() http.Handler {
 func (a *appServer) handleControlToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if !isTrustedControlTokenOrigin(r.Header.Get("Origin")) {
+		w.Header().Set("Cache-Control", "no-store")
+		writeError(w, http.StatusForbidden, "control token is only available to the desktop app")
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -312,7 +330,9 @@ func (a *appServer) handleTokens(w http.ResponseWriter, r *http.Request) {
 		}
 		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token added"})
 		if isCodexToken(item) {
-			if _, err := a.validateAndRecordToken(r.Context(), item); err != nil {
+			result, err := a.validateAndRecordToken(r.Context(), item)
+			a.recordTokenMaintenanceHistory(historyEventCodexRefreshAdd, item, result, err)
+			if err != nil {
 				a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("codex usage refresh failed after add: %v", err)})
 			}
 			if updated, err := a.tokens.Get(item.ID); err == nil {
@@ -382,6 +402,7 @@ func (a *appServer) handleTokenValidate(w http.ResponseWriter, r *http.Request, 
 	}
 
 	result, err := a.validateAndRecordToken(r.Context(), selected)
+	a.recordTokenMaintenanceHistory(historyEventManualValidation, selected, result, err)
 
 	level := logs.LevelInfo
 	if err != nil || !result.OK {
@@ -449,6 +470,66 @@ func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.T
 	return result, err
 }
 
+func (a *appServer) recordTokenMaintenanceHistory(event string, selected token.Token, result proxy.ValidationResult, err error) {
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		return
+	}
+
+	path, protocol, label := tokenMaintenanceEventMeta(event)
+	level := logs.LevelInfo
+	if err != nil || !result.OK {
+		level = logs.LevelWarn
+	}
+	recorder.Add(history.Entry{
+		Level:     string(level),
+		Method:    "CHECK",
+		Path:      path,
+		Provider:  token.NormalizeProvider(selected.Provider),
+		Protocol:  protocol,
+		Model:     selected.CredentialType,
+		Status:    result.Status,
+		Duration:  result.Duration,
+		TokenID:   selected.ID,
+		TokenName: selected.Name,
+		Message:   tokenMaintenanceHistoryMessage(label, result, err),
+	})
+}
+
+func tokenMaintenanceEventMeta(event string) (string, string, string) {
+	switch event {
+	case historyEventCodexRefreshAdd:
+		return "/maintenance/codex-usage-refresh", "quota-refresh", "codex usage refresh after add completed"
+	case historyEventStartupCodexUsage:
+		return "/maintenance/startup-codex-usage-refresh", "quota-refresh", "startup codex quota refresh completed"
+	case historyEventCurrentQuota:
+		return "/maintenance/current-token-quota-refresh", "quota-refresh", "current token quota refresh completed"
+	case historyEventHealthCheck:
+		return "/maintenance/token-health-check", "health-check", "token health check completed"
+	default:
+		return "/maintenance/token-validation", "token-validation", "manual token validation completed"
+	}
+}
+
+func tokenMaintenanceHistoryMessage(label string, result proxy.ValidationResult, err error) string {
+	parts := []string{label}
+	if err != nil {
+		parts = append(parts, err.Error())
+	} else if strings.TrimSpace(result.Message) != "" {
+		parts = append(parts, result.Message)
+	}
+	if result.Remaining != nil {
+		parts = append(parts, fmt.Sprintf("remaining=%d%%", *result.Remaining))
+	}
+	if result.Usage != nil && result.Usage.SubscriptionQuotaAvailable {
+		parts = append(parts, fmt.Sprintf("primary=%d%%", result.Usage.PrimaryRemainingPercent))
+		parts = append(parts, fmt.Sprintf("secondary=%d%%", result.Usage.SecondaryRemainingPercent))
+	}
+	return strings.Join(parts, " · ")
+}
+
 func (a *appServer) refreshCodexTokenIfNeeded(ctx context.Context, selected token.Token, force bool) (token.Token, bool, error) {
 	if !isCodexToken(selected) {
 		return selected, false, nil
@@ -486,7 +567,9 @@ func (a *appServer) refreshCodexUsageOnStartup(ctx context.Context) {
 			continue
 		}
 		total++
-		if _, err := a.validateAndRecordToken(ctx, item); err != nil {
+		result, err := a.validateAndRecordToken(ctx, item)
+		a.recordTokenMaintenanceHistory(historyEventStartupCodexUsage, item, result, err)
+		if err != nil {
 			failed++
 			a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("startup codex usage refresh failed: %v", err)})
 		}
@@ -562,6 +645,7 @@ func (a *appServer) refreshCurrentTokenUsage(ctx context.Context) {
 	checkCtx, cancel := context.WithTimeout(ctx, healthRequestTimeout)
 	result, err := a.validateAndRecordToken(checkCtx, selected)
 	cancel()
+	a.recordTokenMaintenanceHistory(historyEventCurrentQuota, selected, result, err)
 
 	message := result.Message
 	if err != nil {
@@ -628,6 +712,7 @@ func (a *appServer) runDueHealthChecks(ctx context.Context) {
 		checkCtx, cancel := context.WithTimeout(ctx, healthRequestTimeout)
 		result, err := a.validateAndRecordToken(checkCtx, item)
 		cancel()
+		a.recordTokenMaintenanceHistory(historyEventHealthCheck, item, result, err)
 
 		message := result.Message
 		if err != nil {
@@ -708,28 +793,51 @@ func (a *appServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 func (a *appServer) saveConfig(cfg config.Config) (config.Config, error) {
 	cfg = config.Normalize(cfg)
-	if err := validateConfiguredPorts(cfg); err != nil {
-		return config.Config{}, err
-	}
-	if err := a.configStore.Save(cfg); err != nil {
+	if err := a.validateConfigForSave(cfg); err != nil {
 		return config.Config{}, err
 	}
 
 	a.mu.Lock()
 	oldCfg := a.cfg
 	shouldRestartProxy := a.proxyServer != nil && proxyConfigChanged(oldCfg, cfg)
+	shouldRestartControl := a.control != nil && controlConfigChanged(oldCfg, cfg)
 	a.cfg = cfg
 	a.mu.Unlock()
-	a.tokens.SetThreshold(cfg.SwitchThreshold)
+	if a.tokens != nil {
+		a.tokens.SetThreshold(cfg.SwitchThreshold)
+	}
 
 	if shouldRestartProxy {
 		if err := a.restartProxy(); err != nil {
 			return config.Config{}, err
 		}
 	}
+	if shouldRestartControl {
+		if err := a.restartControl(); err != nil {
+			return config.Config{}, err
+		}
+	}
+	if a.configStore != nil {
+		if err := a.configStore.Save(cfg); err != nil {
+			return config.Config{}, err
+		}
+	}
 
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "configuration updated"})
 	return cfg, nil
+}
+
+func (a *appServer) validateConfigForSave(cfg config.Config) error {
+	if err := validateConfiguredPorts(cfg); err != nil {
+		return err
+	}
+	if _, err := proxy.NewService(cfg, a.tokens, a.logs, a.history); err != nil {
+		return err
+	}
+	if _, err := proxy.NewValidator(cfg); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *appServer) handleLogs(w http.ResponseWriter, r *http.Request) {
@@ -754,7 +862,7 @@ func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := 1000
+	limit := defaultHistoryLimit
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
 			limit = parsed
@@ -821,6 +929,14 @@ func (a *appServer) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, info)
+}
+
+func (a *appServer) handleAppInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, currentAppInfo())
 }
 
 func (a *appServer) handleDataDirectory(w http.ResponseWriter, r *http.Request) {
@@ -983,19 +1099,42 @@ func (a *appServer) startProxy() error {
 
 func (a *appServer) startControl() error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	if a.control != nil {
+		a.mu.Unlock()
 		return nil
 	}
-	if err := validateConfiguredPorts(a.cfg); err != nil {
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	server, listener, err := a.newControlServer(cfg)
+	if err != nil {
 		return err
 	}
 
-	addr := fmt.Sprintf("127.0.0.1:%d", a.cfg.ControlPort)
+	a.mu.Lock()
+	if a.control != nil {
+		a.mu.Unlock()
+		_ = listener.Close()
+		return nil
+	}
+	a.control = server
+	a.mu.Unlock()
+
+	a.serveControl(server, listener)
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: fmt.Sprintf("control API started on port %d", cfg.ControlPort)})
+	log.Printf("OmniProxy control API listening on http://%s", server.Addr)
+	return nil
+}
+
+func (a *appServer) newControlServer(cfg config.Config) (*http.Server, net.Listener, error) {
+	if err := validateConfiguredPorts(cfg); err != nil {
+		return nil, nil, err
+	}
+
+	addr := fmt.Sprintf("127.0.0.1:%d", cfg.ControlPort)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("start control API listener on %s: %w", addr, err)
+		return nil, nil, fmt.Errorf("start control API listener on %s: %w", addr, err)
 	}
 
 	server := &http.Server{
@@ -1003,8 +1142,10 @@ func (a *appServer) startControl() error {
 		Handler:           withCORS(a.routes()),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	a.control = server
+	return server, listener, nil
+}
 
+func (a *appServer) serveControl(server *http.Server, listener net.Listener) {
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			a.logs.Add(logs.Entry{Level: logs.LevelError, Message: fmt.Sprintf("control API stopped: %v", err)})
@@ -1016,10 +1157,6 @@ func (a *appServer) startControl() error {
 		}
 		a.mu.Unlock()
 	}()
-
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: fmt.Sprintf("control API started on port %d", a.cfg.ControlPort)})
-	log.Printf("OmniProxy control API listening on http://%s", server.Addr)
-	return nil
 }
 
 func (a *appServer) stopProxy() error {
@@ -1063,6 +1200,44 @@ func (a *appServer) restartProxy() error {
 	return a.startProxy()
 }
 
+func (a *appServer) restartControl() error {
+	a.mu.Lock()
+	old := a.control
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	if old == nil {
+		return a.startControl()
+	}
+
+	server, listener, err := a.newControlServer(cfg)
+	if err != nil {
+		return err
+	}
+
+	a.mu.Lock()
+	old = a.control
+	a.control = server
+	a.mu.Unlock()
+
+	a.serveControl(server, listener)
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: fmt.Sprintf("control API started on port %d", cfg.ControlPort)})
+	log.Printf("OmniProxy control API listening on http://%s", server.Addr)
+
+	if old != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if err := old.Shutdown(ctx); err != nil {
+				a.logs.Add(logs.Entry{Level: logs.LevelWarn, Message: fmt.Sprintf("control API restart shutdown failed: %v", err)})
+				return
+			}
+			a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "control API stopped"})
+		}()
+	}
+	return nil
+}
+
 func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 	return oldCfg.ProxyPort != nextCfg.ProxyPort ||
 		oldCfg.SchedulingMode != nextCfg.SchedulingMode ||
@@ -1078,8 +1253,13 @@ func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 		oldCfg.XiaomiAPIAnthropicBaseURL != nextCfg.XiaomiAPIAnthropicBaseURL ||
 		oldCfg.XiaomiTokenPlanBaseURL != nextCfg.XiaomiTokenPlanBaseURL ||
 		oldCfg.XiaomiTokenPlanAnthropicBaseURL != nextCfg.XiaomiTokenPlanAnthropicBaseURL ||
+		oldCfg.XiaomiCredentialPriority != nextCfg.XiaomiCredentialPriority ||
 		oldCfg.CodexBaseURL != nextCfg.CodexBaseURL ||
 		oldCfg.MaxRetries != nextCfg.MaxRetries
+}
+
+func controlConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
+	return oldCfg.ControlPort != nextCfg.ControlPort
 }
 
 func maskedTokenValue(item token.Token) string {
@@ -1117,8 +1297,10 @@ func validateTCPPort(name string, port int) error {
 }
 
 func isConfigValidationError(err error) bool {
-	message := err.Error()
-	return strings.Contains(message, "port")
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "port") ||
+		strings.Contains(message, "url") ||
+		strings.Contains(message, "invalid")
 }
 
 func withCORS(next http.Handler) http.Handler {
@@ -1198,6 +1380,16 @@ func isAllowedControlOrigin(origin string) bool {
 		return false
 	}
 	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+func isTrustedControlTokenOrigin(origin string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(origin))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	scheme := strings.ToLower(parsed.Scheme)
+	return host == "wails.localhost" && scheme == "wails"
 }
 
 func writeDomainError(w http.ResponseWriter, err error) {

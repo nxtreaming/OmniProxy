@@ -82,7 +82,7 @@ func (s *SQLiteStore) List(filter Filter, limit int) ([]Entry, error) {
 	defer s.mu.Unlock()
 
 	if limit <= 0 {
-		limit = 5000
+		limit = defaultMaxEntries
 	}
 	query, args := historyListQuery(filter, limit)
 	rows, err := s.db.Query(query, args...)

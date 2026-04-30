@@ -21,6 +21,7 @@ func applyAuthWithProtocol(header http.Header, selected token.Token, protocol st
 	header.Del("Authorization")
 	header.Del("X-Api-Key")
 	header.Del("Api-Key")
+	header.Del("ChatGPT-Account-Id")
 
 	secret, err := credentialSecret(selected)
 	if err != nil {
@@ -92,6 +93,7 @@ func credentialSecret(selected token.Token) (string, error) {
 func codexAccess(raw string) (string, string, bool) {
 	var data struct {
 		OpenAIAPIKey *string `json:"OPENAI_API_KEY"`
+		AccountID    string  `json:"account_id"`
 		Tokens       struct {
 			AccessToken string `json:"access_token"`
 			AccountID   string `json:"account_id"`
@@ -101,14 +103,18 @@ func codexAccess(raw string) (string, string, bool) {
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
 		return "", "", false
 	}
+	accountID := strings.TrimSpace(data.Tokens.AccountID)
+	if accountID == "" {
+		accountID = strings.TrimSpace(data.AccountID)
+	}
 	if data.Tokens.AccessToken != "" {
-		return strings.TrimSpace(data.Tokens.AccessToken), strings.TrimSpace(data.Tokens.AccountID), true
+		return strings.TrimSpace(data.Tokens.AccessToken), accountID, true
 	}
 	if data.OpenAIAPIKey != nil && strings.TrimSpace(*data.OpenAIAPIKey) != "" {
-		return strings.TrimSpace(*data.OpenAIAPIKey), strings.TrimSpace(data.Tokens.AccountID), true
+		return strings.TrimSpace(*data.OpenAIAPIKey), accountID, true
 	}
 	if data.Tokens.IDToken != "" {
-		return strings.TrimSpace(data.Tokens.IDToken), strings.TrimSpace(data.Tokens.AccountID), true
+		return strings.TrimSpace(data.Tokens.IDToken), accountID, true
 	}
 	return "", "", false
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +14,7 @@ import (
 )
 
 var appVersion = "dev"
+var appStartedAt = time.Now()
 
 var latestReleaseURL = "https://api.github.com/repos/mibgb65-cloud/OmniProxy/releases/latest"
 
@@ -25,6 +28,35 @@ type updateInfo struct {
 	DownloadURL     string `json:"downloadUrl,omitempty"`
 	Name            string `json:"name,omitempty"`
 	Body            string `json:"body,omitempty"`
+}
+
+type appInfo struct {
+	Name           string `json:"name"`
+	Version        string `json:"version"`
+	IsDevelopment  bool   `json:"isDevelopment"`
+	UpdateEndpoint string `json:"updateEndpoint"`
+	Platform       string `json:"platform"`
+	GoVersion      string `json:"goVersion"`
+	ExecutablePath string `json:"executablePath,omitempty"`
+	StartedAt      string `json:"startedAt"`
+}
+
+func currentAppInfo() appInfo {
+	current := strings.TrimSpace(appVersion)
+	if current == "" {
+		current = "dev"
+	}
+	executablePath, _ := os.Executable()
+	return appInfo{
+		Name:           "OmniProxy",
+		Version:        current,
+		IsDevelopment:  isDevelopmentVersion(current),
+		UpdateEndpoint: latestReleaseURL,
+		Platform:       goruntime.GOOS + "/" + goruntime.GOARCH,
+		GoVersion:      goruntime.Version(),
+		ExecutablePath: executablePath,
+		StartedAt:      appStartedAt.Format(time.RFC3339),
+	}
 }
 
 type githubRelease struct {

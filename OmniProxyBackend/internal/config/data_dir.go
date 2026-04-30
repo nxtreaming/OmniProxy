@@ -10,8 +10,6 @@ import (
 	"strings"
 )
 
-const dataDirEnvVar = "OMNIPROXY_DATA_DIR"
-
 type DataDirectoryInfo struct {
 	DataDir       string `json:"dataDir"`
 	BootstrapPath string `json:"bootstrapPath"`
@@ -47,23 +45,23 @@ func DefaultDataDir() string {
 	if err != nil {
 		return "data"
 	}
-	return filepath.Join(home, ".omniproxy")
+	return filepath.Join(home, activeProfile.defaultDataDirName)
 }
 
 func BootstrapPath() string {
 	if dir, err := os.UserConfigDir(); err == nil && strings.TrimSpace(dir) != "" {
-		return filepath.Join(dir, "OmniProxy", "bootstrap.json")
+		return filepath.Join(dir, activeProfile.configDirName, "bootstrap.json")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return filepath.Join("data", "bootstrap.json")
 	}
-	return filepath.Join(home, ".omniproxy-bootstrap.json")
+	return filepath.Join(home, activeProfile.bootstrapFileName)
 }
 
 func ResolveDataDir() (DataDirectoryInfo, bool, error) {
 	bootstrapPath := BootstrapPath()
-	if envDir := strings.TrimSpace(os.Getenv(dataDirEnvVar)); envDir != "" {
+	if envDir := strings.TrimSpace(os.Getenv(activeProfile.dataDirEnvVar)); envDir != "" {
 		dir, err := cleanAbsPath(envDir)
 		if err != nil {
 			return DataDirectoryInfo{}, false, err
