@@ -124,38 +124,49 @@ jobs:
 
           if ([string]::IsNullOrWhiteSpace($previousTag)) {
             $range = $version
-            $intro = "本次发布包含 ``$version`` 标签下的提交："
+            $compareUrl = "https://github.com/mibgb65-cloud/OmniProxy/releases/tag/$version"
           } else {
             $range = "$previousTag..$version"
-            $intro = "相对 ``$previousTag`` 的提交："
+            $compareUrl = "https://github.com/mibgb65-cloud/OmniProxy/compare/$previousTag...$version"
           }
 
-          $commits = & git log --pretty=format:"- %s (%h)" $range
+          $commits = & git log --pretty=format:"%s (%h)" $range
           if (-not $commits) {
-            $commits = @("- 无提交变更。")
+            $commits = @("No commit changes were detected for this release.")
           }
 
           $notes = @(
-            "# OmniProxy $version",
+            "# $version - Automated Release / 自动发布",
             "",
+            "This release was built by GitHub Actions from the ``$version`` tag.",
             "此版本由 GitHub Actions 根据 ``$version`` 标签构建发布。",
             "",
-            "## 下载",
+            "##  Features / 新特性",
             "",
-            "- ``OmniProxy-Setup-$version-windows-amd64.exe``：Windows 安装包，推荐下载。",
-            "- ``OmniProxy-Setup-$version-windows-amd64.exe.sha256``：安装包 SHA256 校验文件。",
+            "- **Release**: Published Windows installer and checksum assets.",
+            "  - 发布 Windows 安装包和 SHA256 校验文件。",
             "",
-            "## 本次变更",
+            "##  Bug Fixes / 问题修复",
             "",
-            $intro,
+            "- **General**: No curated bug fixes were provided in ``docs/releases/$version.md``.",
+            "  - 未在 ``docs/releases/$version.md`` 提供人工整理的问题修复。",
+            "",
+            "## ⚠️ Breaking Changes / 不兼容更新",
+            "",
+            "- **Attention**: No breaking changes were declared.",
+            "  - **必读**: 未声明不兼容更新。",
+            "",
+            "##  Refactor & Performance / 重构与优化",
             ""
           )
-          $notes += $commits
+          foreach ($commit in $commits) {
+            $notes += "- **Changes**: Included ``$commit``."
+            $notes += "  - 包含提交 ``$commit``。"
+          }
           $notes += @(
             "",
-            "## 安全提示",
-            "",
-            "OmniProxy 默认面向本地个人开发场景，只监听 ``127.0.0.1``。请不要把真实凭据提交到 GitHub。"
+            "---",
+            "**Full Changelog / 完整更新日志**: $compareUrl"
           )
           $notes | Set-Content -Path release-notes.md -Encoding utf8
 
