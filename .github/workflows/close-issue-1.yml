@@ -1,0 +1,54 @@
+name: Close Issue 1
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/close-issue-1.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  close:
+    name: Comment and close issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment and close issue #1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          cat > body.txt <<'EOF'
+已修复，并已发布到 v1.0.5：
+https://github.com/mibgb65-cloud/OmniProxy/releases/tag/v1.0.5
+
+问题原因是 Codex 多账号代理时可能继承当前调用方残留的 `ChatGPT-Account-Id`，调度到其它账号后会出现 access token 与账号 ID 不匹配，从而导致非最后登录账号返回 401。
+
+本次修复：
+- 转发 Codex 请求前清理调用方的 `Authorization` 和 `ChatGPT-Account-Id`；
+- 只注入调度选中账号自己的 access token / account id；
+- 补充了多账号路由和 stale account header 的测试覆盖。
+
+我先关闭这个 issue。如果升级到 v1.0.5 后仍然复现，请带请求历史或实时日志重新反馈。
+EOF
+
+          jq -n --rawfile body body.txt '{body: $body}' > comment.json
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/issues/1/comments" \
+            --data @comment.json
+
+          jq -n '{state: "closed", state_reason: "completed"}' > close.json
+          curl -fsS -X PATCH \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/issues/1" \
+            --data @close.json
