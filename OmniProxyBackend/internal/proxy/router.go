@@ -19,6 +19,8 @@ type routeInfo struct {
 	Provider       string
 	CredentialType string
 	Protocol       string
+	ClientKey      string
+	ClientName     string
 	Model          string
 	Path           string
 	RawQuery       string
@@ -42,13 +44,22 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 			RawQuery: incoming.RawQuery,
 		}
 	}
+	if isOpenCodeRouterPath(path) {
+		return routeInfo{
+			Provider: providerForOpenCodeModel(model),
+			Protocol: "openai",
+			Model:    model,
+			Path:     stripPathPrefix(path, "/opencode-router"),
+			RawQuery: incoming.RawQuery,
+		}
+	}
 
 	trimmed := strings.TrimPrefix(path, "/")
 	parts := strings.SplitN(trimmed, "/", 2)
 	if len(parts) > 0 {
 		candidate := strings.ToLower(parts[0])
 		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi:
+		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderCustom:
 			provider = candidate
 			if len(parts) == 2 {
 				path = "/" + parts[1]
@@ -103,7 +114,7 @@ func (r Router) TargetURL(route routeInfo, selected token.Token) (string, error)
 	}
 
 	out := *base
-	out.Path = singleJoiningSlash(base.Path, upstreamPath(route.Path, selected))
+	out.Path = singleJoiningSlash(base.Path, upstreamPathForBase(base.Path, route, selected))
 	out.RawQuery = route.RawQuery
 	return out.String(), nil
 }
@@ -123,6 +134,23 @@ func (r Router) BaseURL(route routeInfo, selected token.Token) string {
 		return r.cfg.DeepSeekBaseURL
 	case token.ProviderKimi:
 		return r.cfg.KimiBaseURL
+	case token.ProviderZhipu:
+		if route.Protocol == "anthropic" {
+			return r.cfg.ZhipuAnthropicBaseURL
+		}
+		return r.cfg.ZhipuBaseURL
+	case token.ProviderMiniMax:
+		if route.Protocol == "anthropic" {
+			return r.cfg.MiniMaxAnthropicBaseURL
+		}
+		return r.cfg.MiniMaxBaseURL
+	case token.ProviderGemini:
+		return r.cfg.GeminiBaseURL
+	case token.ProviderCustom:
+		if route.Protocol == "anthropic" && r.cfg.CustomGatewayAnthropicBaseURL != "" {
+			return r.cfg.CustomGatewayAnthropicBaseURL
+		}
+		return r.cfg.CustomGatewayBaseURL
 	case token.ProviderXiaomi:
 		if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
 			if route.Protocol == "anthropic" {
@@ -148,7 +176,9 @@ func protocolForRoute(provider string, path *string) string {
 		protocol = "anthropic"
 	}
 	switch provider {
-	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi:
+	case token.ProviderGemini:
+		protocol = "gemini"
+	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
 		if *path == "/anthropic" {
 			*path = "/"
 			protocol = "anthropic"
@@ -164,8 +194,19 @@ func isAnthropicRouterPath(path string) bool {
 	return path == "/anthropic-router" || strings.HasPrefix(path, "/anthropic-router/")
 }
 
+func isOpenCodeRouterPath(path string) bool {
+	return path == "/opencode-router" || strings.HasPrefix(path, "/opencode-router/")
+}
+
 func isAnthropicRouterProbe(r *http.Request) bool {
 	if r.URL == nil || r.URL.Path != "/anthropic-router" {
+		return false
+	}
+	return r.Method == http.MethodHead || r.Method == http.MethodGet
+}
+
+func isOpenCodeRouterProbe(r *http.Request) bool {
+	if r.URL == nil || r.URL.Path != "/opencode-router" {
 		return false
 	}
 	return r.Method == http.MethodHead || r.Method == http.MethodGet
@@ -227,7 +268,36 @@ func providerForModel(model string) string {
 	if strings.HasPrefix(model, "kimi-") {
 		return token.ProviderKimi
 	}
+	if strings.HasPrefix(model, "glm-") || strings.HasPrefix(model, "zhipu-") {
+		return token.ProviderZhipu
+	}
+	if strings.HasPrefix(model, "minimax-") {
+		return token.ProviderMiniMax
+	}
 	return token.ProviderAnthropic
+}
+
+func providerForOpenCodeModel(model string) string {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if model == "" {
+		return token.ProviderOpenAI
+	}
+	if strings.HasPrefix(model, "mimo-") {
+		return token.ProviderXiaomi
+	}
+	if strings.HasPrefix(model, "deepseek-") {
+		return token.ProviderDeepSeek
+	}
+	if strings.HasPrefix(model, "glm-") || strings.HasPrefix(model, "zhipu-") {
+		return token.ProviderZhipu
+	}
+	if strings.HasPrefix(model, "minimax-") {
+		return token.ProviderMiniMax
+	}
+	if strings.HasPrefix(model, "custom-") {
+		return token.ProviderCustom
+	}
+	return token.ProviderOpenAI
 }
 
 func isCodexCredential(selected token.Token) bool {
@@ -245,6 +315,32 @@ func upstreamPath(path string, selected token.Token) string {
 		return "/"
 	}
 	return next
+}
+
+func upstreamPathForBase(basePath string, route routeInfo, selected token.Token) string {
+	path := upstreamPath(route.Path, selected)
+	if route.Protocol == "openai" && basePathHasVersionSuffix(basePath) && strings.HasPrefix(path, "/v1/") {
+		return "/" + strings.TrimPrefix(path, "/v1/")
+	}
+	return path
+}
+
+func basePathHasVersionSuffix(path string) bool {
+	path = strings.Trim(strings.TrimSpace(path), "/")
+	if path == "" {
+		return false
+	}
+	parts := strings.Split(path, "/")
+	last := strings.ToLower(parts[len(parts)-1])
+	if len(last) < 2 || last[0] != 'v' {
+		return false
+	}
+	for _, char := range last[1:] {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func stripPathPrefix(path string, prefix string) string {

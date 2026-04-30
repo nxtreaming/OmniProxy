@@ -318,6 +318,123 @@ func TestServiceRecordsPersistentRequestHistory(t *testing.T) {
 	}
 }
 
+func TestServiceRecordsClientToolInHistoryAndLogs(t *testing.T) {
+	var forwardedClientHeader string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwardedClientHeader = r.Header.Get("X-OmniProxy-Client")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":3}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"}); err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logRecorder := logs.NewRecorder(10)
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		OpenAIBaseURL:   upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logRecorder, recorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", stringsReader(`{"model":"gpt-test"}`))
+	req.Header.Set("X-OmniProxy-Client", "Codex")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	entries := recorder.List(history.Filter{Client: "codex", Limit: 10})
+	if len(entries) != 1 || entries[0].ClientKey != "codex" || entries[0].ClientName != "Codex" {
+		t.Fatalf("expected history to record codex client, got %#v", entries)
+	}
+	if forwardedClientHeader != "" {
+		t.Fatalf("client identification header should not be forwarded upstream, got %q", forwardedClientHeader)
+	}
+	logEntries := logRecorder.List()
+	if len(logEntries) != 1 || logEntries[0].ClientKey != "codex" || logEntries[0].ClientName != "Codex" {
+		t.Fatalf("expected logs to record codex client, got %#v", logEntries)
+	}
+}
+
+func TestServiceReportsActiveProxyRequestsByClientAndAccount(t *testing.T) {
+	releaseUpstream := make(chan struct{})
+	upstreamStarted := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamStarted <- struct{}{}
+		<-releaseUpstream
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":2}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		OpenAIBaseURL:   upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		req := httptest.NewRequest(http.MethodPost, "/opencode-router/v1/chat/completions", stringsReader(`{"model":"gpt-test"}`))
+		res := httptest.NewRecorder()
+		service.ServeHTTP(res, req)
+		close(done)
+	}()
+
+	select {
+	case <-upstreamStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for upstream request")
+	}
+
+	active := service.ActiveRequests()
+	if len(active) != 1 {
+		t.Fatalf("expected one active request, got %#v", active)
+	}
+	if active[0].ClientKey != "opencode" || active[0].TokenName != "primary" || active[0].Model != "gpt-test" {
+		t.Fatalf("unexpected active request metadata: %#v", active[0])
+	}
+
+	close(releaseUpstream)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for proxy request to finish")
+	}
+	if active := service.ActiveRequests(); len(active) != 0 {
+		t.Fatalf("expected active requests to clear after completion, got %#v", active)
+	}
+}
+
 func TestServiceRecordsLogModelFromQuery(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -1621,6 +1738,92 @@ func TestServiceHandlesAnthropicRouterHealthProbe(t *testing.T) {
 	}
 	if !strings.Contains(getRes.Body.String(), `"ok":true`) {
 		t.Fatalf("expected GET probe health body, got %q", getRes.Body.String())
+	}
+}
+
+func TestServiceRoutesGeminiNativeRequests(t *testing.T) {
+	var upstreamPath string
+	var geminiKey string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		geminiKey = r.Header.Get("x-goog-api-key")
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usageMetadata":{"totalTokenCount":3}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "gemini", Provider: token.ProviderGemini, TokenValue: "gemini-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		GeminiBaseURL:   upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/gemini/v1beta/models/gemini-3-pro-preview:generateContent", stringsReader(`{"contents":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	req.Header.Set("X-Goog-Api-Key", "caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1beta/models/gemini-3-pro-preview:generateContent" || geminiKey != "gemini-api-key-token" || authorization != "" {
+		t.Fatalf("unexpected gemini route path=%q key=%q authorization=%q", upstreamPath, geminiKey, authorization)
+	}
+}
+
+func TestServiceRoutesOpenCodeRouterToZhipu(t *testing.T) {
+	var upstreamPath string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":4}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "zhipu", Provider: token.ProviderZhipu, TokenValue: "zhipu-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZhipuBaseURL:    upstream.URL + "/api/paas/v4",
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/opencode-router/v1/chat/completions", stringsReader(`{"model":"glm-5","messages":[]}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/api/paas/v4/chat/completions" || authorization != "Bearer zhipu-api-key-token" {
+		t.Fatalf("unexpected zhipu route path=%q authorization=%q", upstreamPath, authorization)
 	}
 }
 

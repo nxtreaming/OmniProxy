@@ -35,6 +35,8 @@ type Entry struct {
 	Path              string         `json:"path,omitempty"`
 	Provider          string         `json:"provider,omitempty"`
 	Protocol          string         `json:"protocol,omitempty"`
+	ClientKey         string         `json:"clientKey,omitempty"`
+	ClientName        string         `json:"clientName,omitempty"`
 	Model             string         `json:"model,omitempty"`
 	Status            int            `json:"status,omitempty"`
 	Duration          int64          `json:"durationMs,omitempty"`
@@ -63,6 +65,7 @@ type RetryAttempt struct {
 
 type Filter struct {
 	Provider string `json:"provider,omitempty"`
+	Client   string `json:"client,omitempty"`
 	Level    string `json:"level,omitempty"`
 	Status   string `json:"status,omitempty"`
 	Model    string `json:"model,omitempty"`
@@ -239,6 +242,9 @@ func matches(entry Entry, filter Filter) bool {
 	if filter.Provider != "" && filter.Provider != "all" && !strings.EqualFold(entry.Provider, filter.Provider) {
 		return false
 	}
+	if filter.Client != "" && filter.Client != "all" && !strings.EqualFold(entry.ClientKey, filter.Client) {
+		return false
+	}
 	if filter.Level != "" && filter.Level != "all" && !strings.EqualFold(entry.Level, filter.Level) {
 		return false
 	}
@@ -258,6 +264,8 @@ func matches(entry Entry, filter Filter) bool {
 			entry.Path,
 			entry.Provider,
 			entry.Protocol,
+			entry.ClientKey,
+			entry.ClientName,
 			entry.Model,
 			entry.TokenName,
 			entry.Message,

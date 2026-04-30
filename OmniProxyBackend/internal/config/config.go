@@ -31,6 +31,13 @@ type Config struct {
 	DeepSeekBaseURL                 string `json:"deepseekBaseUrl"`
 	DeepSeekAnthropicBaseURL        string `json:"deepseekAnthropicBaseUrl"`
 	KimiBaseURL                     string `json:"kimiBaseUrl"`
+	ZhipuBaseURL                    string `json:"zhipuBaseUrl"`
+	ZhipuAnthropicBaseURL           string `json:"zhipuAnthropicBaseUrl"`
+	MiniMaxBaseURL                  string `json:"minimaxBaseUrl"`
+	MiniMaxAnthropicBaseURL         string `json:"minimaxAnthropicBaseUrl"`
+	GeminiBaseURL                   string `json:"geminiBaseUrl"`
+	CustomGatewayBaseURL            string `json:"customGatewayBaseUrl"`
+	CustomGatewayAnthropicBaseURL   string `json:"customGatewayAnthropicBaseUrl"`
 	XiaomiBaseURL                   string `json:"xiaomiBaseUrl"`
 	XiaomiAPIBaseURL                string `json:"xiaomiApiBaseUrl"`
 	XiaomiAPIAnthropicBaseURL       string `json:"xiaomiApiAnthropicBaseUrl"`
@@ -56,6 +63,13 @@ func Default() Config {
 		DeepSeekBaseURL:                 "https://api.deepseek.com",
 		DeepSeekAnthropicBaseURL:        "https://api.deepseek.com/anthropic",
 		KimiBaseURL:                     "https://api.kimi.com/coding",
+		ZhipuBaseURL:                    "https://open.bigmodel.cn/api/paas/v4",
+		ZhipuAnthropicBaseURL:           "https://open.bigmodel.cn/api/anthropic",
+		MiniMaxBaseURL:                  "https://api.minimaxi.com/v1",
+		MiniMaxAnthropicBaseURL:         "https://api.minimaxi.com/anthropic",
+		GeminiBaseURL:                   "https://generativelanguage.googleapis.com",
+		CustomGatewayBaseURL:            "",
+		CustomGatewayAnthropicBaseURL:   "",
 		XiaomiBaseURL:                   "",
 		XiaomiAPIBaseURL:                "https://api.xiaomimimo.com/v1",
 		XiaomiAPIAnthropicBaseURL:       "https://api.xiaomimimo.com/anthropic",
@@ -104,6 +118,13 @@ func (s *Store) Load() (Config, error) {
 		DeepSeekBaseURL                 *string `json:"deepseekBaseUrl"`
 		DeepSeekAnthropicBaseURL        *string `json:"deepseekAnthropicBaseUrl"`
 		KimiBaseURL                     *string `json:"kimiBaseUrl"`
+		ZhipuBaseURL                    *string `json:"zhipuBaseUrl"`
+		ZhipuAnthropicBaseURL           *string `json:"zhipuAnthropicBaseUrl"`
+		MiniMaxBaseURL                  *string `json:"minimaxBaseUrl"`
+		MiniMaxAnthropicBaseURL         *string `json:"minimaxAnthropicBaseUrl"`
+		GeminiBaseURL                   *string `json:"geminiBaseUrl"`
+		CustomGatewayBaseURL            *string `json:"customGatewayBaseUrl"`
+		CustomGatewayAnthropicBaseURL   *string `json:"customGatewayAnthropicBaseUrl"`
 		XiaomiBaseURL                   *string `json:"xiaomiBaseUrl"`
 		XiaomiAPIBaseURL                *string `json:"xiaomiApiBaseUrl"`
 		XiaomiAPIAnthropicBaseURL       *string `json:"xiaomiApiAnthropicBaseUrl"`
@@ -149,6 +170,27 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.KimiBaseURL != nil && *saved.KimiBaseURL != "" {
 		cfg.KimiBaseURL = *saved.KimiBaseURL
+	}
+	if saved.ZhipuBaseURL != nil && *saved.ZhipuBaseURL != "" {
+		cfg.ZhipuBaseURL = *saved.ZhipuBaseURL
+	}
+	if saved.ZhipuAnthropicBaseURL != nil && *saved.ZhipuAnthropicBaseURL != "" {
+		cfg.ZhipuAnthropicBaseURL = *saved.ZhipuAnthropicBaseURL
+	}
+	if saved.MiniMaxBaseURL != nil && *saved.MiniMaxBaseURL != "" {
+		cfg.MiniMaxBaseURL = *saved.MiniMaxBaseURL
+	}
+	if saved.MiniMaxAnthropicBaseURL != nil && *saved.MiniMaxAnthropicBaseURL != "" {
+		cfg.MiniMaxAnthropicBaseURL = *saved.MiniMaxAnthropicBaseURL
+	}
+	if saved.GeminiBaseURL != nil && *saved.GeminiBaseURL != "" {
+		cfg.GeminiBaseURL = *saved.GeminiBaseURL
+	}
+	if saved.CustomGatewayBaseURL != nil {
+		cfg.CustomGatewayBaseURL = *saved.CustomGatewayBaseURL
+	}
+	if saved.CustomGatewayAnthropicBaseURL != nil {
+		cfg.CustomGatewayAnthropicBaseURL = *saved.CustomGatewayAnthropicBaseURL
 	}
 	if saved.XiaomiBaseURL != nil {
 		cfg.XiaomiBaseURL = *saved.XiaomiBaseURL
@@ -233,6 +275,21 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.KimiBaseURL == "" {
 		cfg.KimiBaseURL = defaults.KimiBaseURL
+	}
+	if cfg.ZhipuBaseURL == "" {
+		cfg.ZhipuBaseURL = defaults.ZhipuBaseURL
+	}
+	if cfg.ZhipuAnthropicBaseURL == "" {
+		cfg.ZhipuAnthropicBaseURL = defaults.ZhipuAnthropicBaseURL
+	}
+	if cfg.MiniMaxBaseURL == "" {
+		cfg.MiniMaxBaseURL = defaults.MiniMaxBaseURL
+	}
+	if cfg.MiniMaxAnthropicBaseURL == "" {
+		cfg.MiniMaxAnthropicBaseURL = defaults.MiniMaxAnthropicBaseURL
+	}
+	if cfg.GeminiBaseURL == "" {
+		cfg.GeminiBaseURL = defaults.GeminiBaseURL
 	}
 	if cfg.CodexBaseURL == "" {
 		cfg.CodexBaseURL = defaults.CodexBaseURL

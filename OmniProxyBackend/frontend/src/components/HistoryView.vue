@@ -37,6 +37,7 @@ const emit = defineEmits(['refresh', 'export', 'diagnose'])
 
 const filters = reactive({
   provider: 'all',
+  client: 'all',
   level: 'all',
   status: 'all',
   model: '',
@@ -54,6 +55,10 @@ const historyTrendMax = computed(() => Math.max(1, ...historyDailyRows.value.map
 const historyTrendColumns = computed(() => `repeat(${Math.max(1, historyDailyRows.value.length)}, minmax(0, 1fr))`)
 const providerRanks = computed(() =>
   rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5),
+)
+const clientOptions = computed(() => historyClientOptions(props.entries))
+const clientRanks = computed(() =>
+  rankHistory(filteredHistory.value, (entry) => clientLabel(entry), 'count').slice(0, 5),
 )
 const allModelRanks = computed(() =>
   rankHistory(filteredHistory.value, (entry) => entry.model || entry.protocol || '未记录模型', 'totalTokens'),
@@ -123,6 +128,7 @@ function filterHistory(items, currentFilters) {
   const tokenName = currentFilters.token.trim().toLowerCase()
   return items
     .filter((item) => currentFilters.provider === 'all' || item.provider === currentFilters.provider)
+    .filter((item) => currentFilters.client === 'all' || item.clientKey === currentFilters.client)
     .filter((item) => currentFilters.level === 'all' || item.level === currentFilters.level)
     .filter((item) => currentFilters.status === 'all' || historyStatusMatches(item, currentFilters.status))
     .filter((item) => !model || String(item.model || '').toLowerCase().includes(model))
@@ -134,6 +140,8 @@ function filterHistory(items, currentFilters) {
         item.path,
         item.provider,
         item.protocol,
+        item.clientKey,
+        item.clientName,
         item.model,
         item.tokenName,
         item.message,
@@ -184,6 +192,24 @@ function rankHistory(items, labelFn, mode) {
   }
   const metric = mode === 'totalTokens' ? 'totalTokens' : 'count'
   return [...groups.values()].sort((a, b) => b[metric] - a[metric] || b.count - a.count)
+}
+
+function historyClientOptions(items) {
+  const byKey = new Map()
+  for (const entry of items || []) {
+    const key = String(entry.clientKey || '').trim()
+    if (!key) continue
+    if (!byKey.has(key)) {
+      byKey.set(key, clientLabel(entry))
+    }
+  }
+  return [...byKey.entries()]
+    .map(([key, label]) => ({ key, label }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
+
+function clientLabel(entry) {
+  return entry?.clientName || entry?.clientKey || '未记录工具'
 }
 
 function buildModelPieSegments(rows) {
@@ -311,6 +337,15 @@ function isFailedHistory(entry) {
           <option value="all">全部厂商</option>
           <option v-for="provider in providers" :key="provider.key" :value="provider.key">
             {{ provider.label }}
+          </option>
+        </select>
+      </label>
+      <label>
+        <span>工具</span>
+        <select v-model="filters.client">
+          <option value="all">全部工具</option>
+          <option v-for="client in clientOptions" :key="client.key" :value="client.key">
+            {{ client.label }}
           </option>
         </select>
       </label>
@@ -447,6 +482,20 @@ function isFailedHistory(entry) {
 
       <div class="history-insight-panel">
         <div class="history-insight-head">
+          <span>工具分布</span>
+          <strong>{{ clientRanks.length }}</strong>
+        </div>
+        <div class="rank-list">
+          <div v-for="item in clientRanks" :key="item.label" class="rank-row">
+            <span :title="item.label">{{ item.label }}</span>
+            <strong>{{ formatNumber(item.count) }} 次</strong>
+          </div>
+          <div v-if="!clientRanks.length" class="empty compact-empty">暂无工具数据</div>
+        </div>
+      </div>
+
+      <div class="history-insight-panel">
+        <div class="history-insight-head">
           <span>失败账号</span>
           <strong>{{ tokenFailureRanks.length }}</strong>
         </div>
@@ -479,6 +528,7 @@ function isFailedHistory(entry) {
         <colgroup>
           <col class="history-col-time" />
           <col class="history-col-route" />
+          <col class="history-col-client" />
           <col class="history-col-token" />
           <col class="history-col-status" />
           <col class="history-col-duration" />
@@ -490,6 +540,7 @@ function isFailedHistory(entry) {
           <tr>
             <th>时间</th>
             <th>厂商 / 模型</th>
+            <th>工具</th>
             <th>账号</th>
             <th>状态</th>
             <th>耗时</th>
@@ -515,6 +566,7 @@ function isFailedHistory(entry) {
               <strong>{{ providerLabel(entry.provider) }}</strong>
               <small>{{ entry.model || entry.protocol || '-' }}</small>
             </td>
+            <td :title="clientLabel(entry)">{{ clientLabel(entry) }}</td>
             <td :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</td>
             <td>
               <span :class="['tag', historyTagClass(entry)]">{{ historyStatusLabel(entry) }}</span>

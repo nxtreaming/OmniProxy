@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/token"
 )
 
 func TestRouterReadsRequestBodyModel(t *testing.T) {
@@ -20,6 +21,81 @@ func TestRouterReadsQueryModel(t *testing.T) {
 
 	if route.Model != "gpt-query" {
 		t.Fatalf("expected query model, got %#v", route)
+	}
+}
+
+func TestRouterMapsNewProviderPrefixes(t *testing.T) {
+	router := NewRouter(config.Config{})
+	cases := []struct {
+		name     string
+		path     string
+		body     string
+		provider string
+		protocol string
+		outPath  string
+	}{
+		{
+			name:     "anthropic router zhipu",
+			path:     "/anthropic-router/v1/messages",
+			body:     `{"model":"glm-5"}`,
+			provider: token.ProviderZhipu,
+			protocol: "anthropic",
+			outPath:  "/v1/messages",
+		},
+		{
+			name:     "anthropic router minimax",
+			path:     "/anthropic-router/v1/messages",
+			body:     `{"model":"MiniMax-M2.7"}`,
+			provider: token.ProviderMiniMax,
+			protocol: "anthropic",
+			outPath:  "/v1/messages",
+		},
+		{
+			name:     "opencode router defaults openai",
+			path:     "/opencode-router/v1/chat/completions",
+			body:     `{"model":"gpt-5.4"}`,
+			provider: token.ProviderOpenAI,
+			protocol: "openai",
+			outPath:  "/v1/chat/completions",
+		},
+		{
+			name:     "opencode router custom",
+			path:     "/opencode-router/v1/chat/completions",
+			body:     `{"model":"custom-model"}`,
+			provider: token.ProviderCustom,
+			protocol: "openai",
+			outPath:  "/v1/chat/completions",
+		},
+		{
+			name:     "gemini direct",
+			path:     "/gemini/v1beta/models/gemini-3-pro-preview:generateContent",
+			body:     `{}`,
+			provider: token.ProviderGemini,
+			protocol: "gemini",
+			outPath:  "/v1beta/models/gemini-3-pro-preview:generateContent",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			route := router.Route(mustRouterTestURL(t, tt.path), []byte(tt.body))
+			if route.Provider != tt.provider || route.Protocol != tt.protocol || route.Path != tt.outPath {
+				t.Fatalf("unexpected route: %#v", route)
+			}
+		})
+	}
+}
+
+func TestRouterAvoidsDuplicateOpenAIVersionForVersionedProviderBaseURL(t *testing.T) {
+	router := NewRouter(config.Config{
+		ZhipuBaseURL: "https://open.bigmodel.cn/api/paas/v4",
+	})
+	route := router.Route(mustRouterTestURL(t, "/opencode-router/v1/chat/completions"), []byte(`{"model":"glm-5"}`))
+	target, err := router.TargetURL(route, token.Token{Provider: token.ProviderZhipu, CredentialType: token.CredentialTypeAPIKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://open.bigmodel.cn/api/paas/v4/chat/completions" {
+		t.Fatalf("unexpected target url: %s", target)
 	}
 }
 

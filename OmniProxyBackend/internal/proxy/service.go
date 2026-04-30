@@ -9,8 +9,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"OmniProxyBackend/internal/config"
@@ -29,6 +31,9 @@ type Service struct {
 	retry          RetryPolicy
 	client         *http.Client
 	tokenRefresher TokenRefresher
+	activeMu       sync.RWMutex
+	activeSeq      int64
+	activeRequests map[int64]ActiveRequest
 }
 
 const maxProxyRequestBodyBytes = 32 * 1024 * 1024
@@ -36,6 +41,20 @@ const maxProxyRequestBodyBytes = 32 * 1024 * 1024
 var errRequestBodyTooLarge = errors.New("request body too large")
 
 type TokenRefresher func(context.Context, token.Token, bool) (token.Token, bool, error)
+
+type ActiveRequest struct {
+	ID         int64     `json:"id"`
+	StartedAt  time.Time `json:"startedAt"`
+	ClientKey  string    `json:"clientKey,omitempty"`
+	ClientName string    `json:"clientName,omitempty"`
+	Method     string    `json:"method,omitempty"`
+	Path       string    `json:"path,omitempty"`
+	Provider   string    `json:"provider,omitempty"`
+	Protocol   string    `json:"protocol,omitempty"`
+	Model      string    `json:"model,omitempty"`
+	TokenID    string    `json:"tokenId,omitempty"`
+	TokenName  string    `json:"tokenName,omitempty"`
+}
 
 func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorder, historyRecorders ...*history.Recorder) (*Service, error) {
 	cfg = config.Normalize(cfg)
@@ -45,6 +64,13 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 		token.ProviderDeepSeek:        cfg.DeepSeekBaseURL,
 		token.ProviderKimi:            cfg.KimiBaseURL,
 		"deepseek_anthropic":          cfg.DeepSeekAnthropicBaseURL,
+		token.ProviderZhipu:           cfg.ZhipuBaseURL,
+		"zhipu_anthropic":             cfg.ZhipuAnthropicBaseURL,
+		token.ProviderMiniMax:         cfg.MiniMaxBaseURL,
+		"minimax_anthropic":           cfg.MiniMaxAnthropicBaseURL,
+		token.ProviderGemini:          cfg.GeminiBaseURL,
+		"custom_gateway":              cfg.CustomGatewayBaseURL,
+		"custom_gateway_anthropic":    cfg.CustomGatewayAnthropicBaseURL,
 		"xiaomi_api":                  cfg.XiaomiAPIBaseURL,
 		"xiaomi_api_anthropic":        cfg.XiaomiAPIAnthropicBaseURL,
 		"xiaomi_token_plan":           cfg.XiaomiTokenPlanBaseURL,
@@ -79,29 +105,48 @@ func (s *Service) SetTokenRefresher(refresher TokenRefresher) {
 	s.tokenRefresher = refresher
 }
 
+func (s *Service) ActiveRequests() []ActiveRequest {
+	s.activeMu.RLock()
+	defer s.activeMu.RUnlock()
+
+	out := make([]ActiveRequest, 0, len(s.activeRequests))
+	for _, item := range s.activeRequests {
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].StartedAt.Before(out[j].StartedAt)
+	})
+	return out
+}
+
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if isCodexResponsesWebSocket(r) {
+		route := routeWithClient(r, routeInfo{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Protocol: "openai", Path: r.URL.Path, RawQuery: r.URL.RawQuery})
 		if s.cfg.WebSocketMode == config.WebSocketModeDisabled {
 			s.logs.Add(logs.Entry{
-				Level:   logs.LevelWarn,
-				Method:  r.Method,
-				Path:    r.URL.RequestURI(),
-				Status:  http.StatusForbidden,
-				Message: "websocket proxy disabled",
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Status:     http.StatusForbidden,
+				Message:    "websocket proxy disabled",
 			})
-			s.recordHistory(r, routeInfo{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Protocol: "openai", Path: r.URL.Path, RawQuery: r.URL.RawQuery}, nil, http.StatusForbidden, 0, token.TokenConsumption{}, logs.LevelWarn, "websocket proxy disabled")
+			s.recordHistory(r, route, nil, http.StatusForbidden, 0, token.TokenConsumption{}, logs.LevelWarn, "websocket proxy disabled")
 			http.Error(w, "websocket proxy disabled", http.StatusForbidden)
 			return
 		}
 		if !isAllowedWebSocketOrigin(r) {
 			s.logs.Add(logs.Entry{
-				Level:   logs.LevelWarn,
-				Method:  r.Method,
-				Path:    r.URL.RequestURI(),
-				Status:  http.StatusForbidden,
-				Message: "websocket origin not allowed",
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Status:     http.StatusForbidden,
+				Message:    "websocket origin not allowed",
 			})
-			s.recordHistory(r, routeInfo{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Protocol: "openai", Path: r.URL.Path, RawQuery: r.URL.RawQuery}, nil, http.StatusForbidden, 0, token.TokenConsumption{}, logs.LevelWarn, "websocket origin not allowed")
+			s.recordHistory(r, route, nil, http.StatusForbidden, 0, token.TokenConsumption{}, logs.LevelWarn, "websocket origin not allowed")
 			http.Error(w, "websocket origin not allowed", http.StatusForbidden)
 			return
 		}
@@ -113,6 +158,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if r.Method != http.MethodHead {
 			_, _ = w.Write([]byte(`{"ok":true,"service":"omniproxy anthropic router"}`))
+		}
+		return
+	}
+	if isOpenCodeRouterProbe(r) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		if r.Method != http.MethodHead {
+			_, _ = w.Write([]byte(`{"ok":true,"service":"omniproxy opencode router"}`))
 		}
 		return
 	}
@@ -128,12 +181,13 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	bodyBytes, err := readProxyRequestBody(r.Body)
 	if err != nil {
+		route := routeWithClient(r, routeInfo{Provider: token.ProviderOpenAI, Path: r.URL.Path, RawQuery: r.URL.RawQuery})
 		if errors.Is(err, errRequestBodyTooLarge) {
-			s.recordHistory(r, routeInfo{Provider: token.ProviderOpenAI, Path: r.URL.Path, RawQuery: r.URL.RawQuery}, nil, http.StatusRequestEntityTooLarge, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelWarn, errRequestBodyTooLarge.Error())
+			s.recordHistory(r, route, nil, http.StatusRequestEntityTooLarge, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelWarn, errRequestBodyTooLarge.Error())
 			http.Error(w, errRequestBodyTooLarge.Error(), http.StatusRequestEntityTooLarge)
 			return
 		}
-		s.recordHistory(r, routeInfo{Provider: token.ProviderOpenAI, Path: r.URL.Path, RawQuery: r.URL.RawQuery}, nil, http.StatusBadRequest, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelWarn, "failed to read request body")
+		s.recordHistory(r, route, nil, http.StatusBadRequest, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelWarn, "failed to read request body")
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
 	}
@@ -142,7 +196,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var lastErr error
 	var lastStatus int
-	route := s.router.Route(r.URL, bodyBytes)
+	route := routeWithClient(r, s.router.Route(r.URL, bodyBytes))
 	attempts := s.attemptsForRoute(route)
 	retryChain := make([]history.RetryAttempt, 0, attempts)
 
@@ -161,30 +215,36 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.tokens.Release(selected.ID)
 			excluded[selected.ID] = true
 			s.logs.Add(logs.Entry{
-				Level:     logs.LevelWarn,
-				Method:    r.Method,
-				Path:      r.URL.RequestURI(),
-				Model:     route.Model,
-				TokenName: selected.Name,
-				Message:   fmt.Sprintf("codex token refresh failed: %v", err),
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Model:      route.Model,
+				TokenName:  selected.Name,
+				Message:    fmt.Sprintf("codex token refresh failed: %v", err),
 			})
 			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, 0, time.Since(attemptStart).Milliseconds(), false, err.Error())
 			continue
 		}
 
+		finishActive := s.beginActiveRequest(r, route, selected)
 		resp, err := s.forward(r.Context(), r, route, bodyBytes, selected)
 		if err != nil {
+			finishActive()
 			lastErr = err
 			_ = s.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
 			s.tokens.Release(selected.ID)
 			excluded[selected.ID] = true
 			s.logs.Add(logs.Entry{
-				Level:     logs.LevelWarn,
-				Method:    r.Method,
-				Path:      r.URL.RequestURI(),
-				Model:     route.Model,
-				TokenName: selected.Name,
-				Message:   proxyLogMessage(route.Model, token.TokenConsumption{}, "upstream request failed, trying next token"),
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Model:      route.Model,
+				TokenName:  selected.Name,
+				Message:    proxyLogMessage(route.Model, token.TokenConsumption{}, "upstream request failed, trying next token"),
 			})
 			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, http.StatusBadGateway, time.Since(attemptStart).Milliseconds(), false, fmt.Sprintf("upstream request failed: %v", err))
 			continue
@@ -198,6 +258,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if s.shouldRetryUpstreamResponse(route, selected, resp.StatusCode, attempt, attempts) {
+			finishActive()
 			_ = s.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
 			cooldownUntil := s.cooldownUntilForUpstreamResponse(route, selected, resp.StatusCode, resp.Header)
 			cooldownTriggered := cooldownUntil != nil
@@ -208,19 +269,22 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			closeBody(resp.Body)
 			s.tokens.Release(selected.ID)
 			s.logs.Add(logs.Entry{
-				Level:     logs.LevelWarn,
-				Method:    r.Method,
-				Path:      r.URL.RequestURI(),
-				Model:     route.Model,
-				Status:    resp.StatusCode,
-				TokenName: selected.Name,
-				Message:   proxyLogMessage(route.Model, token.TokenConsumption{}, upstreamSwitchMessage(route, selected, resp.StatusCode)),
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Model:      route.Model,
+				Status:     resp.StatusCode,
+				TokenName:  selected.Name,
+				Message:    proxyLogMessage(route.Model, token.TokenConsumption{}, upstreamSwitchMessage(route, selected, resp.StatusCode)),
 			})
 			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, resp.StatusCode, time.Since(attemptStart).Milliseconds(), cooldownTriggered, upstreamSwitchMessage(route, selected, resp.StatusCode))
 			continue
 		}
 
 		consumption, responseBody := s.writeResponse(w, resp)
+		finishActive()
 		if responseModel := parseResponseModel(resp.Header, responseBody); responseModel != "" {
 			route.Model = responseModel
 		}
@@ -234,14 +298,16 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		historyMessage := proxyHistoryMessage(resp.StatusCode, route.Model, consumption, "request proxied", responseBody)
 		retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, resp.StatusCode, time.Since(attemptStart).Milliseconds(), cooldownTriggered, historyMessage)
 		s.logs.Add(logs.Entry{
-			Level:     levelForStatus(resp.StatusCode),
-			Method:    r.Method,
-			Path:      r.URL.RequestURI(),
-			Model:     route.Model,
-			Status:    resp.StatusCode,
-			Duration:  time.Since(start).Milliseconds(),
-			TokenName: selected.Name,
-			Message:   proxyLogMessage(route.Model, consumption, "request proxied"),
+			Level:      levelForStatus(resp.StatusCode),
+			Method:     r.Method,
+			Path:       r.URL.RequestURI(),
+			ClientKey:  route.ClientKey,
+			ClientName: route.ClientName,
+			Model:      route.Model,
+			Status:     resp.StatusCode,
+			Duration:   time.Since(start).Milliseconds(),
+			TokenName:  selected.Name,
+			Message:    proxyLogMessage(route.Model, consumption, "request proxied"),
 		})
 		s.recordHistory(r, route, &selected, resp.StatusCode, time.Since(start).Milliseconds(), consumption, levelForStatus(resp.StatusCode), historyMessage, retryChain...)
 		return
@@ -256,13 +322,15 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logs.Add(logs.Entry{
-		Level:    logs.LevelError,
-		Method:   r.Method,
-		Path:     r.URL.RequestURI(),
-		Model:    route.Model,
-		Status:   status,
-		Duration: time.Since(start).Milliseconds(),
-		Message:  fmt.Sprintf("proxy failed: %v", lastErr),
+		Level:      logs.LevelError,
+		Method:     r.Method,
+		Path:       r.URL.RequestURI(),
+		ClientKey:  route.ClientKey,
+		ClientName: route.ClientName,
+		Model:      route.Model,
+		Status:     status,
+		Duration:   time.Since(start).Milliseconds(),
+		Message:    fmt.Sprintf("proxy failed: %v", lastErr),
 	})
 	if len(retryChain) == 0 {
 		retryChain = appendRetryAttempt(retryChain, 1, route, nil, status, time.Since(start).Milliseconds(), false, fmt.Sprintf("proxy failed: %v", lastErr))
@@ -283,6 +351,7 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 	}
 	copyHeader(req.Header, original.Header)
 	removeHopHeaders(req.Header)
+	removeClientIdentificationHeaders(req.Header)
 	if err := applyRouteAuth(req.Header, selected, route); err != nil {
 		return nil, err
 	}
@@ -293,7 +362,7 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 
 func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	route := s.router.Route(r.URL, nil)
+	route := routeWithClient(r, s.router.Route(r.URL, nil))
 	route.CredentialType = token.CredentialTypeCodexAuthJSON
 
 	excluded := map[string]bool{}
@@ -304,6 +373,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	var upstreamResp *http.Response
 	var lastErr error
 	var lastStatus int
+	finishActive := func() {}
 	retryChain := make([]history.RetryAttempt, 0, attempts)
 
 	for attempt := 1; attempt <= attempts; attempt++ {
@@ -322,12 +392,14 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.tokens.Release(selected.ID)
 			excluded[selected.ID] = true
 			s.logs.Add(logs.Entry{
-				Level:     logs.LevelWarn,
-				Method:    r.Method,
-				Path:      r.URL.RequestURI(),
-				Model:     route.Model,
-				TokenName: selected.Name,
-				Message:   fmt.Sprintf("codex token refresh failed: %v", err),
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Model:      route.Model,
+				TokenName:  selected.Name,
+				Message:    fmt.Sprintf("codex token refresh failed: %v", err),
 			})
 			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, 0, time.Since(attemptStart).Milliseconds(), false, err.Error())
 			continue
@@ -342,6 +414,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		header := websocketRequestHeader(r.Header)
+		removeClientIdentificationHeaders(header)
 		if err := applyRouteAuth(header, selected, route); err != nil {
 			lastErr = err
 			s.tokens.Release(selected.ID)
@@ -349,6 +422,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		finishActive = s.beginActiveRequest(r, route, selected)
 		dialer := websocket.Dialer{
 			HandshakeTimeout:  45 * time.Second,
 			Proxy:             http.ProxyFromEnvironment,
@@ -359,6 +433,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			break
 		}
+		finishActive()
 
 		lastErr = err
 		if upstreamResp != nil {
@@ -375,13 +450,15 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			closeBody(upstreamRespBody(upstreamResp))
 			s.tokens.Release(selected.ID)
 			s.logs.Add(logs.Entry{
-				Level:     logs.LevelWarn,
-				Method:    r.Method,
-				Path:      r.URL.RequestURI(),
-				Model:     route.Model,
-				Status:    lastStatus,
-				TokenName: selected.Name,
-				Message:   upstreamWebSocketSwitchMessage(route, selected, lastStatus),
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Model:      route.Model,
+				Status:     lastStatus,
+				TokenName:  selected.Name,
+				Message:    upstreamWebSocketSwitchMessage(route, selected, lastStatus),
 			})
 			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, lastStatus, time.Since(attemptStart).Milliseconds(), cooldownTriggered, upstreamWebSocketSwitchMessage(route, selected, lastStatus))
 			continue
@@ -392,6 +469,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if upstream == nil {
+		finishActive()
 		status := http.StatusBadGateway
 		if errors.Is(lastErr, token.ErrNoActiveToken) {
 			status = http.StatusServiceUnavailable
@@ -401,13 +479,15 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 		closeBody(upstreamRespBody(upstreamResp))
 		s.logs.Add(logs.Entry{
-			Level:    logs.LevelError,
-			Method:   r.Method,
-			Path:     r.URL.RequestURI(),
-			Model:    route.Model,
-			Status:   status,
-			Duration: time.Since(start).Milliseconds(),
-			Message:  fmt.Sprintf("websocket proxy failed: %v", lastErr),
+			Level:      logs.LevelError,
+			Method:     r.Method,
+			Path:       r.URL.RequestURI(),
+			ClientKey:  route.ClientKey,
+			ClientName: route.ClientName,
+			Model:      route.Model,
+			Status:     status,
+			Duration:   time.Since(start).Milliseconds(),
+			Message:    fmt.Sprintf("websocket proxy failed: %v", lastErr),
 		})
 		if len(retryChain) == 0 {
 			retryChain = appendRetryAttempt(retryChain, 1, route, nil, status, time.Since(start).Milliseconds(), false, fmt.Sprintf("websocket proxy failed: %v", lastErr))
@@ -429,16 +509,19 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	client, err := upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
+		finishActive()
 		s.tokens.Release(selected.ID)
 		s.logs.Add(logs.Entry{
-			Level:     logs.LevelError,
-			Method:    r.Method,
-			Path:      r.URL.RequestURI(),
-			Model:     route.Model,
-			Status:    http.StatusBadRequest,
-			Duration:  time.Since(start).Milliseconds(),
-			TokenName: selected.Name,
-			Message:   fmt.Sprintf("websocket client upgrade failed: %v", err),
+			Level:      logs.LevelError,
+			Method:     r.Method,
+			Path:       r.URL.RequestURI(),
+			ClientKey:  route.ClientKey,
+			ClientName: route.ClientName,
+			Model:      route.Model,
+			Status:     http.StatusBadRequest,
+			Duration:   time.Since(start).Milliseconds(),
+			TokenName:  selected.Name,
+			Message:    fmt.Sprintf("websocket client upgrade failed: %v", err),
 		})
 		s.recordHistory(r, route, &selected, http.StatusBadRequest, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelError, fmt.Sprintf("websocket client upgrade failed: %v", err))
 		return
@@ -447,6 +530,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	_ = s.tokens.RecordUsage(selected.ID, -1)
 	consumption, err := proxyWebSocketMessages(client, upstream)
+	finishActive()
 	_ = s.tokens.RecordProxyUsage(selected.ID, consumption)
 	s.tokens.Release(selected.ID)
 
@@ -457,14 +541,16 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		message = fmt.Sprintf("websocket closed with error: %v", err)
 	}
 	s.logs.Add(logs.Entry{
-		Level:     level,
-		Method:    r.Method,
-		Path:      r.URL.RequestURI(),
-		Model:     route.Model,
-		Status:    http.StatusSwitchingProtocols,
-		Duration:  time.Since(start).Milliseconds(),
-		TokenName: selected.Name,
-		Message:   message,
+		Level:      level,
+		Method:     r.Method,
+		Path:       r.URL.RequestURI(),
+		ClientKey:  route.ClientKey,
+		ClientName: route.ClientName,
+		Model:      route.Model,
+		Status:     http.StatusSwitchingProtocols,
+		Duration:   time.Since(start).Milliseconds(),
+		TokenName:  selected.Name,
+		Message:    message,
 	})
 	if len(retryChain) == 0 || retryChain[len(retryChain)-1].Status != http.StatusSwitchingProtocols {
 		retryChain = appendRetryAttempt(retryChain, len(retryChain)+1, route, &selected, http.StatusSwitchingProtocols, time.Since(start).Milliseconds(), false, message)
@@ -637,6 +723,8 @@ func (s *Service) recordHistory(r *http.Request, route routeInfo, selected *toke
 		Path:              r.URL.RequestURI(),
 		Provider:          token.NormalizeProvider(route.Provider),
 		Protocol:          route.Protocol,
+		ClientKey:         route.ClientKey,
+		ClientName:        route.ClientName,
 		Model:             route.Model,
 		Status:            status,
 		Duration:          duration,
@@ -657,6 +745,46 @@ func (s *Service) recordHistory(r *http.Request, route routeInfo, selected *toke
 		entry.RetryChain = append([]history.RetryAttempt(nil), retryChain...)
 	}
 	s.history.Add(entry)
+}
+
+func (s *Service) beginActiveRequest(r *http.Request, route routeInfo, selected token.Token) func() {
+	s.activeMu.Lock()
+	defer s.activeMu.Unlock()
+
+	if s.activeRequests == nil {
+		s.activeRequests = map[int64]ActiveRequest{}
+	}
+	s.activeSeq++
+	id := s.activeSeq
+	path := ""
+	method := ""
+	if r != nil {
+		method = r.Method
+		if r.URL != nil {
+			path = r.URL.RequestURI()
+		}
+	}
+	s.activeRequests[id] = ActiveRequest{
+		ID:         id,
+		StartedAt:  time.Now(),
+		ClientKey:  route.ClientKey,
+		ClientName: route.ClientName,
+		Method:     method,
+		Path:       path,
+		Provider:   token.NormalizeProvider(route.Provider),
+		Protocol:   route.Protocol,
+		Model:      route.Model,
+		TokenID:    selected.ID,
+		TokenName:  selected.Name,
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			s.activeMu.Lock()
+			delete(s.activeRequests, id)
+			s.activeMu.Unlock()
+		})
+	}
 }
 
 func appendRetryAttempt(chain []history.RetryAttempt, attempt int, route routeInfo, selected *token.Token, status int, duration int64, cooldownTriggered bool, message string) []history.RetryAttempt {
@@ -787,6 +915,16 @@ func removeHopHeaders(header http.Header) {
 		"Trailer",
 		"Transfer-Encoding",
 		"Upgrade",
+	} {
+		header.Del(key)
+	}
+}
+
+func removeClientIdentificationHeaders(header http.Header) {
+	for _, key := range []string{
+		"X-OmniProxy-Client",
+		"X-Client-Name",
+		"X-Source-Client",
 	} {
 		header.Del(key)
 	}

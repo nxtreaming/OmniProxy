@@ -36,6 +36,7 @@ defineEmits(['refresh'])
           <p>{{ entry.message }}</p>
         </div>
         <div class="log-meta">
+          <small class="log-client" :title="entry.clientName || '-'">{{ entry.clientName || '-' }}</small>
           <small class="log-model" :title="entry.model || '-'">{{ entry.model || '-' }}</small>
           <small class="log-status">{{ entry.status || '-' }}</small>
           <small class="log-duration">{{ formatDuration(entry.durationMs) }}</small>

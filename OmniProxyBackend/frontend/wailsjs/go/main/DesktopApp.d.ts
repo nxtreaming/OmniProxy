@@ -5,6 +5,8 @@ import {config} from '../models';
 import {token} from '../models';
 import {history} from '../models';
 
+export function ActiveProxyRequests():Promise<Array<main.activeRequestResponse>>;
+
 export function AppInfo():Promise<main.appInfo>;
 
 export function AutoStartStatus():Promise<Record<string, any>>;
@@ -19,9 +21,13 @@ export function ConfigureCodex():Promise<main.codexConfigureResult>;
 
 export function ConfigureDeepSeekClaude():Promise<main.mimoConfigureResult>;
 
+export function ConfigureGemini():Promise<main.clientConfigureResult>;
+
 export function ConfigureKimiClaude():Promise<main.mimoConfigureResult>;
 
 export function ConfigureMimoClaude():Promise<main.mimoConfigureResult>;
+
+export function ConfigureOpenCode():Promise<main.clientConfigureResult>;
 
 export function ControlAPI():Promise<string>;
 
@@ -49,9 +55,13 @@ export function RestoreCodex():Promise<main.codexConfigureResult>;
 
 export function RestoreDeepSeekClaude():Promise<main.mimoConfigureResult>;
 
+export function RestoreGemini():Promise<main.clientConfigureResult>;
+
 export function RestoreKimiClaude():Promise<main.mimoConfigureResult>;
 
 export function RestoreMimoClaude():Promise<main.mimoConfigureResult>;
+
+export function RestoreOpenCode():Promise<main.clientConfigureResult>;
 
 export function SaveConfig(arg1:config.Config):Promise<config.Config>;
 

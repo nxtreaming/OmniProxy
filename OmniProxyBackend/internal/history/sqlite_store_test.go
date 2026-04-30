@@ -1,9 +1,12 @@
 package history
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestSQLiteStoreListFiltersAndPrunes(t *testing.T) {
@@ -23,6 +26,8 @@ func TestSQLiteStoreListFiltersAndPrunes(t *testing.T) {
 		Method:      "POST",
 		Path:        "/v1/chat/completions",
 		Provider:    "openai",
+		ClientKey:   "codex",
+		ClientName:  "Codex",
 		Model:       "gpt-5.5",
 		Status:      200,
 		TokenName:   "primary",
@@ -35,6 +40,8 @@ func TestSQLiteStoreListFiltersAndPrunes(t *testing.T) {
 		Method:            "POST",
 		Path:              "/v1/chat/completions",
 		Provider:          "openai",
+		ClientKey:         "opencode",
+		ClientName:        "OpenCode",
 		Model:             "gpt-5.5",
 		Status:            429,
 		TokenName:         "backup",
@@ -49,16 +56,18 @@ func TestSQLiteStoreListFiltersAndPrunes(t *testing.T) {
 		Message: "upstream returned 429",
 	})
 	recorder.Add(Entry{
-		Time:      time.Now(),
-		Level:     "error",
-		Method:    "POST",
-		Path:      "/anthropic-router/v1/messages",
-		Provider:  "deepseek",
-		Protocol:  "anthropic",
-		Model:     "deepseek-v4",
-		Status:    502,
-		TokenName: "deepseek-main",
-		Message:   "proxy failed",
+		Time:       time.Now(),
+		Level:      "error",
+		Method:     "POST",
+		Path:       "/anthropic-router/v1/messages",
+		Provider:   "deepseek",
+		Protocol:   "anthropic",
+		ClientKey:  "claude",
+		ClientName: "Claude Code",
+		Model:      "deepseek-v4",
+		Status:     502,
+		TokenName:  "deepseek-main",
+		Message:    "proxy failed",
 	})
 
 	if all := recorder.List(Filter{}); len(all) != 2 {
@@ -75,6 +84,10 @@ func TestSQLiteStoreListFiltersAndPrunes(t *testing.T) {
 	openai := recorder.List(Filter{Model: "gpt-5.5"})
 	if len(openai) != 1 || openai[0].Model != "gpt-5.5" {
 		t.Fatalf("expected persisted model metadata, got %#v", openai)
+	}
+	claude := recorder.List(Filter{Client: "claude"})
+	if len(claude) != 1 || claude[0].ClientName != "Claude Code" {
+		t.Fatalf("expected persisted client metadata, got %#v", claude)
 	}
 	cooldown := recorder.List(Filter{Status: "429"})
 	if len(cooldown) != 1 || !cooldown[0].CooldownTriggered || len(cooldown[0].RetryChain) != 1 {
@@ -142,5 +155,57 @@ func TestSQLiteStoreSaveAssignsIDsForLegacyEntriesWithoutIDs(t *testing.T) {
 	}
 	if loaded[0].ID == 0 || loaded[1].ID == 0 || loaded[0].ID == loaded[1].ID {
 		t.Fatalf("expected generated unique IDs, got %#v", loaded)
+	}
+}
+
+func TestSQLiteStoreMigratesExistingRowsWithoutClientColumns(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "request_history.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+CREATE TABLE request_history (
+  id INTEGER PRIMARY KEY,
+  time TEXT NOT NULL,
+  level TEXT NOT NULL,
+  method TEXT,
+  path TEXT,
+  provider TEXT,
+  protocol TEXT,
+  model TEXT,
+  status INTEGER,
+  duration_ms INTEGER,
+  token_id TEXT,
+  token_name TEXT,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_tokens INTEGER,
+  cooldown_triggered INTEGER,
+  retry_chain TEXT,
+  message TEXT NOT NULL
+)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO request_history (id, time, level, provider, protocol, model, status, retry_chain, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		1, time.Now().Format(time.RFC3339Nano), "info", "openai", "openai", "gpt-5.5", 200, "[]", "legacy request"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	loaded, err := store.List(Filter{}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded) != 1 || loaded[0].ClientKey != "" || loaded[0].Message != "legacy request" {
+		t.Fatalf("expected legacy row to load with empty client fields, got %#v", loaded)
 	}
 }

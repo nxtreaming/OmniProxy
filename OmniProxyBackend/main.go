@@ -45,6 +45,7 @@ type appServer struct {
 	logs           *logs.Recorder
 	history        *history.Recorder
 	proxyServer    *http.Server
+	proxyService   *proxy.Service
 	control        *http.Server
 	controlToken   string
 	healthStop     context.CancelFunc
@@ -280,6 +281,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/logs", a.handleLogs)
 	mux.HandleFunc("/api/history", a.handleHistory)
 	mux.HandleFunc("/api/proxy/status", a.handleProxyStatus)
+	mux.HandleFunc("/api/proxy/active-requests", a.handleActiveProxyRequests)
 	mux.HandleFunc("/api/proxy/start", a.handleProxyStart)
 	mux.HandleFunc("/api/proxy/stop", a.handleProxyStop)
 	mux.HandleFunc("/api/app/info", a.handleAppInfo)
@@ -293,6 +295,10 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/deepseek/claude/restore", a.handleDeepSeekClaudeRestore)
 	mux.HandleFunc("/api/kimi/claude/configure", a.handleKimiClaudeConfigure)
 	mux.HandleFunc("/api/kimi/claude/restore", a.handleKimiClaudeRestore)
+	mux.HandleFunc("/api/gemini/configure", a.handleGeminiConfigure)
+	mux.HandleFunc("/api/gemini/restore", a.handleGeminiRestore)
+	mux.HandleFunc("/api/opencode/configure", a.handleOpenCodeConfigure)
+	mux.HandleFunc("/api/opencode/restore", a.handleOpenCodeRestore)
 	return withControlTokenAuth(a.controlToken, mux)
 }
 
@@ -870,6 +876,7 @@ func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	filter := history.Filter{
 		Provider: strings.TrimSpace(r.URL.Query().Get("provider")),
+		Client:   strings.TrimSpace(r.URL.Query().Get("client")),
 		Level:    strings.TrimSpace(r.URL.Query().Get("level")),
 		Status:   strings.TrimSpace(r.URL.Query().Get("status")),
 		Model:    strings.TrimSpace(r.URL.Query().Get("model")),
@@ -892,6 +899,14 @@ func (a *appServer) handleProxyStatus(w http.ResponseWriter, r *http.Request) {
 		"running": a.proxyServer != nil,
 		"port":    a.cfg.ProxyPort,
 	})
+}
+
+func (a *appServer) handleActiveProxyRequests(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, activeRequestResponses(a.activeProxyRequests()))
 }
 
 func (a *appServer) handleProxyStart(w http.ResponseWriter, r *http.Request) {
@@ -1051,6 +1066,58 @@ func (a *appServer) handleKimiClaudeRestore(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (a *appServer) handleGeminiConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureGemini()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleGeminiRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.restoreGeminiConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleOpenCodeConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureOpenCode()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleOpenCodeRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.restoreOpenCodeConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (a *appServer) startProxy() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1080,6 +1147,7 @@ func (a *appServer) startProxy() error {
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 	a.proxyServer = server
+	a.proxyService = svc
 
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -1089,6 +1157,7 @@ func (a *appServer) startProxy() error {
 		a.mu.Lock()
 		if a.proxyServer == server {
 			a.proxyServer = nil
+			a.proxyService = nil
 		}
 		a.mu.Unlock()
 	}()
@@ -1163,6 +1232,7 @@ func (a *appServer) stopProxy() error {
 	a.mu.Lock()
 	server := a.proxyServer
 	a.proxyServer = nil
+	a.proxyService = nil
 	a.mu.Unlock()
 
 	if server == nil {
@@ -1174,6 +1244,16 @@ func (a *appServer) stopProxy() error {
 	err := server.Shutdown(ctx)
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "proxy stopped"})
 	return err
+}
+
+func (a *appServer) activeProxyRequests() []proxy.ActiveRequest {
+	a.mu.Lock()
+	svc := a.proxyService
+	a.mu.Unlock()
+	if svc == nil {
+		return []proxy.ActiveRequest{}
+	}
+	return svc.ActiveRequests()
 }
 
 func (a *appServer) stopControl() error {
@@ -1248,6 +1328,13 @@ func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 		oldCfg.DeepSeekBaseURL != nextCfg.DeepSeekBaseURL ||
 		oldCfg.DeepSeekAnthropicBaseURL != nextCfg.DeepSeekAnthropicBaseURL ||
 		oldCfg.KimiBaseURL != nextCfg.KimiBaseURL ||
+		oldCfg.ZhipuBaseURL != nextCfg.ZhipuBaseURL ||
+		oldCfg.ZhipuAnthropicBaseURL != nextCfg.ZhipuAnthropicBaseURL ||
+		oldCfg.MiniMaxBaseURL != nextCfg.MiniMaxBaseURL ||
+		oldCfg.MiniMaxAnthropicBaseURL != nextCfg.MiniMaxAnthropicBaseURL ||
+		oldCfg.GeminiBaseURL != nextCfg.GeminiBaseURL ||
+		oldCfg.CustomGatewayBaseURL != nextCfg.CustomGatewayBaseURL ||
+		oldCfg.CustomGatewayAnthropicBaseURL != nextCfg.CustomGatewayAnthropicBaseURL ||
 		oldCfg.XiaomiBaseURL != nextCfg.XiaomiBaseURL ||
 		oldCfg.XiaomiAPIBaseURL != nextCfg.XiaomiAPIBaseURL ||
 		oldCfg.XiaomiAPIAnthropicBaseURL != nextCfg.XiaomiAPIAnthropicBaseURL ||

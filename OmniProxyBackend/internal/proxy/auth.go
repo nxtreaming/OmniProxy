@@ -21,6 +21,7 @@ func applyAuthWithProtocol(header http.Header, selected token.Token, protocol st
 	header.Del("Authorization")
 	header.Del("X-Api-Key")
 	header.Del("Api-Key")
+	header.Del("X-Goog-Api-Key")
 	header.Del("ChatGPT-Account-Id")
 
 	secret, err := credentialSecret(selected)
@@ -41,7 +42,7 @@ func applyAuthWithProtocol(header http.Header, selected token.Token, protocol st
 		if header.Get("anthropic-version") == "" {
 			header.Set("anthropic-version", "2023-06-01")
 		}
-	case token.ProviderDeepSeek:
+	case token.ProviderDeepSeek, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
 		if protocol == "anthropic" {
 			header.Set("x-api-key", secret)
 			if header.Get("anthropic-version") == "" {
@@ -61,6 +62,8 @@ func applyAuthWithProtocol(header http.Header, selected token.Token, protocol st
 		}
 	case token.ProviderXiaomi:
 		header.Set("api-key", secret)
+	case token.ProviderGemini:
+		header.Set("x-goog-api-key", secret)
 	default:
 		header.Set("Authorization", "Bearer "+secret)
 	}

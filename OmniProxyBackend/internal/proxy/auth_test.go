@@ -84,3 +84,46 @@ func TestApplyAuthUsesTopLevelCodexAccountID(t *testing.T) {
 		t.Fatalf("unexpected ChatGPT-Account-Id header: %q", got)
 	}
 }
+
+func TestApplyAuthUsesGeminiAPIKeyHeader(t *testing.T) {
+	header := http.Header{}
+	header.Set("Authorization", "Bearer caller")
+	header.Set("X-Goog-Api-Key", "caller-key")
+	selected := token.Token{
+		Provider:       token.ProviderGemini,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "gemini-api-key-token",
+	}
+
+	if err := applyRouteAuth(header, selected, routeInfo{Protocol: "gemini"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := header.Get("Authorization"); got != "" {
+		t.Fatalf("Authorization should be cleared, got %q", got)
+	}
+	if got := header.Get("x-goog-api-key"); got != "gemini-api-key-token" {
+		t.Fatalf("unexpected x-goog-api-key header: %q", got)
+	}
+}
+
+func TestApplyAuthUsesAnthropicHeadersForCompatibleProviders(t *testing.T) {
+	for _, provider := range []string{token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom} {
+		t.Run(provider, func(t *testing.T) {
+			header := http.Header{}
+			selected := token.Token{
+				Provider:       provider,
+				CredentialType: token.CredentialTypeAPIKey,
+				TokenValue:     provider + "-api-key-token",
+			}
+			if err := applyRouteAuth(header, selected, routeInfo{Protocol: "anthropic"}); err != nil {
+				t.Fatal(err)
+			}
+			if got := header.Get("x-api-key"); got != provider+"-api-key-token" {
+				t.Fatalf("unexpected x-api-key header: %q", got)
+			}
+			if got := header.Get("anthropic-version"); got != "2023-06-01" {
+				t.Fatalf("unexpected anthropic-version header: %q", got)
+			}
+		})
+	}
+}

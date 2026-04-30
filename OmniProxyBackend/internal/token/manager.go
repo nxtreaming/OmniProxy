@@ -889,7 +889,7 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodexAuthJSON {
 			return "", "", errors.New("unsupported OpenAI credential type")
 		}
-	case ProviderAnthropic, ProviderDeepSeek, ProviderKimi:
+	case ProviderAnthropic, ProviderDeepSeek, ProviderKimi, ProviderZhipu, ProviderMiniMax, ProviderGemini, ProviderCustom:
 		if credentialType == "" {
 			credentialType = CredentialTypeAPIKey
 		}

@@ -35,6 +35,7 @@ type Validator struct {
 var (
 	mimoPlatformAPIBaseURL       = "https://platform.xiaomimimo.com/api/v1"
 	mimoTokenPlanPlatformBaseURL = "https://platform.xiaomimimo.com/api/v1/tokenPlan"
+	zhipuCodingPlanUsageURL      = "https://api.z.ai/api/monitor/usage/quota/limit"
 )
 
 func NewValidator(cfg config.Config) (*Validator, error) {
@@ -45,6 +46,13 @@ func NewValidator(cfg config.Config) (*Validator, error) {
 		"deepseek":                    cfg.DeepSeekBaseURL,
 		"deepseek_anthropic":          cfg.DeepSeekAnthropicBaseURL,
 		"kimi":                        cfg.KimiBaseURL,
+		"zhipu":                       cfg.ZhipuBaseURL,
+		"zhipu_anthropic":             cfg.ZhipuAnthropicBaseURL,
+		"minimax":                     cfg.MiniMaxBaseURL,
+		"minimax_anthropic":           cfg.MiniMaxAnthropicBaseURL,
+		"gemini":                      cfg.GeminiBaseURL,
+		"custom_gateway":              cfg.CustomGatewayBaseURL,
+		"custom_gateway_anthropic":    cfg.CustomGatewayAnthropicBaseURL,
 		"xiaomi_api":                  cfg.XiaomiAPIBaseURL,
 		"xiaomi_api_anthropic":        cfg.XiaomiAPIAnthropicBaseURL,
 		"xiaomi_token_plan":           cfg.XiaomiTokenPlanBaseURL,
@@ -149,7 +157,11 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 	switch token.NormalizeProvider(selected.Provider) {
 	case token.ProviderAnthropic:
 		path = "/v1/models"
+	case token.ProviderGemini:
+		path = "/v1beta/models"
 	case token.ProviderXiaomi:
+		path = "/models"
+	case token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
 		path = "/models"
 	}
 
@@ -167,6 +179,14 @@ func (v *Validator) baseURL(selected token.Token) string {
 		return v.cfg.DeepSeekBaseURL
 	case token.ProviderKimi:
 		return v.cfg.KimiBaseURL
+	case token.ProviderZhipu:
+		return v.cfg.ZhipuBaseURL
+	case token.ProviderMiniMax:
+		return v.cfg.MiniMaxBaseURL
+	case token.ProviderGemini:
+		return v.cfg.GeminiBaseURL
+	case token.ProviderCustom:
+		return v.cfg.CustomGatewayBaseURL
 	case token.ProviderXiaomi:
 		if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
 			return v.cfg.XiaomiTokenPlanBaseURL
@@ -249,6 +269,10 @@ func (v *Validator) queryProviderQuota(ctx context.Context, selected token.Token
 		return v.queryDeepSeekBalance(ctx, selected)
 	case token.ProviderKimi:
 		return v.queryKimiCodingUsage(ctx, selected)
+	case token.ProviderZhipu:
+		return v.queryZhipuCodingUsage(ctx, selected)
+	case token.ProviderMiniMax:
+		return v.queryMiniMaxCodingUsage(ctx, selected)
 	case token.ProviderXiaomi:
 		return v.queryMimoBalance(ctx, selected)
 	default:
@@ -535,6 +559,170 @@ func (v *Validator) queryKimiCodingUsage(ctx context.Context, selected token.Tok
 	}
 	usage.LimitReached = remaining <= 0
 	return usage, &remaining, true
+}
+
+func (v *Validator) queryZhipuCodingUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, zhipuCodingPlanUsageURL, nil)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en")
+	secret, err := credentialSecret(selected)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	req.Header.Set("Authorization", secret)
+
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	defer closeBody(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return token.UsageInfo{}, nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	if boolFromAny(payload["success"], true) == false {
+		return token.UsageInfo{}, nil, false
+	}
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	usage := token.UsageInfo{
+		Source:   token.ProviderZhipu,
+		PlanType: "Zhipu GLM Token Plan",
+		Message:  "Zhipu GLM coding usage",
+	}
+	if level, ok := stringFromAny(data["level"]); ok {
+		usage.PlanType = "Zhipu GLM " + level
+	}
+
+	found := false
+	if limits, ok := data["limits"].([]any); ok {
+		for _, raw := range limits {
+			limitItem, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			limitType, _ := stringFromAny(limitItem["type"])
+			if limitType != "TOKENS_LIMIT" {
+				continue
+			}
+			usedValue, ok := floatFromAny(limitItem["percentage"])
+			if !ok {
+				continue
+			}
+			used := percent(usedValue)
+			usage.PrimaryUsedPercent = used
+			usage.PrimaryRemainingPercent = 100 - used
+			usage.PrimaryResetAt = unixSecondsFromAny(limitItem["nextResetTime"])
+			usage.SubscriptionQuotaAvailable = true
+			found = true
+			break
+		}
+	}
+	if !found {
+		return token.UsageInfo{}, nil, false
+	}
+
+	remaining := usage.PrimaryRemainingPercent
+	usage.LimitReached = remaining <= 0
+	return usage, &remaining, true
+}
+
+func (v *Validator) queryMiniMaxCodingUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	target, err := joinURLPath(v.cfg.MiniMaxBaseURL, "/api/openplatform/coding_plan/remains")
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	body, ok := v.queryJSON(ctx, selected, target)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	if baseResp, ok := payload["base_resp"].(map[string]any); ok {
+		statusCode, _ := floatFromAny(baseResp["status_code"])
+		if statusCode != 0 {
+			return token.UsageInfo{}, nil, false
+		}
+	}
+
+	modelRemains, ok := payload["model_remains"].([]any)
+	if !ok || len(modelRemains) == 0 {
+		return token.UsageInfo{}, nil, false
+	}
+	first, ok := modelRemains[0].(map[string]any)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	usage := token.UsageInfo{
+		Source:   token.ProviderMiniMax,
+		PlanType: "MiniMax Token Plan",
+		Message:  "MiniMax coding usage",
+	}
+	if modelName, ok := stringFromAny(first["model"]); ok {
+		usage.PlanType = "MiniMax " + modelName
+	}
+
+	primaryAvailable := false
+	secondaryAvailable := false
+	if used, remaining, resetAt, ok := minimaxUsageWindow(first, "current_interval_total_count", "current_interval_usage_count", "end_time"); ok {
+		usage.PrimaryUsedPercent = used
+		usage.PrimaryRemainingPercent = remaining
+		usage.PrimaryResetAt = resetAt
+		usage.SubscriptionQuotaAvailable = true
+		primaryAvailable = true
+	}
+	if used, remaining, resetAt, ok := minimaxUsageWindow(first, "current_weekly_total_count", "current_weekly_usage_count", "weekly_end_time"); ok {
+		usage.SecondaryUsedPercent = used
+		usage.SecondaryRemainingPercent = remaining
+		usage.SecondaryResetAt = resetAt
+		usage.SubscriptionQuotaAvailable = true
+		secondaryAvailable = true
+	}
+	if !usage.SubscriptionQuotaAvailable {
+		return token.UsageInfo{}, nil, false
+	}
+
+	remaining := usage.PrimaryRemainingPercent
+	if !primaryAvailable && secondaryAvailable {
+		remaining = usage.SecondaryRemainingPercent
+	}
+	usage.LimitReached = remaining <= 0
+	return usage, &remaining, true
+}
+
+func minimaxUsageWindow(value map[string]any, totalKey string, remainingKey string, resetKey string) (int, int, int64, bool) {
+	total, ok := floatFromAny(value[totalKey])
+	if !ok || total <= 0 {
+		return 0, 0, 0, false
+	}
+	remainingValue, ok := floatFromAny(value[remainingKey])
+	if !ok {
+		return 0, 0, 0, false
+	}
+	used := percent(((total - remainingValue) / total) * 100)
+	remaining := 100 - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	return used, remaining, unixSecondsFromAny(value[resetKey]), true
 }
 
 func (v *Validator) queryJSON(ctx context.Context, selected token.Token, target string) ([]byte, bool) {

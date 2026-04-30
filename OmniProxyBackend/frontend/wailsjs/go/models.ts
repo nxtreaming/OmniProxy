@@ -11,6 +11,13 @@ export namespace config {
 	    deepseekBaseUrl: string;
 	    deepseekAnthropicBaseUrl: string;
 	    kimiBaseUrl: string;
+	    zhipuBaseUrl: string;
+	    zhipuAnthropicBaseUrl: string;
+	    minimaxBaseUrl: string;
+	    minimaxAnthropicBaseUrl: string;
+	    geminiBaseUrl: string;
+	    customGatewayBaseUrl: string;
+	    customGatewayAnthropicBaseUrl: string;
 	    xiaomiBaseUrl: string;
 	    xiaomiApiBaseUrl: string;
 	    xiaomiApiAnthropicBaseUrl: string;
@@ -39,6 +46,13 @@ export namespace config {
 	        this.deepseekBaseUrl = source["deepseekBaseUrl"];
 	        this.deepseekAnthropicBaseUrl = source["deepseekAnthropicBaseUrl"];
 	        this.kimiBaseUrl = source["kimiBaseUrl"];
+	        this.zhipuBaseUrl = source["zhipuBaseUrl"];
+	        this.zhipuAnthropicBaseUrl = source["zhipuAnthropicBaseUrl"];
+	        this.minimaxBaseUrl = source["minimaxBaseUrl"];
+	        this.minimaxAnthropicBaseUrl = source["minimaxAnthropicBaseUrl"];
+	        this.geminiBaseUrl = source["geminiBaseUrl"];
+	        this.customGatewayBaseUrl = source["customGatewayBaseUrl"];
+	        this.customGatewayAnthropicBaseUrl = source["customGatewayAnthropicBaseUrl"];
 	        this.xiaomiBaseUrl = source["xiaomiBaseUrl"];
 	        this.xiaomiApiBaseUrl = source["xiaomiApiBaseUrl"];
 	        this.xiaomiApiAnthropicBaseUrl = source["xiaomiApiAnthropicBaseUrl"];
@@ -103,6 +117,7 @@ export namespace history {
 
 	export class Filter {
 	    provider?: string;
+	    client?: string;
 	    level?: string;
 	    status?: string;
 	    model?: string;
@@ -117,6 +132,7 @@ export namespace history {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.provider = source["provider"];
+	        this.client = source["client"];
 	        this.level = source["level"];
 	        this.status = source["status"];
 	        this.model = source["model"];
@@ -130,6 +146,38 @@ export namespace history {
 
 export namespace main {
 
+	export class activeRequestResponse {
+	    id: number;
+	    startedAt: string;
+	    clientKey?: string;
+	    clientName?: string;
+	    method?: string;
+	    path?: string;
+	    provider?: string;
+	    protocol?: string;
+	    model?: string;
+	    tokenId?: string;
+	    tokenName?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new activeRequestResponse(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.startedAt = source["startedAt"];
+	        this.clientKey = source["clientKey"];
+	        this.clientName = source["clientName"];
+	        this.method = source["method"];
+	        this.path = source["path"];
+	        this.provider = source["provider"];
+	        this.protocol = source["protocol"];
+	        this.model = source["model"];
+	        this.tokenId = source["tokenId"];
+	        this.tokenName = source["tokenName"];
+	    }
+	}
 	export class appInfo {
 	    name: string;
 	    version: string;
@@ -154,6 +202,30 @@ export namespace main {
 	        this.goVersion = source["goVersion"];
 	        this.executablePath = source["executablePath"];
 	        this.startedAt = source["startedAt"];
+	    }
+	}
+	export class clientConfigureResult {
+	    configPath?: string;
+	    settingsPath?: string;
+	    backupPath?: string;
+	    baseUrl?: string;
+	    model?: string;
+	    providerId?: string;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new clientConfigureResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.configPath = source["configPath"];
+	        this.settingsPath = source["settingsPath"];
+	        this.backupPath = source["backupPath"];
+	        this.baseUrl = source["baseUrl"];
+	        this.model = source["model"];
+	        this.providerId = source["providerId"];
+	        this.message = source["message"];
 	    }
 	}
 	export class codexAuthExportResult {
@@ -258,6 +330,8 @@ export namespace main {
 	    path?: string;
 	    provider?: string;
 	    protocol?: string;
+	    clientKey?: string;
+	    clientName?: string;
 	    model?: string;
 	    status?: number;
 	    durationMs?: number;
@@ -283,6 +357,8 @@ export namespace main {
 	        this.path = source["path"];
 	        this.provider = source["provider"];
 	        this.protocol = source["protocol"];
+	        this.clientKey = source["clientKey"];
+	        this.clientName = source["clientName"];
 	        this.model = source["model"];
 	        this.status = source["status"];
 	        this.durationMs = source["durationMs"];
@@ -321,6 +397,8 @@ export namespace main {
 	    method?: string;
 	    path?: string;
 	    model?: string;
+	    clientKey?: string;
+	    clientName?: string;
 	    status?: number;
 	    durationMs?: number;
 	    tokenName?: string;
@@ -338,6 +416,8 @@ export namespace main {
 	        this.method = source["method"];
 	        this.path = source["path"];
 	        this.model = source["model"];
+	        this.clientKey = source["clientKey"];
+	        this.clientName = source["clientName"];
 	        this.status = source["status"];
 	        this.durationMs = source["durationMs"];
 	        this.tokenName = source["tokenName"];
@@ -455,11 +535,11 @@ export namespace main {
 	    source?: string;
 	    planType?: string;
 	    limitReached?: boolean;
-	    primaryUsedPercent?: number;
-	    primaryRemainingPercent?: number;
+	    primaryUsedPercent: number;
+	    primaryRemainingPercent: number;
 	    primaryResetAt?: number;
-	    secondaryUsedPercent?: number;
-	    secondaryRemainingPercent?: number;
+	    secondaryUsedPercent: number;
+	    secondaryRemainingPercent: number;
 	    secondaryResetAt?: number;
 	    apiRemaining?: number;
 	    balanceRemaining?: number;

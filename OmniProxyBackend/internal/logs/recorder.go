@@ -17,16 +17,18 @@ const (
 )
 
 type Entry struct {
-	ID        int64     `json:"id"`
-	Time      time.Time `json:"time"`
-	Level     Level     `json:"level"`
-	Method    string    `json:"method,omitempty"`
-	Path      string    `json:"path,omitempty"`
-	Model     string    `json:"model,omitempty"`
-	Status    int       `json:"status,omitempty"`
-	Duration  int64     `json:"durationMs,omitempty"`
-	TokenName string    `json:"tokenName,omitempty"`
-	Message   string    `json:"message"`
+	ID         int64     `json:"id"`
+	Time       time.Time `json:"time"`
+	Level      Level     `json:"level"`
+	Method     string    `json:"method,omitempty"`
+	Path       string    `json:"path,omitempty"`
+	Model      string    `json:"model,omitempty"`
+	ClientKey  string    `json:"clientKey,omitempty"`
+	ClientName string    `json:"clientName,omitempty"`
+	Status     int       `json:"status,omitempty"`
+	Duration   int64     `json:"durationMs,omitempty"`
+	TokenName  string    `json:"tokenName,omitempty"`
+	Message    string    `json:"message"`
 }
 
 type Recorder struct {

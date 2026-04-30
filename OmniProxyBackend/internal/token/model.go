@@ -17,6 +17,10 @@ const (
 	ProviderDeepSeek  = "deepseek"
 	ProviderKimi      = "kimi"
 	ProviderXiaomi    = "xiaomi"
+	ProviderZhipu     = "zhipu"
+	ProviderMiniMax   = "minimax"
+	ProviderGemini    = "gemini"
+	ProviderCustom    = "custom"
 )
 
 const (

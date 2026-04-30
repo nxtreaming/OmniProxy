@@ -344,6 +344,10 @@ func (a *DesktopApp) RequestHistory(filter history.Filter) []historyResponse {
 	return historyResponses(a.server.history.List(filter))
 }
 
+func (a *DesktopApp) ActiveProxyRequests() []activeRequestResponse {
+	return activeRequestResponses(a.server.activeProxyRequests())
+}
+
 func (a *DesktopApp) ExportRequestHistory(format string, filter history.Filter) (string, error) {
 	if a.ctx == nil {
 		return "", errors.New("application is not ready")
@@ -561,6 +565,22 @@ func (a *DesktopApp) RestoreKimiClaude() (mimoConfigureResult, error) {
 	return a.server.restoreKimiClaudeConfig()
 }
 
+func (a *DesktopApp) ConfigureGemini() (clientConfigureResult, error) {
+	return a.server.configureGemini()
+}
+
+func (a *DesktopApp) RestoreGemini() (clientConfigureResult, error) {
+	return a.server.restoreGeminiConfig()
+}
+
+func (a *DesktopApp) ConfigureOpenCode() (clientConfigureResult, error) {
+	return a.server.configureOpenCode()
+}
+
+func (a *DesktopApp) RestoreOpenCode() (clientConfigureResult, error) {
+	return a.server.restoreOpenCodeConfig()
+}
+
 func (a *DesktopApp) callContext() context.Context {
 	if a.ctx != nil {
 		return a.ctx
@@ -644,6 +664,7 @@ func encodeHistoryCSV(entries []history.Entry) ([]byte, error) {
 		"路径",
 		"路由厂商",
 		"协议",
+		"编程工具",
 		"模型",
 		"状态码",
 		"耗时(ms)",
@@ -666,6 +687,7 @@ func encodeHistoryCSV(entries []history.Entry) ([]byte, error) {
 			entry.Path,
 			entry.Provider,
 			entry.Protocol,
+			entry.ClientName,
 			entry.Model,
 			fmt.Sprintf("%d", entry.Status),
 			fmt.Sprintf("%d", entry.Duration),

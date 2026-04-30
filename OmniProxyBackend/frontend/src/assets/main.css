@@ -623,6 +623,57 @@ button:disabled {
   max-width: 100%;
 }
 
+.tool-usage-grid {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.tool-usage-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 180px) minmax(220px, 0.42fr);
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.tool-usage-row.active {
+  background: linear-gradient(90deg, rgba(21, 154, 91, 0.14), rgba(37, 99, 235, 0.06));
+  box-shadow: inset 4px 0 0 var(--success);
+}
+
+.tool-usage-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.tool-usage-row > div:nth-child(2) {
+  justify-items: start;
+}
+
+.tool-usage-row strong,
+.tool-account-cell strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-usage-row small,
+.tool-account-cell span {
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.tool-account-cell {
+  min-width: 0;
+}
+
 .quota-overview-grid {
   margin-top: 18px;
   display: grid;
@@ -1217,7 +1268,8 @@ tr:last-child td {
 }
 
 .log-token,
-.log-model {
+.log-model,
+.log-client {
   min-width: 0;
   max-width: 180px;
 }
@@ -1644,8 +1696,8 @@ tr:last-child td {
 }
 
 .history-table {
-  width: max(100%, 920px);
-  min-width: 920px;
+  width: max(100%, 1020px);
+  min-width: 1020px;
 }
 
 .history-col-time {
@@ -1654,6 +1706,10 @@ tr:last-child td {
 
 .history-col-route {
   width: 118px;
+}
+
+.history-col-client {
+  width: 104px;
 }
 
 .history-col-token {
@@ -1709,20 +1765,20 @@ tr:last-child td {
   line-height: 1.35;
 }
 
-.history-table td:nth-child(3),
-.history-table td:nth-child(7) {
+.history-table td:nth-child(4),
+.history-table td:nth-child(8) {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.history-table td:nth-child(4) small {
+.history-table td:nth-child(5) small {
   display: -webkit-box;
   overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
-.history-table td:nth-child(7) {
+.history-table td:nth-child(8) {
   max-width: none;
   white-space: normal;
 }
@@ -2482,6 +2538,7 @@ textarea:focus {
   .quota-layout.codex-layout,
   .quota-row,
   .api-quota-row,
+  .tool-usage-row,
   .usage-row,
   .trend-panels,
   .history-filters,

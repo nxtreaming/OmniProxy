@@ -179,6 +179,18 @@ func TestManagerAllowsSameNameAcrossProviders(t *testing.T) {
 	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderKimi, TokenValue: "sk-kimi-token"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderZhipu, TokenValue: "zhipu-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderMiniMax, TokenValue: "minimax-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderGemini, TokenValue: "gemini-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderCustom, TokenValue: "custom-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestManagerValidatesXiaomiCredentialFormats(t *testing.T) {

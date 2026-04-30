@@ -14,8 +14,10 @@ import { formatDuration, formatNumber, formatResetTime, formatTime, localDateKey
 import {
   configureCodex,
   configureDeepSeekClaude,
+  configureGemini,
   configureKimiClaude,
   configureMimoClaude,
+  configureOpenCode,
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   checkForUpdates,
@@ -25,6 +27,7 @@ import {
   exportTokens,
   getAutoStartStatus,
   getAppInfo,
+  getActiveRequests,
   getConfig,
   getDataDirectory,
   getHistory,
@@ -40,7 +43,9 @@ import {
   updateToken,
   validateToken,
   restoreCodex,
+  restoreGemini,
   restoreMimoClaude,
+  restoreOpenCode,
 } from './services/api'
 import {
   Coin,
@@ -77,7 +82,11 @@ const codexRestoring = ref(false)
 const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
+const geminiConfiguring = ref(false)
+const opencodeConfiguring = ref(false)
 const mimoClaudeRestoring = ref(false)
+const geminiRestoring = ref(false)
+const opencodeRestoring = ref(false)
 const mimoCookieImporting = ref(false)
 const refreshingProvider = ref(false)
 const dataDirChanging = ref(false)
@@ -101,6 +110,7 @@ const validatingIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
+const activeRequests = ref([])
 const selectedHistoryEntry = ref(null)
 const proxyStatus = reactive({ running: false, port: 3000 })
 const config = reactive({
@@ -114,6 +124,13 @@ const config = reactive({
   deepseekBaseUrl: 'https://api.deepseek.com',
   deepseekAnthropicBaseUrl: 'https://api.deepseek.com/anthropic',
   kimiBaseUrl: 'https://api.kimi.com/coding',
+  zhipuBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+  zhipuAnthropicBaseUrl: 'https://open.bigmodel.cn/api/anthropic',
+  minimaxBaseUrl: 'https://api.minimaxi.com/v1',
+  minimaxAnthropicBaseUrl: 'https://api.minimaxi.com/anthropic',
+  geminiBaseUrl: 'https://generativelanguage.googleapis.com',
+  customGatewayBaseUrl: '',
+  customGatewayAnthropicBaseUrl: '',
   xiaomiBaseUrl: '',
   xiaomiApiBaseUrl: 'https://api.xiaomimimo.com/v1',
   xiaomiApiAnthropicBaseUrl: 'https://api.xiaomimimo.com/anthropic',
@@ -161,13 +178,7 @@ const exhaustedTokens = computed(() =>
 )
 const invalidTokens = computed(() => tokens.value.filter((item) => item.status === 'invalid'))
 const coolingTokens = computed(() => tokens.value.filter((item) => isCooling(item)))
-const currentToken = computed(() => {
-  const usable = [...activeTokens.value, ...lowTokens.value]
-  const lastUsed = usable
-    .filter((item) => item.stats?.updatedAt)
-    .sort((a, b) => new Date(b.stats.updatedAt).getTime() - new Date(a.stats.updatedAt).getTime())[0]
-  return lastUsed || usable[0] || null
-})
+const activeTokenIds = computed(() => new Set(activeRequests.value.map((item) => item.tokenId).filter(Boolean)))
 const activeProviderInfo = computed(
   () => providers.find((item) => item.key === activeProvider.value) || providers[0],
 )
@@ -200,6 +211,7 @@ const requestTrendMax = computed(() =>
 const trendGridColumns = computed(
   () => `repeat(${Math.max(1, recentDailyUsageRows.value.length)}, minmax(0, 1fr))`,
 )
+const toolUsageRows = computed(() => buildToolUsageRows(activeRequests.value, requestHistory.value))
 const isCodexForm = computed(
   () => form.provider === 'openai' && form.credentialType === 'codex_auth_json',
 )
@@ -253,17 +265,31 @@ async function refreshAll() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [loadedTokens, loadedConfig, loadedLogs, loadedStatus, loadedDataDirectory, loadedAutoStart, loadedAppInfo] = await Promise.all([
+    const [
+      loadedTokens,
+      loadedConfig,
+      loadedLogs,
+      loadedStatus,
+      loadedActiveRequests,
+      loadedHistory,
+      loadedDataDirectory,
+      loadedAutoStart,
+      loadedAppInfo,
+    ] = await Promise.all([
       getTokens(),
       getConfig(),
       getLogs(),
       getProxyStatus(),
+      getActiveRequests(),
+      getHistory({ limit: 200 }),
       getDataDirectory(),
       getAutoStartStatus(),
       getAppInfo(),
     ])
     tokens.value = loadedTokens
     logs.value = loadedLogs
+    activeRequests.value = loadedActiveRequests
+    requestHistory.value = loadedHistory
     Object.assign(config, loadedConfig)
     Object.assign(proxyStatus, loadedStatus)
     Object.assign(dataDirectory, loadedDataDirectory, {
@@ -284,13 +310,22 @@ async function refreshAll() {
 
 async function refreshRealtime() {
   try {
-    const [loadedLogs, loadedStatus, loadedTokens] = await Promise.all([
+    const requests = [
       getLogs(),
       getProxyStatus(),
       getTokens(),
-    ])
+      getActiveRequests(),
+    ]
+    if (activeTab.value !== 'history') {
+      requests.push(getHistory({ limit: 200 }))
+    }
+    const [loadedLogs, loadedStatus, loadedTokens, loadedActiveRequests, loadedHistory] = await Promise.all(requests)
     logs.value = loadedLogs
     tokens.value = loadedTokens
+    activeRequests.value = loadedActiveRequests
+    if (loadedHistory) {
+      requestHistory.value = loadedHistory
+    }
     Object.assign(proxyStatus, loadedStatus)
     if (activeTab.value === 'history') {
       await refreshHistory()
@@ -664,6 +699,13 @@ async function persistConfig() {
       deepseekBaseUrl: config.deepseekBaseUrl.trim(),
       deepseekAnthropicBaseUrl: config.deepseekAnthropicBaseUrl.trim(),
       kimiBaseUrl: config.kimiBaseUrl.trim(),
+      zhipuBaseUrl: config.zhipuBaseUrl.trim(),
+      zhipuAnthropicBaseUrl: config.zhipuAnthropicBaseUrl.trim(),
+      minimaxBaseUrl: config.minimaxBaseUrl.trim(),
+      minimaxAnthropicBaseUrl: config.minimaxAnthropicBaseUrl.trim(),
+      geminiBaseUrl: config.geminiBaseUrl.trim(),
+      customGatewayBaseUrl: config.customGatewayBaseUrl.trim(),
+      customGatewayAnthropicBaseUrl: config.customGatewayAnthropicBaseUrl.trim(),
       xiaomiBaseUrl: config.xiaomiBaseUrl.trim(),
       xiaomiApiBaseUrl: config.xiaomiApiBaseUrl.trim(),
       xiaomiApiAnthropicBaseUrl: config.xiaomiApiAnthropicBaseUrl.trim(),
@@ -800,6 +842,62 @@ async function configureLocalKimiClaude() {
   }
 }
 
+async function configureLocalGemini() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  geminiConfiguring.value = true
+  try {
+    const result = await configureGemini()
+    successMessage.value = result.message || 'Gemini CLI 已配置为使用 OmniProxy'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    geminiConfiguring.value = false
+  }
+}
+
+async function restoreLocalGemini() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  geminiRestoring.value = true
+  try {
+    const result = await restoreGemini()
+    successMessage.value = result.message || 'Gemini CLI 配置已恢复'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    geminiRestoring.value = false
+  }
+}
+
+async function configureLocalOpenCode() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  opencodeConfiguring.value = true
+  try {
+    const result = await configureOpenCode()
+    successMessage.value = result.message || 'OpenCode 已配置为使用 OmniProxy'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    opencodeConfiguring.value = false
+  }
+}
+
+async function restoreLocalOpenCode() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  opencodeRestoring.value = true
+  try {
+    const result = await restoreOpenCode()
+    successMessage.value = result.message || 'OpenCode 配置已恢复'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    opencodeRestoring.value = false
+  }
+}
+
 async function restoreLocalMimoClaude() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -921,6 +1019,18 @@ function credentialPlaceholder() {
   if (form.provider === 'kimi') {
     return '粘贴 Kimi Code API Key'
   }
+  if (form.provider === 'zhipu') {
+    return '粘贴 Zhipu GLM API Key'
+  }
+  if (form.provider === 'minimax') {
+    return '粘贴 MiniMax API Key'
+  }
+  if (form.provider === 'gemini') {
+    return '粘贴 Google Gemini API Key'
+  }
+  if (form.provider === 'custom') {
+    return '粘贴自定义网关 API Key'
+  }
   return '粘贴 API Key'
 }
 
@@ -975,6 +1085,107 @@ function providerLabel(providerKey) {
   return providers.find((item) => item.key === providerKey)?.label || providerKey
 }
 
+const knownClientTools = [
+  { key: 'codex', label: 'Codex' },
+  { key: 'claude', label: 'Claude Code' },
+  { key: 'opencode', label: 'OpenCode' },
+  { key: 'gemini', label: 'Gemini CLI' },
+  { key: 'cursor', label: 'Cursor' },
+  { key: 'vscode', label: 'VS Code' },
+  { key: 'windsurf', label: 'Windsurf' },
+  { key: 'aider', label: 'Aider' },
+  { key: 'continue', label: 'Continue' },
+  { key: 'custom', label: '自定义网关' },
+  { key: 'api', label: 'API Client' },
+]
+
+function clientToolLabel(key, fallback = '') {
+  return knownClientTools.find((item) => item.key === key)?.label || fallback || key || '未知工具'
+}
+
+function buildToolUsageRows(activeItems, historyItems) {
+  const byClient = new Map()
+  for (const item of activeItems || []) {
+    const key = item.clientKey || 'api'
+    const current = byClient.get(key) || {
+      clientKey: key,
+      clientName: item.clientName || clientToolLabel(key),
+      active: true,
+      activeCount: 0,
+      tokenNames: new Set(),
+      providerNames: new Set(),
+      models: new Set(),
+      startedAt: item.startedAt,
+      lastSeenAt: item.startedAt,
+    }
+    current.active = true
+    current.activeCount += 1
+    if (item.tokenName) current.tokenNames.add(item.tokenName)
+    if (item.provider) current.providerNames.add(providerLabel(item.provider))
+    if (item.model) current.models.add(item.model)
+    if (!current.startedAt || new Date(item.startedAt).getTime() < new Date(current.startedAt).getTime()) {
+      current.startedAt = item.startedAt
+    }
+    byClient.set(key, current)
+  }
+
+  const sortedHistory = [...(historyItems || [])].sort((a, b) => {
+    return new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime()
+  })
+  for (const entry of sortedHistory) {
+    if (entry.method === 'CHECK') continue
+    const key = entry.clientKey || ''
+    if (!key) continue
+    if (byClient.has(key)) continue
+    byClient.set(key, {
+      clientKey: key,
+      clientName: entry.clientName || clientToolLabel(key),
+      active: false,
+      activeCount: 0,
+      tokenNames: new Set(entry.tokenName ? [entry.tokenName] : []),
+      providerNames: new Set(entry.provider ? [providerLabel(entry.provider)] : []),
+      models: new Set(entry.model ? [entry.model] : []),
+      startedAt: '',
+      lastSeenAt: entry.time,
+      status: entry.status,
+    })
+  }
+
+  const order = new Map(knownClientTools.map((item, index) => [item.key, index]))
+  return [...byClient.values()]
+    .map((item) => ({
+      ...item,
+      tokenText: [...item.tokenNames].join('、') || '-',
+      providerText: [...item.providerNames].join('、') || '-',
+      modelText: [...item.models].join('、') || '-',
+    }))
+    .sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1
+      const rankA = order.has(a.clientKey) ? order.get(a.clientKey) : 999
+      const rankB = order.has(b.clientKey) ? order.get(b.clientKey) : 999
+      if (rankA !== rankB) return rankA - rankB
+      return new Date(b.lastSeenAt || 0).getTime() - new Date(a.lastSeenAt || 0).getTime()
+    })
+    .slice(0, 8)
+}
+
+function toolUsageMeta(row) {
+  const parts = []
+  if (row.providerText && row.providerText !== '-') parts.push(row.providerText)
+  if (row.modelText && row.modelText !== '-') parts.push(row.modelText)
+  if (!row.active && row.lastSeenAt) parts.push(`最近 ${formatTime(row.lastSeenAt)}`)
+  return parts.join(' · ') || '-'
+}
+
+function toolUsageDuration(row) {
+  if (!row.active || !row.startedAt) return ''
+  return `已运行 ${formatDuration(Math.max(0, Date.now() - new Date(row.startedAt).getTime()))}`
+}
+
+function isTokenActiveNow(item) {
+  return activeTokenIds.value.has(item.id)
+}
+
 function planLabel(plan) {
   const normalized = String(plan || '').toLowerCase()
   const labels = {
@@ -989,6 +1200,17 @@ function planLabel(plan) {
 
 function usageUpdatedAt(item) {
   return item.usage?.updatedAt ? formatTime(item.usage.updatedAt) : '-'
+}
+
+function quotaPercentValue(item, field) {
+  if (!item?.usage?.subscriptionQuotaAvailable) return 0
+  const value = Number(item.usage?.[field])
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function quotaPercentText(item, field) {
+  return item?.usage?.subscriptionQuotaAvailable ? `${quotaPercentValue(item, field)}%` : '-'
 }
 
 function formatBalance(value) {
@@ -1284,6 +1506,38 @@ async function refreshQuota(item) {
           <small>累计请求 {{ formatNumber(totalProxyRequests) }} 次</small>
         </article>
 
+        <section class="panel full tool-usage-panel">
+          <div class="section-heading">
+            <div>
+              <h2>编程工具账号占用</h2>
+              <p>按 Codex、Claude Code、OpenCode、Gemini CLI 等工具区分正在使用的账号</p>
+            </div>
+          </div>
+          <div v-if="toolUsageRows.length" class="tool-usage-grid">
+            <div
+              v-for="row in toolUsageRows"
+              :key="row.clientKey"
+              :class="['tool-usage-row', { active: row.active }]"
+            >
+              <div>
+                <strong>{{ row.clientName || clientToolLabel(row.clientKey) }}</strong>
+                <small>{{ toolUsageMeta(row) }}</small>
+              </div>
+              <div>
+                <span :class="['tag', row.active ? 'success' : 'muted']">
+                  {{ row.active ? `使用中 ${row.activeCount}` : '最近使用' }}
+                </span>
+                <small v-if="toolUsageDuration(row)">{{ toolUsageDuration(row) }}</small>
+              </div>
+              <div class="tool-account-cell" :title="row.tokenText">
+                <span>账号</span>
+                <strong>{{ row.tokenText }}</strong>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty">暂无工具使用记录</div>
+        </section>
+
         <section class="panel wide">
           <div class="section-heading">
             <div>
@@ -1302,13 +1556,13 @@ async function refreshQuota(item) {
                 <div
                   v-for="item in subscriptionOverviewTokens"
                   :key="item.id"
-                  :class="['quota-row', 'subscription-quota-row', { 'current-quota-row': currentToken?.id === item.id }]"
-                  :aria-current="currentToken?.id === item.id ? 'true' : undefined"
+                  :class="['quota-row', 'subscription-quota-row', { 'current-quota-row': isTokenActiveNow(item) }]"
+                  :aria-current="isTokenActiveNow(item) ? 'true' : undefined"
                 >
                   <div class="quota-account">
                     <div class="quota-account-title">
                       <strong>{{ item.name }}</strong>
-                      <span v-if="currentToken?.id === item.id" class="current-usage-badge">正在使用</span>
+                      <span v-if="isTokenActiveNow(item)" class="current-usage-badge">正在使用</span>
                       <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
                     </div>
                     <small class="current-usage-meta">
@@ -1316,10 +1570,10 @@ async function refreshQuota(item) {
                     </small>
                   </div>
                   <div class="progress">
-                    <span :style="{ width: `${item.usage?.subscriptionQuotaAvailable ? Math.max(0, Math.min(100, item.usage.primaryRemainingPercent)) : 0}%` }"></span>
+                    <span :style="{ width: `${quotaPercentValue(item, 'primaryRemainingPercent')}%` }"></span>
                   </div>
                   <small class="quota-percent">
-                    {{ item.usage?.subscriptionQuotaAvailable ? `${item.usage.primaryRemainingPercent}%` : '-' }}
+                    {{ quotaPercentText(item, 'primaryRemainingPercent') }}
                   </small>
                 </div>
                 <div v-if="!subscriptionOverviewTokens.length" class="empty">暂无订阅额度账号</div>
@@ -1335,13 +1589,13 @@ async function refreshQuota(item) {
                 <div
                   v-for="item in apiOverviewTokens"
                   :key="item.id"
-                  :class="['quota-row', 'api-quota-row', { 'current-quota-row': currentToken?.id === item.id }]"
-                  :aria-current="currentToken?.id === item.id ? 'true' : undefined"
+                  :class="['quota-row', 'api-quota-row', { 'current-quota-row': isTokenActiveNow(item) }]"
+                  :aria-current="isTokenActiveNow(item) ? 'true' : undefined"
                 >
                   <div class="quota-account">
                     <div class="quota-account-title">
                       <strong>{{ item.name }}</strong>
-                      <span v-if="currentToken?.id === item.id" class="current-usage-badge">正在使用</span>
+                      <span v-if="isTokenActiveNow(item)" class="current-usage-badge">正在使用</span>
                       <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
                     </div>
                     <small class="current-usage-meta">{{ providerLabel(item.provider) }} · {{ credentialLabel(item) }}</small>
@@ -1368,6 +1622,7 @@ async function refreshQuota(item) {
             <div v-for="entry in logs.slice(0, 6)" :key="entry.id" class="log-row">
               <span :class="['dot', entry.level]"></span>
               <p>
+                <span v-if="entry.clientName" class="log-inline-model">{{ entry.clientName }}</span>
                 <span v-if="entry.model" class="log-inline-model">{{ entry.model }}</span>
                 {{ entry.message }}
               </p>
@@ -1513,16 +1768,16 @@ async function refreshQuota(item) {
                 <div v-if="showQuotaWindows(item)" class="quota-limit">
                   <div class="quota-limit-title">
                     <span>{{ quotaPrimaryLabel(item) }}</span>
-                    <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ item.usage.primaryRemainingPercent }}%</strong>
+                    <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ quotaPercentText(item, 'primaryRemainingPercent') }}</strong>
                     <strong v-else>-</strong>
                   </div>
                   <el-progress
-                    :percentage="item.usage?.subscriptionQuotaAvailable ? item.usage.primaryRemainingPercent : 0"
+                    :percentage="quotaPercentValue(item, 'primaryRemainingPercent')"
                     :show-text="false"
                     :stroke-width="8"
                   />
                   <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
-                    <span>已用 <strong>{{ item.usage.primaryUsedPercent }}%</strong></span>
+                    <span>已用 <strong>{{ quotaPercentText(item, 'primaryUsedPercent') }}</strong></span>
                     <span>{{ quotaResetLabel(item) }} <strong>{{ formatResetTime(item.usage.primaryResetAt) }}</strong></span>
                   </small>
                   <small v-else>{{ quotaUnavailableText(item) }}</small>
@@ -1531,16 +1786,16 @@ async function refreshQuota(item) {
                 <div v-if="showQuotaWindows(item)" class="quota-limit">
                   <div class="quota-limit-title">
                     <span>{{ quotaSecondaryLabel(item) }}</span>
-                    <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ item.usage.secondaryRemainingPercent }}%</strong>
+                    <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ quotaPercentText(item, 'secondaryRemainingPercent') }}</strong>
                     <strong v-else>-</strong>
                   </div>
                   <el-progress
-                    :percentage="item.usage?.subscriptionQuotaAvailable ? item.usage.secondaryRemainingPercent : 0"
+                    :percentage="quotaPercentValue(item, 'secondaryRemainingPercent')"
                     :show-text="false"
                     :stroke-width="8"
                   />
                   <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
-                    <span>已用 <strong>{{ item.usage.secondaryUsedPercent }}%</strong></span>
+                    <span>已用 <strong>{{ quotaPercentText(item, 'secondaryUsedPercent') }}</strong></span>
                     <span>{{ quotaResetLabel(item) }} <strong>{{ formatResetTime(item.usage.secondaryResetAt) }}</strong></span>
                   </small>
                   <small v-else>{{ quotaUnavailableText(item) }}</small>
@@ -1656,7 +1911,7 @@ async function refreshQuota(item) {
         <div class="section-heading">
           <div>
             <h2>一键配置</h2>
-            <p>把本机 Codex 或 Claude Code 指向 OmniProxy，本页只负责写入本地客户端配置</p>
+            <p>把本机 Codex、Claude Code、Gemini CLI 或 OpenCode 指向 OmniProxy，本页只负责写入本地客户端配置</p>
           </div>
         </div>
 
@@ -1694,6 +1949,37 @@ Kimi model: kimi-for-coding</code></pre>
               </el-button>
               <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="restoreLocalMimoClaude">
                 {{ mimoClaudeRestoring ? '恢复中' : '恢复 Claude 配置' }}
+              </el-button>
+            </div>
+          </article>
+
+          <article class="wide-help">
+            <strong>Gemini CLI</strong>
+            <p>写入 <code>%USERPROFILE%\.gemini\.env</code> 和 <code>settings.json</code>，使用账号池里的 Gemini API Key。</p>
+            <pre class="help-code"><code>GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:{{ config.proxyPort }}/gemini
+GEMINI_MODEL=gemini-3-pro-preview</code></pre>
+            <div class="help-actions">
+              <el-button type="primary" :icon="MagicStick" :loading="geminiConfiguring" @click="configureLocalGemini">
+                {{ geminiConfiguring ? '配置中' : '配置 Gemini CLI' }}
+              </el-button>
+              <el-button :icon="RefreshRight" :loading="geminiRestoring" @click="restoreLocalGemini">
+                {{ geminiRestoring ? '恢复中' : '恢复 Gemini 配置' }}
+              </el-button>
+            </div>
+          </article>
+
+          <article class="wide-help">
+            <strong>OpenCode</strong>
+            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini 和自定义网关三个 provider。</p>
+            <pre class="help-code"><code>OpenAI-compatible Router: http://127.0.0.1:{{ config.proxyPort }}/opencode-router/v1
+Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini
+Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
+            <div class="help-actions">
+              <el-button type="primary" :icon="MagicStick" :loading="opencodeConfiguring" @click="configureLocalOpenCode">
+                {{ opencodeConfiguring ? '配置中' : '配置 OpenCode' }}
+              </el-button>
+              <el-button :icon="RefreshRight" :loading="opencodeRestoring" @click="restoreLocalOpenCode">
+                {{ opencodeRestoring ? '恢复中' : '恢复 OpenCode 配置' }}
               </el-button>
             </div>
           </article>

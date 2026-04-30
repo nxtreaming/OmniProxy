@@ -209,7 +209,7 @@ defineEmits([
         <div class="settings-section-head">
           <div>
             <h3>第三方路由</h3>
-            <p>DeepSeek、Kimi 和 Xiaomi MiMo 的 OpenAI / Anthropic 兼容入口。</p>
+            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、Xiaomi MiMo 和自定义网关入口。</p>
           </div>
           <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
             {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
@@ -227,6 +227,34 @@ defineEmits([
           <label class="wide-field">
             <span>Kimi Code Base URL</span>
             <input v-model="config.kimiBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Zhipu GLM OpenAI Base URL</span>
+            <input v-model="config.zhipuBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Zhipu GLM Anthropic Base URL</span>
+            <input v-model="config.zhipuAnthropicBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>MiniMax OpenAI Base URL</span>
+            <input v-model="config.minimaxBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>MiniMax Anthropic Base URL</span>
+            <input v-model="config.minimaxAnthropicBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Gemini Native Base URL</span>
+            <input v-model="config.geminiBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>自定义网关 OpenAI Base URL</span>
+            <input v-model="config.customGatewayBaseUrl" type="url" placeholder="https://your-gateway.example/v1" />
+          </label>
+          <label class="wide-field">
+            <span>自定义网关 Anthropic Base URL</span>
+            <input v-model="config.customGatewayAnthropicBaseUrl" type="url" placeholder="可选，留空则复用 OpenAI Base URL" />
           </label>
           <label class="wide-field">
             <span>Xiaomi MiMo 按量 OpenAI Base URL</span>

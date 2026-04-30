@@ -79,6 +79,10 @@ function historyMessageSummary(entry) {
             <strong>{{ entry.tokenName || '-' }}</strong>
           </div>
           <div>
+            <span>编程工具</span>
+            <strong>{{ entry.clientName || entry.clientKey || '-' }}</strong>
+          </div>
+          <div>
             <span>协议</span>
             <strong>{{ entry.protocol || '-' }}</strong>
           </div>

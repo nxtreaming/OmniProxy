@@ -79,6 +79,7 @@ async function getHTTPControlToken() {
 function historyFilter(filters = {}) {
   return {
     provider: filters.provider || 'all',
+    client: filters.client || 'all',
     level: filters.level || 'all',
     status: filters.status || 'all',
     model: filters.model || '',
@@ -224,6 +225,7 @@ function historyCSV(entries) {
     '路径',
     '路由厂商',
     '协议',
+    '编程工具',
     '模型',
     '状态码',
     '耗时(ms)',
@@ -242,6 +244,7 @@ function historyCSV(entries) {
     entry.path || '',
     entry.provider || '',
     entry.protocol || '',
+    entry.clientName || entry.clientKey || '',
     entry.model || '',
     entry.status || '',
     entry.durationMs || 0,
@@ -279,6 +282,12 @@ function csvCell(value) {
 
 export function getProxyStatus() {
   return useWailsBindings() ? DesktopApp.ProxyStatus() : request('/proxy/status')
+}
+
+export function getActiveRequests() {
+  return useWailsBindings() && DesktopApp.ActiveProxyRequests
+    ? DesktopApp.ActiveProxyRequests()
+    : request('/proxy/active-requests')
 }
 
 export function startProxy() {
@@ -360,4 +369,28 @@ export function restoreKimiClaude() {
   return useWailsBindings()
     ? DesktopApp.RestoreKimiClaude()
     : request('/kimi/claude/restore', { method: 'POST' })
+}
+
+export function configureGemini() {
+  return useWailsBindings()
+    ? DesktopApp.ConfigureGemini()
+    : request('/gemini/configure', { method: 'POST' })
+}
+
+export function restoreGemini() {
+  return useWailsBindings()
+    ? DesktopApp.RestoreGemini()
+    : request('/gemini/restore', { method: 'POST' })
+}
+
+export function configureOpenCode() {
+  return useWailsBindings()
+    ? DesktopApp.ConfigureOpenCode()
+    : request('/opencode/configure', { method: 'POST' })
+}
+
+export function restoreOpenCode() {
+  return useWailsBindings()
+    ? DesktopApp.RestoreOpenCode()
+    : request('/opencode/restore', { method: 'POST' })
 }

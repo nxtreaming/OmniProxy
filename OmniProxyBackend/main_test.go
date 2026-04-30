@@ -1260,3 +1260,78 @@ func TestExtractMimoCookieFromHAR(t *testing.T) {
 		t.Fatalf("unexpected matched URL %q", matchedURL)
 	}
 }
+
+func TestWriteGeminiConfigPreservesExistingSettings(t *testing.T) {
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	settingsPath := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(envPath, []byte("OTHER=keep\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settingsPath, []byte(`{"mcpServers":{"demo":{}},"security":{"auth":{"old":"keep"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeGeminiEnv(envPath, "http://127.0.0.1:3000/gemini", "omniproxy-local", "gemini-3-pro-preview"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeGeminiSettings(settingsPath, "gemini-api-key"); err != nil {
+		t.Fatal(err)
+	}
+
+	env, err := readEnvFile(envPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["OTHER"] != "keep" || env["GOOGLE_GEMINI_BASE_URL"] != "http://127.0.0.1:3000/gemini" || env["GEMINI_MODEL"] != "gemini-3-pro-preview" {
+		t.Fatalf("unexpected gemini env: %#v", env)
+	}
+	settings, err := readJSONObject(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings["mcpServers"] == nil {
+		t.Fatalf("expected existing settings to be preserved: %#v", settings)
+	}
+	security := settings["security"].(map[string]any)
+	auth := security["auth"].(map[string]any)
+	if auth["old"] != "keep" || auth["selectedType"] != "gemini-api-key" {
+		t.Fatalf("unexpected auth settings: %#v", auth)
+	}
+	if _, err := os.Stat(envPath + ".omniproxy.bak"); err != nil {
+		t.Fatalf("expected env backup: %v", err)
+	}
+	if _, err := os.Stat(settingsPath + ".omniproxy.bak"); err != nil {
+		t.Fatalf("expected settings backup: %v", err)
+	}
+}
+
+func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.json")
+	if err := os.WriteFile(path, []byte(`{"provider":{"existing":{"npm":"@ai-sdk/openai-compatible","models":{}}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeOpenCodeConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "http://127.0.0.1:3000/gemini", "http://127.0.0.1:3000/custom/v1"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := readJSONObject(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	providers := data["provider"].(map[string]any)
+	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeCustomProviderID} {
+		if providers[id] == nil {
+			t.Fatalf("expected provider %s in %#v", id, providers)
+		}
+	}
+	routerProvider := providers[opencodeOmniProviderID].(map[string]any)
+	options := routerProvider["options"].(map[string]any)
+	if options["baseURL"] != "http://127.0.0.1:3000/opencode-router/v1" {
+		t.Fatalf("unexpected router baseURL: %#v", options)
+	}
+	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
+		t.Fatalf("expected opencode backup: %v", err)
+	}
+}

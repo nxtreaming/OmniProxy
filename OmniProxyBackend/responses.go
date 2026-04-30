@@ -32,11 +32,11 @@ type usageResponse struct {
 	Source                     string  `json:"source,omitempty"`
 	PlanType                   string  `json:"planType,omitempty"`
 	LimitReached               bool    `json:"limitReached,omitempty"`
-	PrimaryUsedPercent         int     `json:"primaryUsedPercent,omitempty"`
-	PrimaryRemainingPercent    int     `json:"primaryRemainingPercent,omitempty"`
+	PrimaryUsedPercent         int     `json:"primaryUsedPercent"`
+	PrimaryRemainingPercent    int     `json:"primaryRemainingPercent"`
 	PrimaryResetAt             int64   `json:"primaryResetAt,omitempty"`
-	SecondaryUsedPercent       int     `json:"secondaryUsedPercent,omitempty"`
-	SecondaryRemainingPercent  int     `json:"secondaryRemainingPercent,omitempty"`
+	SecondaryUsedPercent       int     `json:"secondaryUsedPercent"`
+	SecondaryRemainingPercent  int     `json:"secondaryRemainingPercent"`
 	SecondaryResetAt           int64   `json:"secondaryResetAt,omitempty"`
 	APIRemaining               int     `json:"apiRemaining,omitempty"`
 	BalanceRemaining           float64 `json:"balanceRemaining,omitempty"`
@@ -79,16 +79,18 @@ type validationResponse struct {
 }
 
 type logResponse struct {
-	ID        int64      `json:"id"`
-	Time      string     `json:"time"`
-	Level     logs.Level `json:"level"`
-	Method    string     `json:"method,omitempty"`
-	Path      string     `json:"path,omitempty"`
-	Model     string     `json:"model,omitempty"`
-	Status    int        `json:"status,omitempty"`
-	Duration  int64      `json:"durationMs,omitempty"`
-	TokenName string     `json:"tokenName,omitempty"`
-	Message   string     `json:"message"`
+	ID         int64      `json:"id"`
+	Time       string     `json:"time"`
+	Level      logs.Level `json:"level"`
+	Method     string     `json:"method,omitempty"`
+	Path       string     `json:"path,omitempty"`
+	Model      string     `json:"model,omitempty"`
+	ClientKey  string     `json:"clientKey,omitempty"`
+	ClientName string     `json:"clientName,omitempty"`
+	Status     int        `json:"status,omitempty"`
+	Duration   int64      `json:"durationMs,omitempty"`
+	TokenName  string     `json:"tokenName,omitempty"`
+	Message    string     `json:"message"`
 }
 
 type historyResponse struct {
@@ -99,6 +101,8 @@ type historyResponse struct {
 	Path              string                 `json:"path,omitempty"`
 	Provider          string                 `json:"provider,omitempty"`
 	Protocol          string                 `json:"protocol,omitempty"`
+	ClientKey         string                 `json:"clientKey,omitempty"`
+	ClientName        string                 `json:"clientName,omitempty"`
 	Model             string                 `json:"model,omitempty"`
 	Status            int                    `json:"status,omitempty"`
 	Duration          int64                  `json:"durationMs,omitempty"`
@@ -110,6 +114,20 @@ type historyResponse struct {
 	CooldownTriggered bool                   `json:"cooldownTriggered,omitempty"`
 	RetryChain        []retryAttemptResponse `json:"retryChain,omitempty"`
 	Message           string                 `json:"message"`
+}
+
+type activeRequestResponse struct {
+	ID         int64  `json:"id"`
+	StartedAt  string `json:"startedAt"`
+	ClientKey  string `json:"clientKey,omitempty"`
+	ClientName string `json:"clientName,omitempty"`
+	Method     string `json:"method,omitempty"`
+	Path       string `json:"path,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	Protocol   string `json:"protocol,omitempty"`
+	Model      string `json:"model,omitempty"`
+	TokenID    string `json:"tokenId,omitempty"`
+	TokenName  string `json:"tokenName,omitempty"`
 }
 
 type retryAttemptResponse struct {
@@ -226,16 +244,18 @@ func logResponses(entries []logs.Entry) []logResponse {
 
 func logResponseFor(entry logs.Entry) logResponse {
 	return logResponse{
-		ID:        entry.ID,
-		Time:      timeString(entry.Time),
-		Level:     entry.Level,
-		Method:    entry.Method,
-		Path:      entry.Path,
-		Model:     entry.Model,
-		Status:    entry.Status,
-		Duration:  entry.Duration,
-		TokenName: entry.TokenName,
-		Message:   entry.Message,
+		ID:         entry.ID,
+		Time:       timeString(entry.Time),
+		Level:      entry.Level,
+		Method:     entry.Method,
+		Path:       entry.Path,
+		Model:      entry.Model,
+		ClientKey:  entry.ClientKey,
+		ClientName: entry.ClientName,
+		Status:     entry.Status,
+		Duration:   entry.Duration,
+		TokenName:  entry.TokenName,
+		Message:    entry.Message,
 	}
 }
 
@@ -256,6 +276,8 @@ func historyResponseFor(entry history.Entry) historyResponse {
 		Path:              entry.Path,
 		Provider:          entry.Provider,
 		Protocol:          entry.Protocol,
+		ClientKey:         entry.ClientKey,
+		ClientName:        entry.ClientName,
 		Model:             entry.Model,
 		Status:            entry.Status,
 		Duration:          entry.Duration,
@@ -268,6 +290,26 @@ func historyResponseFor(entry history.Entry) historyResponse {
 		RetryChain:        retryAttemptResponses(entry.RetryChain),
 		Message:           entry.Message,
 	}
+}
+
+func activeRequestResponses(entries []proxy.ActiveRequest) []activeRequestResponse {
+	out := make([]activeRequestResponse, len(entries))
+	for i, entry := range entries {
+		out[i] = activeRequestResponse{
+			ID:         entry.ID,
+			StartedAt:  timeString(entry.StartedAt),
+			ClientKey:  entry.ClientKey,
+			ClientName: entry.ClientName,
+			Method:     entry.Method,
+			Path:       entry.Path,
+			Provider:   entry.Provider,
+			Protocol:   entry.Protocol,
+			Model:      entry.Model,
+			TokenID:    entry.TokenID,
+			TokenName:  entry.TokenName,
+		}
+	}
+	return out
 }
 
 func retryAttemptResponses(entries []history.RetryAttempt) []retryAttemptResponse {

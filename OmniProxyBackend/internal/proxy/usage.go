@@ -212,9 +212,9 @@ func consumeUsageObject(value any) (token.TokenConsumption, bool) {
 }
 
 func consumeUsageMap(value map[string]any) (token.TokenConsumption, bool) {
-	input := intFromKeys(value, "input_tokens", "prompt_tokens")
-	output := intFromKeys(value, "output_tokens", "completion_tokens")
-	total := intFromKeys(value, "total_tokens")
+	input := intFromKeys(value, "input_tokens", "prompt_tokens", "promptTokenCount")
+	output := intFromKeys(value, "output_tokens", "completion_tokens", "candidatesTokenCount")
+	total := intFromKeys(value, "total_tokens", "totalTokenCount")
 	if total == 0 && (input > 0 || output > 0) {
 		total = input + output
 	}
