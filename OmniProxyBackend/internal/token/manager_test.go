@@ -305,6 +305,49 @@ func TestManagerRecordsProxyUsageTotalsAndDailyStats(t *testing.T) {
 	}
 }
 
+func TestManagerRecordsBalanceUsageStatus(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{Name: "deepseek", Provider: ProviderDeepSeek, TokenValue: "sk-deepseek-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := manager.RecordUsageInfo(item.ID, UsageInfo{
+		Source:           ProviderDeepSeek,
+		BalanceRemaining: 0,
+		BalanceUnit:      "CNY",
+		Message:          "DeepSeek balance",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != StatusExhausted || updated.Remaining != 0 {
+		t.Fatalf("expected zero balance to exhaust token, got status=%s remaining=%d", updated.Status, updated.Remaining)
+	}
+
+	if err := manager.RecordUsageInfo(item.ID, UsageInfo{
+		Source:           ProviderDeepSeek,
+		BalanceRemaining: 12.5,
+		BalanceUnit:      "CNY",
+		Message:          "DeepSeek balance",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err = manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != StatusActive || updated.Remaining != 100 {
+		t.Fatalf("expected positive balance to restore active token, got status=%s remaining=%d", updated.Status, updated.Remaining)
+	}
+}
+
 func TestManagerBatchesUsagePersistenceUntilFlush(t *testing.T) {
 	store := &countingTokenStore{}
 	manager, err := NewManager(store, 15)

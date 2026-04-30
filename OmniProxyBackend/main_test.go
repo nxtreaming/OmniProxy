@@ -1231,3 +1231,32 @@ func TestWriteClaudeRouterSettingsAcceptsUTF8BOM(t *testing.T) {
 		t.Fatalf("expected router base url, got:\n%s", string(content))
 	}
 }
+
+func TestExtractMimoCookieFromHAR(t *testing.T) {
+	data := []byte(`{
+		"log": {
+			"entries": [
+				{
+					"request": {
+						"url": "https://platform.xiaomimimo.com/api/v1/balance",
+						"headers": [
+							{"name": "accept", "value": "*/*"},
+							{"name": "cookie", "value": "serviceToken=session; userId=123"}
+						]
+					}
+				}
+			]
+		}
+	}`)
+
+	cookie, matchedURL, err := extractMimoCookieFromHAR(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cookie != "serviceToken=session; userId=123" {
+		t.Fatalf("unexpected cookie %q", cookie)
+	}
+	if matchedURL != "https://platform.xiaomimimo.com/api/v1/balance" {
+		t.Fatalf("unexpected matched URL %q", matchedURL)
+	}
+}

@@ -67,6 +67,10 @@ defineProps({
     type: Function,
     required: true,
   },
+  quotaDisplay: {
+    type: Function,
+    required: true,
+  },
 })
 
 const emit = defineEmits([
@@ -182,7 +186,7 @@ function openCodexAuthFilePicker() {
             </td>
             <td>{{ credentialLabel(item) }}</td>
             <td class="mono">{{ credentialDisplay(item) }}</td>
-            <td>{{ item.remaining }}%</td>
+            <td>{{ quotaDisplay(item) }}</td>
             <td>
               {{ formatNumber(item.stats?.totalTokens) }}
               <small>{{ formatNumber(item.stats?.requestCount) }} 次请求</small>

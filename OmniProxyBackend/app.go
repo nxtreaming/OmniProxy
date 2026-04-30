@@ -233,6 +233,103 @@ func (a *DesktopApp) SaveConfig(cfg config.Config) (config.Config, error) {
 	return a.server.saveConfig(cfg)
 }
 
+type mimoCookieImportResult struct {
+	Path       string `json:"path"`
+	MatchedURL string `json:"matchedUrl"`
+	Length     int    `json:"length"`
+	Message    string `json:"message"`
+}
+
+func (a *DesktopApp) ImportMimoCookieFromHAR() (mimoCookieImportResult, error) {
+	if a.ctx == nil {
+		return mimoCookieImportResult{}, errors.New("application is not ready")
+	}
+
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择 Xiaomi MiMo HAR 文件",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "HAR 文件 (*.har)", Pattern: "*.har"},
+			{DisplayName: "JSON 文件 (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil {
+		return mimoCookieImportResult{}, err
+	}
+	if strings.TrimSpace(path) == "" {
+		return mimoCookieImportResult{}, errors.New("未选择 HAR 文件")
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return mimoCookieImportResult{}, err
+	}
+	cookie, matchedURL, err := extractMimoCookieFromHAR(data)
+	if err != nil {
+		return mimoCookieImportResult{}, err
+	}
+
+	a.server.mu.Lock()
+	cfg := a.server.cfg
+	a.server.mu.Unlock()
+	cfg.XiaomiPlatformCookie = cookie
+	if _, err := a.server.saveConfig(cfg); err != nil {
+		return mimoCookieImportResult{}, err
+	}
+
+	result := mimoCookieImportResult{
+		Path:       path,
+		MatchedURL: matchedURL,
+		Length:     len(cookie),
+		Message:    "MiMo 控制台 Cookie 已导入",
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "mimo platform cookie imported from HAR"})
+	return result, nil
+}
+
+func extractMimoCookieFromHAR(data []byte) (string, string, error) {
+	var har struct {
+		Log struct {
+			Entries []struct {
+				Request struct {
+					URL     string `json:"url"`
+					Headers []struct {
+						Name  string `json:"name"`
+						Value string `json:"value"`
+					} `json:"headers"`
+				} `json:"request"`
+			} `json:"entries"`
+		} `json:"log"`
+	}
+	if err := json.Unmarshal(data, &har); err != nil {
+		return "", "", fmt.Errorf("无法解析 HAR：%w", err)
+	}
+
+	targets := []string{
+		"platform.xiaomimimo.com/api/v1/balance",
+		"platform.xiaomimimo.com/api/v1/tokenPlan/usage",
+		"platform.xiaomimimo.com/api/v1/tokenPlan/detail",
+	}
+	for _, target := range targets {
+		for _, entry := range har.Log.Entries {
+			if !strings.Contains(entry.Request.URL, target) {
+				continue
+			}
+			for _, header := range entry.Request.Headers {
+				if !strings.EqualFold(strings.TrimSpace(header.Name), "cookie") {
+					continue
+				}
+				cookie := strings.TrimSpace(header.Value)
+				if cookie == "" {
+					continue
+				}
+				return cookie, entry.Request.URL, nil
+			}
+		}
+	}
+
+	return "", "", errors.New("HAR 中未找到 MiMo 余额或 Token Plan 请求的 Cookie")
+}
+
 func (a *DesktopApp) Logs() []logResponse {
 	return logResponses(a.server.logs.List())
 }

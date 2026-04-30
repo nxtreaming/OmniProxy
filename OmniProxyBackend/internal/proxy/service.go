@@ -139,11 +139,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	excluded := map[string]bool{}
-	attempts := s.retry.Attempts()
 
 	var lastErr error
 	var lastStatus int
 	route := s.router.Route(r.URL, bodyBytes)
+	attempts := s.attemptsForRoute(route)
 	retryChain := make([]history.RetryAttempt, 0, attempts)
 
 	for attempt := 1; attempt <= attempts; attempt++ {
@@ -197,9 +197,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = s.tokens.RecordUsage(selected.ID, -1)
 		}
 
-		if s.retry.ShouldRetryStatus(resp.StatusCode, attempt) {
+		if s.shouldRetryUpstreamResponse(route, selected, resp.StatusCode, attempt, attempts) {
 			_ = s.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
-			cooldownUntil := s.retry.CooldownUntil(resp.StatusCode, resp.Header)
+			cooldownUntil := s.cooldownUntilForUpstreamResponse(route, selected, resp.StatusCode, resp.Header)
 			cooldownTriggered := cooldownUntil != nil
 			if cooldownTriggered {
 				_ = s.tokens.MarkExhaustedUntil(selected.ID, fmt.Sprintf("upstream returned %d", resp.StatusCode), cooldownUntil)
@@ -214,9 +214,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Model:     route.Model,
 				Status:    resp.StatusCode,
 				TokenName: selected.Name,
-				Message:   proxyLogMessage(route.Model, token.TokenConsumption{}, "switching token after retryable upstream response"),
+				Message:   proxyLogMessage(route.Model, token.TokenConsumption{}, upstreamSwitchMessage(route, selected, resp.StatusCode)),
 			})
-			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, resp.StatusCode, time.Since(attemptStart).Milliseconds(), cooldownTriggered, "switching token after retryable upstream response")
+			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, resp.StatusCode, time.Since(attemptStart).Milliseconds(), cooldownTriggered, upstreamSwitchMessage(route, selected, resp.StatusCode))
 			continue
 		}
 
@@ -225,7 +225,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			route.Model = responseModel
 		}
 		_ = s.tokens.RecordProxyUsage(selected.ID, consumption)
-		cooldownUntil := s.retry.CooldownUntil(resp.StatusCode, resp.Header)
+		cooldownUntil := s.cooldownUntilForUpstreamResponse(route, selected, resp.StatusCode, resp.Header)
 		cooldownTriggered := cooldownUntil != nil
 		if cooldownTriggered {
 			_ = s.tokens.MarkExhaustedUntil(selected.ID, fmt.Sprintf("upstream returned %d", resp.StatusCode), cooldownUntil)
@@ -297,7 +297,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 	route.CredentialType = token.CredentialTypeCodexAuthJSON
 
 	excluded := map[string]bool{}
-	attempts := s.retry.Attempts()
+	attempts := s.attemptsForRoute(route)
 
 	var selected token.Token
 	var upstream *websocket.Conn
@@ -364,9 +364,9 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		if upstreamResp != nil {
 			lastStatus = upstreamResp.StatusCode
 		}
-		if s.retry.ShouldRetryStatus(lastStatus, attempt) {
+		if s.shouldRetryUpstreamResponse(route, selected, lastStatus, attempt, attempts) {
 			_ = s.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
-			cooldownUntil := s.retry.CooldownUntil(lastStatus, responseHeaders(upstreamResp))
+			cooldownUntil := s.cooldownUntilForUpstreamResponse(route, selected, lastStatus, responseHeaders(upstreamResp))
 			cooldownTriggered := cooldownUntil != nil
 			if cooldownTriggered {
 				_ = s.tokens.MarkExhaustedUntil(selected.ID, fmt.Sprintf("upstream websocket returned %d", lastStatus), cooldownUntil)
@@ -381,9 +381,9 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 				Model:     route.Model,
 				Status:    lastStatus,
 				TokenName: selected.Name,
-				Message:   "switching token after retryable upstream websocket response",
+				Message:   upstreamWebSocketSwitchMessage(route, selected, lastStatus),
 			})
-			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, lastStatus, time.Since(attemptStart).Milliseconds(), cooldownTriggered, "switching token after retryable upstream websocket response")
+			retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, lastStatus, time.Since(attemptStart).Milliseconds(), cooldownTriggered, upstreamWebSocketSwitchMessage(route, selected, lastStatus))
 			continue
 		}
 		retryChain = appendRetryAttempt(retryChain, attempt, route, &selected, lastStatus, time.Since(attemptStart).Milliseconds(), false, fmt.Sprintf("upstream websocket failed: %v", err))
@@ -504,6 +504,70 @@ func preferredMimoCredentialType(cfg config.Config) string {
 		return token.CredentialTypeAPIKey
 	}
 	return token.CredentialTypeMimoTokenPlan
+}
+
+func (s *Service) attemptsForRoute(route routeInfo) int {
+	attempts := s.retry.Attempts()
+	if isMimoCredentialPriorityRoute(route) && attempts < 2 {
+		return 2
+	}
+	return attempts
+}
+
+func (s *Service) shouldRetryUpstreamResponse(route routeInfo, selected token.Token, status int, attempt int, attempts int) bool {
+	if attempt >= attempts {
+		return false
+	}
+	if s.retry.IsRetryableStatus(status) {
+		return true
+	}
+	return isMimoCredentialFallbackStatus(route, selected, status)
+}
+
+func (s *Service) cooldownUntilForUpstreamResponse(route routeInfo, selected token.Token, status int, header http.Header) *time.Time {
+	if until := s.retry.CooldownUntil(status, header); until != nil {
+		return until
+	}
+	if isMimoCredentialFallbackStatus(route, selected, status) {
+		return cooldownUntilFromHeadersAt(s.retry.now(), header)
+	}
+	return nil
+}
+
+func isMimoCredentialPriorityRoute(route routeInfo) bool {
+	return token.NormalizeProvider(route.Provider) == token.ProviderXiaomi &&
+		strings.TrimSpace(route.CredentialType) == ""
+}
+
+func isMimoCredentialFallbackStatus(route routeInfo, selected token.Token, status int) bool {
+	if !isMimoCredentialPriorityRoute(route) {
+		return false
+	}
+	switch selected.CredentialType {
+	case "", token.CredentialTypeAPIKey, token.CredentialTypeMimoTokenPlan:
+	default:
+		return false
+	}
+	switch status {
+	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusForbidden:
+		return true
+	default:
+		return false
+	}
+}
+
+func upstreamSwitchMessage(route routeInfo, selected token.Token, status int) string {
+	if isMimoCredentialFallbackStatus(route, selected, status) {
+		return "switching MiMo credential after upstream credential fallback response"
+	}
+	return "switching token after retryable upstream response"
+}
+
+func upstreamWebSocketSwitchMessage(route routeInfo, selected token.Token, status int) string {
+	if isMimoCredentialFallbackStatus(route, selected, status) {
+		return "switching MiMo credential after upstream websocket credential fallback response"
+	}
+	return "switching token after retryable upstream websocket response"
 }
 
 func (s *Service) refreshSelectedToken(ctx context.Context, selected token.Token, force bool) (token.Token, error) {

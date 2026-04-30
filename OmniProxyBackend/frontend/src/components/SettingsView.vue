@@ -25,12 +25,17 @@ defineProps({
     type: Boolean,
     required: true,
   },
+  mimoCookieImporting: {
+    type: Boolean,
+    required: true,
+  },
 })
 
 defineEmits([
   'persist-config',
   'choose-data-directory',
   'toggle-auto-start',
+  'import-mimo-cookie',
 ])
 </script>
 
@@ -238,6 +243,25 @@ defineEmits([
           <label class="wide-field">
             <span>Xiaomi MiMo Token Plan Anthropic Base URL</span>
             <input v-model="config.xiaomiTokenPlanAnthropicBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Xiaomi MiMo 控制台 Cookie</span>
+            <textarea
+              v-model="config.xiaomiPlatformCookie"
+              rows="3"
+              placeholder="从 platform.xiaomimimo.com 登录态请求复制 Cookie，用于 Token Plan 额度查询"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <small>用于读取 /api/v1/balance 和 /api/v1/tokenPlan/usage；也可以从 HAR 自动导入。</small>
+            <button
+              type="button"
+              class="ghost-button compact-button"
+              :disabled="mimoCookieImporting"
+              @click="$emit('import-mimo-cookie')"
+            >
+              {{ mimoCookieImporting ? '导入中' : '从 HAR 导入 Cookie' }}
+            </button>
           </label>
         </div>
       </section>

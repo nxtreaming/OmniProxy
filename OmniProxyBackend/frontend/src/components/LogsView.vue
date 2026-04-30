@@ -31,15 +31,17 @@ defineEmits(['refresh'])
     <div class="log-list">
       <div v-for="entry in logs" :key="entry.id" class="log-row">
         <span :class="['dot', entry.level]"></span>
-        <div>
+        <div class="log-main">
           <strong>{{ entry.method || 'SYSTEM' }} {{ entry.path || '' }}</strong>
           <p>{{ entry.message }}</p>
         </div>
-        <small class="log-model" :title="entry.model || '-'">{{ entry.model || '-' }}</small>
-        <small class="log-status">{{ entry.status || '-' }}</small>
-        <small class="log-duration">{{ formatDuration(entry.durationMs) }}</small>
-        <small class="log-token" :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</small>
-        <time class="log-time">{{ formatTime(entry.time) }}</time>
+        <div class="log-meta">
+          <small class="log-model" :title="entry.model || '-'">{{ entry.model || '-' }}</small>
+          <small class="log-status">{{ entry.status || '-' }}</small>
+          <small class="log-duration">{{ formatDuration(entry.durationMs) }}</small>
+          <small class="log-token" :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</small>
+          <time class="log-time">{{ formatTime(entry.time) }}</time>
+        </div>
       </div>
       <div v-if="!logs.length" class="empty">暂无日志</div>
     </div>

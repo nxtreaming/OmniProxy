@@ -36,6 +36,7 @@ type Config struct {
 	XiaomiAPIAnthropicBaseURL       string `json:"xiaomiApiAnthropicBaseUrl"`
 	XiaomiTokenPlanBaseURL          string `json:"xiaomiTokenPlanBaseUrl"`
 	XiaomiTokenPlanAnthropicBaseURL string `json:"xiaomiTokenPlanAnthropicBaseUrl"`
+	XiaomiPlatformCookie            string `json:"xiaomiPlatformCookie,omitempty"`
 	XiaomiCredentialPriority        string `json:"xiaomiCredentialPriority"`
 	CodexBaseURL                    string `json:"codexBaseUrl"`
 	SwitchThreshold                 int    `json:"switchThreshold"`
@@ -60,6 +61,7 @@ func Default() Config {
 		XiaomiAPIAnthropicBaseURL:       "https://api.xiaomimimo.com/anthropic",
 		XiaomiTokenPlanBaseURL:          "https://token-plan-cn.xiaomimimo.com/v1",
 		XiaomiTokenPlanAnthropicBaseURL: "https://token-plan-cn.xiaomimimo.com/anthropic",
+		XiaomiPlatformCookie:            "",
 		XiaomiCredentialPriority:        MimoCredentialPriorityTokenPlan,
 		CodexBaseURL:                    "https://chatgpt.com/backend-api/codex",
 		SwitchThreshold:                 15,
@@ -107,6 +109,7 @@ func (s *Store) Load() (Config, error) {
 		XiaomiAPIAnthropicBaseURL       *string `json:"xiaomiApiAnthropicBaseUrl"`
 		XiaomiTokenPlanBaseURL          *string `json:"xiaomiTokenPlanBaseUrl"`
 		XiaomiTokenPlanAnthropicBaseURL *string `json:"xiaomiTokenPlanAnthropicBaseUrl"`
+		XiaomiPlatformCookie            *string `json:"xiaomiPlatformCookie"`
 		XiaomiCredentialPriority        *string `json:"xiaomiCredentialPriority"`
 		CodexBaseURL                    *string `json:"codexBaseUrl"`
 		SwitchThreshold                 *int    `json:"switchThreshold"`
@@ -163,6 +166,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.XiaomiTokenPlanAnthropicBaseURL != nil && *saved.XiaomiTokenPlanAnthropicBaseURL != "" {
 		cfg.XiaomiTokenPlanAnthropicBaseURL = *saved.XiaomiTokenPlanAnthropicBaseURL
+	}
+	if saved.XiaomiPlatformCookie != nil {
+		cfg.XiaomiPlatformCookie = *saved.XiaomiPlatformCookie
 	}
 	if saved.XiaomiCredentialPriority != nil {
 		cfg.XiaomiCredentialPriority = *saved.XiaomiCredentialPriority
@@ -247,6 +253,7 @@ func Normalize(cfg Config) Config {
 	if cfg.XiaomiTokenPlanAnthropicBaseURL == "" {
 		cfg.XiaomiTokenPlanAnthropicBaseURL = defaults.XiaomiTokenPlanAnthropicBaseURL
 	}
+	cfg.XiaomiPlatformCookie = strings.TrimSpace(cfg.XiaomiPlatformCookie)
 	switch strings.ToLower(strings.TrimSpace(cfg.XiaomiCredentialPriority)) {
 	case MimoCredentialPriorityAPIKey, "api":
 		cfg.XiaomiCredentialPriority = MimoCredentialPriorityAPIKey

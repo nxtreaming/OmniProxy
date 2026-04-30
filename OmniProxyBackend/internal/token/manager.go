@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -369,12 +370,40 @@ func (m *Manager) RecordUsageInfo(id string, usage UsageInfo) error {
 			default:
 				m.tokens[i].Status = StatusActive
 			}
+		} else if usage.BalanceUnit != "" {
+			remaining := balanceRemainingPercent(usage)
+			m.tokens[i].Remaining = remaining
+			switch {
+			case usage.BalanceRemaining <= 0:
+				m.tokens[i].Status = StatusExhausted
+			case remaining <= m.threshold:
+				m.tokens[i].Status = StatusLow
+			default:
+				m.tokens[i].Status = StatusActive
+			}
 		}
 
 		return m.schedulePersistLocked()
 	}
 
 	return ErrTokenNotFound
+}
+
+func balanceRemainingPercent(usage UsageInfo) int {
+	if usage.BalanceTotal > 0 {
+		value := int(math.Round((usage.BalanceRemaining / usage.BalanceTotal) * 100))
+		if value < 0 {
+			return 0
+		}
+		if value > 100 {
+			return 100
+		}
+		return value
+	}
+	if usage.BalanceRemaining <= 0 {
+		return 0
+	}
+	return 100
 }
 
 func (m *Manager) RecordProxyUsage(id string, consumption TokenConsumption) error {

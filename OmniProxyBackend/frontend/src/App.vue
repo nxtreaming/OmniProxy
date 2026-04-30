@@ -31,6 +31,7 @@ import {
   getLogs,
   getProxyStatus,
   getTokens,
+  importMimoCookieFromHAR,
   openExternalURL,
   saveConfig,
   setAutoStart,
@@ -77,6 +78,7 @@ const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
 const mimoClaudeRestoring = ref(false)
+const mimoCookieImporting = ref(false)
 const refreshingProvider = ref(false)
 const dataDirChanging = ref(false)
 const autoStartChanging = ref(false)
@@ -117,6 +119,7 @@ const config = reactive({
   xiaomiApiAnthropicBaseUrl: 'https://api.xiaomimimo.com/anthropic',
   xiaomiTokenPlanBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
   xiaomiTokenPlanAnthropicBaseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+  xiaomiPlatformCookie: '',
   xiaomiCredentialPriority: 'mimo_token_plan',
   codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
   codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
@@ -169,6 +172,8 @@ const activeProviderInfo = computed(
   () => providers.find((item) => item.key === activeProvider.value) || providers[0],
 )
 const activeProviderTokens = computed(() => providerTokens(activeProvider.value))
+const subscriptionOverviewTokens = computed(() => tokens.value.filter((item) => showQuotaWindows(item)))
+const apiOverviewTokens = computed(() => tokens.value.filter((item) => !showQuotaWindows(item)))
 const totalProxyRequests = computed(() =>
   tokens.value.reduce((sum, item) => sum + Number(item.stats?.requestCount || 0), 0),
 )
@@ -664,6 +669,7 @@ async function persistConfig() {
       xiaomiApiAnthropicBaseUrl: config.xiaomiApiAnthropicBaseUrl.trim(),
       xiaomiTokenPlanBaseUrl: config.xiaomiTokenPlanBaseUrl.trim(),
       xiaomiTokenPlanAnthropicBaseUrl: config.xiaomiTokenPlanAnthropicBaseUrl.trim(),
+      xiaomiPlatformCookie: config.xiaomiPlatformCookie.trim(),
       xiaomiCredentialPriority: config.xiaomiCredentialPriority,
       codexBaseUrl: config.codexBaseUrl.trim(),
       codexUsageEndpoint: config.codexUsageEndpoint.trim(),
@@ -675,6 +681,22 @@ async function persistConfig() {
     successMessage.value = '设置已保存'
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+async function importMimoCookie() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  mimoCookieImporting.value = true
+  try {
+    const result = await importMimoCookieFromHAR()
+    const loadedConfig = await getConfig()
+    Object.assign(config, loadedConfig)
+    successMessage.value = `${result.message || 'MiMo Cookie 已导入'}，长度 ${result.length || 0}`
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    mimoCookieImporting.value = false
   }
 }
 
@@ -969,8 +991,94 @@ function usageUpdatedAt(item) {
   return item.usage?.updatedAt ? formatTime(item.usage.updatedAt) : '-'
 }
 
+function formatBalance(value) {
+  const number = Number(value || 0)
+  const fractionDigits = Math.abs(number) > 0 && Math.abs(number) < 1 ? 4 : 2
+  return new Intl.NumberFormat('zh-CN', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(number)
+}
+
+function hasBalanceUsage(item) {
+  return Boolean(item.usage?.balanceUnit)
+}
+
+function quotaDisplay(item) {
+  if (hasBalanceUsage(item)) {
+    return `${formatBalance(item.usage.balanceRemaining)} ${item.usage.balanceUnit}`
+  }
+  return `${item.remaining}%`
+}
+
+function quotaStatLabel(item) {
+  return hasBalanceUsage(item) ? '账户余额' : 'API 剩余额度'
+}
+
+function quotaStatMeta(item) {
+  if (hasBalanceUsage(item)) {
+    const parts = []
+    if (Number(item.usage?.balanceTotal || 0) > 0) {
+      parts.push(`总额 ${formatBalance(item.usage.balanceTotal)} ${item.usage.balanceUnit}`)
+    }
+    if (Number(item.usage?.balanceUsed || 0) > 0) {
+      parts.push(`已用 ${formatBalance(item.usage.balanceUsed)} ${item.usage.balanceUnit}`)
+    }
+    parts.push(`最后更新 ${usageUpdatedAt(item)}`)
+    return parts.join(' · ')
+  }
+  return `最后更新 ${usageUpdatedAt(item)}`
+}
+
+function apiQuotaDisplay(item) {
+  if (hasBalanceUsage(item)) {
+    return quotaDisplay(item)
+  }
+  const remaining = Number(item.usage?.apiRemaining || 0)
+  if (remaining > 0) {
+    return `余量 ${formatNumber(remaining)}`
+  }
+  return displayStatusLabel(item)
+}
+
+function apiQuotaMeta(item) {
+  if (hasBalanceUsage(item)) {
+    return quotaStatMeta(item)
+  }
+  if (Number(item.usage?.apiRemaining || 0) > 0) {
+    return `来自上游 rate-limit header · 最后更新 ${usageUpdatedAt(item)}`
+  }
+  return healthSummary(item)
+}
+
 function isCodexToken(item) {
   return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
+}
+
+function isMimoTokenPlan(item) {
+  return item?.provider === 'xiaomi' && item?.credentialType === 'mimo_token_plan'
+}
+
+function showQuotaWindows(item) {
+  return isCodexToken(item) || isMimoTokenPlan(item) || Boolean(item?.usage?.subscriptionQuotaAvailable)
+}
+
+function quotaPrimaryLabel(item) {
+  return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
+}
+
+function quotaSecondaryLabel(item) {
+  return isMimoTokenPlan(item) ? '套餐额度' : '1 周额度'
+}
+
+function quotaResetLabel(item) {
+  return isMimoTokenPlan(item) ? '到期' : '重置'
+}
+
+function quotaUnavailableText(item) {
+  if (isCodexToken(item)) return '点击刷新额度获取'
+  if (isMimoTokenPlan(item)) return 'Token Plan 暂无订阅额度'
+  return '暂无订阅额度'
 }
 
 function tokenUsageSummary(item) {
@@ -1180,34 +1288,72 @@ async function refreshQuota(item) {
           <div class="section-heading">
             <div>
               <h2>额度概览</h2>
-              <p>根据上游响应头实时更新</p>
+              <p>订阅额度和 API / 余额状态分开展示</p>
             </div>
             <button type="button" class="ghost-button" @click="refreshAll">刷新</button>
           </div>
-          <div class="quota-list">
-            <div
-              v-for="item in tokens"
-              :key="item.id"
-              :class="['quota-row', { 'current-quota-row': currentToken?.id === item.id }]"
-              :aria-current="currentToken?.id === item.id ? 'true' : undefined"
-            >
-              <div class="quota-account">
-                <div class="quota-account-title">
-                  <strong>{{ item.name }}</strong>
-                  <span v-if="currentToken?.id === item.id" class="current-usage-badge">正在使用</span>
-                  <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
+          <div class="quota-overview-grid">
+            <section class="quota-overview-block">
+              <div class="quota-overview-head">
+                <strong>订阅额度</strong>
+                <small>Codex / Token Plan</small>
+              </div>
+              <div class="quota-list compact-quota-list">
+                <div
+                  v-for="item in subscriptionOverviewTokens"
+                  :key="item.id"
+                  :class="['quota-row', 'subscription-quota-row', { 'current-quota-row': currentToken?.id === item.id }]"
+                  :aria-current="currentToken?.id === item.id ? 'true' : undefined"
+                >
+                  <div class="quota-account">
+                    <div class="quota-account-title">
+                      <strong>{{ item.name }}</strong>
+                      <span v-if="currentToken?.id === item.id" class="current-usage-badge">正在使用</span>
+                      <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
+                    </div>
+                    <small class="current-usage-meta">
+                      {{ providerLabel(item.provider) }} · {{ quotaPrimaryLabel(item) }}
+                    </small>
+                  </div>
+                  <div class="progress">
+                    <span :style="{ width: `${item.usage?.subscriptionQuotaAvailable ? Math.max(0, Math.min(100, item.usage.primaryRemainingPercent)) : 0}%` }"></span>
+                  </div>
+                  <small class="quota-percent">
+                    {{ item.usage?.subscriptionQuotaAvailable ? `${item.usage.primaryRemainingPercent}%` : '-' }}
+                  </small>
                 </div>
-                <small v-if="currentToken?.id === item.id" class="current-usage-meta">
-                  {{ providerLabel(item.provider) }} · 最后使用 {{ formatTime(item.stats?.updatedAt || item.lastUsedAt) }}
-                </small>
-                <small v-else class="current-usage-meta">{{ healthSummary(item) }}</small>
+                <div v-if="!subscriptionOverviewTokens.length" class="empty">暂无订阅额度账号</div>
               </div>
-              <div class="progress">
-                <span :style="{ width: `${Math.max(0, Math.min(100, item.remaining))}%` }"></span>
+            </section>
+
+            <section class="quota-overview-block">
+              <div class="quota-overview-head">
+                <strong>API / 余额状态</strong>
+                <small>API Key 不按百分比展示</small>
               </div>
-              <small class="quota-percent">{{ item.remaining }}%</small>
-            </div>
-            <div v-if="!tokens.length" class="empty">暂无账号</div>
+              <div class="quota-list compact-quota-list">
+                <div
+                  v-for="item in apiOverviewTokens"
+                  :key="item.id"
+                  :class="['quota-row', 'api-quota-row', { 'current-quota-row': currentToken?.id === item.id }]"
+                  :aria-current="currentToken?.id === item.id ? 'true' : undefined"
+                >
+                  <div class="quota-account">
+                    <div class="quota-account-title">
+                      <strong>{{ item.name }}</strong>
+                      <span v-if="currentToken?.id === item.id" class="current-usage-badge">正在使用</span>
+                      <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
+                    </div>
+                    <small class="current-usage-meta">{{ providerLabel(item.provider) }} · {{ credentialLabel(item) }}</small>
+                  </div>
+                  <div class="api-quota-value">
+                    <strong>{{ apiQuotaDisplay(item) }}</strong>
+                    <small>{{ apiQuotaMeta(item) }}</small>
+                  </div>
+                </div>
+                <div v-if="!apiOverviewTokens.length" class="empty">暂无 API Key 账号</div>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -1348,7 +1494,7 @@ async function refreshQuota(item) {
                   <small class="health-line">{{ healthSummary(item) }}</small>
                 </div>
                 <div class="quota-head-actions">
-                  <el-tag v-if="isCodexToken(item) && item.usage?.subscriptionQuotaAvailable" type="primary" effect="plain">
+                  <el-tag v-if="item.usage?.subscriptionQuotaAvailable && item.usage?.planType" type="primary" effect="plain">
                     {{ planLabel(item.usage?.planType) }}
                   </el-tag>
                   <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">{{ displayStatusLabel(item) }}</el-tag>
@@ -1364,9 +1510,9 @@ async function refreshQuota(item) {
               </div>
 
               <div :class="['quota-layout', { 'codex-layout': isCodexToken(item) }]">
-                <div class="quota-limit">
+                <div v-if="showQuotaWindows(item)" class="quota-limit">
                   <div class="quota-limit-title">
-                    <span>5h额度</span>
+                    <span>{{ quotaPrimaryLabel(item) }}</span>
                     <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ item.usage.primaryRemainingPercent }}%</strong>
                     <strong v-else>-</strong>
                   </div>
@@ -1377,14 +1523,14 @@ async function refreshQuota(item) {
                   />
                   <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
                     <span>已用 <strong>{{ item.usage.primaryUsedPercent }}%</strong></span>
-                    <span>重置 <strong>{{ formatResetTime(item.usage.primaryResetAt) }}</strong></span>
+                    <span>{{ quotaResetLabel(item) }} <strong>{{ formatResetTime(item.usage.primaryResetAt) }}</strong></span>
                   </small>
-                  <small v-else>{{ isCodexToken(item) ? '点击刷新额度获取' : 'API Key 暂无订阅额度' }}</small>
+                  <small v-else>{{ quotaUnavailableText(item) }}</small>
                 </div>
 
-                <div class="quota-limit">
+                <div v-if="showQuotaWindows(item)" class="quota-limit">
                   <div class="quota-limit-title">
-                    <span>1 周额度</span>
+                    <span>{{ quotaSecondaryLabel(item) }}</span>
                     <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ item.usage.secondaryRemainingPercent }}%</strong>
                     <strong v-else>-</strong>
                   </div>
@@ -1395,15 +1541,15 @@ async function refreshQuota(item) {
                   />
                   <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
                     <span>已用 <strong>{{ item.usage.secondaryUsedPercent }}%</strong></span>
-                    <span>重置 <strong>{{ formatResetTime(item.usage.secondaryResetAt) }}</strong></span>
+                    <span>{{ quotaResetLabel(item) }} <strong>{{ formatResetTime(item.usage.secondaryResetAt) }}</strong></span>
                   </small>
-                  <small v-else>{{ isCodexToken(item) ? '点击刷新额度获取' : 'API Key 暂无订阅额度' }}</small>
+                  <small v-else>{{ quotaUnavailableText(item) }}</small>
                 </div>
 
                 <div v-if="!isCodexToken(item)" class="quota-stat">
-                  <span>API 剩余额度</span>
-                  <strong>{{ item.usage?.apiRemaining || item.remaining }}%</strong>
-                  <small>最后更新 {{ usageUpdatedAt(item) }}</small>
+                  <span>{{ quotaStatLabel(item) }}</span>
+                  <strong>{{ hasBalanceUsage(item) ? quotaDisplay(item) : `${item.usage?.apiRemaining || item.remaining}%` }}</strong>
+                  <small>{{ quotaStatMeta(item) }}</small>
                 </div>
 
                 <div class="quota-stat">
@@ -1439,6 +1585,7 @@ async function refreshQuota(item) {
         :health-summary="healthSummary"
         :format-time="formatTime"
         :format-number="formatNumber"
+        :quota-display="quotaDisplay"
         @select-provider="selectProvider"
         @export-token-backup="exportTokenBackup"
         @open-codex-auth-file-picker="openCodexAuthFilePicker"
@@ -1482,9 +1629,11 @@ async function refreshQuota(item) {
         :data-dir-changing="dataDirChanging"
         :auto-start-changing="autoStartChanging"
         :auto-start-enabled="autoStartEnabled"
+        :mimo-cookie-importing="mimoCookieImporting"
         @persist-config="persistConfig"
         @choose-data-directory="chooseDataDirectory"
         @toggle-auto-start="toggleAutoStart"
+        @import-mimo-cookie="importMimoCookie"
       />
 
       <AboutView
@@ -1566,7 +1715,7 @@ Kimi model: kimi-for-coding</code></pre>
           </article>
           <article>
             <strong>2. 查看额度</strong>
-            <p>进入额度页面，选择厂商后查看每个账号的状态。Codex 账号刷新后会显示订阅类型、5h额度和 1 周额度。</p>
+            <p>进入额度页面，选择厂商后查看每个账号的状态。普通 API Key 显示余额或 API 剩余额度；Codex 和 Token Plan 显示对应订阅额度窗口。</p>
           </article>
           <article>
             <strong>3. 启动代理</strong>

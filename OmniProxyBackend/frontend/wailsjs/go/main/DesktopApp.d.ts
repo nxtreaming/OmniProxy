@@ -37,6 +37,8 @@ export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<st
 
 export function ExportTokens():Promise<main.tokenExportResult>;
 
+export function ImportMimoCookieFromHAR():Promise<main.mimoCookieImportResult>;
+
 export function Logs():Promise<Array<main.logResponse>>;
 
 export function ProxyStatus():Promise<Record<string, any>>;

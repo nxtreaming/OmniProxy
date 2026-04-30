@@ -66,6 +66,10 @@ export function ExportTokens() {
   return window['go']['main']['DesktopApp']['ExportTokens']();
 }
 
+export function ImportMimoCookieFromHAR() {
+  return window['go']['main']['DesktopApp']['ImportMimoCookieFromHAR']();
+}
+
 export function Logs() {
   return window['go']['main']['DesktopApp']['Logs']();
 }

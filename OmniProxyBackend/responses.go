@@ -29,19 +29,23 @@ type tokenResponse struct {
 }
 
 type usageResponse struct {
-	Source                     string `json:"source,omitempty"`
-	PlanType                   string `json:"planType,omitempty"`
-	LimitReached               bool   `json:"limitReached,omitempty"`
-	PrimaryUsedPercent         int    `json:"primaryUsedPercent,omitempty"`
-	PrimaryRemainingPercent    int    `json:"primaryRemainingPercent,omitempty"`
-	PrimaryResetAt             int64  `json:"primaryResetAt,omitempty"`
-	SecondaryUsedPercent       int    `json:"secondaryUsedPercent,omitempty"`
-	SecondaryRemainingPercent  int    `json:"secondaryRemainingPercent,omitempty"`
-	SecondaryResetAt           int64  `json:"secondaryResetAt,omitempty"`
-	APIRemaining               int    `json:"apiRemaining,omitempty"`
-	SubscriptionQuotaAvailable bool   `json:"subscriptionQuotaAvailable,omitempty"`
-	Message                    string `json:"message,omitempty"`
-	UpdatedAt                  string `json:"updatedAt,omitempty"`
+	Source                     string  `json:"source,omitempty"`
+	PlanType                   string  `json:"planType,omitempty"`
+	LimitReached               bool    `json:"limitReached,omitempty"`
+	PrimaryUsedPercent         int     `json:"primaryUsedPercent,omitempty"`
+	PrimaryRemainingPercent    int     `json:"primaryRemainingPercent,omitempty"`
+	PrimaryResetAt             int64   `json:"primaryResetAt,omitempty"`
+	SecondaryUsedPercent       int     `json:"secondaryUsedPercent,omitempty"`
+	SecondaryRemainingPercent  int     `json:"secondaryRemainingPercent,omitempty"`
+	SecondaryResetAt           int64   `json:"secondaryResetAt,omitempty"`
+	APIRemaining               int     `json:"apiRemaining,omitempty"`
+	BalanceRemaining           float64 `json:"balanceRemaining,omitempty"`
+	BalanceTotal               float64 `json:"balanceTotal,omitempty"`
+	BalanceUsed                float64 `json:"balanceUsed,omitempty"`
+	BalanceUnit                string  `json:"balanceUnit,omitempty"`
+	SubscriptionQuotaAvailable bool    `json:"subscriptionQuotaAvailable,omitempty"`
+	Message                    string  `json:"message,omitempty"`
+	UpdatedAt                  string  `json:"updatedAt,omitempty"`
 }
 
 type tokenStatsResponse struct {
@@ -162,6 +166,10 @@ func usageResponseFor(usage token.UsageInfo) usageResponse {
 		SecondaryRemainingPercent:  usage.SecondaryRemainingPercent,
 		SecondaryResetAt:           usage.SecondaryResetAt,
 		APIRemaining:               usage.APIRemaining,
+		BalanceRemaining:           usage.BalanceRemaining,
+		BalanceTotal:               usage.BalanceTotal,
+		BalanceUsed:                usage.BalanceUsed,
+		BalanceUnit:                usage.BalanceUnit,
 		SubscriptionQuotaAvailable: usage.SubscriptionQuotaAvailable,
 		Message:                    usage.Message,
 		UpdatedAt:                  timePtrString(usage.UpdatedAt),

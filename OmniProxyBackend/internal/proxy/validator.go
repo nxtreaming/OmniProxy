@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +31,11 @@ type Validator struct {
 	cfg    config.Config
 	client *http.Client
 }
+
+var (
+	mimoPlatformAPIBaseURL       = "https://platform.xiaomimimo.com/api/v1"
+	mimoTokenPlanPlatformBaseURL = "https://platform.xiaomimimo.com/api/v1/tokenPlan"
+)
 
 func NewValidator(cfg config.Config) (*Validator, error) {
 	cfg = config.Normalize(cfg)
@@ -109,6 +116,14 @@ func (v *Validator) Validate(ctx context.Context, selected token.Token) (Validat
 			if usage.SubscriptionQuotaAvailable {
 				remaining := usage.PrimaryRemainingPercent
 				result.Remaining = &remaining
+			}
+		}
+	}
+	if result.OK && selected.CredentialType != token.CredentialTypeCodexAuthJSON {
+		if usage, remaining, ok := v.queryProviderQuota(ctx, selected); ok {
+			result.Usage = &usage
+			if remaining != nil {
+				result.Remaining = remaining
 			}
 		}
 	}
@@ -218,4 +233,495 @@ func percent(value float64) int {
 		return 100
 	}
 	return rounded
+}
+
+func (v *Validator) queryProviderQuota(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	if token.NormalizeProvider(selected.Provider) == token.ProviderXiaomi && selected.CredentialType == token.CredentialTypeMimoTokenPlan {
+		return v.queryMimoTokenPlanUsage(ctx, selected)
+	}
+
+	if selected.CredentialType != "" && selected.CredentialType != token.CredentialTypeAPIKey {
+		return token.UsageInfo{}, nil, false
+	}
+
+	switch token.NormalizeProvider(selected.Provider) {
+	case token.ProviderDeepSeek:
+		return v.queryDeepSeekBalance(ctx, selected)
+	case token.ProviderKimi:
+		return v.queryKimiCodingUsage(ctx, selected)
+	case token.ProviderXiaomi:
+		return v.queryMimoBalance(ctx, selected)
+	default:
+		return token.UsageInfo{}, nil, false
+	}
+}
+
+func (v *Validator) queryMimoTokenPlanUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	if strings.TrimSpace(v.cfg.XiaomiPlatformCookie) == "" {
+		return token.UsageInfo{}, nil, false
+	}
+
+	target, err := joinURLPath(mimoTokenPlanPlatformBaseURL, "/usage")
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	body, ok := v.queryMimoPlatformJSON(ctx, selected, target, "https://platform.xiaomimimo.com/console/plan-manage")
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	data, ok := responseDataObject(payload)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	usage := token.UsageInfo{
+		Source:   token.ProviderXiaomi,
+		PlanType: "MiMo Token Plan",
+		Message:  "MiMo Token Plan usage",
+	}
+	primaryAvailable := false
+	secondaryAvailable := false
+
+	if used, remaining, ok := mimoUsageWindowFromMetric(data["monthUsage"]); ok {
+		usage.PrimaryUsedPercent = used
+		usage.PrimaryRemainingPercent = remaining
+		usage.SubscriptionQuotaAvailable = true
+		primaryAvailable = true
+	}
+	if used, remaining, ok := mimoUsageWindowFromMetric(data["usage"]); ok {
+		usage.SecondaryUsedPercent = used
+		usage.SecondaryRemainingPercent = remaining
+		usage.SubscriptionQuotaAvailable = true
+		secondaryAvailable = true
+	}
+	if !usage.SubscriptionQuotaAvailable {
+		return token.UsageInfo{}, nil, false
+	}
+
+	if detail, ok := v.queryMimoTokenPlanDetail(ctx, selected); ok {
+		if planName, ok := stringFromAny(detail["planName"]); ok {
+			usage.PlanType = "MiMo " + planName
+		}
+		if resetAt := unixSecondsFromAny(detail["currentPeriodEnd"]); resetAt > 0 {
+			usage.PrimaryResetAt = resetAt
+			usage.SecondaryResetAt = resetAt
+		}
+		if boolFromAny(detail["expired"], false) {
+			usage.LimitReached = true
+		}
+	}
+
+	remaining := usage.PrimaryRemainingPercent
+	if !primaryAvailable && secondaryAvailable {
+		remaining = usage.SecondaryRemainingPercent
+	}
+	if usage.LimitReached {
+		remaining = 0
+	} else {
+		usage.LimitReached = remaining <= 0
+	}
+	return usage, &remaining, true
+}
+
+func (v *Validator) queryMimoTokenPlanDetail(ctx context.Context, selected token.Token) (map[string]any, bool) {
+	target, err := joinURLPath(mimoTokenPlanPlatformBaseURL, "/detail")
+	if err != nil {
+		return nil, false
+	}
+	body, ok := v.queryMimoPlatformJSON(ctx, selected, target, "https://platform.xiaomimimo.com/console/plan-manage")
+	if !ok {
+		return nil, false
+	}
+	payload, err := decodeObject(body)
+	if err != nil {
+		return nil, false
+	}
+	return responseDataObject(payload)
+}
+
+func (v *Validator) queryMimoBalance(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	if strings.TrimSpace(v.cfg.XiaomiPlatformCookie) == "" {
+		return token.UsageInfo{}, nil, false
+	}
+
+	target, err := joinURLPath(mimoPlatformAPIBaseURL, "/balance")
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	body, ok := v.queryMimoPlatformJSON(ctx, selected, target, "https://platform.xiaomimimo.com/console/balance")
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	data, ok := responseDataObject(payload)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	balance, ok := floatFromAny(data["balance"])
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+	unit := "CNY"
+	if currency, ok := stringFromAny(data["currency"]); ok {
+		unit = currency
+	}
+	remaining := 100
+	if balance <= 0 {
+		remaining = 0
+	}
+
+	return token.UsageInfo{
+		Source:           token.ProviderXiaomi,
+		BalanceRemaining: balance,
+		BalanceUnit:      unit,
+		LimitReached:     balance <= 0,
+		Message:          "MiMo account balance",
+	}, &remaining, true
+}
+
+func (v *Validator) queryMimoPlatformJSON(ctx context.Context, selected token.Token, target string, referer string) ([]byte, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Timezone", "Asia/Shanghai")
+	req.Header.Set("Referer", referer)
+	req.Header.Set("Cookie", strings.TrimSpace(v.cfg.XiaomiPlatformCookie))
+	if err := applyAuth(req.Header, selected); err != nil {
+		return nil, false
+	}
+
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer closeBody(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if err != nil {
+		return nil, false
+	}
+	return body, true
+}
+
+func (v *Validator) queryDeepSeekBalance(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	target, err := joinURLPath(v.cfg.DeepSeekBaseURL, "/user/balance")
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	body, ok := v.queryJSON(ctx, selected, target)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+
+	infos, _ := payload["balance_infos"].([]any)
+	var balance float64
+	unit := "CNY"
+	found := false
+	for _, raw := range infos {
+		info, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if currency, ok := stringFromAny(info["currency"]); ok {
+			unit = currency
+		}
+		parsed, ok := floatFromAny(info["total_balance"])
+		if !ok {
+			continue
+		}
+		balance = parsed
+		found = true
+		break
+	}
+	if !found {
+		return token.UsageInfo{}, nil, false
+	}
+
+	available := boolFromAny(payload["is_available"], true)
+	remaining := 100
+	if !available || balance <= 0 {
+		remaining = 0
+	}
+
+	return token.UsageInfo{
+		Source:           token.ProviderDeepSeek,
+		BalanceRemaining: balance,
+		BalanceUnit:      unit,
+		LimitReached:     !available || balance <= 0,
+		Message:          "DeepSeek balance",
+	}, &remaining, true
+}
+
+func (v *Validator) queryKimiCodingUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	target, err := joinURLPath(v.cfg.KimiBaseURL, "/v1/usages")
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	body, ok := v.queryJSON(ctx, selected, target)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+
+	usage := token.UsageInfo{
+		Source:   token.ProviderKimi,
+		PlanType: "Kimi Token Plan",
+		Message:  "Kimi coding usage",
+	}
+
+	if limits, ok := payload["limits"].([]any); ok {
+		for _, raw := range limits {
+			limitItem, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			detail, ok := limitItem["detail"].(map[string]any)
+			if !ok {
+				continue
+			}
+			used, remaining, resetAt, ok := usageWindowFromLimit(detail)
+			if !ok {
+				continue
+			}
+			usage.PrimaryUsedPercent = used
+			usage.PrimaryRemainingPercent = remaining
+			usage.PrimaryResetAt = resetAt
+			usage.SubscriptionQuotaAvailable = true
+			break
+		}
+	}
+
+	if raw, ok := payload["usage"].(map[string]any); ok {
+		used, remaining, resetAt, ok := usageWindowFromLimit(raw)
+		if ok {
+			usage.SecondaryUsedPercent = used
+			usage.SecondaryRemainingPercent = remaining
+			usage.SecondaryResetAt = resetAt
+			usage.SubscriptionQuotaAvailable = true
+		}
+	}
+
+	if !usage.SubscriptionQuotaAvailable {
+		return token.UsageInfo{}, nil, false
+	}
+	primaryAvailable := usage.PrimaryUsedPercent != 0 || usage.PrimaryRemainingPercent != 0 || usage.PrimaryResetAt != 0
+	remaining := usage.PrimaryRemainingPercent
+	if !primaryAvailable && usage.SecondaryRemainingPercent > 0 {
+		remaining = usage.SecondaryRemainingPercent
+	}
+	usage.LimitReached = remaining <= 0
+	return usage, &remaining, true
+}
+
+func (v *Validator) queryJSON(ctx context.Context, selected token.Token, target string) ([]byte, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("Accept", "application/json")
+	if err := applyAuth(req.Header, selected); err != nil {
+		return nil, false
+	}
+
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer closeBody(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if err != nil {
+		return nil, false
+	}
+	return body, true
+}
+
+func responseDataObject(payload map[string]any) (map[string]any, bool) {
+	if code, ok := floatFromAny(payload["code"]); ok && code != 0 {
+		return nil, false
+	}
+	data, ok := payload["data"].(map[string]any)
+	return data, ok
+}
+
+func mimoUsageWindowFromMetric(value any) (int, int, bool) {
+	metric, ok := value.(map[string]any)
+	if !ok {
+		return 0, 0, false
+	}
+
+	if used, ok := mimoUsagePercentFromItems(metric["items"]); ok {
+		return used, 100 - used, true
+	}
+	if used, ok := percentFromUsageRatio(metric["percent"]); ok {
+		return used, 100 - used, true
+	}
+	return 0, 0, false
+}
+
+func mimoUsagePercentFromItems(value any) (int, bool) {
+	items, ok := value.([]any)
+	if !ok {
+		return 0, false
+	}
+
+	var usedTokens float64
+	var limitTokens float64
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		limit, limitOK := floatFromAny(item["limit"])
+		used, usedOK := floatFromAny(item["used"])
+		if !limitOK || !usedOK || limit <= 0 {
+			continue
+		}
+		usedTokens += used
+		limitTokens += limit
+	}
+	if limitTokens <= 0 {
+		return 0, false
+	}
+	return percent((usedTokens / limitTokens) * 100), true
+}
+
+func percentFromUsageRatio(value any) (int, bool) {
+	ratio, ok := floatFromAny(value)
+	if !ok {
+		return 0, false
+	}
+	if ratio <= 1 {
+		ratio *= 100
+	}
+	return percent(ratio), true
+}
+
+func usageWindowFromLimit(value map[string]any) (int, int, int64, bool) {
+	limit, ok := floatFromAny(value["limit"])
+	if !ok || limit <= 0 {
+		return 0, 0, 0, false
+	}
+	remainingValue, ok := floatFromAny(value["remaining"])
+	if !ok {
+		return 0, 0, 0, false
+	}
+	used := percent(((limit - remainingValue) / limit) * 100)
+	remaining := 100 - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	resetAt := unixSecondsFromAny(value["resetTime"])
+	return used, remaining, resetAt, true
+}
+
+func joinURLPath(baseURL string, path string) (string, error) {
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	out := *base
+	out.Path = singleJoiningSlash(base.Path, path)
+	out.RawQuery = ""
+	return out.String(), nil
+}
+
+func decodeObject(body []byte) (map[string]any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	var payload map[string]any
+	if err := decoder.Decode(&payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
+func floatFromAny(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case json.Number:
+		parsed, err := typed.Float64()
+		return parsed, err == nil
+	case float64:
+		return typed, true
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func boolFromAny(value any, fallback bool) bool {
+	typed, ok := value.(bool)
+	if !ok {
+		return fallback
+	}
+	return typed
+}
+
+func unixSecondsFromAny(value any) int64 {
+	switch typed := value.(type) {
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err == nil {
+			return normalizeUnixSeconds(parsed)
+		}
+	case float64:
+		return normalizeUnixSeconds(int64(typed))
+	case int64:
+		return normalizeUnixSeconds(typed)
+	case int:
+		return normalizeUnixSeconds(int64(typed))
+	case string:
+		text := strings.TrimSpace(typed)
+		if parsed, err := strconv.ParseInt(text, 10, 64); err == nil {
+			return normalizeUnixSeconds(parsed)
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, text); err == nil {
+			return parsed.Unix()
+		}
+		for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02 15:04"} {
+			if parsed, err := time.ParseInLocation(layout, text, time.Local); err == nil {
+				return parsed.Unix()
+			}
+		}
+	}
+	return 0
+}
+
+func normalizeUnixSeconds(value int64) int64 {
+	if value > 1_000_000_000_000 {
+		return value / 1000
+	}
+	return value
 }

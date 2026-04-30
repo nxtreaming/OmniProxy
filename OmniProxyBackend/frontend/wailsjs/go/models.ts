@@ -16,6 +16,7 @@ export namespace config {
 	    xiaomiApiAnthropicBaseUrl: string;
 	    xiaomiTokenPlanBaseUrl: string;
 	    xiaomiTokenPlanAnthropicBaseUrl: string;
+	    xiaomiPlatformCookie?: string;
 	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
 	    switchThreshold: number;
@@ -43,6 +44,7 @@ export namespace config {
 	        this.xiaomiApiAnthropicBaseUrl = source["xiaomiApiAnthropicBaseUrl"];
 	        this.xiaomiTokenPlanBaseUrl = source["xiaomiTokenPlanBaseUrl"];
 	        this.xiaomiTokenPlanAnthropicBaseUrl = source["xiaomiTokenPlanAnthropicBaseUrl"];
+	        this.xiaomiPlatformCookie = source["xiaomiPlatformCookie"];
 	        this.xiaomiCredentialPriority = source["xiaomiCredentialPriority"];
 	        this.codexBaseUrl = source["codexBaseUrl"];
 	        this.switchThreshold = source["switchThreshold"];
@@ -368,6 +370,24 @@ export namespace main {
 	        this.message = source["message"];
 	    }
 	}
+	export class mimoCookieImportResult {
+	    path: string;
+	    matchedUrl: string;
+	    length: number;
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new mimoCookieImportResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.matchedUrl = source["matchedUrl"];
+	        this.length = source["length"];
+	        this.message = source["message"];
+	    }
+	}
 
 	export class tokenExportResult {
 	    path?: string;
@@ -442,6 +462,10 @@ export namespace main {
 	    secondaryRemainingPercent?: number;
 	    secondaryResetAt?: number;
 	    apiRemaining?: number;
+	    balanceRemaining?: number;
+	    balanceTotal?: number;
+	    balanceUsed?: number;
+	    balanceUnit?: string;
 	    subscriptionQuotaAvailable?: boolean;
 	    message?: string;
 	    updatedAt?: string;
@@ -462,6 +486,10 @@ export namespace main {
 	        this.secondaryRemainingPercent = source["secondaryRemainingPercent"];
 	        this.secondaryResetAt = source["secondaryResetAt"];
 	        this.apiRemaining = source["apiRemaining"];
+	        this.balanceRemaining = source["balanceRemaining"];
+	        this.balanceTotal = source["balanceTotal"];
+	        this.balanceUsed = source["balanceUsed"];
+	        this.balanceUnit = source["balanceUnit"];
 	        this.subscriptionQuotaAvailable = source["subscriptionQuotaAvailable"];
 	        this.message = source["message"];
 	        this.updatedAt = source["updatedAt"];

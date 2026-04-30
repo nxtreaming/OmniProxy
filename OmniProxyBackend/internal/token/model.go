@@ -54,6 +54,10 @@ type UsageInfo struct {
 	SecondaryRemainingPercent  int        `json:"secondaryRemainingPercent,omitempty"`
 	SecondaryResetAt           int64      `json:"secondaryResetAt,omitempty"`
 	APIRemaining               int        `json:"apiRemaining,omitempty"`
+	BalanceRemaining           float64    `json:"balanceRemaining,omitempty"`
+	BalanceTotal               float64    `json:"balanceTotal,omitempty"`
+	BalanceUsed                float64    `json:"balanceUsed,omitempty"`
+	BalanceUnit                string     `json:"balanceUnit,omitempty"`
 	SubscriptionQuotaAvailable bool       `json:"subscriptionQuotaAvailable,omitempty"`
 	Message                    string     `json:"message,omitempty"`
 	UpdatedAt                  *time.Time `json:"updatedAt,omitempty"`

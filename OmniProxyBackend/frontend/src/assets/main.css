@@ -619,6 +619,42 @@ button:disabled {
   margin-top: 18px;
   display: grid;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.quota-overview-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+}
+
+.quota-overview-block {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+}
+
+.quota-overview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.quota-overview-head strong {
+  font-size: 15px;
+}
+
+.quota-overview-head small {
+  color: var(--text-muted);
+}
+
+.compact-quota-list {
+  margin-top: 12px;
 }
 
 .quota-row {
@@ -631,6 +667,14 @@ button:disabled {
     background-color 160ms ease,
     box-shadow 160ms ease,
     color 160ms ease;
+}
+
+.api-quota-row {
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 360px);
+}
+
+.subscription-quota-row {
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 280px) 56px;
 }
 
 .quota-account {
@@ -692,9 +736,33 @@ button:disabled {
   font-weight: 700;
 }
 
+.api-quota-value {
+  min-width: 0;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  text-align: right;
+}
+
+.api-quota-value strong {
+  font-size: 16px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.api-quota-value small {
+  max-width: 240px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
 .current-quota-row .quota-percent {
   color: var(--success);
   font-size: 18px;
+}
+
+.current-quota-row .api-quota-value strong {
+  color: var(--success);
 }
 
 .shell.dark .current-quota-row {
@@ -703,7 +771,8 @@ button:disabled {
 }
 
 .shell.dark .current-quota-row .quota-account-title strong,
-.shell.dark .current-quota-row .quota-percent {
+.shell.dark .current-quota-row .quota-percent,
+.shell.dark .current-quota-row .api-quota-value strong {
   color: #6fd5a2;
 }
 
@@ -1094,8 +1163,12 @@ tr:last-child td {
 
 .log-row {
   display: grid;
-  grid-template-columns: 14px minmax(220px, 1fr) minmax(100px, 160px) 52px 68px minmax(150px, 220px) 70px;
+  grid-template-columns: 14px minmax(0, 1fr) minmax(220px, 520px);
   gap: 12px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 10px 12px;
   border: 1px solid var(--line);
@@ -1104,6 +1177,10 @@ tr:last-child td {
 }
 
 .log-row > * {
+  min-width: 0;
+}
+
+.log-main {
   min-width: 0;
 }
 
@@ -1129,15 +1206,30 @@ tr:last-child td {
   white-space: nowrap;
 }
 
+.log-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 14px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
 .log-token,
 .log-model {
   min-width: 0;
+  max-width: 180px;
 }
 
 .log-status,
 .log-duration,
 .log-time {
-  justify-self: end;
+  flex: 0 0 auto;
+}
+
+.log-token {
+  max-width: 160px;
 }
 
 .log-list.compact .log-row {
@@ -1175,6 +1267,17 @@ tr:last-child td {
 .log-list.compact .log-row small {
   justify-self: end;
   white-space: nowrap;
+}
+
+@media (max-width: 1380px) {
+  .log-row {
+    grid-template-columns: 14px minmax(0, 1fr);
+  }
+
+  .log-meta {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
 }
 
 .usage-table {
@@ -2374,9 +2477,11 @@ textarea:focus {
   .about-row-list.compact,
   .quota-card-grid,
   .quota-fields,
+  .quota-overview-grid,
   .quota-layout,
   .quota-layout.codex-layout,
   .quota-row,
+  .api-quota-row,
   .usage-row,
   .trend-panels,
   .history-filters,
@@ -2391,6 +2496,11 @@ textarea:focus {
   }
 
   .quota-percent {
+    text-align: left;
+  }
+
+  .api-quota-value {
+    justify-items: start;
     text-align: left;
   }
 

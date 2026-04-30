@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/token"
@@ -49,6 +50,289 @@ func TestValidatorUsesAnthropicAPIKey(t *testing.T) {
 	}
 	if result.Remaining == nil || *result.Remaining != 42 {
 		t.Fatalf("expected remaining 42, got %#v", result.Remaining)
+	}
+}
+
+func TestValidatorQueriesDeepSeekBalance(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer deepseek-token-value" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		switch r.URL.Path {
+		case "/v1/models":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case "/user/balance":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{
+				"is_available": true,
+				"balance_infos": [
+					{"currency": "CNY", "total_balance": "12.50"}
+				]
+			}`))
+		default:
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		DeepSeekBaseURL: upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:   token.ProviderDeepSeek,
+		TokenValue: "deepseek-token-value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil {
+		t.Fatal("expected balance usage details")
+	}
+	if result.Usage.BalanceUnit != "CNY" || result.Usage.BalanceRemaining != 12.5 {
+		t.Fatalf("unexpected balance usage: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 100 {
+		t.Fatalf("expected positive balance to map to remaining 100, got %#v", result.Remaining)
+	}
+}
+
+func TestValidatorQueriesKimiCodingUsage(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer kimi-token-value" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		switch r.URL.Path {
+		case "/coding/v1/models":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case "/coding/v1/usages":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{
+				"limits": [
+					{"detail": {"limit": 1000, "remaining": 750, "resetTime": 1760000000000}}
+				],
+				"usage": {"limit": "2000", "remaining": "1400", "resetTime": "1760500000"}
+			}`))
+		default:
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		KimiBaseURL:     upstream.URL + "/coding",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:   token.ProviderKimi,
+		TokenValue: "kimi-token-value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil || !result.Usage.SubscriptionQuotaAvailable {
+		t.Fatalf("expected token plan usage details, got %#v", result.Usage)
+	}
+	if result.Usage.PrimaryUsedPercent != 25 || result.Usage.PrimaryRemainingPercent != 75 {
+		t.Fatalf("unexpected primary usage: %#v", result.Usage)
+	}
+	if result.Usage.SecondaryUsedPercent != 30 || result.Usage.SecondaryRemainingPercent != 70 {
+		t.Fatalf("unexpected secondary usage: %#v", result.Usage)
+	}
+	if result.Usage.PrimaryResetAt != 1760000000 || result.Usage.SecondaryResetAt != 1760500000 {
+		t.Fatalf("unexpected reset times: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 75 {
+		t.Fatalf("expected result remaining 75, got %#v", result.Remaining)
+	}
+}
+
+func TestValidatorQueriesMimoTokenPlanUsage(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("api-key") != "tp-mimo-token-plan" {
+			t.Fatalf("unexpected api-key header: %q", r.Header.Get("api-key"))
+		}
+		switch r.URL.Path {
+		case "/token-plan/v1/models":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case "/platform/api/v1/tokenPlan/usage":
+			if r.Header.Get("X-Timezone") != "Asia/Shanghai" {
+				t.Fatalf("unexpected X-Timezone header: %q", r.Header.Get("X-Timezone"))
+			}
+			if r.Header.Get("Cookie") != "serviceToken=console-session; userId=123" {
+				t.Fatalf("unexpected Cookie header: %q", r.Header.Get("Cookie"))
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{
+				"code": 0,
+				"message": "",
+				"data": {
+					"monthUsage": {
+						"percent": 0.8813,
+						"items": [
+							{"name": "month_total_token", "used": 52877400, "limit": 60000000, "percent": 0.8813}
+						]
+					},
+					"usage": {
+						"percent": 0.88,
+						"items": [
+							{"name": "plan_total_token", "used": 52877400, "limit": 60000000, "percent": 0.88},
+							{"name": "compensation_total_token", "used": 0, "limit": 0, "percent": 0}
+						]
+					}
+				}
+			}`))
+		case "/platform/api/v1/tokenPlan/detail":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{
+				"code": 0,
+				"message": "",
+				"data": {
+					"planName": "Lite",
+					"currentPeriodEnd": "2026-05-03 23:59:59",
+					"expired": false
+				}
+			}`))
+		default:
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	originalMimoPlatformBaseURL := mimoTokenPlanPlatformBaseURL
+	mimoTokenPlanPlatformBaseURL = upstream.URL + "/platform/api/v1/tokenPlan"
+	defer func() {
+		mimoTokenPlanPlatformBaseURL = originalMimoPlatformBaseURL
+	}()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:              3000,
+		ControlPort:            3890,
+		XiaomiTokenPlanBaseURL: upstream.URL + "/token-plan/v1",
+		XiaomiPlatformCookie:   "serviceToken=console-session; userId=123",
+		SwitchThreshold:        15,
+		MaxRetries:             1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:       token.ProviderXiaomi,
+		CredentialType: token.CredentialTypeMimoTokenPlan,
+		TokenValue:     "tp-mimo-token-plan",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil || !result.Usage.SubscriptionQuotaAvailable {
+		t.Fatalf("expected MiMo token plan usage details, got %#v", result.Usage)
+	}
+	if result.Usage.PlanType != "MiMo Lite" {
+		t.Fatalf("expected MiMo Lite plan type, got %q", result.Usage.PlanType)
+	}
+	if result.Usage.PrimaryUsedPercent != 88 || result.Usage.PrimaryRemainingPercent != 12 {
+		t.Fatalf("unexpected primary usage: %#v", result.Usage)
+	}
+	if result.Usage.SecondaryUsedPercent != 88 || result.Usage.SecondaryRemainingPercent != 12 {
+		t.Fatalf("unexpected secondary usage: %#v", result.Usage)
+	}
+	expectedReset := time.Date(2026, 5, 3, 23, 59, 59, 0, time.Local).Unix()
+	if result.Usage.PrimaryResetAt != expectedReset || result.Usage.SecondaryResetAt != expectedReset {
+		t.Fatalf("unexpected reset times: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 12 {
+		t.Fatalf("expected result remaining 12, got %#v", result.Remaining)
+	}
+}
+
+func TestValidatorQueriesMimoBalance(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("api-key") != "sk-mimo-api-key" {
+			t.Fatalf("unexpected api-key header: %q", r.Header.Get("api-key"))
+		}
+		switch r.URL.Path {
+		case "/mimo/v1/models":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case "/platform/api/v1/balance":
+			if r.Header.Get("Cookie") != "serviceToken=console-session; userId=123" {
+				t.Fatalf("unexpected Cookie header: %q", r.Header.Get("Cookie"))
+			}
+			if r.Header.Get("Referer") != "https://platform.xiaomimimo.com/console/balance" {
+				t.Fatalf("unexpected Referer header: %q", r.Header.Get("Referer"))
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{
+				"code": 0,
+				"message": "",
+				"data": {
+					"balance": "94.88",
+					"frozenBalance": "0.00",
+					"currency": "CNY",
+					"overdraftLimit": "0.00",
+					"remainingOverdraftLimit": "0.00",
+					"giftBalance": "94.88",
+					"cashBalance": "0.00"
+				}
+			}`))
+		default:
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	originalMimoPlatformAPIBaseURL := mimoPlatformAPIBaseURL
+	mimoPlatformAPIBaseURL = upstream.URL + "/platform/api/v1"
+	defer func() {
+		mimoPlatformAPIBaseURL = originalMimoPlatformAPIBaseURL
+	}()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:            3000,
+		ControlPort:          3890,
+		XiaomiAPIBaseURL:     upstream.URL + "/mimo/v1",
+		XiaomiPlatformCookie: "serviceToken=console-session; userId=123",
+		SwitchThreshold:      15,
+		MaxRetries:           1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:       token.ProviderXiaomi,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "sk-mimo-api-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil {
+		t.Fatal("expected MiMo balance usage details")
+	}
+	if result.Usage.BalanceUnit != "CNY" || result.Usage.BalanceRemaining != 94.88 {
+		t.Fatalf("unexpected balance usage: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 100 {
+		t.Fatalf("expected positive balance to map to remaining 100, got %#v", result.Remaining)
 	}
 }
 
