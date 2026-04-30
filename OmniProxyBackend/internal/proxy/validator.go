@@ -458,25 +458,7 @@ func (v *Validator) queryDeepSeekBalance(ctx context.Context, selected token.Tok
 	}
 
 	infos, _ := payload["balance_infos"].([]any)
-	var balance float64
-	unit := "CNY"
-	found := false
-	for _, raw := range infos {
-		info, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		if currency, ok := stringFromAny(info["currency"]); ok {
-			unit = currency
-		}
-		parsed, ok := floatFromAny(info["total_balance"])
-		if !ok {
-			continue
-		}
-		balance = parsed
-		found = true
-		break
-	}
+	balance, unit, found := deepSeekBalanceFromInfos(infos)
 	if !found {
 		return token.UsageInfo{}, nil, false
 	}
@@ -494,6 +476,61 @@ func (v *Validator) queryDeepSeekBalance(ctx context.Context, selected token.Tok
 		LimitReached:     !available || balance <= 0,
 		Message:          "DeepSeek balance",
 	}, &remaining, true
+}
+
+type deepSeekBalanceEntry struct {
+	unit    string
+	balance float64
+}
+
+func deepSeekBalanceFromInfos(infos []any) (float64, string, bool) {
+	entries := make([]deepSeekBalanceEntry, 0, len(infos))
+	for _, raw := range infos {
+		info, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		balance, ok := deepSeekBalanceValue(info)
+		if !ok {
+			continue
+		}
+		unit := "CNY"
+		if currency, ok := stringFromAny(info["currency"]); ok && strings.TrimSpace(currency) != "" {
+			unit = strings.ToUpper(strings.TrimSpace(currency))
+		}
+		entries = append(entries, deepSeekBalanceEntry{
+			unit:    unit,
+			balance: balance,
+		})
+	}
+	if len(entries) == 0 {
+		return 0, "", false
+	}
+	for _, preferredUnit := range []string{"CNY", "USD"} {
+		for _, entry := range entries {
+			if entry.unit == preferredUnit && entry.balance > 0 {
+				return entry.balance, entry.unit, true
+			}
+		}
+	}
+	for _, entry := range entries {
+		if entry.balance > 0 {
+			return entry.balance, entry.unit, true
+		}
+	}
+	return entries[0].balance, entries[0].unit, true
+}
+
+func deepSeekBalanceValue(info map[string]any) (float64, bool) {
+	if balance, ok := floatFromAny(info["total_balance"]); ok {
+		return balance, true
+	}
+	granted, grantedOK := floatFromAny(info["granted_balance"])
+	toppedUp, toppedUpOK := floatFromAny(info["topped_up_balance"])
+	if grantedOK || toppedUpOK {
+		return granted + toppedUp, true
+	}
+	return 0, false
 }
 
 func (v *Validator) queryKimiCodingUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {

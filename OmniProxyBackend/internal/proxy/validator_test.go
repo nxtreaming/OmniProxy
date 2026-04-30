@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -67,6 +68,7 @@ func TestValidatorQueriesDeepSeekBalance(t *testing.T) {
 			_, _ = w.Write([]byte(`{
 				"is_available": true,
 				"balance_infos": [
+					{"currency": "USD", "total_balance": "0.00"},
 					{"currency": "CNY", "total_balance": "12.50"}
 				]
 			}`))
@@ -102,6 +104,63 @@ func TestValidatorQueriesDeepSeekBalance(t *testing.T) {
 	}
 	if result.Remaining == nil || *result.Remaining != 100 {
 		t.Fatalf("expected positive balance to map to remaining 100, got %#v", result.Remaining)
+	}
+}
+
+func TestDeepSeekBalanceFromInfosSelectsPositiveCurrency(t *testing.T) {
+	tests := []struct {
+		name        string
+		infos       []any
+		wantBalance float64
+		wantUnit    string
+	}{
+		{
+			name: "positive cny after zero usd",
+			infos: []any{
+				map[string]any{"currency": "USD", "total_balance": "0.00"},
+				map[string]any{"currency": "CNY", "total_balance": "12.50"},
+			},
+			wantBalance: 12.5,
+			wantUnit:    "CNY",
+		},
+		{
+			name: "positive usd after zero cny",
+			infos: []any{
+				map[string]any{"currency": "CNY", "total_balance": "0.00"},
+				map[string]any{"currency": "USD", "total_balance": "1.25"},
+			},
+			wantBalance: 1.25,
+			wantUnit:    "USD",
+		},
+		{
+			name: "deterministic cny preference when both are positive",
+			infos: []any{
+				map[string]any{"currency": "USD", "total_balance": "1.25"},
+				map[string]any{"currency": "CNY", "total_balance": "12.50"},
+			},
+			wantBalance: 12.5,
+			wantUnit:    "CNY",
+		},
+		{
+			name: "fallback to granted plus topped up balance",
+			infos: []any{
+				map[string]any{"currency": "USD", "granted_balance": "0.10", "topped_up_balance": "0.20"},
+			},
+			wantBalance: 0.3,
+			wantUnit:    "USD",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			balance, unit, ok := deepSeekBalanceFromInfos(tt.infos)
+			if !ok {
+				t.Fatal("expected balance info")
+			}
+			if math.Abs(balance-tt.wantBalance) > 0.000001 || unit != tt.wantUnit {
+				t.Fatalf("unexpected balance=%v unit=%q", balance, unit)
+			}
+		})
 	}
 }
 
