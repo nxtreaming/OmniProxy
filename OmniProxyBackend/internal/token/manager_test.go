@@ -202,13 +202,30 @@ func TestManagerValidatesXiaomiCredentialFormats(t *testing.T) {
 	if _, err := manager.Add(UpsertRequest{Name: "paygo", Provider: ProviderXiaomi, TokenValue: "sk-xiaomi-paygo"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.Add(UpsertRequest{
+	plan, err := manager.Add(UpsertRequest{
 		Name:           "plan",
 		Provider:       ProviderXiaomi,
 		CredentialType: CredentialTypeMimoTokenPlan,
 		TokenValue:     "tp-xiaomi-token-plan",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if plan.Region != MimoRegionCN {
+		t.Fatalf("expected default MiMo Token Plan region cn, got %q", plan.Region)
+	}
+	planSGP, err := manager.Add(UpsertRequest{
+		Name:           "plan-sgp",
+		Provider:       ProviderXiaomi,
+		CredentialType: CredentialTypeMimoTokenPlan,
+		Region:         MimoRegionSGP,
+		TokenValue:     "tp-xiaomi-token-plan-sgp",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planSGP.Region != MimoRegionSGP {
+		t.Fatalf("expected MiMo Token Plan region sgp, got %q", planSGP.Region)
 	}
 	if _, err := manager.Add(UpsertRequest{Name: "bad-paygo", Provider: ProviderXiaomi, TokenValue: "tp-wrong-kind"}); err == nil {
 		t.Fatal("expected xiaomi pay-as-you-go key format error")
@@ -220,6 +237,15 @@ func TestManagerValidatesXiaomiCredentialFormats(t *testing.T) {
 		TokenValue:     "sk-wrong-kind",
 	}); err == nil {
 		t.Fatal("expected xiaomi token plan key format error")
+	}
+	if _, err := manager.Add(UpsertRequest{
+		Name:           "bad-plan-region",
+		Provider:       ProviderXiaomi,
+		CredentialType: CredentialTypeMimoTokenPlan,
+		Region:         "moon",
+		TokenValue:     "tp-xiaomi-token-plan-region",
+	}); err == nil {
+		t.Fatal("expected xiaomi token plan region error")
 	}
 }
 
@@ -242,6 +268,36 @@ func TestManagerUpdatePreservesTokenValueWhenBlank(t *testing.T) {
 	}
 	if updated.TokenValue != "sk-primary-token" {
 		t.Fatalf("expected token value to be preserved, got %q", updated.TokenValue)
+	}
+}
+
+func TestManagerUpdateAllowsMimoTokenPlanRegionChangeWithoutTokenValue(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{
+		Name:           "plan",
+		Provider:       ProviderXiaomi,
+		CredentialType: CredentialTypeMimoTokenPlan,
+		Region:         MimoRegionCN,
+		TokenValue:     "tp-xiaomi-token-plan",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := manager.Update(item.ID, UpsertRequest{
+		Name:           "plan",
+		Provider:       ProviderXiaomi,
+		CredentialType: CredentialTypeMimoTokenPlan,
+		Region:         MimoRegionSGP,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Region != MimoRegionSGP || updated.TokenValue != "tp-xiaomi-token-plan" {
+		t.Fatalf("expected region update with preserved token, got %#v", updated)
 	}
 }
 

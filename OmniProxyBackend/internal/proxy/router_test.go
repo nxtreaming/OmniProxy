@@ -99,6 +99,54 @@ func TestRouterAvoidsDuplicateOpenAIVersionForVersionedProviderBaseURL(t *testin
 	}
 }
 
+func TestRouterTargetsXiaomiTokenPlanAnthropicSGPBaseURL(t *testing.T) {
+	router := NewRouter(config.Config{
+		XiaomiTokenPlanBaseURL:             "https://token-plan-cn.xiaomimimo.com/v1",
+		XiaomiTokenPlanSGPBaseURL:          "https://token-plan-sgp.xiaomimimo.com/v1",
+		XiaomiTokenPlanAnthropicBaseURL:    "https://token-plan-cn.xiaomimimo.com/anthropic",
+		XiaomiTokenPlanSGPAnthropicBaseURL: "https://token-plan-sgp.xiaomimimo.com/anthropic",
+	})
+	selected := token.Token{Provider: token.ProviderXiaomi, CredentialType: token.CredentialTypeMimoTokenPlan, Region: token.MimoRegionSGP}
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "direct xiaomi anthropic prefix",
+			path: "/xiaomi/anthropic/v1/messages",
+			body: `{}`,
+		},
+		{
+			name: "anthropic model router",
+			path: "/anthropic-router/v1/messages",
+			body: `{"model":"mimo-v2.5"}`,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			route := router.Route(mustRouterTestURL(t, tt.path), []byte(tt.body))
+			target, err := router.TargetURL(route, selected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if target != "https://token-plan-sgp.xiaomimimo.com/anthropic/v1/messages" {
+				t.Fatalf("unexpected target url: %s", target)
+			}
+		})
+	}
+
+	route := router.Route(mustRouterTestURL(t, "/xiaomi/v1/chat/completions"), []byte(`{}`))
+	target, err := router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions" {
+		t.Fatalf("unexpected openai-compatible target url: %s", target)
+	}
+}
+
 func mustRouterTestURL(t *testing.T, raw string) *url.URL {
 	t.Helper()
 	parsed, err := url.Parse(raw)

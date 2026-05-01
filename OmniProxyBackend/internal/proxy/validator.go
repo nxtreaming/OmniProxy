@@ -41,24 +41,26 @@ var (
 func NewValidator(cfg config.Config) (*Validator, error) {
 	cfg = config.Normalize(cfg)
 	for name, baseURL := range map[string]string{
-		"openai":                      cfg.OpenAIBaseURL,
-		"anthropic":                   cfg.AnthropicBaseURL,
-		"deepseek":                    cfg.DeepSeekBaseURL,
-		"deepseek_anthropic":          cfg.DeepSeekAnthropicBaseURL,
-		"kimi":                        cfg.KimiBaseURL,
-		"zhipu":                       cfg.ZhipuBaseURL,
-		"zhipu_anthropic":             cfg.ZhipuAnthropicBaseURL,
-		"minimax":                     cfg.MiniMaxBaseURL,
-		"minimax_anthropic":           cfg.MiniMaxAnthropicBaseURL,
-		"gemini":                      cfg.GeminiBaseURL,
-		"custom_gateway":              cfg.CustomGatewayBaseURL,
-		"custom_gateway_anthropic":    cfg.CustomGatewayAnthropicBaseURL,
-		"xiaomi_api":                  cfg.XiaomiAPIBaseURL,
-		"xiaomi_api_anthropic":        cfg.XiaomiAPIAnthropicBaseURL,
-		"xiaomi_token_plan":           cfg.XiaomiTokenPlanBaseURL,
-		"xiaomi_token_plan_anthropic": cfg.XiaomiTokenPlanAnthropicBaseURL,
-		"codex":                       cfg.CodexBaseURL,
-		"codex_usage":                 cfg.CodexUsageEndpoint,
+		"openai":                          cfg.OpenAIBaseURL,
+		"anthropic":                       cfg.AnthropicBaseURL,
+		"deepseek":                        cfg.DeepSeekBaseURL,
+		"deepseek_anthropic":              cfg.DeepSeekAnthropicBaseURL,
+		"kimi":                            cfg.KimiBaseURL,
+		"zhipu":                           cfg.ZhipuBaseURL,
+		"zhipu_anthropic":                 cfg.ZhipuAnthropicBaseURL,
+		"minimax":                         cfg.MiniMaxBaseURL,
+		"minimax_anthropic":               cfg.MiniMaxAnthropicBaseURL,
+		"gemini":                          cfg.GeminiBaseURL,
+		"custom_gateway":                  cfg.CustomGatewayBaseURL,
+		"custom_gateway_anthropic":        cfg.CustomGatewayAnthropicBaseURL,
+		"xiaomi_api":                      cfg.XiaomiAPIBaseURL,
+		"xiaomi_api_anthropic":            cfg.XiaomiAPIAnthropicBaseURL,
+		"xiaomi_token_plan":               cfg.XiaomiTokenPlanBaseURL,
+		"xiaomi_token_plan_anthropic":     cfg.XiaomiTokenPlanAnthropicBaseURL,
+		"xiaomi_token_plan_sgp":           cfg.XiaomiTokenPlanSGPBaseURL,
+		"xiaomi_token_plan_sgp_anthropic": cfg.XiaomiTokenPlanSGPAnthropicBaseURL,
+		"codex":                           cfg.CodexBaseURL,
+		"codex_usage":                     cfg.CodexUsageEndpoint,
 	} {
 		if strings.TrimSpace(baseURL) == "" {
 			continue
@@ -189,6 +191,9 @@ func (v *Validator) baseURL(selected token.Token) string {
 		return v.cfg.CustomGatewayBaseURL
 	case token.ProviderXiaomi:
 		if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
+			if selected.Region == token.MimoRegionSGP {
+				return v.cfg.XiaomiTokenPlanSGPBaseURL
+			}
 			return v.cfg.XiaomiTokenPlanBaseURL
 		}
 		return v.cfg.XiaomiAPIBaseURL

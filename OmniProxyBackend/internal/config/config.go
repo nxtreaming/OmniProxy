@@ -21,66 +21,70 @@ const (
 )
 
 type Config struct {
-	ProxyPort                       int    `json:"proxyPort"`
-	ControlPort                     int    `json:"controlPort"`
-	SchedulingMode                  string `json:"schedulingMode"`
-	WebSocketMode                   string `json:"websocketMode"`
-	UpstreamBaseURL                 string `json:"upstreamBaseUrl"`
-	OpenAIBaseURL                   string `json:"openaiBaseUrl"`
-	AnthropicBaseURL                string `json:"anthropicBaseUrl"`
-	DeepSeekBaseURL                 string `json:"deepseekBaseUrl"`
-	DeepSeekAnthropicBaseURL        string `json:"deepseekAnthropicBaseUrl"`
-	KimiBaseURL                     string `json:"kimiBaseUrl"`
-	ZhipuBaseURL                    string `json:"zhipuBaseUrl"`
-	ZhipuAnthropicBaseURL           string `json:"zhipuAnthropicBaseUrl"`
-	MiniMaxBaseURL                  string `json:"minimaxBaseUrl"`
-	MiniMaxAnthropicBaseURL         string `json:"minimaxAnthropicBaseUrl"`
-	GeminiBaseURL                   string `json:"geminiBaseUrl"`
-	CustomGatewayBaseURL            string `json:"customGatewayBaseUrl"`
-	CustomGatewayAnthropicBaseURL   string `json:"customGatewayAnthropicBaseUrl"`
-	XiaomiBaseURL                   string `json:"xiaomiBaseUrl"`
-	XiaomiAPIBaseURL                string `json:"xiaomiApiBaseUrl"`
-	XiaomiAPIAnthropicBaseURL       string `json:"xiaomiApiAnthropicBaseUrl"`
-	XiaomiTokenPlanBaseURL          string `json:"xiaomiTokenPlanBaseUrl"`
-	XiaomiTokenPlanAnthropicBaseURL string `json:"xiaomiTokenPlanAnthropicBaseUrl"`
-	XiaomiPlatformCookie            string `json:"xiaomiPlatformCookie,omitempty"`
-	XiaomiCredentialPriority        string `json:"xiaomiCredentialPriority"`
-	CodexBaseURL                    string `json:"codexBaseUrl"`
-	SwitchThreshold                 int    `json:"switchThreshold"`
-	MaxRetries                      int    `json:"maxRetries"`
-	CodexUsageEndpoint              string `json:"codexUsageEndpoint"`
+	ProxyPort                          int    `json:"proxyPort"`
+	ControlPort                        int    `json:"controlPort"`
+	SchedulingMode                     string `json:"schedulingMode"`
+	WebSocketMode                      string `json:"websocketMode"`
+	UpstreamBaseURL                    string `json:"upstreamBaseUrl"`
+	OpenAIBaseURL                      string `json:"openaiBaseUrl"`
+	AnthropicBaseURL                   string `json:"anthropicBaseUrl"`
+	DeepSeekBaseURL                    string `json:"deepseekBaseUrl"`
+	DeepSeekAnthropicBaseURL           string `json:"deepseekAnthropicBaseUrl"`
+	KimiBaseURL                        string `json:"kimiBaseUrl"`
+	ZhipuBaseURL                       string `json:"zhipuBaseUrl"`
+	ZhipuAnthropicBaseURL              string `json:"zhipuAnthropicBaseUrl"`
+	MiniMaxBaseURL                     string `json:"minimaxBaseUrl"`
+	MiniMaxAnthropicBaseURL            string `json:"minimaxAnthropicBaseUrl"`
+	GeminiBaseURL                      string `json:"geminiBaseUrl"`
+	CustomGatewayBaseURL               string `json:"customGatewayBaseUrl"`
+	CustomGatewayAnthropicBaseURL      string `json:"customGatewayAnthropicBaseUrl"`
+	XiaomiBaseURL                      string `json:"xiaomiBaseUrl"`
+	XiaomiAPIBaseURL                   string `json:"xiaomiApiBaseUrl"`
+	XiaomiAPIAnthropicBaseURL          string `json:"xiaomiApiAnthropicBaseUrl"`
+	XiaomiTokenPlanBaseURL             string `json:"xiaomiTokenPlanBaseUrl"`
+	XiaomiTokenPlanAnthropicBaseURL    string `json:"xiaomiTokenPlanAnthropicBaseUrl"`
+	XiaomiTokenPlanSGPBaseURL          string `json:"xiaomiTokenPlanSgpBaseUrl"`
+	XiaomiTokenPlanSGPAnthropicBaseURL string `json:"xiaomiTokenPlanSgpAnthropicBaseUrl"`
+	XiaomiPlatformCookie               string `json:"xiaomiPlatformCookie,omitempty"`
+	XiaomiCredentialPriority           string `json:"xiaomiCredentialPriority"`
+	CodexBaseURL                       string `json:"codexBaseUrl"`
+	SwitchThreshold                    int    `json:"switchThreshold"`
+	MaxRetries                         int    `json:"maxRetries"`
+	CodexUsageEndpoint                 string `json:"codexUsageEndpoint"`
 }
 
 func Default() Config {
 	return Config{
-		ProxyPort:                       DefaultProxyPort(),
-		ControlPort:                     DefaultControlPort(),
-		SchedulingMode:                  SchedulingModeQueue,
-		WebSocketMode:                   WebSocketModeEnabled,
-		UpstreamBaseURL:                 "https://api.openai.com",
-		OpenAIBaseURL:                   "https://api.openai.com",
-		AnthropicBaseURL:                "https://api.anthropic.com",
-		DeepSeekBaseURL:                 "https://api.deepseek.com",
-		DeepSeekAnthropicBaseURL:        "https://api.deepseek.com/anthropic",
-		KimiBaseURL:                     "https://api.kimi.com/coding",
-		ZhipuBaseURL:                    "https://open.bigmodel.cn/api/paas/v4",
-		ZhipuAnthropicBaseURL:           "https://open.bigmodel.cn/api/anthropic",
-		MiniMaxBaseURL:                  "https://api.minimaxi.com/v1",
-		MiniMaxAnthropicBaseURL:         "https://api.minimaxi.com/anthropic",
-		GeminiBaseURL:                   "https://generativelanguage.googleapis.com",
-		CustomGatewayBaseURL:            "",
-		CustomGatewayAnthropicBaseURL:   "",
-		XiaomiBaseURL:                   "",
-		XiaomiAPIBaseURL:                "https://api.xiaomimimo.com/v1",
-		XiaomiAPIAnthropicBaseURL:       "https://api.xiaomimimo.com/anthropic",
-		XiaomiTokenPlanBaseURL:          "https://token-plan-cn.xiaomimimo.com/v1",
-		XiaomiTokenPlanAnthropicBaseURL: "https://token-plan-cn.xiaomimimo.com/anthropic",
-		XiaomiPlatformCookie:            "",
-		XiaomiCredentialPriority:        MimoCredentialPriorityTokenPlan,
-		CodexBaseURL:                    "https://chatgpt.com/backend-api/codex",
-		SwitchThreshold:                 15,
-		MaxRetries:                      2,
-		CodexUsageEndpoint:              "https://chatgpt.com/backend-api/wham/usage",
+		ProxyPort:                          DefaultProxyPort(),
+		ControlPort:                        DefaultControlPort(),
+		SchedulingMode:                     SchedulingModeQueue,
+		WebSocketMode:                      WebSocketModeEnabled,
+		UpstreamBaseURL:                    "https://api.openai.com",
+		OpenAIBaseURL:                      "https://api.openai.com",
+		AnthropicBaseURL:                   "https://api.anthropic.com",
+		DeepSeekBaseURL:                    "https://api.deepseek.com",
+		DeepSeekAnthropicBaseURL:           "https://api.deepseek.com/anthropic",
+		KimiBaseURL:                        "https://api.kimi.com/coding",
+		ZhipuBaseURL:                       "https://open.bigmodel.cn/api/paas/v4",
+		ZhipuAnthropicBaseURL:              "https://open.bigmodel.cn/api/anthropic",
+		MiniMaxBaseURL:                     "https://api.minimaxi.com/v1",
+		MiniMaxAnthropicBaseURL:            "https://api.minimaxi.com/anthropic",
+		GeminiBaseURL:                      "https://generativelanguage.googleapis.com",
+		CustomGatewayBaseURL:               "",
+		CustomGatewayAnthropicBaseURL:      "",
+		XiaomiBaseURL:                      "",
+		XiaomiAPIBaseURL:                   "https://api.xiaomimimo.com/v1",
+		XiaomiAPIAnthropicBaseURL:          "https://api.xiaomimimo.com/anthropic",
+		XiaomiTokenPlanBaseURL:             "https://token-plan-cn.xiaomimimo.com/v1",
+		XiaomiTokenPlanAnthropicBaseURL:    "https://token-plan-cn.xiaomimimo.com/anthropic",
+		XiaomiTokenPlanSGPBaseURL:          "https://token-plan-sgp.xiaomimimo.com/v1",
+		XiaomiTokenPlanSGPAnthropicBaseURL: "https://token-plan-sgp.xiaomimimo.com/anthropic",
+		XiaomiPlatformCookie:               "",
+		XiaomiCredentialPriority:           MimoCredentialPriorityTokenPlan,
+		CodexBaseURL:                       "https://chatgpt.com/backend-api/codex",
+		SwitchThreshold:                    15,
+		MaxRetries:                         2,
+		CodexUsageEndpoint:                 "https://chatgpt.com/backend-api/wham/usage",
 	}
 }
 
@@ -108,34 +112,36 @@ func (s *Store) Load() (Config, error) {
 	}
 
 	var saved struct {
-		ProxyPort                       *int    `json:"proxyPort"`
-		ControlPort                     *int    `json:"controlPort"`
-		SchedulingMode                  *string `json:"schedulingMode"`
-		WebSocketMode                   *string `json:"websocketMode"`
-		UpstreamBaseURL                 *string `json:"upstreamBaseUrl"`
-		OpenAIBaseURL                   *string `json:"openaiBaseUrl"`
-		AnthropicBaseURL                *string `json:"anthropicBaseUrl"`
-		DeepSeekBaseURL                 *string `json:"deepseekBaseUrl"`
-		DeepSeekAnthropicBaseURL        *string `json:"deepseekAnthropicBaseUrl"`
-		KimiBaseURL                     *string `json:"kimiBaseUrl"`
-		ZhipuBaseURL                    *string `json:"zhipuBaseUrl"`
-		ZhipuAnthropicBaseURL           *string `json:"zhipuAnthropicBaseUrl"`
-		MiniMaxBaseURL                  *string `json:"minimaxBaseUrl"`
-		MiniMaxAnthropicBaseURL         *string `json:"minimaxAnthropicBaseUrl"`
-		GeminiBaseURL                   *string `json:"geminiBaseUrl"`
-		CustomGatewayBaseURL            *string `json:"customGatewayBaseUrl"`
-		CustomGatewayAnthropicBaseURL   *string `json:"customGatewayAnthropicBaseUrl"`
-		XiaomiBaseURL                   *string `json:"xiaomiBaseUrl"`
-		XiaomiAPIBaseURL                *string `json:"xiaomiApiBaseUrl"`
-		XiaomiAPIAnthropicBaseURL       *string `json:"xiaomiApiAnthropicBaseUrl"`
-		XiaomiTokenPlanBaseURL          *string `json:"xiaomiTokenPlanBaseUrl"`
-		XiaomiTokenPlanAnthropicBaseURL *string `json:"xiaomiTokenPlanAnthropicBaseUrl"`
-		XiaomiPlatformCookie            *string `json:"xiaomiPlatformCookie"`
-		XiaomiCredentialPriority        *string `json:"xiaomiCredentialPriority"`
-		CodexBaseURL                    *string `json:"codexBaseUrl"`
-		SwitchThreshold                 *int    `json:"switchThreshold"`
-		MaxRetries                      *int    `json:"maxRetries"`
-		CodexUsageEndpoint              *string `json:"codexUsageEndpoint"`
+		ProxyPort                          *int    `json:"proxyPort"`
+		ControlPort                        *int    `json:"controlPort"`
+		SchedulingMode                     *string `json:"schedulingMode"`
+		WebSocketMode                      *string `json:"websocketMode"`
+		UpstreamBaseURL                    *string `json:"upstreamBaseUrl"`
+		OpenAIBaseURL                      *string `json:"openaiBaseUrl"`
+		AnthropicBaseURL                   *string `json:"anthropicBaseUrl"`
+		DeepSeekBaseURL                    *string `json:"deepseekBaseUrl"`
+		DeepSeekAnthropicBaseURL           *string `json:"deepseekAnthropicBaseUrl"`
+		KimiBaseURL                        *string `json:"kimiBaseUrl"`
+		ZhipuBaseURL                       *string `json:"zhipuBaseUrl"`
+		ZhipuAnthropicBaseURL              *string `json:"zhipuAnthropicBaseUrl"`
+		MiniMaxBaseURL                     *string `json:"minimaxBaseUrl"`
+		MiniMaxAnthropicBaseURL            *string `json:"minimaxAnthropicBaseUrl"`
+		GeminiBaseURL                      *string `json:"geminiBaseUrl"`
+		CustomGatewayBaseURL               *string `json:"customGatewayBaseUrl"`
+		CustomGatewayAnthropicBaseURL      *string `json:"customGatewayAnthropicBaseUrl"`
+		XiaomiBaseURL                      *string `json:"xiaomiBaseUrl"`
+		XiaomiAPIBaseURL                   *string `json:"xiaomiApiBaseUrl"`
+		XiaomiAPIAnthropicBaseURL          *string `json:"xiaomiApiAnthropicBaseUrl"`
+		XiaomiTokenPlanBaseURL             *string `json:"xiaomiTokenPlanBaseUrl"`
+		XiaomiTokenPlanAnthropicBaseURL    *string `json:"xiaomiTokenPlanAnthropicBaseUrl"`
+		XiaomiTokenPlanSGPBaseURL          *string `json:"xiaomiTokenPlanSgpBaseUrl"`
+		XiaomiTokenPlanSGPAnthropicBaseURL *string `json:"xiaomiTokenPlanSgpAnthropicBaseUrl"`
+		XiaomiPlatformCookie               *string `json:"xiaomiPlatformCookie"`
+		XiaomiCredentialPriority           *string `json:"xiaomiCredentialPriority"`
+		CodexBaseURL                       *string `json:"codexBaseUrl"`
+		SwitchThreshold                    *int    `json:"switchThreshold"`
+		MaxRetries                         *int    `json:"maxRetries"`
+		CodexUsageEndpoint                 *string `json:"codexUsageEndpoint"`
 	}
 	if err := json.Unmarshal(data, &saved); err != nil {
 		return cfg, err
@@ -208,6 +214,12 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.XiaomiTokenPlanAnthropicBaseURL != nil && *saved.XiaomiTokenPlanAnthropicBaseURL != "" {
 		cfg.XiaomiTokenPlanAnthropicBaseURL = *saved.XiaomiTokenPlanAnthropicBaseURL
+	}
+	if saved.XiaomiTokenPlanSGPBaseURL != nil && *saved.XiaomiTokenPlanSGPBaseURL != "" {
+		cfg.XiaomiTokenPlanSGPBaseURL = *saved.XiaomiTokenPlanSGPBaseURL
+	}
+	if saved.XiaomiTokenPlanSGPAnthropicBaseURL != nil && *saved.XiaomiTokenPlanSGPAnthropicBaseURL != "" {
+		cfg.XiaomiTokenPlanSGPAnthropicBaseURL = *saved.XiaomiTokenPlanSGPAnthropicBaseURL
 	}
 	if saved.XiaomiPlatformCookie != nil {
 		cfg.XiaomiPlatformCookie = *saved.XiaomiPlatformCookie
@@ -309,6 +321,12 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.XiaomiTokenPlanAnthropicBaseURL == "" {
 		cfg.XiaomiTokenPlanAnthropicBaseURL = defaults.XiaomiTokenPlanAnthropicBaseURL
+	}
+	if cfg.XiaomiTokenPlanSGPBaseURL == "" {
+		cfg.XiaomiTokenPlanSGPBaseURL = defaults.XiaomiTokenPlanSGPBaseURL
+	}
+	if cfg.XiaomiTokenPlanSGPAnthropicBaseURL == "" {
+		cfg.XiaomiTokenPlanSGPAnthropicBaseURL = defaults.XiaomiTokenPlanSGPAnthropicBaseURL
 	}
 	cfg.XiaomiPlatformCookie = strings.TrimSpace(cfg.XiaomiPlatformCookie)
 	switch strings.ToLower(strings.TrimSpace(cfg.XiaomiCredentialPriority)) {

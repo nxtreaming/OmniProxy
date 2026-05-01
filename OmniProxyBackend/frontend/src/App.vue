@@ -136,6 +136,8 @@ const config = reactive({
   xiaomiApiAnthropicBaseUrl: 'https://api.xiaomimimo.com/anthropic',
   xiaomiTokenPlanBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
   xiaomiTokenPlanAnthropicBaseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+  xiaomiTokenPlanSgpBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1',
+  xiaomiTokenPlanSgpAnthropicBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/anthropic',
   xiaomiPlatformCookie: '',
   xiaomiCredentialPriority: 'mimo_token_plan',
   codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
@@ -169,6 +171,7 @@ const form = reactive({
   originalProvider: 'openai',
   credentialType: 'api_key',
   originalCredentialType: 'api_key',
+  region: 'cn',
   tokenValue: '',
 })
 const activeTokens = computed(() => tokens.value.filter((item) => item.status === 'active'))
@@ -435,6 +438,7 @@ function openCreateForm(provider = 'openai') {
     originalProvider: provider,
     credentialType: 'api_key',
     originalCredentialType: 'api_key',
+    region: 'cn',
     tokenValue: '',
   })
 }
@@ -448,6 +452,7 @@ function openEditForm(token) {
     originalProvider: token.provider,
     credentialType: token.credentialType || 'api_key',
     originalCredentialType: token.credentialType || 'api_key',
+    region: token.region || 'cn',
     tokenValue: '',
   })
 }
@@ -463,6 +468,7 @@ async function submitForm() {
   const tokenValue = form.tokenValue.trim()
   const provider = form.provider.trim() || 'openai'
   const credentialType = normalizedCredentialType(provider, form.credentialType)
+  const region = provider === 'xiaomi' && credentialType === 'mimo_token_plan' ? form.region || 'cn' : ''
   const isEditing = Boolean(form.editingId)
   const replacingCredential = tokenValue !== ''
 
@@ -511,6 +517,7 @@ async function submitForm() {
     name,
     provider,
     credentialType,
+    region,
     tokenValue,
   }
 
@@ -711,6 +718,8 @@ async function persistConfig() {
       xiaomiApiAnthropicBaseUrl: config.xiaomiApiAnthropicBaseUrl.trim(),
       xiaomiTokenPlanBaseUrl: config.xiaomiTokenPlanBaseUrl.trim(),
       xiaomiTokenPlanAnthropicBaseUrl: config.xiaomiTokenPlanAnthropicBaseUrl.trim(),
+      xiaomiTokenPlanSgpBaseUrl: config.xiaomiTokenPlanSgpBaseUrl.trim(),
+      xiaomiTokenPlanSgpAnthropicBaseUrl: config.xiaomiTokenPlanSgpAnthropicBaseUrl.trim(),
       xiaomiPlatformCookie: config.xiaomiPlatformCookie.trim(),
       xiaomiCredentialPriority: config.xiaomiCredentialPriority,
       codexBaseUrl: config.codexBaseUrl.trim(),

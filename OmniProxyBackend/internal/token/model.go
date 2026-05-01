@@ -29,11 +29,17 @@ const (
 	CredentialTypeMimoTokenPlan = "mimo_token_plan"
 )
 
+const (
+	MimoRegionCN  = "cn"
+	MimoRegionSGP = "sgp"
+)
+
 type Token struct {
 	ID             string     `json:"id"`
 	Name           string     `json:"name"`
 	Provider       string     `json:"provider"`
 	CredentialType string     `json:"credentialType"`
+	Region         string     `json:"region,omitempty"`
 	TokenValue     string     `json:"tokenValue"`
 	Remaining      int        `json:"remaining"`
 	Usage          UsageInfo  `json:"usage"`
@@ -105,5 +111,6 @@ type UpsertRequest struct {
 	Name           string `json:"name"`
 	Provider       string `json:"provider"`
 	CredentialType string `json:"credentialType"`
+	Region         string `json:"region,omitempty"`
 	TokenValue     string `json:"tokenValue"`
 }

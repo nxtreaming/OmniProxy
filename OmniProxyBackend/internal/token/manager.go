@@ -92,7 +92,7 @@ func (m *Manager) Get(id string) (Token, error) {
 }
 
 func (m *Manager) Add(req UpsertRequest) (Token, error) {
-	name, provider, credentialType, value, err := normalizeRequest(req)
+	name, provider, credentialType, region, value, err := normalizeRequest(req)
 	if err != nil {
 		return Token{}, err
 	}
@@ -110,6 +110,7 @@ func (m *Manager) Add(req UpsertRequest) (Token, error) {
 		Name:           name,
 		Provider:       provider,
 		CredentialType: credentialType,
+		Region:         region,
 		TokenValue:     value,
 		Remaining:      100,
 		Status:         StatusActive,
@@ -143,8 +144,11 @@ func (m *Manager) Update(id string, req UpsertRequest) (Token, error) {
 	if strings.TrimSpace(req.CredentialType) == "" {
 		req.CredentialType = existing.CredentialType
 	}
+	if strings.TrimSpace(req.Region) == "" {
+		req.Region = existing.Region
+	}
 
-	name, provider, credentialType, value, err := normalizeUpdateRequest(existing, req)
+	name, provider, credentialType, region, value, err := normalizeUpdateRequest(existing, req)
 	if err != nil {
 		return Token{}, err
 	}
@@ -156,6 +160,7 @@ func (m *Manager) Update(id string, req UpsertRequest) (Token, error) {
 	m.tokens[index].Name = name
 	m.tokens[index].Provider = provider
 	m.tokens[index].CredentialType = credentialType
+	m.tokens[index].Region = region
 	m.tokens[index].TokenValue = value
 	m.tokens[index].UpdatedAt = time.Now()
 	if m.tokens[index].Status == "" {
@@ -184,9 +189,10 @@ func (m *Manager) UpdateTokenValue(id string, value string) (Token, error) {
 		Name:           existing.Name,
 		Provider:       existing.Provider,
 		CredentialType: existing.CredentialType,
+		Region:         existing.Region,
 		TokenValue:     value,
 	}
-	name, provider, credentialType, normalizedValue, err := normalizeRequest(req)
+	name, provider, credentialType, region, normalizedValue, err := normalizeRequest(req)
 	if err != nil {
 		return Token{}, err
 	}
@@ -197,6 +203,7 @@ func (m *Manager) UpdateTokenValue(id string, value string) (Token, error) {
 	m.tokens[index].Name = name
 	m.tokens[index].Provider = provider
 	m.tokens[index].CredentialType = credentialType
+	m.tokens[index].Region = region
 	m.tokens[index].TokenValue = normalizedValue
 	m.tokens[index].UpdatedAt = time.Now()
 	if m.tokens[index].Status == "" || m.tokens[index].Status == StatusInvalid {
@@ -704,6 +711,7 @@ func normalizeStoredToken(item Token) Token {
 	}
 	item.Provider = provider
 	item.CredentialType = credentialType
+	item.Region = normalizeStoredRegion(provider, credentialType, item.Region)
 	if item.Status == "" {
 		item.Status = StatusActive
 	}
@@ -796,7 +804,7 @@ func (m *Manager) Flush() error {
 	return m.persistLocked()
 }
 
-func normalizeRequest(req UpsertRequest) (string, string, string, string, error) {
+func normalizeRequest(req UpsertRequest) (string, string, string, string, string, error) {
 	name := strings.TrimSpace(req.Name)
 	provider := strings.TrimSpace(strings.ToLower(req.Provider))
 	credentialType := strings.TrimSpace(strings.ToLower(req.CredentialType))
@@ -804,44 +812,52 @@ func normalizeRequest(req UpsertRequest) (string, string, string, string, error)
 
 	provider, credentialType, err := NormalizeProviderAndCredential(provider, credentialType)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
+	}
+	region, err := NormalizeRegion(provider, credentialType, req.Region)
+	if err != nil {
+		return "", "", "", "", "", err
 	}
 
 	if credentialType == CredentialTypeCodexAuthJSON {
 		if !json.Valid([]byte(value)) {
-			return "", "", "", "", errors.New("codex auth.json must be valid JSON")
+			return "", "", "", "", "", errors.New("codex auth.json must be valid JSON")
 		}
 		email, ok := ExtractCodexEmail(value)
 		if !ok {
-			return "", "", "", "", errors.New("codex auth.json does not contain an email in tokens.id_token")
+			return "", "", "", "", "", errors.New("codex auth.json does not contain an email in tokens.id_token")
 		}
 		name = email
 	} else if provider == ProviderXiaomi && credentialType == CredentialTypeAPIKey && !strings.HasPrefix(value, "sk-") {
-		return "", "", "", "", errors.New("xiaomi pay-as-you-go API key must start with sk-")
+		return "", "", "", "", "", errors.New("xiaomi pay-as-you-go API key must start with sk-")
 	} else if provider == ProviderXiaomi && credentialType == CredentialTypeMimoTokenPlan && !strings.HasPrefix(value, "tp-") {
-		return "", "", "", "", errors.New("xiaomi token plan API key must start with tp-")
+		return "", "", "", "", "", errors.New("xiaomi token plan API key must start with tp-")
 	} else if len(value) < 12 {
-		return "", "", "", "", errors.New("token value is too short")
+		return "", "", "", "", "", errors.New("token value is too short")
 	}
 
 	if name == "" {
-		return "", "", "", "", errors.New("token name is required")
+		return "", "", "", "", "", errors.New("token name is required")
 	}
 
-	return name, provider, credentialType, value, nil
+	return name, provider, credentialType, region, value, nil
 }
 
-func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, string, string, error) {
+func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, string, string, string, error) {
 	if strings.TrimSpace(req.TokenValue) != "" {
 		return normalizeRequest(req)
 	}
 
 	provider, credentialType, err := NormalizeProviderAndCredential(req.Provider, req.CredentialType)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
 	if provider != NormalizeProvider(existing.Provider) || credentialType != existing.CredentialType {
-		return "", "", "", "", errors.New("token value is required when changing provider or credential type")
+		return "", "", "", "", "", errors.New("token value is required when changing provider or credential type")
+	}
+	region, err := NormalizeRegion(provider, credentialType, req.Region)
+	if err != nil {
+		return "", "", "", "", "", err
 	}
 
 	name := strings.TrimSpace(req.Name)
@@ -849,20 +865,50 @@ func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, 
 		name = existing.Name
 	}
 	if name == "" {
-		return "", "", "", "", errors.New("token name is required")
+		return "", "", "", "", "", errors.New("token name is required")
 	}
 
 	value := strings.TrimSpace(existing.TokenValue)
 	if value == "" {
-		return "", "", "", "", errors.New("existing token value is empty")
+		return "", "", "", "", "", errors.New("existing token value is empty")
 	}
-	return name, provider, credentialType, value, nil
+	return name, provider, credentialType, region, value, nil
 }
 
 func NormalizeProvider(provider string) string {
 	normalized, _, err := NormalizeProviderAndCredential(provider, "")
 	if err != nil {
 		return ProviderOpenAI
+	}
+	return normalized
+}
+
+func NormalizeRegion(provider string, credentialType string, region string) (string, error) {
+	provider, credentialType, err := NormalizeProviderAndCredential(provider, credentialType)
+	if err != nil {
+		return "", err
+	}
+	if provider != ProviderXiaomi || credentialType != CredentialTypeMimoTokenPlan {
+		return "", nil
+	}
+
+	switch strings.ToLower(strings.TrimSpace(region)) {
+	case "", MimoRegionCN, "china", "cn-mainland", "mainland":
+		return MimoRegionCN, nil
+	case MimoRegionSGP, "global", "overseas", "foreign", "international", "intl":
+		return MimoRegionSGP, nil
+	default:
+		return "", errors.New("unsupported xiaomi token plan region")
+	}
+}
+
+func normalizeStoredRegion(provider string, credentialType string, region string) string {
+	normalized, err := NormalizeRegion(provider, credentialType, region)
+	if err != nil {
+		if provider == ProviderXiaomi && credentialType == CredentialTypeMimoTokenPlan {
+			return MimoRegionCN
+		}
+		return ""
 	}
 	return normalized
 }

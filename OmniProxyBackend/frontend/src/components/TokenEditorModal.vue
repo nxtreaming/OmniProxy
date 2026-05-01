@@ -54,6 +54,14 @@ defineEmits(['close', 'submit', 'provider-change'])
           <option v-if="form.provider === 'xiaomi'" value="mimo_token_plan">MiMo Token Plan (tp-)</option>
         </select>
       </label>
+      <label v-if="form.provider === 'xiaomi' && form.credentialType === 'mimo_token_plan'">
+        <span>Token Plan 区域</span>
+        <select v-model="form.region">
+          <option value="cn">中国区</option>
+          <option value="sgp">海外 SGP</option>
+        </select>
+        <small>海外账号会使用 token-plan-sgp.xiaomimimo.com。</small>
+      </label>
       <label>
         <span>{{ form.credentialType === 'codex_auth_json' ? 'auth.json 内容' : form.credentialType === 'mimo_token_plan' ? 'Token Plan Key' : 'API Key' }}</span>
         <textarea

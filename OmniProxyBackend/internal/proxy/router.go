@@ -154,7 +154,13 @@ func (r Router) BaseURL(route routeInfo, selected token.Token) string {
 	case token.ProviderXiaomi:
 		if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
 			if route.Protocol == "anthropic" {
+				if selected.Region == token.MimoRegionSGP {
+					return r.cfg.XiaomiTokenPlanSGPAnthropicBaseURL
+				}
 				return r.cfg.XiaomiTokenPlanAnthropicBaseURL
+			}
+			if selected.Region == token.MimoRegionSGP {
+				return r.cfg.XiaomiTokenPlanSGPBaseURL
 			}
 			return r.cfg.XiaomiTokenPlanBaseURL
 		}

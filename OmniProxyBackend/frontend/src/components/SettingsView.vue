@@ -265,12 +265,20 @@ defineEmits([
             <input v-model="config.xiaomiApiAnthropicBaseUrl" type="url" />
           </label>
           <label class="wide-field">
-            <span>Xiaomi MiMo Token Plan OpenAI Base URL</span>
+            <span>Xiaomi MiMo Token Plan OpenAI Base URL（中国区）</span>
             <input v-model="config.xiaomiTokenPlanBaseUrl" type="url" />
           </label>
           <label class="wide-field">
-            <span>Xiaomi MiMo Token Plan Anthropic Base URL</span>
+            <span>Xiaomi MiMo Token Plan Anthropic Base URL（中国区）</span>
             <input v-model="config.xiaomiTokenPlanAnthropicBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Xiaomi MiMo Token Plan OpenAI Base URL（海外 SGP）</span>
+            <input v-model="config.xiaomiTokenPlanSgpBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Xiaomi MiMo Token Plan Anthropic Base URL（海外 SGP）</span>
+            <input v-model="config.xiaomiTokenPlanSgpAnthropicBaseUrl" type="url" />
           </label>
           <label class="wide-field">
             <span>Xiaomi MiMo 控制台 Cookie</span>
