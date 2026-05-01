@@ -233,8 +233,11 @@ const trendGridColumns = computed(
   () => `repeat(${Math.max(1, recentDailyUsageRows.value.length)}, minmax(0, 1fr))`,
 )
 const toolUsageRows = computed(() => buildToolUsageRows(activeRequests.value, requestHistory.value))
-const isCodexForm = computed(
-  () => form.provider === 'openai' && form.credentialType === 'codex_auth_json',
+const isCodexForm = computed(() => form.provider === 'openai' && form.credentialType === 'codex_auth_json')
+const isAutoNameForm = computed(
+  () =>
+    isCodexForm.value ||
+    (form.provider === 'anthropic' && form.credentialType === 'claude_oauth_json'),
 )
 
 onMounted(async () => {
@@ -587,7 +590,7 @@ function closeForm() {
 async function submitForm() {
   errorMessage.value = ''
   successMessage.value = ''
-  const name = isCodexForm.value ? '' : form.name.trim()
+  const name = isAutoNameForm.value ? '' : form.name.trim()
   const tokenValue = form.tokenValue.trim()
   const provider = form.provider.trim() || 'openai'
   const credentialType = normalizedCredentialType(provider, form.credentialType)
@@ -595,13 +598,13 @@ async function submitForm() {
   const isEditing = Boolean(form.editingId)
   const replacingCredential = tokenValue !== ''
 
-  if (!isCodexForm.value && !name) {
+  if (!isAutoNameForm.value && !name) {
     errorMessage.value = '账号名称不能为空'
     return
   }
   const duplicate = tokens.value.some(
     (item) =>
-      !isCodexForm.value &&
+      !isAutoNameForm.value &&
       item.id !== form.editingId &&
       item.provider === provider &&
       item.name.toLowerCase() === name.toLowerCase(),
@@ -618,11 +621,22 @@ async function submitForm() {
     errorMessage.value = '更改厂商或凭据类型时需要重新填写凭据'
     return
   }
-  if (credentialType === 'codex_auth_json' && (!isEditing || replacingCredential)) {
+  if ((credentialType === 'codex_auth_json' || credentialType === 'claude_oauth_json') && (!isEditing || replacingCredential)) {
     try {
-      JSON.parse(tokenValue)
+      const parsed = JSON.parse(tokenValue)
+      if (
+        credentialType === 'claude_oauth_json' &&
+        !parsed.access_token &&
+        !parsed.accessToken &&
+        !parsed.refresh_token &&
+        !parsed.refreshToken &&
+        !parsed.claudeAiOauth
+      ) {
+        errorMessage.value = 'Claude OAuth JSON 需要包含 access_token 或 refresh_token'
+        return
+      }
     } catch {
-      errorMessage.value = 'Codex auth.json 内容不是有效 JSON'
+      errorMessage.value = credentialType === 'claude_oauth_json' ? 'Claude OAuth JSON 不是有效 JSON' : 'Codex auth.json 内容不是有效 JSON'
       return
     }
   } else if (replacingCredential && provider === 'xiaomi' && credentialType === 'mimo_token_plan' && !tokenValue.startsWith('tp-')) {
@@ -1185,6 +1199,7 @@ async function exportCodexAuthBackups() {
 function credentialDisplay(item) {
   if (item.maskedTokenValue) return item.maskedTokenValue
   if (item.credentialType === 'codex_auth_json') return 'auth.json'
+  if (item.credentialType === 'claude_oauth_json') return 'OAuth JSON'
   return item.hasTokenValue ? '已保存' : '-'
 }
 
@@ -1195,8 +1210,14 @@ function credentialPlaceholder() {
   if (form.credentialType === 'codex_auth_json') {
     return '粘贴 ~/.codex/auth.json 的完整 JSON 内容'
   }
+  if (form.credentialType === 'claude_oauth_json') {
+    return '粘贴 Claude OAuth JSON，需包含 access_token / refresh_token / expired'
+  }
   if (form.credentialType === 'mimo_token_plan') {
     return '粘贴 tp- 开头的 MiMo Token Plan Key'
+  }
+  if (form.credentialType === 'coding_plan') {
+    return '粘贴 GLM Coding Plan Key'
   }
   if (form.provider === 'xiaomi') {
     return '粘贴 sk- 开头的 MiMo 按量 API Key'
@@ -1205,7 +1226,7 @@ function credentialPlaceholder() {
     return '粘贴 Kimi Code API Key'
   }
   if (form.provider === 'zhipu') {
-    return '粘贴 Zhipu GLM API Key'
+    return '粘贴 Zhipu GLM API Key，格式通常为 id.secret'
   }
   if (form.provider === 'minimax') {
     return '粘贴 MiniMax API Key'
@@ -1239,8 +1260,14 @@ function normalizedCredentialType(provider, credentialType) {
   if (provider === 'openai') {
     return credentialType === 'codex_auth_json' ? 'codex_auth_json' : 'api_key'
   }
+  if (provider === 'anthropic') {
+    return credentialType === 'claude_oauth_json' ? 'claude_oauth_json' : 'api_key'
+  }
   if (provider === 'xiaomi') {
     return credentialType === 'mimo_token_plan' ? 'mimo_token_plan' : 'api_key'
+  }
+  if (provider === 'zhipu') {
+    return credentialType === 'coding_plan' ? 'coding_plan' : 'api_key'
   }
   return 'api_key'
 }
@@ -1466,8 +1493,16 @@ function isCodexToken(item) {
   return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
 }
 
+function isClaudeOAuthToken(item) {
+  return item?.provider === 'anthropic' && item?.credentialType === 'claude_oauth_json'
+}
+
 function isMimoTokenPlan(item) {
   return item?.provider === 'xiaomi' && item?.credentialType === 'mimo_token_plan'
+}
+
+function isZhipuCodingPlan(item) {
+  return item?.provider === 'zhipu' && item?.credentialType === 'coding_plan'
 }
 
 function showQuotaWindows(item) {
@@ -1475,10 +1510,12 @@ function showQuotaWindows(item) {
 }
 
 function quotaPrimaryLabel(item) {
+  if (isZhipuCodingPlan(item)) return '窗口额度'
   return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
 }
 
 function quotaSecondaryLabel(item) {
+  if (isZhipuCodingPlan(item)) return '周额度'
   return isMimoTokenPlan(item) ? '套餐额度' : '1 周额度'
 }
 
@@ -1490,6 +1527,14 @@ function quotaUnavailableText(item) {
   if (isCodexToken(item)) return '点击刷新额度获取'
   if (isMimoTokenPlan(item)) return 'Token Plan 暂无订阅额度'
   return '暂无订阅额度'
+}
+
+function weeklyLimitReached(item) {
+  if (!item?.usage?.subscriptionQuotaAvailable) return false
+  if (!isZhipuCodingPlan(item) && !isCodexToken(item) && !isMimoTokenPlan(item)) return false
+  const remaining = Number(item.usage?.secondaryRemainingPercent)
+  const used = Number(item.usage?.secondaryUsedPercent)
+  return Number.isFinite(remaining) && remaining <= 0 && Number.isFinite(used) && used > 0
 }
 
 function tokenUsageSummary(item) {
@@ -1752,6 +1797,7 @@ async function refreshQuota(item) {
                     <div class="quota-account-title">
                       <strong>{{ item.name }}</strong>
                       <span v-if="isTokenActiveNow(item)" class="current-usage-badge">正在使用</span>
+                      <span v-if="weeklyLimitReached(item)" class="limit-reached-badge">周限额已达</span>
                       <span :class="['tag', displayStatusClass(item)]">{{ displayStatusLabel(item) }}</span>
                     </div>
                     <small class="current-usage-meta">
@@ -1953,6 +1999,7 @@ async function refreshQuota(item) {
                   <el-tag v-if="item.usage?.subscriptionQuotaAvailable && item.usage?.planType" type="primary" effect="plain">
                     {{ planLabel(item.usage?.planType) }}
                   </el-tag>
+                  <el-tag v-if="weeklyLimitReached(item)" type="danger" effect="light">周限额已达</el-tag>
                   <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">{{ displayStatusLabel(item) }}</el-tag>
                   <el-tooltip content="刷新额度" placement="top">
                     <el-button
@@ -2239,7 +2286,7 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
         v-if="form.visible"
         :form="form"
         :providers="providers"
-        :is-codex-form="isCodexForm"
+        :is-codex-form="isAutoNameForm"
         :placeholder="credentialPlaceholder()"
         @close="closeForm"
         @submit="submitForm"

@@ -13,11 +13,11 @@ export const tabs = [
 
 export const providers = [
   { key: 'openai', label: 'OpenAI', note: '支持 API Key 和 Codex auth.json' },
-  { key: 'anthropic', label: 'Anthropic', note: 'API Key' },
+  { key: 'anthropic', label: 'Anthropic', note: 'API Key 或 Claude OAuth JSON' },
   { key: 'deepseek', label: 'DeepSeek', note: 'API Key' },
   { key: 'kimi', label: 'Kimi Code', note: 'API Key，Claude Code 模型 kimi-for-coding' },
   { key: 'xiaomi', label: 'Xiaomi MiMo', note: '按量 API Key 或 Token Plan' },
-  { key: 'zhipu', label: 'Zhipu GLM', note: 'API Key，模型 glm-5' },
+  { key: 'zhipu', label: 'Zhipu GLM', note: 'API Key 或 Coding Plan，模型 glm-5' },
   { key: 'minimax', label: 'MiniMax', note: 'API Key，模型 MiniMax-M2.7' },
   { key: 'gemini', label: 'Gemini', note: 'Google Gemini API Key' },
   { key: 'custom', label: '自定义网关', note: 'OpenAI / Anthropic 兼容网关 API Key' },
@@ -27,6 +27,8 @@ export const credentialTypes = {
   api_key: 'API Key',
   codex_auth_json: 'Codex auth.json',
   mimo_token_plan: 'MiMo Token Plan',
+  coding_plan: 'Coding Plan',
+  claude_oauth_json: 'Claude OAuth JSON',
 }
 
 export const statusMeta = {

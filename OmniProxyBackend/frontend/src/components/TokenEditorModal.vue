@@ -1,5 +1,5 @@
 <script setup>
-defineProps({
+const props = defineProps({
   form: {
     type: Object,
     required: true,
@@ -19,6 +19,39 @@ defineProps({
 })
 
 defineEmits(['close', 'submit', 'provider-change'])
+
+function credentialTypeLocked(form) {
+  return !['openai', 'xiaomi', 'zhipu', 'anthropic'].includes(form.provider)
+}
+
+function isJSONCredential(form) {
+  return ['codex_auth_json', 'claude_oauth_json'].includes(form.credentialType)
+}
+
+function credentialValueLabel(form) {
+  if (form.credentialType === 'codex_auth_json') return 'auth.json 内容'
+  if (form.credentialType === 'claude_oauth_json') return 'Claude OAuth JSON'
+  if (form.credentialType === 'mimo_token_plan') return 'Token Plan Key'
+  if (form.credentialType === 'coding_plan') return 'Coding Plan Key'
+  return 'API Key'
+}
+
+function credentialHint() {
+  if (props.form.credentialType === 'claude_oauth_json') {
+    return '支持包含 access_token / refresh_token / expired 的 Claude Code OAuth JSON。'
+  }
+  if (props.form.provider === 'zhipu' && props.form.credentialType === 'coding_plan') {
+    return 'Coding Plan 会使用 api.z.ai 的订阅额度接口；普通 API Key 会查询 BigModel API 余额。'
+  }
+  return ''
+}
+
+function autoNameText(form) {
+  if (form.provider === 'anthropic' && form.credentialType === 'claude_oauth_json') {
+    return 'Claude OAuth JSON 会优先使用 email 作为账号名称。'
+  }
+  return 'Codex 将自动使用 auth.json 中的邮箱作为账号名称。'
+}
 </script>
 
 <template>
@@ -27,7 +60,7 @@ defineEmits(['close', 'submit', 'provider-change'])
       <div class="section-heading">
         <div>
           <h2>{{ form.editingId ? '编辑账号' : '添加账号' }}</h2>
-          <p>{{ isCodexForm ? 'Codex 将自动使用 auth.json 中的邮箱作为账号名称' : '账号名称必填且不可重复' }}</p>
+          <p>{{ isCodexForm ? autoNameText(form) : '账号名称必填且不可重复' }}</p>
         </div>
         <button type="button" class="icon-button" @click="$emit('close')">×</button>
       </div>
@@ -36,7 +69,7 @@ defineEmits(['close', 'submit', 'provider-change'])
         <input v-model="form.name" autofocus />
       </label>
       <div v-else class="form-hint">
-        账号名称会从 `tokens.id_token` 自动解析邮箱，无需手动填写。
+        {{ autoNameText(form) }}
       </div>
       <label>
         <span>厂商</span>
@@ -48,10 +81,12 @@ defineEmits(['close', 'submit', 'provider-change'])
       </label>
       <label>
         <span>凭据类型</span>
-        <select v-model="form.credentialType" :disabled="form.provider !== 'openai' && form.provider !== 'xiaomi'">
+        <select v-model="form.credentialType" :disabled="credentialTypeLocked(form)">
           <option value="api_key">{{ form.provider === 'xiaomi' ? 'MiMo 按量 API Key (sk-)' : 'API Key' }}</option>
           <option v-if="form.provider === 'openai'" value="codex_auth_json">Codex auth.json</option>
+          <option v-if="form.provider === 'anthropic'" value="claude_oauth_json">Claude OAuth JSON</option>
           <option v-if="form.provider === 'xiaomi'" value="mimo_token_plan">MiMo Token Plan (tp-)</option>
+          <option v-if="form.provider === 'zhipu'" value="coding_plan">GLM Coding Plan</option>
         </select>
       </label>
       <label v-if="form.provider === 'xiaomi' && form.credentialType === 'mimo_token_plan'">
@@ -63,12 +98,13 @@ defineEmits(['close', 'submit', 'provider-change'])
         <small>海外账号会使用 token-plan-sgp.xiaomimimo.com。</small>
       </label>
       <label>
-        <span>{{ form.credentialType === 'codex_auth_json' ? 'auth.json 内容' : form.credentialType === 'mimo_token_plan' ? 'Token Plan Key' : 'API Key' }}</span>
+        <span>{{ credentialValueLabel(form) }}</span>
         <textarea
           v-model="form.tokenValue"
-          :rows="form.credentialType === 'codex_auth_json' ? 9 : 4"
+          :rows="isJSONCredential(form) ? 9 : 4"
           :placeholder="placeholder"
         ></textarea>
+        <small v-if="credentialHint()">{{ credentialHint() }}</small>
         <small v-if="form.editingId">不填写则继续使用当前已保存凭据</small>
       </label>
       <div class="modal-actions">

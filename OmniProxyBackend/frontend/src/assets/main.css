@@ -776,6 +776,18 @@ button:disabled {
   line-height: 1;
 }
 
+.limit-reached-badge {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.28);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .current-usage-meta {
   color: var(--brand-strong);
   font-weight: 600;
