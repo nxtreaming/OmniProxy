@@ -304,6 +304,27 @@ export function checkForUpdates() {
     : request('/update/check')
 }
 
+export function downloadUpdate(payload) {
+  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
+  return useWailsBindings() && desktopApp?.DownloadUpdate
+    ? desktopApp.DownloadUpdate(payload)
+    : request('/update/download', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function getUpdateDownloadStatus() {
+  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
+  return useWailsBindings() && desktopApp?.UpdateDownloadStatus
+    ? desktopApp.UpdateDownloadStatus()
+    : request('/update/download/status')
+}
+
+export function installDownloadedUpdate() {
+  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
+  return useWailsBindings() && desktopApp?.InstallDownloadedUpdate
+    ? desktopApp.InstallDownloadedUpdate()
+    : request('/update/install', { method: 'POST' })
+}
+
 export function getAppInfo() {
   return useWailsBindings() && DesktopApp.AppInfo
     ? DesktopApp.AppInfo()

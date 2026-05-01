@@ -66,6 +66,10 @@ export function DeleteToken(arg1) {
   return window['go']['main']['DesktopApp']['DeleteToken'](arg1);
 }
 
+export function DownloadUpdate(arg1) {
+  return window['go']['main']['DesktopApp']['DownloadUpdate'](arg1);
+}
+
 export function ExportCodexAuthFiles() {
   return window['go']['main']['DesktopApp']['ExportCodexAuthFiles']();
 }
@@ -80,6 +84,10 @@ export function ExportTokens() {
 
 export function ImportMimoCookieFromHAR() {
   return window['go']['main']['DesktopApp']['ImportMimoCookieFromHAR']();
+}
+
+export function InstallDownloadedUpdate() {
+  return window['go']['main']['DesktopApp']['InstallDownloadedUpdate']();
 }
 
 export function Logs() {
@@ -136,6 +144,10 @@ export function StopProxy() {
 
 export function Tokens() {
   return window['go']['main']['DesktopApp']['Tokens']();
+}
+
+export function UpdateDownloadStatus() {
+  return window['go']['main']['DesktopApp']['UpdateDownloadStatus']();
 }
 
 export function UpdateToken(arg1, arg2) {

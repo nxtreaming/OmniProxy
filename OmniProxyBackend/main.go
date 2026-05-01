@@ -48,6 +48,7 @@ type appServer struct {
 	proxyService   *proxy.Service
 	control        *http.Server
 	controlToken   string
+	updates        *updateDownloader
 	healthStop     context.CancelFunc
 }
 
@@ -135,6 +136,7 @@ func newAppServer() (*appServer, error) {
 		cfg:          config.Default(),
 		logs:         logs.NewRecorder(500),
 		controlToken: controlToken,
+		updates:      newUpdateDownloader(),
 	}
 	info, configured, err := config.ResolveDataDir()
 	if err != nil {
@@ -217,6 +219,15 @@ func (a *appServer) isLoaded() bool {
 	return a.configStore != nil && a.tokens != nil
 }
 
+func (a *appServer) updateManager() *updateDownloader {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.updates == nil {
+		a.updates = newUpdateDownloader()
+	}
+	return a.updates
+}
+
 func (a *appServer) dataDirectoryInfo() config.DataDirectoryInfo {
 	a.mu.Lock()
 	dataDir := a.dataDir
@@ -286,6 +297,9 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/proxy/stop", a.handleProxyStop)
 	mux.HandleFunc("/api/app/info", a.handleAppInfo)
 	mux.HandleFunc("/api/update/check", a.handleUpdateCheck)
+	mux.HandleFunc("/api/update/download", a.handleUpdateDownload)
+	mux.HandleFunc("/api/update/download/status", a.handleUpdateDownloadStatus)
+	mux.HandleFunc("/api/update/install", a.handleUpdateInstall)
 	mux.HandleFunc("/api/data-directory", a.handleDataDirectory)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
@@ -944,6 +958,45 @@ func (a *appServer) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, info)
+}
+
+func (a *appServer) handleUpdateDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req updateDownloadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	status, err := a.updateManager().Start(context.Background(), http.DefaultClient, req)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, status)
+}
+
+func (a *appServer) handleUpdateDownloadStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, a.updateManager().Status())
+}
+
+func (a *appServer) handleUpdateInstall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	status, err := a.updateManager().Install()
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 func (a *appServer) handleAppInfo(w http.ResponseWriter, r *http.Request) {

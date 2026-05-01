@@ -40,6 +40,10 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  updateDownloadStatus: {
+    type: Object,
+    default: () => ({ state: 'idle' }),
+  },
   updateCheckedAt: {
     type: String,
     default: '',
@@ -50,7 +54,7 @@ const props = defineProps({
   },
 })
 
-defineEmits(['manual-check-for-updates', 'open-url'])
+defineEmits(['manual-check-for-updates', 'download-update', 'install-update', 'open-url'])
 
 const currentVersion = computed(
   () => props.appInfo?.version || props.updateInfo?.currentVersion || 'dev',
@@ -60,7 +64,35 @@ const isDevelopmentBuild = computed(() => {
   return Boolean(props.appInfo?.isDevelopment) || normalizedVersion === 'dev' || normalizedVersion === 'development'
 })
 const releaseUrl = computed(() => props.updateInfo?.downloadUrl || props.updateInfo?.releaseUrl || '')
-const releaseActionLabel = computed(() => (props.updateInfo?.updateAvailable ? '获取更新' : '打开发布页'))
+const releasePageUrl = computed(() => props.updateInfo?.releaseUrl || props.updateInfo?.downloadUrl || '')
+const updateDownloadState = computed(() => String(props.updateDownloadStatus?.state || 'idle'))
+const downloadMatchesCurrentUpdate = computed(() => {
+  if (!props.updateInfo?.updateAvailable) return false
+  const status = props.updateDownloadStatus || {}
+  return (
+    (status.version && status.version === props.updateInfo.latestVersion) ||
+    (status.downloadUrl && status.downloadUrl === props.updateInfo.downloadUrl)
+  )
+})
+const updateDownloadActive = computed(
+  () => downloadMatchesCurrentUpdate.value && updateDownloadState.value === 'downloading',
+)
+const updateDownloadReady = computed(
+  () => downloadMatchesCurrentUpdate.value && updateDownloadState.value === 'downloaded',
+)
+const updateDownloadFailed = computed(
+  () => downloadMatchesCurrentUpdate.value && updateDownloadState.value === 'failed',
+)
+const updateDownloadPercent = computed(() =>
+  Math.max(0, Math.min(100, Math.round(Number(props.updateDownloadStatus?.percent || 0)))),
+)
+const releaseActionLabel = computed(() => {
+  if (updateDownloadActive.value) return `下载中 ${updateDownloadPercent.value}%`
+  if (updateDownloadReady.value) return '立即安装'
+  if (updateDownloadFailed.value) return '重新下载'
+  if (props.updateInfo?.updateAvailable && (!props.updateInfo?.downloadUrl || !props.updateInfo?.checksumUrl)) return '打开发布页'
+  return props.updateInfo?.updateAvailable ? '下载更新' : '打开发布页'
+})
 const releaseActionIcon = computed(() => (props.updateInfo?.updateAvailable ? Download : LinkIcon))
 const updateBadge = computed(() => {
   if (isDevelopmentBuild.value) return { type: 'info', label: '开发版本' }
@@ -80,9 +112,32 @@ const updateDescription = computed(() => {
   if (isDevelopmentBuild.value) return '当前构建用于开发验证，不参与正式发布版本比较。'
   if (!props.updateInfo) return '启动后会自动检查一次；也可以在这里立即检查。'
   if (props.updateInfo.updateAvailable) {
+    if (updateDownloadReady.value) {
+      return `安装包已下载并校验完成：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
+    }
+    if (updateDownloadActive.value) {
+      return `正在下载 ${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '安装包'}`
+    }
+    if (updateDownloadFailed.value) {
+      return props.updateDownloadStatus?.error || '更新安装包下载失败。'
+    }
     return `当前版本 ${props.updateInfo.currentVersion || currentVersion.value}，最新版本 ${props.updateInfo.latestVersion || '-'}`
   }
   return '未发现可用更新。'
+})
+const updateDownloadDetail = computed(() => {
+  if (!downloadMatchesCurrentUpdate.value || !['downloading', 'downloaded', 'failed'].includes(updateDownloadState.value)) {
+    return ''
+  }
+  const received = formatBytes(props.updateDownloadStatus?.bytesReceived || 0)
+  const total = Number(props.updateDownloadStatus?.totalBytes || 0)
+  const parts = total > 0 ? [`${received} / ${formatBytes(total)}`] : [received]
+  if (props.updateDownloadStatus?.verified) {
+    parts.push('SHA256 已校验')
+  } else if (props.updateInfo?.checksumUrl) {
+    parts.push('等待校验')
+  }
+  return parts.join(' · ')
 })
 const releaseNotesPreview = computed(() => {
   const text = String(props.updateInfo?.body || '').trim()
@@ -158,6 +213,13 @@ function formatDate(value) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString()
 }
+
+function formatBytes(value) {
+  const bytes = Number(value || 0)
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${bytes} B`
+}
 </script>
 
 <template>
@@ -191,9 +253,18 @@ function formatDate(value) {
             <el-button
               v-if="releaseUrl"
               :icon="releaseActionIcon"
-              @click="$emit('open-url', releaseUrl)"
+              :loading="updateDownloadActive"
+              :disabled="updateDownloadActive"
+              @click="updateDownloadReady ? $emit('install-update') : updateInfo?.updateAvailable && updateInfo?.downloadUrl && updateInfo?.checksumUrl ? $emit('download-update') : $emit('open-url', releaseUrl)"
             >
               {{ releaseActionLabel }}
+            </el-button>
+            <el-button
+              v-if="updateInfo?.updateAvailable && releasePageUrl"
+              :icon="LinkIcon"
+              @click="$emit('open-url', releasePageUrl)"
+            >
+              发布页
             </el-button>
           </div>
         </div>
@@ -204,6 +275,13 @@ function formatDate(value) {
             <strong>{{ updateTitle }}</strong>
             <p>{{ updateDescription }}</p>
             <small v-if="updateCheckedAt">上次检查 {{ formatDate(updateCheckedAt) }}</small>
+            <div v-if="updateDownloadActive || updateDownloadReady || updateDownloadFailed" class="update-download-progress">
+              <el-progress
+                :percentage="updateDownloadPercent"
+                :status="updateDownloadFailed ? 'exception' : updateDownloadReady ? 'success' : undefined"
+              />
+              <small v-if="updateDownloadDetail">{{ updateDownloadDetail }}</small>
+            </div>
           </div>
         </div>
 

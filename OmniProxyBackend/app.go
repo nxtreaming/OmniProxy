@@ -507,6 +507,18 @@ func (a *DesktopApp) CheckForUpdates() (updateInfo, error) {
 	return checkForUpdates(a.callContext(), http.DefaultClient)
 }
 
+func (a *DesktopApp) DownloadUpdate(req updateDownloadRequest) (updateDownloadStatus, error) {
+	return a.server.updateManager().Start(context.Background(), http.DefaultClient, req)
+}
+
+func (a *DesktopApp) UpdateDownloadStatus() updateDownloadStatus {
+	return a.server.updateManager().Status()
+}
+
+func (a *DesktopApp) InstallDownloadedUpdate() (updateDownloadStatus, error) {
+	return a.server.updateManager().Install()
+}
+
 func (a *DesktopApp) AppInfo() appInfo {
 	return currentAppInfo()
 }

@@ -37,6 +37,8 @@ export function DataDirectory():Promise<config.DataDirectoryInfo>;
 
 export function DeleteToken(arg1:string):Promise<void>;
 
+export function DownloadUpdate(arg1:main.updateDownloadRequest):Promise<main.updateDownloadStatus>;
+
 export function ExportCodexAuthFiles():Promise<main.codexAuthExportResult>;
 
 export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<string>;
@@ -44,6 +46,8 @@ export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<st
 export function ExportTokens():Promise<main.tokenExportResult>;
 
 export function ImportMimoCookieFromHAR():Promise<main.mimoCookieImportResult>;
+
+export function InstallDownloadedUpdate():Promise<main.updateDownloadStatus>;
 
 export function Logs():Promise<Array<main.logResponse>>;
 
@@ -72,6 +76,8 @@ export function StartProxy():Promise<Record<string, any>>;
 export function StopProxy():Promise<Record<string, any>>;
 
 export function Tokens():Promise<Array<main.tokenResponse>>;
+
+export function UpdateDownloadStatus():Promise<main.updateDownloadStatus>;
 
 export function UpdateToken(arg1:string,arg2:token.UpsertRequest):Promise<main.tokenResponse>;
 
