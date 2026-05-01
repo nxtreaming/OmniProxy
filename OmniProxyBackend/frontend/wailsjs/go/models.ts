@@ -23,6 +23,8 @@ export namespace config {
 	    xiaomiApiAnthropicBaseUrl: string;
 	    xiaomiTokenPlanBaseUrl: string;
 	    xiaomiTokenPlanAnthropicBaseUrl: string;
+	    xiaomiTokenPlanSgpBaseUrl: string;
+	    xiaomiTokenPlanSgpAnthropicBaseUrl: string;
 	    xiaomiPlatformCookie?: string;
 	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
@@ -58,6 +60,8 @@ export namespace config {
 	        this.xiaomiApiAnthropicBaseUrl = source["xiaomiApiAnthropicBaseUrl"];
 	        this.xiaomiTokenPlanBaseUrl = source["xiaomiTokenPlanBaseUrl"];
 	        this.xiaomiTokenPlanAnthropicBaseUrl = source["xiaomiTokenPlanAnthropicBaseUrl"];
+	        this.xiaomiTokenPlanSgpBaseUrl = source["xiaomiTokenPlanSgpBaseUrl"];
+	        this.xiaomiTokenPlanSgpAnthropicBaseUrl = source["xiaomiTokenPlanSgpAnthropicBaseUrl"];
 	        this.xiaomiPlatformCookie = source["xiaomiPlatformCookie"];
 	        this.xiaomiCredentialPriority = source["xiaomiCredentialPriority"];
 	        this.codexBaseUrl = source["codexBaseUrl"];
@@ -580,6 +584,7 @@ export namespace main {
 	    name: string;
 	    provider: string;
 	    credentialType: string;
+	    region?: string;
 	    hasTokenValue: boolean;
 	    maskedTokenValue?: string;
 	    remaining: number;
@@ -603,6 +608,7 @@ export namespace main {
 	        this.name = source["name"];
 	        this.provider = source["provider"];
 	        this.credentialType = source["credentialType"];
+	        this.region = source["region"];
 	        this.hasTokenValue = source["hasTokenValue"];
 	        this.maskedTokenValue = source["maskedTokenValue"];
 	        this.remaining = source["remaining"];
@@ -636,12 +642,73 @@ export namespace main {
 		}
 	}
 
+	export class updateDownloadRequest {
+	    version?: string;
+	    downloadUrl: string;
+	    checksumUrl?: string;
+	    fileName?: string;
+	    expectedSize?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new updateDownloadRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.downloadUrl = source["downloadUrl"];
+	        this.checksumUrl = source["checksumUrl"];
+	        this.fileName = source["fileName"];
+	        this.expectedSize = source["expectedSize"];
+	    }
+	}
+	export class updateDownloadStatus {
+	    state: string;
+	    version?: string;
+	    fileName?: string;
+	    filePath?: string;
+	    downloadUrl?: string;
+	    checksumUrl?: string;
+	    bytesReceived: number;
+	    totalBytes?: number;
+	    percent: number;
+	    verified: boolean;
+	    error?: string;
+	    startedAt?: string;
+	    updatedAt?: string;
+	    completedAt?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new updateDownloadStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.version = source["version"];
+	        this.fileName = source["fileName"];
+	        this.filePath = source["filePath"];
+	        this.downloadUrl = source["downloadUrl"];
+	        this.checksumUrl = source["checksumUrl"];
+	        this.bytesReceived = source["bytesReceived"];
+	        this.totalBytes = source["totalBytes"];
+	        this.percent = source["percent"];
+	        this.verified = source["verified"];
+	        this.error = source["error"];
+	        this.startedAt = source["startedAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.completedAt = source["completedAt"];
+	    }
+	}
 	export class updateInfo {
 	    currentVersion: string;
 	    latestVersion?: string;
 	    updateAvailable: boolean;
 	    releaseUrl?: string;
 	    downloadUrl?: string;
+	    checksumUrl?: string;
+	    downloadFileName?: string;
+	    downloadSize?: number;
 	    name?: string;
 	    body?: string;
 
@@ -656,6 +723,9 @@ export namespace main {
 	        this.updateAvailable = source["updateAvailable"];
 	        this.releaseUrl = source["releaseUrl"];
 	        this.downloadUrl = source["downloadUrl"];
+	        this.checksumUrl = source["checksumUrl"];
+	        this.downloadFileName = source["downloadFileName"];
+	        this.downloadSize = source["downloadSize"];
 	        this.name = source["name"];
 	        this.body = source["body"];
 	    }
@@ -732,6 +802,7 @@ export namespace token {
 	    name: string;
 	    provider: string;
 	    credentialType: string;
+	    region?: string;
 	    tokenValue: string;
 
 	    static createFrom(source: any = {}) {
@@ -743,6 +814,7 @@ export namespace token {
 	        this.name = source["name"];
 	        this.provider = source["provider"];
 	        this.credentialType = source["credentialType"];
+	        this.region = source["region"];
 	        this.tokenValue = source["tokenValue"];
 	    }
 	}
