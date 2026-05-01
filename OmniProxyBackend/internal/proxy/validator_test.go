@@ -350,6 +350,128 @@ func TestValidatorQueriesZhipuAPIBalance(t *testing.T) {
 	}
 }
 
+func TestValidatorQueriesZhipuAPIBalanceCountsOnlyTokenPackages(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/paas/v4/models" {
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer upstream.Close()
+
+	balance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"total": 5,
+			"rows": [
+				{"resourcePackageName": "image pack", "availableBalance": 20, "tokenBalance": 20, "consumeType": "TIMES", "status": "EFFECTIVE"},
+				{"resourcePackageName": "search pack", "availableBalance": 100, "tokenBalance": 100, "consumeType": "TIMES", "status": "EFFECTIVE"},
+				{"resourcePackageName": "general token pack", "availableBalance": 1833309, "tokenBalance": 2000000, "consumeType": "TOKENS", "status": "EFFECTIVE"},
+				{"resourcePackageName": "vision token pack", "availableBalance": 6000000, "tokenBalance": 6000000, "consumeType": "TOKENS", "status": "EFFECTIVE"},
+				{"resourcePackageName": "expired token pack", "availableBalance": 12000000, "tokenBalance": 12000000, "consumeType": "TOKENS", "status": "EXPIRED"}
+			],
+			"code": 200,
+			"msg": "查询成功"
+		}`))
+	}))
+	defer balance.Close()
+
+	originalURL := zhipuAPIBalanceURL
+	zhipuAPIBalanceURL = balance.URL + "/api/biz/tokenAccounts/list/my"
+	defer func() {
+		zhipuAPIBalanceURL = originalURL
+	}()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZhipuBaseURL:    upstream.URL + "/api/paas/v4",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:       token.ProviderZhipu,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "zhipu-token-value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil || result.Usage.BalanceRemaining != 7833309 || result.Usage.BalanceUnit != "Token" {
+		t.Fatalf("unexpected zhipu token package balance: %#v", result.Usage)
+	}
+	if len(result.Usage.BalancePackages) != 5 {
+		t.Fatalf("expected all zhipu balance packages to be preserved, got %#v", result.Usage.BalancePackages)
+	}
+	if result.Usage.BalancePackages[0].Name != "image pack" ||
+		result.Usage.BalancePackages[0].ConsumeType != "TIMES" ||
+		result.Usage.BalancePackages[0].Unit != "次" {
+		t.Fatalf("unexpected times package detail: %#v", result.Usage.BalancePackages[0])
+	}
+	if result.Usage.BalancePackages[2].BalanceRemaining != 1833309 ||
+		result.Usage.BalancePackages[2].BalanceTotal != 2000000 ||
+		result.Usage.BalancePackages[2].Unit != "Token" {
+		t.Fatalf("unexpected token package detail: %#v", result.Usage.BalancePackages[2])
+	}
+	if result.Remaining == nil || *result.Remaining != 100 {
+		t.Fatalf("expected remaining 100, got %#v", result.Remaining)
+	}
+}
+
+func TestValidatorQueriesZhipuAPIBalanceTreatsEmptyRowsAsZero(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/paas/v4/models" {
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer upstream.Close()
+
+	balance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"total":0,"rows":[],"code":200,"msg":"查询成功"}`))
+	}))
+	defer balance.Close()
+
+	originalURL := zhipuAPIBalanceURL
+	zhipuAPIBalanceURL = balance.URL + "/api/biz/tokenAccounts/list/my"
+	defer func() {
+		zhipuAPIBalanceURL = originalURL
+	}()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZhipuBaseURL:    upstream.URL + "/api/paas/v4",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:       token.ProviderZhipu,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "zhipu-token-value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil || result.Usage.BalanceRemaining != 0 || !result.Usage.LimitReached {
+		t.Fatalf("unexpected empty zhipu api balance usage: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 0 {
+		t.Fatalf("expected remaining 0, got %#v", result.Remaining)
+	}
+}
+
 func TestValidatorQueriesMiniMaxCodingUsage(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer minimax-token-value" {

@@ -1527,6 +1527,55 @@ function quotaStatMeta(item) {
   return `最后更新 ${usageUpdatedAt(item)}`
 }
 
+function balancePackages(item) {
+  return Array.isArray(item?.usage?.balancePackages) ? item.usage.balancePackages : []
+}
+
+function balancePackageCounts(pkg) {
+  const status = String(pkg?.status || '').toUpperCase()
+  const type = String(pkg?.consumeType || '').toUpperCase()
+  return (!status || status === 'EFFECTIVE') && (!type || type === 'TOKENS')
+}
+
+function balancePackageTypeLabel(pkg) {
+  const type = String(pkg?.consumeType || '').toUpperCase()
+  if (type === 'TIMES') return '次数包'
+  if (type === 'TOKENS' || !type) return 'Token 包'
+  return type
+}
+
+function balancePackageAmount(pkg) {
+  const unit = pkg?.unit || (String(pkg?.consumeType || '').toUpperCase() === 'TIMES' ? '次' : 'Token')
+  return `${formatNumber(pkg?.balanceRemaining)} ${unit}`
+}
+
+function balancePackageMeta(pkg) {
+  const parts = []
+  if (pkg?.balanceTotal && Number(pkg.balanceTotal) !== Number(pkg.balanceRemaining || 0)) {
+    parts.push(`总量 ${formatNumber(pkg.balanceTotal)}`)
+  }
+  if (pkg?.status && pkg.status !== 'EFFECTIVE') {
+    parts.push(pkg.status)
+  }
+  if (pkg?.expirationTime) {
+    parts.push(`到期 ${formatPackageExpiration(pkg.expirationTime)}`)
+  }
+  if (pkg?.suitableModel) {
+    parts.push(pkg.suitableModel)
+  }
+  return parts.join(' · ') || (balancePackageCounts(pkg) ? '计入 Token 余额' : '仅展示，不计入 Token 余额')
+}
+
+function formatPackageExpiration(value) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
 function apiQuotaDisplay(item) {
   if (hasBalanceUsage(item)) {
     return quotaDisplay(item)
@@ -2133,6 +2182,28 @@ async function refreshQuota(item) {
                   <span>代理请求</span>
                   <strong>{{ formatNumber(item.stats?.requestCount) }} 次</strong>
                   <small class="quota-detail token-usage-detail">{{ tokenUsageSummary(item) }}</small>
+                </div>
+              </div>
+
+              <div v-if="balancePackages(item).length" class="balance-package-list">
+                <div class="balance-package-head">
+                  <span>资源包明细</span>
+                  <small>Token 包计入余额，次数包仅展示</small>
+                </div>
+                <div
+                  v-for="(pkg, index) in balancePackages(item)"
+                  :key="`${pkg.name || 'package'}-${pkg.consumeType || 'token'}-${pkg.expirationTime || ''}-${index}`"
+                  :class="['balance-package-row', { muted: !balancePackageCounts(pkg) }]"
+                  :title="pkg.suitableScene || pkg.suitableModel || pkg.name"
+                >
+                  <div>
+                    <strong>{{ pkg.name || balancePackageTypeLabel(pkg) }}</strong>
+                    <small>{{ balancePackageMeta(pkg) }}</small>
+                  </div>
+                  <div>
+                    <span class="package-type">{{ balancePackageTypeLabel(pkg) }}</span>
+                    <strong>{{ balancePackageAmount(pkg) }}</strong>
+                  </div>
                 </div>
               </div>
             </div>

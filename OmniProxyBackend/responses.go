@@ -31,23 +31,36 @@ type tokenResponse struct {
 }
 
 type usageResponse struct {
-	Source                     string  `json:"source,omitempty"`
-	PlanType                   string  `json:"planType,omitempty"`
-	LimitReached               bool    `json:"limitReached,omitempty"`
-	PrimaryUsedPercent         int     `json:"primaryUsedPercent"`
-	PrimaryRemainingPercent    int     `json:"primaryRemainingPercent"`
-	PrimaryResetAt             int64   `json:"primaryResetAt,omitempty"`
-	SecondaryUsedPercent       int     `json:"secondaryUsedPercent"`
-	SecondaryRemainingPercent  int     `json:"secondaryRemainingPercent"`
-	SecondaryResetAt           int64   `json:"secondaryResetAt,omitempty"`
-	APIRemaining               int     `json:"apiRemaining,omitempty"`
-	BalanceRemaining           float64 `json:"balanceRemaining,omitempty"`
-	BalanceTotal               float64 `json:"balanceTotal,omitempty"`
-	BalanceUsed                float64 `json:"balanceUsed,omitempty"`
-	BalanceUnit                string  `json:"balanceUnit,omitempty"`
-	SubscriptionQuotaAvailable bool    `json:"subscriptionQuotaAvailable,omitempty"`
-	Message                    string  `json:"message,omitempty"`
-	UpdatedAt                  string  `json:"updatedAt,omitempty"`
+	Source                     string                   `json:"source,omitempty"`
+	PlanType                   string                   `json:"planType,omitempty"`
+	LimitReached               bool                     `json:"limitReached,omitempty"`
+	PrimaryUsedPercent         int                      `json:"primaryUsedPercent"`
+	PrimaryRemainingPercent    int                      `json:"primaryRemainingPercent"`
+	PrimaryResetAt             int64                    `json:"primaryResetAt,omitempty"`
+	SecondaryUsedPercent       int                      `json:"secondaryUsedPercent"`
+	SecondaryRemainingPercent  int                      `json:"secondaryRemainingPercent"`
+	SecondaryResetAt           int64                    `json:"secondaryResetAt,omitempty"`
+	APIRemaining               int                      `json:"apiRemaining,omitempty"`
+	BalanceRemaining           float64                  `json:"balanceRemaining,omitempty"`
+	BalanceTotal               float64                  `json:"balanceTotal,omitempty"`
+	BalanceUsed                float64                  `json:"balanceUsed,omitempty"`
+	BalanceUnit                string                   `json:"balanceUnit,omitempty"`
+	BalancePackages            []balancePackageResponse `json:"balancePackages,omitempty"`
+	SubscriptionQuotaAvailable bool                     `json:"subscriptionQuotaAvailable,omitempty"`
+	Message                    string                   `json:"message,omitempty"`
+	UpdatedAt                  string                   `json:"updatedAt,omitempty"`
+}
+
+type balancePackageResponse struct {
+	Name             string  `json:"name,omitempty"`
+	ConsumeType      string  `json:"consumeType,omitempty"`
+	BalanceRemaining float64 `json:"balanceRemaining,omitempty"`
+	BalanceTotal     float64 `json:"balanceTotal,omitempty"`
+	Unit             string  `json:"unit,omitempty"`
+	Status           string  `json:"status,omitempty"`
+	ExpirationTime   string  `json:"expirationTime,omitempty"`
+	SuitableModel    string  `json:"suitableModel,omitempty"`
+	SuitableScene    string  `json:"suitableScene,omitempty"`
 }
 
 type tokenStatsResponse struct {
@@ -192,10 +205,32 @@ func usageResponseFor(usage token.UsageInfo) usageResponse {
 		BalanceTotal:               usage.BalanceTotal,
 		BalanceUsed:                usage.BalanceUsed,
 		BalanceUnit:                usage.BalanceUnit,
+		BalancePackages:            balancePackageResponses(usage.BalancePackages),
 		SubscriptionQuotaAvailable: usage.SubscriptionQuotaAvailable,
 		Message:                    usage.Message,
 		UpdatedAt:                  timePtrString(usage.UpdatedAt),
 	}
+}
+
+func balancePackageResponses(items []token.BalancePackage) []balancePackageResponse {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]balancePackageResponse, len(items))
+	for i, item := range items {
+		out[i] = balancePackageResponse{
+			Name:             item.Name,
+			ConsumeType:      item.ConsumeType,
+			BalanceRemaining: item.BalanceRemaining,
+			BalanceTotal:     item.BalanceTotal,
+			Unit:             item.Unit,
+			Status:           item.Status,
+			ExpirationTime:   item.ExpirationTime,
+			SuitableModel:    item.SuitableModel,
+			SuitableScene:    item.SuitableScene,
+		}
+	}
+	return out
 }
 
 func tokenStatsResponseFor(stats token.TokenStats) tokenStatsResponse {

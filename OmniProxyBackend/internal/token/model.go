@@ -57,23 +57,36 @@ type Token struct {
 }
 
 type UsageInfo struct {
-	Source                     string     `json:"source,omitempty"`
-	PlanType                   string     `json:"planType,omitempty"`
-	LimitReached               bool       `json:"limitReached,omitempty"`
-	PrimaryUsedPercent         int        `json:"primaryUsedPercent,omitempty"`
-	PrimaryRemainingPercent    int        `json:"primaryRemainingPercent,omitempty"`
-	PrimaryResetAt             int64      `json:"primaryResetAt,omitempty"`
-	SecondaryUsedPercent       int        `json:"secondaryUsedPercent,omitempty"`
-	SecondaryRemainingPercent  int        `json:"secondaryRemainingPercent,omitempty"`
-	SecondaryResetAt           int64      `json:"secondaryResetAt,omitempty"`
-	APIRemaining               int        `json:"apiRemaining,omitempty"`
-	BalanceRemaining           float64    `json:"balanceRemaining,omitempty"`
-	BalanceTotal               float64    `json:"balanceTotal,omitempty"`
-	BalanceUsed                float64    `json:"balanceUsed,omitempty"`
-	BalanceUnit                string     `json:"balanceUnit,omitempty"`
-	SubscriptionQuotaAvailable bool       `json:"subscriptionQuotaAvailable,omitempty"`
-	Message                    string     `json:"message,omitempty"`
-	UpdatedAt                  *time.Time `json:"updatedAt,omitempty"`
+	Source                     string           `json:"source,omitempty"`
+	PlanType                   string           `json:"planType,omitempty"`
+	LimitReached               bool             `json:"limitReached,omitempty"`
+	PrimaryUsedPercent         int              `json:"primaryUsedPercent,omitempty"`
+	PrimaryRemainingPercent    int              `json:"primaryRemainingPercent,omitempty"`
+	PrimaryResetAt             int64            `json:"primaryResetAt,omitempty"`
+	SecondaryUsedPercent       int              `json:"secondaryUsedPercent,omitempty"`
+	SecondaryRemainingPercent  int              `json:"secondaryRemainingPercent,omitempty"`
+	SecondaryResetAt           int64            `json:"secondaryResetAt,omitempty"`
+	APIRemaining               int              `json:"apiRemaining,omitempty"`
+	BalanceRemaining           float64          `json:"balanceRemaining,omitempty"`
+	BalanceTotal               float64          `json:"balanceTotal,omitempty"`
+	BalanceUsed                float64          `json:"balanceUsed,omitempty"`
+	BalanceUnit                string           `json:"balanceUnit,omitempty"`
+	BalancePackages            []BalancePackage `json:"balancePackages,omitempty"`
+	SubscriptionQuotaAvailable bool             `json:"subscriptionQuotaAvailable,omitempty"`
+	Message                    string           `json:"message,omitempty"`
+	UpdatedAt                  *time.Time       `json:"updatedAt,omitempty"`
+}
+
+type BalancePackage struct {
+	Name             string  `json:"name,omitempty"`
+	ConsumeType      string  `json:"consumeType,omitempty"`
+	BalanceRemaining float64 `json:"balanceRemaining,omitempty"`
+	BalanceTotal     float64 `json:"balanceTotal,omitempty"`
+	Unit             string  `json:"unit,omitempty"`
+	Status           string  `json:"status,omitempty"`
+	ExpirationTime   string  `json:"expirationTime,omitempty"`
+	SuitableModel    string  `json:"suitableModel,omitempty"`
+	SuitableScene    string  `json:"suitableScene,omitempty"`
 }
 
 type TokenStats struct {

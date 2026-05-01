@@ -640,13 +640,16 @@ func (v *Validator) queryZhipuAPIBalance(ctx context.Context, selected token.Tok
 	}
 
 	rows := zhipuBalanceRows(payload)
-	if len(rows) == 0 {
-		return token.UsageInfo{}, nil, false
-	}
 	total := 0.0
+	packages := make([]token.BalancePackage, 0, len(rows))
 	for _, row := range rows {
-		if balance, ok := zhipuBalanceValue(row); ok {
-			total += balance
+		balancePackage, ok := zhipuBalancePackage(row)
+		if !ok {
+			continue
+		}
+		packages = append(packages, balancePackage)
+		if zhipuBalancePackageCountsAsTokens(balancePackage) {
+			total += balancePackage.BalanceRemaining
 		}
 	}
 
@@ -659,6 +662,7 @@ func (v *Validator) queryZhipuAPIBalance(ctx context.Context, selected token.Tok
 		PlanType:         "Zhipu GLM API Key",
 		BalanceRemaining: total,
 		BalanceUnit:      "Token",
+		BalancePackages:  packages,
 		LimitReached:     total <= 0,
 		Message:          "Zhipu GLM API balance",
 	}, &remaining, true
@@ -679,12 +683,57 @@ func zhipuBalanceRows(payload map[string]any) []any {
 	return nil
 }
 
-func zhipuBalanceValue(row any) (float64, bool) {
+func zhipuBalancePackage(row any) (token.BalancePackage, bool) {
 	item, ok := row.(map[string]any)
 	if !ok {
-		return 0, false
+		return token.BalancePackage{}, false
 	}
-	for _, key := range []string{"tokenBalance", "balance", "availableBalance", "remaining"} {
+	balance, ok := zhipuBalanceAmount(item, "availableBalance", "tokenBalance", "balance", "remaining")
+	if !ok {
+		return token.BalancePackage{}, false
+	}
+	total, totalOK := zhipuBalanceAmount(item, "tokensMagnitude", "balanceTotal", "totalBalance", "tokenBalance")
+	if !totalOK {
+		total = balance
+	}
+	consumeType, _ := stringFromAny(item["consumeType"])
+	unit := "Token"
+	if strings.EqualFold(consumeType, "TIMES") {
+		unit = "次"
+	}
+	name, _ := stringFromAny(item["resourcePackageName"])
+	if name == "" {
+		name, _ = stringFromAny(item["tokenNo"])
+	}
+	status, _ := stringFromAny(item["status"])
+	expiration, _ := stringFromAny(item["packageExpirationTime"])
+	if expiration == "" {
+		expiration, _ = stringFromAny(item["expirationTime"])
+	}
+	suitableModel, _ := stringFromAny(item["suitableModel"])
+	suitableScene, _ := stringFromAny(item["suitableScene"])
+	return token.BalancePackage{
+		Name:             name,
+		ConsumeType:      consumeType,
+		BalanceRemaining: balance,
+		BalanceTotal:     total,
+		Unit:             unit,
+		Status:           status,
+		ExpirationTime:   expiration,
+		SuitableModel:    suitableModel,
+		SuitableScene:    suitableScene,
+	}, true
+}
+
+func zhipuBalancePackageCountsAsTokens(balancePackage token.BalancePackage) bool {
+	if balancePackage.Status != "" && !strings.EqualFold(balancePackage.Status, "EFFECTIVE") {
+		return false
+	}
+	return balancePackage.ConsumeType == "" || strings.EqualFold(balancePackage.ConsumeType, "TOKENS")
+}
+
+func zhipuBalanceAmount(item map[string]any, keys ...string) (float64, bool) {
+	for _, key := range keys {
 		if balance, ok := floatFromAny(item[key]); ok {
 			return balance, true
 		}
