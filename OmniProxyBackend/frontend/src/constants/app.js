@@ -1,5 +1,6 @@
 export const tabs = [
   { key: 'dashboard', label: '仪表盘' },
+  { key: 'billing', label: '费用账单' },
   { key: 'quotas', label: '额度' },
   { key: 'tokens', label: '账号管理' },
   { key: 'history', label: '请求历史' },

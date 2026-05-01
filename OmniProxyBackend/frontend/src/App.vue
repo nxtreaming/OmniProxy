@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import AboutView from './components/AboutView.vue'
+import BillingView from './components/BillingView.vue'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
 import HistoryView from './components/HistoryView.vue'
 import LogsView from './components/LogsView.vue'
@@ -22,6 +23,7 @@ import {
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   checkForUpdates,
   deleteToken,
+  downloadUpdate,
   exportCodexAuthFiles,
   exportHistory,
   exportTokens,
@@ -34,7 +36,9 @@ import {
   getLogs,
   getProxyStatus,
   getTokens,
+  getUpdateDownloadStatus,
   importMimoCookieFromHAR,
+  installDownloadedUpdate,
   openExternalURL,
   saveConfig,
   setAutoStart,
@@ -56,6 +60,7 @@ import {
   Key,
   MagicStick,
   Memo,
+  Money,
   Refresh,
   RefreshRight,
   Setting,
@@ -66,6 +71,7 @@ const activeTab = ref('dashboard')
 const activeProvider = ref('openai')
 const tabIcons = {
   dashboard: DataBoard,
+  billing: Money,
   quotas: Coin,
   tokens: Key,
   history: Clock,
@@ -95,6 +101,7 @@ const autoStartEnabled = ref(false)
 const updateChecking = ref(false)
 const lastUpdateInfo = ref(null)
 const lastUpdateCheckedAt = ref('')
+const updateDownloadStatus = ref({ state: 'idle', percent: 0, bytesReceived: 0 })
 const exportingHistory = ref('')
 const exportingTokens = ref(false)
 const exportingCodexAuth = ref(false)
@@ -106,6 +113,7 @@ const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
 let toastTimer = null
 let realtimeTimer = null
 let updateCheckTimer = null
+let updateDownloadTimer = null
 const validatingIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
@@ -224,6 +232,7 @@ onMounted(async () => {
     isDark.value = true
   }
   await refreshAll()
+  await refreshUpdateDownloadStatus()
   updateCheckTimer = window.setTimeout(() => checkForAvailableUpdate(), 2500)
   realtimeTimer = window.setInterval(refreshRealtime, 3000)
 })
@@ -237,6 +246,7 @@ onBeforeUnmount(() => {
     window.clearTimeout(updateCheckTimer)
     updateCheckTimer = null
   }
+  stopUpdateDownloadPolling()
   if (toastTimer) {
     window.clearTimeout(toastTimer)
     toastTimer = null
@@ -373,10 +383,9 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
       return
     }
 
-    const releaseURL = update.downloadUrl || update.releaseUrl
-    if (!releaseURL) {
+    if (!update.downloadUrl || !update.checksumUrl) {
       if (manual) {
-        errorMessage.value = `发现新版本 ${update.latestVersion}，但没有可用下载地址`
+        errorMessage.value = `发现新版本 ${update.latestVersion}，但没有可用的安装包或校验文件`
       }
       return
     }
@@ -391,7 +400,7 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
         type: 'info',
       },
     )
-    openExternalURL(releaseURL)
+    await startUpdateDownload(update)
   } catch (action) {
     if (action instanceof Error) {
       if (manual) {
@@ -419,6 +428,85 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
 
 function manualCheckForUpdates() {
   return checkForAvailableUpdate({ manual: true })
+}
+
+function updateDownloadPayload(update = lastUpdateInfo.value) {
+  return {
+    version: update?.latestVersion || '',
+    downloadUrl: update?.downloadUrl || '',
+    checksumUrl: update?.checksumUrl || '',
+    fileName: update?.downloadFileName || '',
+    expectedSize: Number(update?.downloadSize || 0),
+  }
+}
+
+async function startUpdateDownload(update = lastUpdateInfo.value) {
+  const payload = updateDownloadPayload(update)
+  if (!payload.downloadUrl) {
+    errorMessage.value = '没有可用的安装包下载地址'
+    return
+  }
+  if (!payload.checksumUrl) {
+    errorMessage.value = '没有可用的 SHA256 校验文件，已取消应用内下载'
+    return
+  }
+  errorMessage.value = ''
+  successMessage.value = ''
+  const status = await downloadUpdate(payload)
+  updateDownloadStatus.value = status || { state: 'downloading' }
+  startUpdateDownloadPolling()
+}
+
+function startUpdateDownloadPolling() {
+  if (updateDownloadTimer) {
+    return
+  }
+  updateDownloadTimer = window.setInterval(refreshUpdateDownloadStatus, 1000)
+}
+
+function stopUpdateDownloadPolling() {
+  if (!updateDownloadTimer) {
+    return
+  }
+  window.clearInterval(updateDownloadTimer)
+  updateDownloadTimer = null
+}
+
+async function refreshUpdateDownloadStatus() {
+  try {
+    const status = await getUpdateDownloadStatus()
+    if (status) {
+      updateDownloadStatus.value = status
+      if (status.state === 'downloading') {
+        startUpdateDownloadPolling()
+      } else if (['downloaded', 'failed', 'installing', 'idle'].includes(status.state)) {
+        stopUpdateDownloadPolling()
+      }
+    }
+  } catch {
+    stopUpdateDownloadPolling()
+  }
+}
+
+async function installReadyUpdate() {
+  try {
+    await ElMessageBox.confirm(
+      '安装器将从已校验的本地文件启动。安装过程中可能需要关闭当前 OmniProxy 窗口。',
+      '安装更新',
+      {
+        confirmButtonText: '立即安装',
+        cancelButtonText: '稍后',
+        type: 'info',
+      },
+    )
+    const status = await installDownloadedUpdate()
+    updateDownloadStatus.value = status || updateDownloadStatus.value
+    successMessage.value = '更新安装器已启动'
+  } catch (action) {
+    if (action instanceof Error) {
+      errorMessage.value = action.message
+    }
+  }
 }
 
 async function refreshHistory(filters = {}) {
@@ -1052,7 +1140,11 @@ function selectProvider(provider) {
 }
 
 function credentialLabel(item) {
-  return credentialTypes[item.credentialType || 'api_key'] || item.credentialType || 'API Key'
+  const label = credentialTypes[item.credentialType || 'api_key'] || item.credentialType || 'API Key'
+  if (item.provider === 'xiaomi' && item.credentialType === 'mimo_token_plan') {
+    return `${label} · ${item.region === 'sgp' ? '海外 SGP' : '中国区'}`
+  }
+  return label
 }
 
 function normalizedCredentialType(provider, credentialType) {
@@ -1708,6 +1800,14 @@ async function refreshQuota(item) {
         </section>
       </section>
 
+      <BillingView
+        v-else-if="activeTab === 'billing'"
+        key="billing"
+        :entries="requestHistory"
+        :format-number="formatNumber"
+        @refresh="refreshHistory"
+      />
+
       <section v-else-if="activeTab === 'quotas'" key="quotas" class="panel">
         <div class="section-heading">
           <div>
@@ -1910,9 +2010,12 @@ async function refreshQuota(item) {
         :auto-start-enabled="autoStartEnabled"
         :update-checking="updateChecking"
         :update-info="lastUpdateInfo"
+        :update-download-status="updateDownloadStatus"
         :update-checked-at="lastUpdateCheckedAt"
         :format-time="formatTime"
         @manual-check-for-updates="manualCheckForUpdates"
+        @download-update="startUpdateDownload"
+        @install-update="installReadyUpdate"
         @open-url="openExternalURL"
       />
 
