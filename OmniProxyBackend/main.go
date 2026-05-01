@@ -388,6 +388,10 @@ func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 		a.handleTokenValidate(w, r, id)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "disabled" {
+		a.handleTokenDisabled(w, r, id)
+		return
+	}
 	if len(parts) > 1 {
 		writeError(w, http.StatusNotFound, "token not found")
 		return
@@ -417,6 +421,34 @@ func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+type tokenDisabledRequest struct {
+	Disabled bool `json:"disabled"`
+}
+
+func (a *appServer) handleTokenDisabled(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req tokenDisabledRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	item, err := a.tokens.SetDisabled(id, req.Disabled)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	message := "token enabled"
+	if item.Disabled {
+		message = "token disabled"
+	}
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	writeJSON(w, http.StatusOK, tokenResponseFor(item))
 }
 
 func (a *appServer) handleTokenValidate(w http.ResponseWriter, r *http.Request, id string) {
@@ -603,6 +635,9 @@ func (a *appServer) refreshCodexUsageOnStartup(ctx context.Context) {
 	total := 0
 	failed := 0
 	for _, item := range items {
+		if item.Disabled {
+			continue
+		}
 		if !isCodexToken(item) {
 			continue
 		}
@@ -708,6 +743,9 @@ func currentQuotaRefreshCandidate(items []token.Token, now time.Time) (token.Tok
 	var selected token.Token
 	found := false
 	for _, item := range items {
+		if item.Disabled {
+			continue
+		}
 		if strings.TrimSpace(item.TokenValue) == "" || item.Stats.UpdatedAt == nil {
 			continue
 		}

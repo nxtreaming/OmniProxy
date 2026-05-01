@@ -626,6 +626,7 @@ export namespace main {
 	    stats: tokenStatsResponse;
 	    health: healthResponse;
 	    status: string;
+	    disabled: boolean;
 	    lastUsedAt?: string;
 	    lastError?: string;
 	    cooldownUntil?: string;
@@ -650,6 +651,7 @@ export namespace main {
 	        this.stats = this.convertValues(source["stats"], tokenStatsResponse);
 	        this.health = this.convertValues(source["health"], healthResponse);
 	        this.status = source["status"];
+	        this.disabled = Boolean(source["disabled"]);
 	        this.lastUsedAt = source["lastUsedAt"];
 	        this.lastError = source["lastError"];
 	        this.cooldownUntil = source["cooldownUntil"];

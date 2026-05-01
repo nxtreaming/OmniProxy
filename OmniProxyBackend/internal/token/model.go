@@ -48,6 +48,7 @@ type Token struct {
 	Stats          TokenStats `json:"stats"`
 	Health         HealthInfo `json:"health"`
 	Status         Status     `json:"status"`
+	Disabled       bool       `json:"disabled,omitempty"`
 	LastUsedAt     *time.Time `json:"lastUsedAt,omitempty"`
 	LastError      string     `json:"lastError,omitempty"`
 	CooldownUntil  *time.Time `json:"cooldownUntil,omitempty"`

@@ -132,6 +132,16 @@ export function deleteToken(id) {
   })
 }
 
+export function setTokenDisabled(id, disabled) {
+  if (useWailsBindings()) {
+    return DesktopApp.SetTokenDisabled(id, disabled)
+  }
+  return request(`/tokens/${id}/disabled`, {
+    method: 'PUT',
+    body: JSON.stringify({ disabled }),
+  })
+}
+
 export function validateToken(id) {
   if (useWailsBindings()) {
     return DesktopApp.ValidateToken(id)

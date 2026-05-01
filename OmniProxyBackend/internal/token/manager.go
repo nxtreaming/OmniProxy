@@ -228,6 +228,22 @@ func (m *Manager) Delete(id string) error {
 	return ErrTokenNotFound
 }
 
+func (m *Manager) SetDisabled(id string, disabled bool) (Token, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := range m.tokens {
+		if m.tokens[i].ID != id {
+			continue
+		}
+		m.tokens[i].Disabled = disabled
+		m.tokens[i].UpdatedAt = time.Now()
+		return m.tokens[i], m.persistLocked()
+	}
+
+	return Token{}, ErrTokenNotFound
+}
+
 func (m *Manager) Acquire(provider string, excluded map[string]bool) (Token, error) {
 	return m.AcquireMatching(provider, "", excluded)
 }
@@ -536,6 +552,9 @@ func (m *Manager) HealthCheckCandidates(now time.Time, activeInterval time.Durat
 
 	out := []Token{}
 	for _, item := range m.tokens {
+		if item.Disabled {
+			continue
+		}
 		if strings.TrimSpace(item.TokenValue) == "" {
 			continue
 		}
@@ -562,6 +581,9 @@ func (m *Manager) firstUsableLocked(provider string, credentialType string, stat
 	var busy Token
 	hasBusy := false
 	for _, item := range m.tokens {
+		if item.Disabled {
+			continue
+		}
 		if NormalizeProvider(item.Provider) != provider {
 			continue
 		}
@@ -592,6 +614,9 @@ func (m *Manager) firstUsablePreferredLocked(provider string, credentialType str
 	var busy Token
 	hasBusy := false
 	for _, item := range m.tokens {
+		if item.Disabled {
+			continue
+		}
 		if NormalizeProvider(item.Provider) != provider {
 			continue
 		}
@@ -640,6 +665,9 @@ func (m *Manager) bestBalancedLocked(provider string, credentialType string, sta
 	var selected Token
 	found := false
 	for _, item := range m.tokens {
+		if item.Disabled {
+			continue
+		}
 		if NormalizeProvider(item.Provider) != provider {
 			continue
 		}

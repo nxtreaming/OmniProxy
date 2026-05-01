@@ -18,7 +18,7 @@ const (
 	deepSeekProModel  = "deepseek-v4-pro[1m]"
 	deepSeekFastModel = "deepseek-v4-flash"
 	kimiCodingModel   = "kimi-for-coding"
-	zhipuGLMModel     = "glm-5"
+	zhipuGLMModel     = "glm-5.1"
 	omniProxyMimoAuth = "omniproxy"
 )
 
@@ -65,8 +65,8 @@ var (
 	}
 	claudeZhipuTarget = claudeModelTarget{
 		Model:       zhipuGLMModel,
-		Name:        "GLM-5",
-		Description: "Zhipu GLM-5 routed through OmniProxy",
+		Name:        "GLM-5.1",
+		Description: "Zhipu GLM-5.1 routed through OmniProxy",
 		LogMessage:  "zhipu claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Zhipu GLM",
 	}

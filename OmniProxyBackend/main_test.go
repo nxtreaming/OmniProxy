@@ -115,6 +115,42 @@ func TestTokenListDoesNotExposeTokenValue(t *testing.T) {
 	}
 }
 
+func TestTokenDisabledEndpointTogglesAccount(t *testing.T) {
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{
+		cfg:    config.Default(),
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/api/tokens/"+item.ID+"/disabled", strings.NewReader(`{"disabled":true}`))
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	var payload struct {
+		Disabled bool `json:"disabled"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !payload.Disabled {
+		t.Fatal("expected disabled response")
+	}
+	if selected, err := manager.Acquire(token.ProviderOpenAI, nil); err != token.ErrNoActiveToken {
+		t.Fatalf("expected disabled token to be unavailable, got selected=%#v err=%v", selected, err)
+	}
+}
+
 func TestControlCORSRejectsNonLocalOrigin(t *testing.T) {
 	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -1172,12 +1208,12 @@ func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
 		{
 			name:             "zhipu",
 			write:            writeZhipuClaudeSettings,
-			defaultModel:     "glm-5",
-			opusModel:        "glm-5",
-			sonnetModel:      "glm-5",
-			haikuModel:       "glm-5",
-			subagentModel:    "glm-5",
-			label:            "GLM-5",
+			defaultModel:     "glm-5.1",
+			opusModel:        "glm-5.1",
+			sonnetModel:      "glm-5.1",
+			haikuModel:       "glm-5.1",
+			subagentModel:    "glm-5.1",
+			label:            "GLM-5.1",
 			unwanted:         "mimo-v2.5-pro",
 			expectCustomName: true,
 		},

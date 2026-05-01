@@ -37,7 +37,7 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 		{
 			name:     "anthropic router zhipu",
 			path:     "/anthropic-router/v1/messages",
-			body:     `{"model":"glm-5"}`,
+			body:     `{"model":"glm-5.1"}`,
 			provider: token.ProviderZhipu,
 			protocol: "anthropic",
 			outPath:  "/v1/messages",
@@ -89,7 +89,7 @@ func TestRouterAvoidsDuplicateOpenAIVersionForVersionedProviderBaseURL(t *testin
 	router := NewRouter(config.Config{
 		ZhipuBaseURL: "https://open.bigmodel.cn/api/paas/v4",
 	})
-	route := router.Route(mustRouterTestURL(t, "/opencode-router/v1/chat/completions"), []byte(`{"model":"glm-5"}`))
+	route := router.Route(mustRouterTestURL(t, "/opencode-router/v1/chat/completions"), []byte(`{"model":"glm-5.1"}`))
 	target, err := router.TargetURL(route, token.Token{Provider: token.ProviderZhipu, CredentialType: token.CredentialTypeAPIKey})
 	if err != nil {
 		t.Fatal(err)

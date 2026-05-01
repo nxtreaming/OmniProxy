@@ -86,6 +86,10 @@ export function DeleteToken(arg1) {
   return window['go']['main']['DesktopApp']['DeleteToken'](arg1);
 }
 
+export function SetTokenDisabled(arg1, arg2) {
+  return window['go']['main']['DesktopApp']['SetTokenDisabled'](arg1, arg2);
+}
+
 export function DownloadUpdate(arg1) {
   return window['go']['main']['DesktopApp']['DownloadUpdate'](arg1);
 }

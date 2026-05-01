@@ -990,6 +990,18 @@ button:disabled {
   overflow: hidden;
 }
 
+.quota-card-disabled {
+  opacity: 0.74;
+}
+
+.quota-card-disabled .quota-card-inner {
+  background: color-mix(in srgb, var(--surface-soft) 82%, var(--surface) 18%);
+}
+
+.quota-card-disabled .account-name {
+  color: var(--text-muted);
+}
+
 .quota-card-inner {
   display: grid;
   gap: 12px;
@@ -1014,6 +1026,24 @@ button:disabled {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.token-enable-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.token-enable-control span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .account-name {

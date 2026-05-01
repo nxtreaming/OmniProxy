@@ -17,7 +17,7 @@ export const providers = [
   { key: 'deepseek', label: 'DeepSeek', note: 'API Key' },
   { key: 'kimi', label: 'Kimi Code', note: 'API Key，Claude Code 模型 kimi-for-coding' },
   { key: 'xiaomi', label: 'Xiaomi MiMo', note: '按量 API Key 或 Token Plan' },
-  { key: 'zhipu', label: 'Zhipu GLM', note: 'API Key 或 Coding Plan，模型 glm-5' },
+  { key: 'zhipu', label: 'Zhipu GLM', note: 'API Key 或 Coding Plan，模型 glm-5.1' },
   { key: 'minimax', label: 'MiniMax', note: 'API Key，模型 MiniMax-M2.7' },
   { key: 'gemini', label: 'Gemini', note: 'Google Gemini API Key' },
   { key: 'custom', label: '自定义网关', note: 'OpenAI / Anthropic 兼容网关 API Key' },

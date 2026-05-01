@@ -1815,7 +1815,7 @@ func TestServiceRoutesOpenCodeRouterToZhipu(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/opencode-router/v1/chat/completions", stringsReader(`{"model":"glm-5","messages":[]}`))
+	req := httptest.NewRequest(http.MethodPost, "/opencode-router/v1/chat/completions", stringsReader(`{"model":"glm-5.1","messages":[]}`))
 	res := httptest.NewRecorder()
 	service.ServeHTTP(res, req)
 

@@ -259,7 +259,7 @@ func openCodeRouterProvider(baseURL string) map[string]any {
 		"models": map[string]any{
 			"gpt-5.4":         map[string]any{"name": "GPT-5.4"},
 			"deepseek-v4-pro": map[string]any{"name": "DeepSeek V4 Pro"},
-			"glm-5":           map[string]any{"name": "GLM-5"},
+			"glm-5.1":         map[string]any{"name": "GLM-5.1"},
 			"MiniMax-M2.7":    map[string]any{"name": "MiniMax M2.7"},
 			"mimo-v2.5-pro":   map[string]any{"name": "MiMo V2.5 Pro"},
 		},

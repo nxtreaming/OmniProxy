@@ -67,6 +67,46 @@ func TestManagerAcquireFallsBackToLowTokens(t *testing.T) {
 	}
 }
 
+func TestManagerSkipsDisabledTokens(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	disabled, err := manager.Add(UpsertRequest{Name: "disabled", Provider: "openai", TokenValue: "sk-disabled-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled, err := manager.Add(UpsertRequest{Name: "enabled", Provider: "openai", TokenValue: "sk-enabled-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := manager.SetDisabled(disabled.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.Disabled {
+		t.Fatal("expected token to be disabled")
+	}
+
+	selected, err := manager.Acquire(ProviderOpenAI, map[string]bool{enabled.ID: true})
+	if err != ErrNoActiveToken {
+		t.Fatalf("expected no active token when only disabled account remains, got selected=%#v err=%v", selected, err)
+	}
+	selected, err = manager.Acquire(ProviderOpenAI, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != enabled.ID {
+		t.Fatalf("expected enabled token, got %s", selected.Name)
+	}
+
+	candidates := manager.HealthCheckCandidates(time.Now(), time.Millisecond, time.Millisecond)
+	if len(candidates) != 1 || candidates[0].ID != enabled.ID {
+		t.Fatalf("expected only enabled health check candidate, got %#v", candidates)
+	}
+}
+
 func TestManagerAcquireBalancedRotatesAcrossAccounts(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {

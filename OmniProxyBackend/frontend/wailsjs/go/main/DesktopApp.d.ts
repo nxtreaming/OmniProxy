@@ -47,6 +47,8 @@ export function DataDirectory():Promise<config.DataDirectoryInfo>;
 
 export function DeleteToken(arg1:string):Promise<void>;
 
+export function SetTokenDisabled(arg1:string,arg2:boolean):Promise<main.tokenResponse>;
+
 export function DownloadUpdate(arg1:main.updateDownloadRequest):Promise<main.updateDownloadStatus>;
 
 export function ExportCodexAuthFiles():Promise<main.codexAuthExportResult>;

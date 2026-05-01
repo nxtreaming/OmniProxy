@@ -201,6 +201,19 @@ func (a *DesktopApp) DeleteToken(id string) error {
 	return nil
 }
 
+func (a *DesktopApp) SetTokenDisabled(id string, disabled bool) (tokenResponse, error) {
+	item, err := a.server.tokens.SetDisabled(id, disabled)
+	if err != nil {
+		return tokenResponse{}, err
+	}
+	message := "token enabled"
+	if item.Disabled {
+		message = "token disabled"
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	return tokenResponseFor(item), nil
+}
+
 func (a *DesktopApp) ValidateToken(id string) (validationResponse, error) {
 	selected, err := a.server.tokens.Get(id)
 	if err != nil {

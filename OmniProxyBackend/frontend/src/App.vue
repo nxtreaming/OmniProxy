@@ -47,6 +47,7 @@ import {
   openExternalURL,
   saveConfig,
   setAutoStart,
+  setTokenDisabled,
   startProxy,
   stopProxy,
   updateToken,
@@ -124,6 +125,7 @@ let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
 const validatingIds = reactive({})
+const togglingTokenIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
@@ -195,18 +197,23 @@ const form = reactive({
   region: 'cn',
   tokenValue: '',
 })
-const activeTokens = computed(() => tokens.value.filter((item) => item.status === 'active'))
-const lowTokens = computed(() => tokens.value.filter((item) => item.status === 'low'))
+const enabledTokens = computed(() => tokens.value.filter((item) => !item.disabled))
+const disabledTokens = computed(() => tokens.value.filter((item) => item.disabled))
+const activeTokens = computed(() => enabledTokens.value.filter((item) => item.status === 'active'))
+const lowTokens = computed(() => enabledTokens.value.filter((item) => item.status === 'low'))
 const exhaustedTokens = computed(() =>
-  tokens.value.filter((item) => item.status === 'exhausted' && !isCooling(item)),
+  enabledTokens.value.filter((item) => item.status === 'exhausted' && !isCooling(item)),
 )
-const invalidTokens = computed(() => tokens.value.filter((item) => item.status === 'invalid'))
-const coolingTokens = computed(() => tokens.value.filter((item) => isCooling(item)))
+const invalidTokens = computed(() => enabledTokens.value.filter((item) => item.status === 'invalid'))
+const coolingTokens = computed(() => enabledTokens.value.filter((item) => isCooling(item)))
 const activeTokenIds = computed(() => new Set(activeRequests.value.map((item) => item.tokenId).filter(Boolean)))
 const activeProviderInfo = computed(
   () => providers.find((item) => item.key === activeProvider.value) || providers[0],
 )
 const activeProviderTokens = computed(() => providerTokens(activeProvider.value))
+const activeProviderEnabledCount = computed(
+  () => activeProviderTokens.value.filter((item) => !item.disabled).length,
+)
 const subscriptionOverviewTokens = computed(() => tokens.value.filter((item) => showQuotaWindows(item)))
 const apiOverviewTokens = computed(() => tokens.value.filter((item) => !showQuotaWindows(item)))
 const totalProxyRequests = computed(() =>
@@ -685,6 +692,27 @@ async function removeToken(token) {
     successMessage.value = '账号已删除'
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+function replaceToken(updated) {
+  if (!updated?.id) return
+  tokens.value = tokens.value.map((item) => (item.id === updated.id ? updated : item))
+}
+
+async function toggleTokenEnabled(token, enabled) {
+  errorMessage.value = ''
+  successMessage.value = ''
+  togglingTokenIds[token.id] = true
+  try {
+    const updated = await setTokenDisabled(token.id, !enabled)
+    replaceToken(updated)
+    successMessage.value = enabled ? `已启用账号：${updated.name}` : `已停用账号：${updated.name}`
+  } catch (error) {
+    errorMessage.value = error.message
+    await refreshRealtime()
+  } finally {
+    togglingTokenIds[token.id] = false
   }
 }
 
@@ -1605,21 +1633,27 @@ function isCooling(item) {
 }
 
 function displayStatusLabel(item) {
+  if (item?.disabled) return '已停用'
   if (isCooling(item)) return '冷却中'
   return statusLabel(item.status)
 }
 
 function displayStatusClass(item) {
+  if (item?.disabled) return 'muted'
   if (isCooling(item)) return 'warning'
   return statusClass(item.status)
 }
 
 function displayStatusType(item) {
+  if (item?.disabled) return 'info'
   if (isCooling(item)) return 'warning'
   return statusType(item.status)
 }
 
 function healthSummary(item) {
+  if (item?.disabled) {
+    return '已停用，不参与调度和自动检查'
+  }
   if (isCooling(item)) {
     return `冷却到 ${formatTime(item.cooldownUntil)} 后自动复检`
   }
@@ -1647,9 +1681,9 @@ function closeHistoryDiagnosis() {
 }
 
 async function refreshProviderQuotas() {
-  const items = activeProviderTokens.value
+  const items = activeProviderTokens.value.filter((item) => !item.disabled)
   if (!items.length) {
-    successMessage.value = `暂无 ${activeProviderInfo.value.label} 账号可刷新`
+    successMessage.value = `暂无启用的 ${activeProviderInfo.value.label} 账号可刷新`
     return
   }
 
@@ -1758,7 +1792,7 @@ async function refreshQuota(item) {
               <small>无效账号</small>
             </div>
           </div>
-          <small>低额度 {{ lowTokens.length }} · 冷却 {{ coolingTokens.length }} · 耗尽 {{ exhaustedTokens.length }}</small>
+          <small>低额度 {{ lowTokens.length }} · 冷却 {{ coolingTokens.length }} · 耗尽 {{ exhaustedTokens.length }} · 停用 {{ disabledTokens.length }}</small>
         </article>
         <article class="metric-card">
           <span>代理总 Token</span>
@@ -2007,7 +2041,7 @@ async function refreshQuota(item) {
         <div class="provider-summary">
           <div>
             <h3>{{ activeProviderInfo.label }}</h3>
-            <p>{{ activeProviderTokens.length }} 个账号 · {{ activeProviderInfo.note }}</p>
+            <p>{{ activeProviderEnabledCount }} 启用 / {{ activeProviderTokens.length }} 总数 · {{ activeProviderInfo.note }}</p>
           </div>
         </div>
 
@@ -2015,7 +2049,7 @@ async function refreshQuota(item) {
           <el-card
             v-for="item in activeProviderTokens"
             :key="item.id"
-            class="quota-card"
+            :class="['quota-card', { 'quota-card-disabled': item.disabled }]"
             shadow="hover"
             :body-style="{ padding: '0' }"
           >
@@ -2027,6 +2061,15 @@ async function refreshQuota(item) {
                   <small class="health-line">{{ healthSummary(item) }}</small>
                 </div>
                 <div class="quota-head-actions">
+                  <div class="token-enable-control">
+                    <span>{{ item.disabled ? '停用' : '启用' }}</span>
+                    <el-switch
+                      :model-value="!item.disabled"
+                      size="small"
+                      :loading="togglingTokenIds[item.id]"
+                      @change="toggleTokenEnabled(item, $event)"
+                    />
+                  </div>
                   <el-tag v-if="item.usage?.subscriptionQuotaAvailable && item.usage?.planType" type="primary" effect="plain">
                     {{ planLabel(item.usage?.planType) }}
                   </el-tag>
@@ -2223,7 +2266,7 @@ async function refreshQuota(item) {
 DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
 MiMo: MiMo-V2.5-Pro / MiMo-V2.5
 Kimi model: kimi-for-coding
-GLM model: glm-5</code></pre>
+GLM model: glm-5.1</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="configureLocalDeepSeekClaude">
                 {{ deepSeekClaudeConfiguring ? '配置中' : '接入 Claude DeepSeek' }}
