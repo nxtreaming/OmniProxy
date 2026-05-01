@@ -36,6 +36,7 @@ var (
 	mimoPlatformAPIBaseURL       = "https://platform.xiaomimimo.com/api/v1"
 	mimoTokenPlanPlatformBaseURL = "https://platform.xiaomimimo.com/api/v1/tokenPlan"
 	zhipuCodingPlanUsageURL      = "https://api.z.ai/api/monitor/usage/quota/limit"
+	zhipuAPIBalanceURL           = "https://bigmodel.cn/api/biz/tokenAccounts/list/my"
 )
 
 func NewValidator(cfg config.Config) (*Validator, error) {
@@ -264,6 +265,9 @@ func (v *Validator) queryProviderQuota(ctx context.Context, selected token.Token
 	if token.NormalizeProvider(selected.Provider) == token.ProviderXiaomi && selected.CredentialType == token.CredentialTypeMimoTokenPlan {
 		return v.queryMimoTokenPlanUsage(ctx, selected)
 	}
+	if token.NormalizeProvider(selected.Provider) == token.ProviderZhipu && selected.CredentialType == token.CredentialTypeCodingPlan {
+		return v.queryZhipuCodingUsage(ctx, selected)
+	}
 
 	if selected.CredentialType != "" && selected.CredentialType != token.CredentialTypeAPIKey {
 		return token.UsageInfo{}, nil, false
@@ -275,7 +279,7 @@ func (v *Validator) queryProviderQuota(ctx context.Context, selected token.Token
 	case token.ProviderKimi:
 		return v.queryKimiCodingUsage(ctx, selected)
 	case token.ProviderZhipu:
-		return v.queryZhipuCodingUsage(ctx, selected)
+		return v.queryZhipuAPIBalance(ctx, selected)
 	case token.ProviderMiniMax:
 		return v.queryMiniMaxCodingUsage(ctx, selected)
 	case token.ProviderXiaomi:
@@ -603,6 +607,91 @@ func (v *Validator) queryKimiCodingUsage(ctx context.Context, selected token.Tok
 	return usage, &remaining, true
 }
 
+func (v *Validator) queryZhipuAPIBalance(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, zhipuAPIBalanceURL, nil)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	req.Header.Set("Accept", "application/json")
+	secret, err := credentialSecret(selected)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	req.Header.Set("Authorization", "Bearer "+secret)
+
+	resp, err := v.client.Do(req)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	defer closeBody(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return token.UsageInfo{}, nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	if boolFromAny(payload["success"], true) == false {
+		return token.UsageInfo{}, nil, false
+	}
+
+	rows := zhipuBalanceRows(payload)
+	if len(rows) == 0 {
+		return token.UsageInfo{}, nil, false
+	}
+	total := 0.0
+	for _, row := range rows {
+		if balance, ok := zhipuBalanceValue(row); ok {
+			total += balance
+		}
+	}
+
+	remaining := 100
+	if total <= 0 {
+		remaining = 0
+	}
+	return token.UsageInfo{
+		Source:           token.ProviderZhipu,
+		PlanType:         "Zhipu GLM API Key",
+		BalanceRemaining: total,
+		BalanceUnit:      "Token",
+		LimitReached:     total <= 0,
+		Message:          "Zhipu GLM API balance",
+	}, &remaining, true
+}
+
+func zhipuBalanceRows(payload map[string]any) []any {
+	if rows, ok := payload["rows"].([]any); ok {
+		return rows
+	}
+	if data, ok := payload["data"].(map[string]any); ok {
+		if rows, ok := data["rows"].([]any); ok {
+			return rows
+		}
+		if rows, ok := data["list"].([]any); ok {
+			return rows
+		}
+	}
+	return nil
+}
+
+func zhipuBalanceValue(row any) (float64, bool) {
+	item, ok := row.(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	for _, key := range []string{"tokenBalance", "balance", "availableBalance", "remaining"} {
+		if balance, ok := floatFromAny(item[key]); ok {
+			return balance, true
+		}
+	}
+	return 0, false
+}
+
 func (v *Validator) queryZhipuCodingUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, zhipuCodingPlanUsageURL, nil)
 	if err != nil {
@@ -650,7 +739,8 @@ func (v *Validator) queryZhipuCodingUsage(ctx context.Context, selected token.To
 		usage.PlanType = "Zhipu GLM " + level
 	}
 
-	found := false
+	primaryFound := false
+	secondaryFound := false
 	if limits, ok := data["limits"].([]any); ok {
 		for _, raw := range limits {
 			limitItem, ok := raw.(map[string]any)
@@ -661,26 +751,72 @@ func (v *Validator) queryZhipuCodingUsage(ctx context.Context, selected token.To
 			if limitType != "TOKENS_LIMIT" {
 				continue
 			}
-			usedValue, ok := floatFromAny(limitItem["percentage"])
+			used, remaining, resetAt, ok := zhipuCodingUsageWindow(limitItem)
 			if !ok {
 				continue
 			}
-			used := percent(usedValue)
-			usage.PrimaryUsedPercent = used
-			usage.PrimaryRemainingPercent = 100 - used
-			usage.PrimaryResetAt = unixSecondsFromAny(limitItem["nextResetTime"])
+			if zhipuCodingLimitIsWeekly(limitItem) || primaryFound {
+				usage.SecondaryUsedPercent = used
+				usage.SecondaryRemainingPercent = remaining
+				usage.SecondaryResetAt = resetAt
+				secondaryFound = true
+			} else {
+				usage.PrimaryUsedPercent = used
+				usage.PrimaryRemainingPercent = remaining
+				usage.PrimaryResetAt = resetAt
+				primaryFound = true
+			}
 			usage.SubscriptionQuotaAvailable = true
-			found = true
-			break
 		}
 	}
-	if !found {
+	if !usage.SubscriptionQuotaAvailable {
 		return token.UsageInfo{}, nil, false
 	}
 
 	remaining := usage.PrimaryRemainingPercent
+	if !primaryFound && secondaryFound {
+		remaining = usage.SecondaryRemainingPercent
+	} else if primaryFound && secondaryFound && usage.SecondaryRemainingPercent < remaining {
+		remaining = usage.SecondaryRemainingPercent
+	}
 	usage.LimitReached = remaining <= 0
 	return usage, &remaining, true
+}
+
+func zhipuCodingUsageWindow(limitItem map[string]any) (int, int, int64, bool) {
+	if usedValue, ok := floatFromAny(limitItem["percentage"]); ok {
+		used := percent(usedValue)
+		return used, 100 - used, unixSecondsFromAny(limitItem["nextResetTime"]), true
+	}
+	total, totalOK := floatFromAny(limitItem["usage"])
+	usedCount, usedOK := floatFromAny(limitItem["currentValue"])
+	if !totalOK || !usedOK || total <= 0 {
+		return 0, 0, 0, false
+	}
+	used := percent((usedCount / total) * 100)
+	remaining := 100 - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	return used, remaining, unixSecondsFromAny(limitItem["nextResetTime"]), true
+}
+
+func zhipuCodingLimitIsWeekly(limitItem map[string]any) bool {
+	unit, unitOK := floatFromAny(limitItem["unit"])
+	number, numberOK := floatFromAny(limitItem["number"])
+	if unitOK && numberOK {
+		if int(unit) == 6 && int(number) >= 7 {
+			return true
+		}
+		if int(number) >= 7 {
+			return true
+		}
+	}
+	window, _ := stringFromAny(limitItem["name"])
+	if strings.Contains(strings.ToLower(window), "week") || strings.Contains(window, "周") {
+		return true
+	}
+	return false
 }
 
 func (v *Validator) queryMiniMaxCodingUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {

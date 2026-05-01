@@ -245,7 +245,8 @@ func TestValidatorQueriesZhipuCodingUsage(t *testing.T) {
 			"data": {
 				"level": "Coding",
 				"limits": [
-					{"type": "TOKENS_LIMIT", "percentage": 25, "nextResetTime": 1760000000000}
+					{"type": "TOKENS_LIMIT", "percentage": 25, "nextResetTime": 1760000000000, "unit": 3, "number": 5},
+					{"type": "TOKENS_LIMIT", "percentage": 100, "nextResetTime": 1760500000000, "unit": 6, "number": 7}
 				]
 			}
 		}`))
@@ -270,17 +271,82 @@ func TestValidatorQueriesZhipuCodingUsage(t *testing.T) {
 	}
 
 	result, err := validator.Validate(t.Context(), token.Token{
-		Provider:   token.ProviderZhipu,
-		TokenValue: "zhipu-token-value",
+		Provider:       token.ProviderZhipu,
+		CredentialType: token.CredentialTypeCodingPlan,
+		TokenValue:     "zhipu-token-value",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Usage == nil || result.Usage.PrimaryUsedPercent != 25 || result.Usage.PrimaryRemainingPercent != 75 {
+	if result.Usage == nil || result.Usage.PrimaryUsedPercent != 25 || result.Usage.PrimaryRemainingPercent != 75 || result.Usage.SecondaryRemainingPercent != 0 {
 		t.Fatalf("unexpected zhipu usage: %#v", result.Usage)
 	}
-	if result.Remaining == nil || *result.Remaining != 75 {
-		t.Fatalf("expected remaining 75, got %#v", result.Remaining)
+	if !result.Usage.LimitReached {
+		t.Fatalf("expected weekly limit to mark usage exhausted: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 0 {
+		t.Fatalf("expected remaining 0, got %#v", result.Remaining)
+	}
+}
+
+func TestValidatorQueriesZhipuAPIBalance(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer zhipu-token-value" {
+			t.Fatalf("unexpected model Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		if r.URL.Path != "/api/paas/v4/models" {
+			t.Fatalf("unexpected validation path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer upstream.Close()
+
+	balance := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer zhipu-token-value" {
+			t.Fatalf("unexpected balance Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"success": true,
+			"rows": [
+				{"tokenNo": "general", "tokenBalance": 1200},
+				{"tokenNo": "glm-4.6", "tokenBalance": "300.5"}
+			]
+		}`))
+	}))
+	defer balance.Close()
+
+	originalURL := zhipuAPIBalanceURL
+	zhipuAPIBalanceURL = balance.URL + "/api/biz/tokenAccounts/list/my"
+	defer func() {
+		zhipuAPIBalanceURL = originalURL
+	}()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZhipuBaseURL:    upstream.URL + "/api/paas/v4",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:       token.ProviderZhipu,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "zhipu-token-value",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil || result.Usage.BalanceRemaining != 1500.5 || result.Usage.BalanceUnit != "Token" {
+		t.Fatalf("unexpected zhipu api balance usage: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 100 {
+		t.Fatalf("expected remaining 100, got %#v", result.Remaining)
 	}
 }
 
