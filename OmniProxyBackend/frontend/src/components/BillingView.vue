@@ -664,7 +664,7 @@ function truncateText(ctx, text, maxWidth) {
               <strong>Usage</strong>
               <small>Amount</small>
             </div>
-            <div v-for="(row, index) in topRows.slice(0, 4)" :key="row.model">
+            <div v-for="(row, index) in topRows.slice(0, 3)" :key="row.model">
               <span>{{ index + 1 }}</span>
               <strong>{{ row.model }}</strong>
               <small>{{ rowCostText(row) }}</small>

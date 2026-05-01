@@ -1710,12 +1710,12 @@ tr:last-child td {
   margin-top: 8px;
   color: var(--text-strong);
   overflow-wrap: anywhere;
-  font-size: 24px;
+  font-size: clamp(20px, 1.45vw, 24px);
   line-height: 1.15;
 }
 
 .billing-total-card strong {
-  font-size: 34px;
+  font-size: clamp(26px, 2.2vw, 34px);
 }
 
 .billing-summary-grid small {
@@ -1725,22 +1725,25 @@ tr:last-child td {
 
 .billing-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
 }
 
 .billing-report-preview-panel,
 .billing-table-panel {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .billing-report-preview {
-  min-height: 680px;
-  padding: 26px;
+  width: 100%;
+  min-height: 0;
+  padding: 22px;
   display: grid;
   align-content: start;
-  gap: 18px;
+  gap: 14px;
   border-radius: 8px;
   background: #ffffff;
   color: #0f172a;
@@ -1752,8 +1755,8 @@ tr:last-child td {
 .report-preview-top {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
+  gap: 12px;
+  padding-bottom: 14px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -1763,7 +1766,8 @@ tr:last-child td {
 }
 
 .report-preview-top strong {
-  font-size: 24px;
+  font-size: 22px;
+  line-height: 1.15;
 }
 
 .report-preview-top span,
@@ -1788,12 +1792,12 @@ tr:last-child td {
 .report-preview-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .report-preview-meta > div {
   min-width: 0;
-  padding: 12px;
+  padding: 11px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #f8fafc;
@@ -1817,14 +1821,14 @@ tr:last-child td {
   display: block;
   overflow-wrap: anywhere;
   color: #0f172a;
-  font-size: 34px;
+  font-size: 30px;
   line-height: 1.05;
 }
 
 .report-preview-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .report-preview-metrics > div,
@@ -1836,27 +1840,27 @@ tr:last-child td {
 }
 
 .report-preview-metrics > div {
-  padding: 14px;
+  padding: 12px;
 }
 
 .report-preview-metrics strong {
   display: block;
   margin-top: 6px;
   color: #0f172a;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .report-preview-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .report-preview-list > div {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 24px minmax(0, 1fr) max-content;
+  gap: 8px;
   align-items: center;
-  padding: 12px;
+  padding: 10px 12px;
 }
 
 .report-preview-list > div.report-preview-list-head {
@@ -1881,6 +1885,17 @@ tr:last-child td {
   white-space: nowrap;
 }
 
+.report-preview-list small {
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.billing-report-preview p {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .billing-table {
   margin-top: 18px;
   display: grid;
@@ -1890,10 +1905,10 @@ tr:last-child td {
 .billing-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(160px, 1.15fr) minmax(140px, 0.9fr) minmax(145px, 0.9fr) minmax(92px, 0.6fr);
-  gap: 12px;
+  grid-template-columns: minmax(120px, 1.15fr) minmax(120px, 0.9fr) minmax(130px, 0.85fr) minmax(82px, max-content);
+  gap: 10px;
   align-items: center;
-  padding: 13px 14px;
+  padding: 13px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -1908,7 +1923,15 @@ tr:last-child td {
 
 .billing-row span {
   min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
+}
+
+.billing-row span:last-child {
+  justify-self: end;
+  min-width: 82px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .billing-row strong {
@@ -1922,8 +1945,11 @@ tr:last-child td {
 .billing-row small {
   display: block;
   margin-top: 4px;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rank-list {
