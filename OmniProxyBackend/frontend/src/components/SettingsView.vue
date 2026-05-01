@@ -29,6 +29,14 @@ defineProps({
     type: Boolean,
     required: true,
   },
+  clearingBillingUsage: {
+    type: Boolean,
+    required: true,
+  },
+  clearingRequestHistory: {
+    type: Boolean,
+    required: true,
+  },
 })
 
 defineEmits([
@@ -36,6 +44,8 @@ defineEmits([
   'choose-data-directory',
   'toggle-auto-start',
   'import-mimo-cookie',
+  'clear-billing-usage',
+  'clear-request-history',
 ])
 </script>
 
@@ -94,6 +104,35 @@ defineEmits([
             >
               {{ autoStartChanging ? '更新中' : autoStartEnabled ? '关闭自启' : '开启自启' }}
             </button>
+          </div>
+          <div class="data-directory-row maintenance-row">
+            <div>
+              <span>账单与请求历史</span>
+              <strong>每日账单汇总保留 {{ config.historyRetentionDays || 14 }} 天</strong>
+              <small>默认保留 14 天；每日汇总只记录最终 Token 用量，不保存完整请求日志。</small>
+              <label class="inline-number-field">
+                <span>保留天数</span>
+                <input v-model="config.historyRetentionDays" type="number" min="1" max="365" />
+              </label>
+            </div>
+            <div class="maintenance-actions">
+              <button
+                type="button"
+                class="danger-button"
+                :disabled="clearingBillingUsage"
+                @click="$emit('clear-billing-usage')"
+              >
+                {{ clearingBillingUsage ? '清理中' : '清空账单汇总' }}
+              </button>
+              <button
+                type="button"
+                class="danger-button"
+                :disabled="clearingRequestHistory"
+                @click="$emit('clear-request-history')"
+              >
+                {{ clearingRequestHistory ? '清理中' : '清空请求历史' }}
+              </button>
+            </div>
           </div>
         </div>
       </section>

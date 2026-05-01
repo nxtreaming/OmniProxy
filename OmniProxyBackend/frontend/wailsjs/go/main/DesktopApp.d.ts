@@ -11,9 +11,17 @@ export function AppInfo():Promise<main.appInfo>;
 
 export function AutoStartStatus():Promise<Record<string, any>>;
 
+export function BillingDates(arg1:number):Promise<Array<string>>;
+
+export function BillingUsage(arg1:string):Promise<Array<history.DailyUsage>>;
+
 export function CheckForUpdates():Promise<main.updateInfo>;
 
 export function ChooseDataDirectory(arg1:boolean):Promise<config.DataDirectoryChangeResult>;
+
+export function ClearBillingUsage():Promise<void>;
+
+export function ClearRequestHistory():Promise<void>;
 
 export function Config():Promise<config.Config>;
 

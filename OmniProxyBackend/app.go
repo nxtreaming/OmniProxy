@@ -344,6 +344,42 @@ func (a *DesktopApp) RequestHistory(filter history.Filter) []historyResponse {
 	return historyResponses(a.server.history.List(filter))
 }
 
+func (a *DesktopApp) BillingUsage(date string) []history.DailyUsage {
+	if a.server.history == nil {
+		return []history.DailyUsage{}
+	}
+	return a.server.history.DailyUsage(date)
+}
+
+func (a *DesktopApp) BillingDates(limit int) []string {
+	if a.server.history == nil {
+		return []string{}
+	}
+	return a.server.history.DailyUsageDates(limit)
+}
+
+func (a *DesktopApp) ClearBillingUsage() error {
+	if a.server.history == nil {
+		return nil
+	}
+	if err := a.server.history.ClearDailyUsage(); err != nil {
+		return err
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "billing daily usage cleared"})
+	return nil
+}
+
+func (a *DesktopApp) ClearRequestHistory() error {
+	if a.server.history == nil {
+		return nil
+	}
+	if err := a.server.history.ClearRequestHistory(); err != nil {
+		return err
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "request history cleared"})
+	return nil
+}
+
 func (a *DesktopApp) ActiveProxyRequests() []activeRequestResponse {
 	return activeRequestResponses(a.server.activeProxyRequests())
 }

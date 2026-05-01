@@ -14,12 +14,28 @@ export function AutoStartStatus() {
   return window['go']['main']['DesktopApp']['AutoStartStatus']();
 }
 
+export function BillingDates(arg1) {
+  return window['go']['main']['DesktopApp']['BillingDates'](arg1);
+}
+
+export function BillingUsage(arg1) {
+  return window['go']['main']['DesktopApp']['BillingUsage'](arg1);
+}
+
 export function CheckForUpdates() {
   return window['go']['main']['DesktopApp']['CheckForUpdates']();
 }
 
 export function ChooseDataDirectory(arg1) {
   return window['go']['main']['DesktopApp']['ChooseDataDirectory'](arg1);
+}
+
+export function ClearBillingUsage() {
+  return window['go']['main']['DesktopApp']['ClearBillingUsage']();
+}
+
+export function ClearRequestHistory() {
+  return window['go']['main']['DesktopApp']['ClearRequestHistory']();
 }
 
 export function Config() {

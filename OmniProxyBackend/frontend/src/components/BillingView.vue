@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Download, Refresh } from '@element-plus/icons-vue'
 import { localDateKey } from '../utils/format'
 
@@ -8,29 +8,60 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  dailyUsage: {
+    type: Array,
+    default: () => [],
+  },
+  availableDates: {
+    type: Array,
+    default: () => [],
+  },
+  selectedDate: {
+    type: String,
+    default: '',
+  },
   formatNumber: {
     type: Function,
     required: true,
   },
 })
 
-defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'date-change'])
 
-const selectedDate = ref(localDateKey())
+const selectedDate = ref(props.selectedDate || localDateKey())
 
 const priceRules = [
-  { pattern: /^deepseek-(chat|v3|v4-flash)/i, label: 'DeepSeek Chat / V3', currency: 'USD', input: 0.27, output: 1.1 },
-  { pattern: /^deepseek-(reasoner|r1|v4-pro)/i, label: 'DeepSeek Reasoner / R1', currency: 'USD', input: 0.55, output: 2.19 },
-  { pattern: /^gemini-.*flash/i, label: 'Gemini Flash', currency: 'USD', input: 0.3, output: 2.5 },
-  { pattern: /^gemini-.*pro/i, label: 'Gemini Pro', currency: 'USD', input: 1.25, output: 10 },
-  { pattern: /^kimi|moonshot/i, label: 'Kimi', currency: 'CNY', input: 2, output: 8 },
-  { pattern: /^(glm|zhipu)/i, label: 'Zhipu GLM', currency: 'CNY', input: 5, output: 15 },
-  { pattern: /^minimax/i, label: 'MiniMax', currency: 'CNY', input: 4, output: 16 },
-  { pattern: /^mimo/i, label: 'Xiaomi MiMo', currency: 'CNY', input: 2, output: 8 },
+  { pattern: /^gpt-5\.5/i, label: 'OpenAI GPT-5.5', currency: 'USD', input: 5, output: 30 },
+  { pattern: /^gpt-5\.4-mini/i, label: 'OpenAI GPT-5.4 mini', currency: 'USD', input: 0.75, output: 4.5 },
+  { pattern: /^gpt-5\.4/i, label: 'OpenAI GPT-5.4', currency: 'USD', input: 2.5, output: 15 },
+  { pattern: /^claude-(opus-4\.[5-7]|opus-4-5|opus-4-6|opus-4-7)/i, label: 'Claude Opus 4.5+', currency: 'USD', input: 5, output: 25 },
+  { pattern: /^claude-(opus|3-opus|opus-4|opus-4-1)/i, label: 'Claude Opus', currency: 'USD', input: 15, output: 75 },
+  { pattern: /^claude-(sonnet|3-7-sonnet|4-sonnet|sonnet-4)/i, label: 'Claude Sonnet', currency: 'USD', input: 3, output: 15 },
+  { pattern: /^claude-(haiku-4\.5|4-5-haiku)/i, label: 'Claude Haiku 4.5', currency: 'USD', input: 1, output: 5 },
+  { pattern: /^claude-(haiku|3-5-haiku)/i, label: 'Claude Haiku', currency: 'USD', input: 0.8, output: 4 },
+  { pattern: /^deepseek-v4-pro/i, label: 'DeepSeek V4 Pro', currency: 'USD', input: 0.435, output: 0.87 },
+  { pattern: /^deepseek-(chat|reasoner|v4-flash)/i, label: 'DeepSeek V4 Flash', currency: 'USD', input: 0.14, output: 0.28 },
+  { pattern: /^gemini-2\.5-pro/i, label: 'Gemini 2.5 Pro', currency: 'USD', input: 1.25, output: 10 },
+  { pattern: /^gemini-2\.5-flash-lite/i, label: 'Gemini 2.5 Flash-Lite', currency: 'USD', input: 0.1, output: 0.4 },
+  { pattern: /^gemini-2\.5-flash/i, label: 'Gemini 2.5 Flash', currency: 'USD', input: 0.3, output: 2.5 },
+  { pattern: /^kimi[-_]?k2\.6|moonshot[-_]?k2\.6/i, label: 'Kimi K2.6', currency: 'USD', input: 0.95, output: 4 },
+  { pattern: /^kimi[-_]?k2\.5|moonshot[-_]?k2\.5/i, label: 'Kimi K2.5', currency: 'USD', input: 0.6, output: 3 },
+  { pattern: /^kimi[-_]?k2|moonshot[-_]?k2/i, label: 'Kimi K2', currency: 'USD', input: 0.6, output: 2.5 },
+  { pattern: /^moonshot-v1-128k/i, label: 'Moonshot v1 128K', currency: 'CNY', input: 10, output: 30 },
+  { pattern: /^moonshot-v1-32k/i, label: 'Moonshot v1 32K', currency: 'CNY', input: 5, output: 20 },
+  { pattern: /^moonshot-v1-8k/i, label: 'Moonshot v1 8K', currency: 'CNY', input: 2, output: 10 },
+  { pattern: /^minimax[-_]?m2-highspeed/i, label: 'MiniMax M2 Highspeed', currency: 'USD', input: 0.6, output: 2.4 },
+  { pattern: /^minimax[-_]?m2\.(7|5|1)|^minimax[-_]?m2\b/i, label: 'MiniMax M2', currency: 'USD', input: 0.3, output: 1.2 },
+  { pattern: /^mimo[-_]?v2\.5($|-)/i, label: 'Xiaomi MiMo V2.5', currency: 'USD', input: 0.4, output: 2 },
+  { pattern: /^mimo[-_]?v2[-_]?pro/i, label: 'Xiaomi MiMo V2 Pro', currency: 'USD', input: 1, output: 3 },
+  { pattern: /^glm-(4\.7|4\.5|4)-flash/i, label: 'Zhipu GLM Flash', currency: 'CNY', input: 0, output: 0 },
 ]
 
 const availableDates = computed(() => {
   const dates = new Set([localDateKey()])
+  for (const date of props.availableDates || []) {
+    if (date) dates.add(String(date))
+  }
   for (const entry of props.entries || []) {
     const date = entryDate(entry)
     if (date) dates.add(date)
@@ -38,9 +69,25 @@ const availableDates = computed(() => {
   return [...dates].sort((a, b) => b.localeCompare(a)).slice(0, 30)
 })
 
-const billingRows = computed(() => buildBillingRows(props.entries, selectedDate.value))
-const pricedRows = computed(() => billingRows.value.filter((row) => row.price))
-const unknownRows = computed(() => billingRows.value.filter((row) => !row.price))
+watch(
+  () => props.selectedDate,
+  (value) => {
+    if (value && value !== selectedDate.value) {
+      selectedDate.value = value
+    }
+  },
+)
+
+watch(selectedDate, (value) => {
+  if (value && value !== props.selectedDate) {
+    emit('date-change', value)
+  }
+})
+
+const rawRows = computed(() => buildBillingRows(props.entries, selectedDate.value, props.dailyUsage))
+const billingRows = computed(() => rawRows.value.filter((row) => row.price && row.totalTokens > 0))
+const ignoredRows = computed(() => rawRows.value.filter((row) => !row.price || row.totalTokens <= 0))
+const pricedRows = computed(() => billingRows.value)
 const topRows = computed(() =>
   [...pricedRows.value]
     .sort((a, b) => b.cost - a.cost || b.totalTokens - a.totalTokens)
@@ -57,9 +104,7 @@ const totals = computed(() => {
     outputTokens += row.outputTokens
     totalTokens += row.totalTokens
     requestCount += row.requestCount
-    if (row.price) {
-      byCurrency.set(row.currency, (byCurrency.get(row.currency) || 0) + row.cost)
-    }
+    byCurrency.set(row.currency, (byCurrency.get(row.currency) || 0) + row.cost)
   }
   return {
     inputTokens,
@@ -70,15 +115,10 @@ const totals = computed(() => {
   }
 })
 const totalCostText = computed(() => {
-  if (!totals.value.byCurrency.length) return '未配置价格'
+  if (!totals.value.byCurrency.length) return '暂无可计价用量'
   return totals.value.byCurrency.map((item) => formatMoney(item.value, item.currency)).join(' + ')
 })
-const unknownTokenPercent = computed(() => {
-  const total = totals.value.totalTokens
-  if (!total) return 0
-  const unknown = unknownRows.value.reduce((sum, row) => sum + row.totalTokens, 0)
-  return Math.round((unknown / total) * 100)
-})
+const ignoredTokenTotal = computed(() => ignoredRows.value.reduce((sum, row) => sum + row.totalTokens, 0))
 const statementId = computed(() => `OP-${selectedDate.value.replaceAll('-', '')}`)
 const invoiceNumber = computed(() => `INV-${selectedDate.value}-${invoiceSuffix(selectedDate.value)}`)
 const invoiceDateText = computed(() => formatDateLong(selectedDate.value))
@@ -92,32 +132,69 @@ const generatedAtText = computed(() =>
   }).format(new Date()),
 )
 
-function buildBillingRows(entries, date) {
+function buildBillingRows(entries, date, dailyUsage) {
   const byModel = new Map()
+  if (Array.isArray(dailyUsage) && dailyUsage.length) {
+    for (const item of dailyUsage) {
+      if (String(item.date || '') !== date) continue
+      addUsageRow(byModel, {
+        model: item.model,
+        provider: item.provider,
+        clientName: item.clientName,
+        clientKey: item.clientKey,
+        requestCount: Number(item.requestCount || 0),
+        inputTokens: Number(item.inputTokens || 0),
+        outputTokens: Number(item.outputTokens || 0),
+        totalTokens: Number(item.totalTokens || 0),
+      })
+    }
+    return finalizeBillingRows(byModel)
+  }
+
   for (const entry of entries || []) {
     if (entryDate(entry) !== date) continue
-    const model = String(entry.model || entry.protocol || '未记录模型').trim() || '未记录模型'
-    const current = byModel.get(model) || {
-      model,
-      requestCount: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      providers: new Set(),
-      clients: new Set(),
-    }
     const total = Number(entry.totalTokens || 0)
     const output = Number(entry.outputTokens || 0)
     const input = Number(entry.inputTokens || 0) || Math.max(0, total - output)
-    current.requestCount += 1
-    current.inputTokens += input
-    current.outputTokens += output
-    current.totalTokens += total || input + output
-    if (entry.provider) current.providers.add(entry.provider)
-    if (entry.clientName || entry.clientKey) current.clients.add(entry.clientName || entry.clientKey)
-    byModel.set(model, current)
+    addUsageRow(byModel, {
+      model: entry.model,
+      provider: entry.provider,
+      clientName: entry.clientName,
+      clientKey: entry.clientKey,
+      requestCount: 1,
+      inputTokens: input,
+      outputTokens: output,
+      totalTokens: total || input + output,
+    })
   }
 
+  return finalizeBillingRows(byModel)
+}
+
+function addUsageRow(byModel, item) {
+  const model = String(item.model || '').trim()
+  if (!model) return
+  const totalTokens = Number(item.totalTokens || 0)
+  if (totalTokens <= 0) return
+  const current = byModel.get(model) || {
+    model,
+    requestCount: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    providers: new Set(),
+    clients: new Set(),
+  }
+  current.requestCount += Number(item.requestCount || 0)
+  current.inputTokens += Number(item.inputTokens || 0)
+  current.outputTokens += Number(item.outputTokens || 0)
+  current.totalTokens += totalTokens
+  if (item.provider) current.providers.add(item.provider)
+  if (item.clientName || item.clientKey) current.clients.add(item.clientName || item.clientKey)
+  byModel.set(model, current)
+}
+
+function finalizeBillingRows(byModel) {
   return [...byModel.values()]
     .map((row) => {
       const price = resolvePrice(row.model)
@@ -177,17 +254,16 @@ function formatDateLong(dateValue) {
 }
 
 function totalInvoiceLines() {
-  if (!totals.value.byCurrency.length) return ['Pending price rules']
+  if (!totals.value.byCurrency.length) return ['No billable usage']
   return totals.value.byCurrency.map((item) => formatInvoiceMoney(item.value, item.currency))
 }
 
-function priceText(row) {
-  if (!row.price) return '未配置价格'
-  return `${formatMoney(row.price.input, row.currency)} / ${formatMoney(row.price.output, row.currency)} 每 1M`
+function priceRateText(row) {
+  return `${formatMoney(row.price.input, row.currency)} / ${formatMoney(row.price.output, row.currency)}`
 }
 
 function rowCostText(row) {
-  return row.price ? formatMoney(row.cost, row.currency) : '未配置'
+  return formatMoney(row.cost, row.currency)
 }
 
 async function exportReportImage() {
@@ -363,7 +439,7 @@ function drawBillingReport(ctx, width, height) {
   drawLine(ctx, pageX, footerY, pageX + pageW, footerY, line)
   ctx.fillStyle = text
   ctx.font = `400 18px ${font}`
-  ctx.fillText('If a model is missing from the local price table, its amount is marked as pending.', pageX, footerY + 48)
+  ctx.fillText('Only models matched by the local price table are included in this estimate.', pageX, footerY + 48)
   ctx.fillStyle = muted
   ctx.font = `400 17px ${font}`
   ctx.textAlign = 'center'
@@ -513,14 +589,14 @@ function truncateText(ctx, text, maxWidth) {
       <div class="section-heading">
         <div>
           <h2>费用账单</h2>
-          <p>按请求历史里的模型和输入/输出 Token 估算，不代表厂商真实账单</p>
+          <p>只统计已匹配价格且有 Token 的模型请求，健康检查和额度刷新不纳入账单</p>
         </div>
         <div class="billing-actions">
           <select v-model="selectedDate">
             <option v-for="date in availableDates" :key="date" :value="date">{{ date }}</option>
           </select>
           <el-button :icon="Refresh" @click="$emit('refresh')">刷新</el-button>
-          <el-button type="primary" :icon="Download" @click="exportReportImage">生成今日报告图</el-button>
+          <el-button type="primary" :icon="Download" @click="exportReportImage">生成所选日期报告图</el-button>
         </div>
       </div>
 
@@ -541,9 +617,9 @@ function truncateText(ctx, text, maxWidth) {
           <small>{{ selectedDate }}</small>
         </div>
         <div>
-          <span>未计价</span>
-          <strong>{{ unknownTokenPercent }}%</strong>
-          <small>{{ unknownRows.length }} 个模型未配置价格</small>
+          <span>未纳入</span>
+          <strong>{{ ignoredRows.length }}</strong>
+          <small>{{ formatNumber(ignoredTokenTotal) }} Token 未计费</small>
         </div>
       </div>
     </article>
@@ -603,7 +679,7 @@ function truncateText(ctx, text, maxWidth) {
         <div class="section-heading compact-heading">
           <div>
             <h2>模型费用明细</h2>
-            <p>默认价格表先覆盖常见 DeepSeek、Gemini、Kimi、GLM、MiniMax 与 MiMo 模型</p>
+            <p>默认价格表覆盖 OpenAI、Claude、DeepSeek、Gemini、Kimi K2、MiniMax 与 MiMo；未匹配价格的模型不会计入金额</p>
           </div>
         </div>
         <div class="billing-table">
@@ -623,14 +699,14 @@ function truncateText(ctx, text, maxWidth) {
               <small>{{ formatNumber(row.totalTokens) }} Token</small>
             </span>
             <span>
-              {{ priceText(row) }}
-              <small v-if="row.price">{{ row.price.label }}</small>
+              <strong class="price-rate">{{ priceRateText(row) }}</strong>
+              <small>每 1M · {{ row.price.label }}</small>
             </span>
             <span>
               <strong>{{ rowCostText(row) }}</strong>
             </span>
           </div>
-          <div v-if="!billingRows.length" class="empty">今天暂无请求历史用量</div>
+          <div v-if="!billingRows.length" class="empty">所选日期暂无可计价模型用量</div>
         </div>
       </article>
     </div>

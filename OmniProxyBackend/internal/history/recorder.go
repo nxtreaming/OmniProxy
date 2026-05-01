@@ -27,6 +27,14 @@ type QueryStore interface {
 	Prune(int) error
 }
 
+type UsageStore interface {
+	DailyUsage(string, int) ([]DailyUsage, error)
+	DailyUsageDates(int) ([]string, error)
+	PruneBeforeDate(string) error
+	ClearDailyUsage() error
+	ClearRequestHistory() error
+}
+
 type Entry struct {
 	ID                int64          `json:"id"`
 	Time              time.Time      `json:"time"`
@@ -74,16 +82,32 @@ type Filter struct {
 	Limit    int    `json:"limit,omitempty"`
 }
 
+type DailyUsage struct {
+	Date         string    `json:"date"`
+	Provider     string    `json:"provider,omitempty"`
+	Protocol     string    `json:"protocol,omitempty"`
+	ClientKey    string    `json:"clientKey,omitempty"`
+	ClientName   string    `json:"clientName,omitempty"`
+	Model        string    `json:"model,omitempty"`
+	RequestCount int       `json:"requestCount"`
+	InputTokens  int       `json:"inputTokens"`
+	OutputTokens int       `json:"outputTokens"`
+	TotalTokens  int       `json:"totalTokens"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
 type Recorder struct {
-	mu           sync.RWMutex
-	store        Store
-	queryStore   QueryStore
-	max          int
-	nextID       int64
-	entries      []Entry
-	persistDelay time.Duration
-	saveTimer    *time.Timer
-	dirty        bool
+	mu            sync.RWMutex
+	store         Store
+	queryStore    QueryStore
+	usageStore    UsageStore
+	max           int
+	retentionDays int
+	nextID        int64
+	entries       []Entry
+	persistDelay  time.Duration
+	saveTimer     *time.Timer
+	dirty         bool
 }
 
 func NewRecorder(store Store, max int) (*Recorder, error) {
@@ -109,6 +133,7 @@ func NewRecorder(store Store, max int) (*Recorder, error) {
 	return &Recorder{
 		store:        store,
 		queryStore:   queryStore(store),
+		usageStore:   usageStore(store),
 		max:          max,
 		nextID:       nextID,
 		entries:      entries,
@@ -140,8 +165,14 @@ func (r *Recorder) Add(entry Entry) Entry {
 	if r.queryStore != nil {
 		if err := r.queryStore.Append(entry); err == nil {
 			_ = r.queryStore.Prune(r.max)
+			if r.retentionDays > 0 && r.usageStore != nil {
+				_ = r.usageStore.PruneBeforeDate(retentionCutoffDate(time.Now(), r.retentionDays))
+			}
 			return entry
 		}
+	}
+	if r.retentionDays > 0 {
+		r.pruneEntriesBeforeLocked(retentionCutoffDate(time.Now(), r.retentionDays))
 	}
 	_ = r.schedulePersistLocked()
 	return entry
@@ -172,6 +203,74 @@ func (r *Recorder) List(filter Filter) []Entry {
 		out = out[:limit]
 	}
 	return out
+}
+
+func (r *Recorder) DailyUsage(date string) []DailyUsage {
+	if r.usageStore == nil {
+		return []DailyUsage{}
+	}
+	date = strings.TrimSpace(date)
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+	out, err := r.usageStore.DailyUsage(date, r.max)
+	if err != nil {
+		return []DailyUsage{}
+	}
+	return out
+}
+
+func (r *Recorder) DailyUsageDates(limit int) []string {
+	if r.usageStore == nil {
+		return []string{}
+	}
+	if limit <= 0 || limit > 366 {
+		limit = 30
+	}
+	out, err := r.usageStore.DailyUsageDates(limit)
+	if err != nil {
+		return []string{}
+	}
+	return out
+}
+
+func (r *Recorder) SetRetentionDays(days int) error {
+	r.mu.Lock()
+	r.retentionDays = days
+	cutoffDate := retentionCutoffDate(time.Now(), days)
+	if days > 0 {
+		r.pruneEntriesBeforeLocked(cutoffDate)
+	}
+	r.mu.Unlock()
+
+	if days <= 0 || r.usageStore == nil {
+		return nil
+	}
+	return r.usageStore.PruneBeforeDate(cutoffDate)
+}
+
+func (r *Recorder) ClearDailyUsage() error {
+	if r.usageStore == nil {
+		return nil
+	}
+	return r.usageStore.ClearDailyUsage()
+}
+
+func (r *Recorder) ClearRequestHistory() error {
+	r.mu.Lock()
+	r.entries = []Entry{}
+	r.nextID = 0
+	r.dirty = false
+	if r.saveTimer != nil {
+		r.saveTimer.Stop()
+		r.saveTimer = nil
+	}
+	r.mu.Unlock()
+
+	if r.usageStore != nil {
+		return r.usageStore.ClearRequestHistory()
+	}
+	return r.store.Save([]Entry{})
 }
 
 func (r *Recorder) Close() error {
@@ -230,12 +329,40 @@ func queryStore(store Store) QueryStore {
 	return query
 }
 
+func usageStore(store Store) UsageStore {
+	usage, ok := store.(UsageStore)
+	if !ok {
+		return nil
+	}
+	return usage
+}
+
 func (r *Recorder) persistLocked() error {
 	snapshot := make([]Entry, len(r.entries))
 	copy(snapshot, r.entries)
 	err := r.store.Save(snapshot)
 	r.dirty = err != nil
 	return err
+}
+
+func (r *Recorder) pruneEntriesBeforeLocked(cutoffDate string) {
+	if cutoffDate == "" {
+		return
+	}
+	out := r.entries[:0]
+	for _, entry := range r.entries {
+		if entry.Time.IsZero() || entry.Time.Local().Format("2006-01-02") >= cutoffDate {
+			out = append(out, entry)
+		}
+	}
+	r.entries = out
+}
+
+func retentionCutoffDate(now time.Time, days int) string {
+	if days <= 0 {
+		return ""
+	}
+	return now.Local().AddDate(0, 0, -days+1).Format("2006-01-02")
 }
 
 func matches(entry Entry, filter Filter) bool {

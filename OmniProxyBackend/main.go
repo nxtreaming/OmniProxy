@@ -182,6 +182,10 @@ func (a *appServer) loadData(dataDir string) error {
 		_ = historyStore.Close()
 		return fmt.Errorf("load request history: %w", err)
 	}
+	if err := historyRecorder.SetRetentionDays(cfg.HistoryRetentionDays); err != nil {
+		_ = historyStore.Close()
+		return fmt.Errorf("apply request history retention: %w", err)
+	}
 
 	a.mu.Lock()
 	a.dataDir = dataDir
@@ -291,6 +295,10 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/config", a.handleConfig)
 	mux.HandleFunc("/api/logs", a.handleLogs)
 	mux.HandleFunc("/api/history", a.handleHistory)
+	mux.HandleFunc("/api/history/clear", a.handleHistoryClear)
+	mux.HandleFunc("/api/billing/usage", a.handleBillingUsage)
+	mux.HandleFunc("/api/billing/dates", a.handleBillingDates)
+	mux.HandleFunc("/api/billing/clear", a.handleBillingClear)
 	mux.HandleFunc("/api/proxy/status", a.handleProxyStatus)
 	mux.HandleFunc("/api/proxy/active-requests", a.handleActiveProxyRequests)
 	mux.HandleFunc("/api/proxy/start", a.handleProxyStart)
@@ -826,6 +834,11 @@ func (a *appServer) saveConfig(cfg config.Config) (config.Config, error) {
 	if a.tokens != nil {
 		a.tokens.SetThreshold(cfg.SwitchThreshold)
 	}
+	if a.history != nil {
+		if err := a.history.SetRetentionDays(cfg.HistoryRetentionDays); err != nil {
+			return config.Config{}, err
+		}
+	}
 
 	if shouldRestartProxy {
 		if err := a.restartProxy(); err != nil {
@@ -899,6 +912,86 @@ func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 		Limit:    limit,
 	}
 	writeJSON(w, http.StatusOK, historyResponses(recorder.List(filter)))
+}
+
+func (a *appServer) handleHistoryClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err := recorder.ClearRequestHistory(); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "request history cleared"})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *appServer) handleBillingUsage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		writeJSON(w, http.StatusOK, []history.DailyUsage{})
+		return
+	}
+	date := strings.TrimSpace(r.URL.Query().Get("date"))
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+	writeJSON(w, http.StatusOK, recorder.DailyUsage(date))
+}
+
+func (a *appServer) handleBillingDates(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		writeJSON(w, http.StatusOK, []string{})
+		return
+	}
+	limit := 30
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	writeJSON(w, http.StatusOK, recorder.DailyUsageDates(limit))
+}
+
+func (a *appServer) handleBillingClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err := recorder.ClearDailyUsage(); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "billing daily usage cleared"})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *appServer) handleProxyStatus(w http.ResponseWriter, r *http.Request) {

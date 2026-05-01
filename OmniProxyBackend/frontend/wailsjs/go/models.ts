@@ -30,6 +30,7 @@ export namespace config {
 	    codexBaseUrl: string;
 	    switchThreshold: number;
 	    maxRetries: number;
+	    historyRetentionDays: number;
 	    codexUsageEndpoint: string;
 
 	    static createFrom(source: any = {}) {
@@ -67,6 +68,7 @@ export namespace config {
 	        this.codexBaseUrl = source["codexBaseUrl"];
 	        this.switchThreshold = source["switchThreshold"];
 	        this.maxRetries = source["maxRetries"];
+	        this.historyRetentionDays = source["historyRetentionDays"];
 	        this.codexUsageEndpoint = source["codexUsageEndpoint"];
 	    }
 	}
@@ -119,6 +121,38 @@ export namespace config {
 
 export namespace history {
 
+	export class DailyUsage {
+	    date: string;
+	    provider?: string;
+	    protocol?: string;
+	    clientKey?: string;
+	    clientName?: string;
+	    model?: string;
+	    requestCount: number;
+	    inputTokens: number;
+	    outputTokens: number;
+	    totalTokens: number;
+	    updatedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new DailyUsage(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.provider = source["provider"];
+	        this.protocol = source["protocol"];
+	        this.clientKey = source["clientKey"];
+	        this.clientName = source["clientName"];
+	        this.model = source["model"];
+	        this.requestCount = source["requestCount"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.totalTokens = source["totalTokens"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class Filter {
 	    provider?: string;
 	    client?: string;

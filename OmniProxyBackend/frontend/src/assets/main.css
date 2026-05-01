@@ -1860,6 +1860,7 @@ tr:last-child td {
 }
 
 .report-preview-list > div.report-preview-list-head {
+  grid-template-columns: minmax(0, 1fr) minmax(72px, auto) auto;
   border-color: transparent;
   background: #f1f5f9;
   color: #475569;
@@ -1889,8 +1890,8 @@ tr:last-child td {
 .billing-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(180px, 1.25fr) minmax(150px, 1fr) minmax(160px, 1fr) minmax(90px, 0.65fr);
-  gap: 14px;
+  grid-template-columns: minmax(160px, 1.15fr) minmax(140px, 0.9fr) minmax(145px, 0.9fr) minmax(92px, 0.6fr);
+  gap: 12px;
   align-items: center;
   padding: 13px 14px;
   border: 1px solid var(--line);
@@ -1912,6 +1913,10 @@ tr:last-child td {
 
 .billing-row strong {
   color: var(--text-strong);
+}
+
+.billing-row .price-rate {
+  white-space: nowrap;
 }
 
 .billing-row small {
@@ -2433,6 +2438,25 @@ tr:last-child td {
 .data-directory-row small {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.maintenance-row {
+  align-items: start;
+}
+
+.maintenance-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.inline-number-field {
+  max-width: 220px;
+  display: grid;
+  gap: 6px;
+}
+
+.inline-number-field input {
+  height: 38px;
 }
 
 .about-page {

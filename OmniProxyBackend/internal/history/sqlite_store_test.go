@@ -158,6 +158,128 @@ func TestSQLiteStoreSaveAssignsIDsForLegacyEntriesWithoutIDs(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreDailyUsageSummarizesBillableEntries(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	recorder, err := NewRecorder(store, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usageDate := time.Date(2026, 5, 1, 10, 30, 0, 0, time.Local)
+	recorder.Add(Entry{
+		Time:         usageDate,
+		Level:        "info",
+		Method:       "POST",
+		Path:         "/v1/chat/completions",
+		Provider:     "openai",
+		Protocol:     "openai",
+		ClientKey:    "codex",
+		ClientName:   "Codex",
+		Model:        "gpt-5.5",
+		Status:       200,
+		InputTokens:  100,
+		OutputTokens: 50,
+		TotalTokens:  150,
+		Message:      "request proxied",
+	})
+	recorder.Add(Entry{
+		Time:        usageDate.Add(time.Minute),
+		Level:       "info",
+		Method:      "CHECK",
+		Path:        "/maintenance/current-token-quota-refresh",
+		Provider:    "openai",
+		Protocol:    "quota-refresh",
+		Model:       "codex_auth_json",
+		Status:      200,
+		TotalTokens: 999,
+		Message:     "quota refresh completed",
+	})
+	recorder.Add(Entry{
+		Time:        usageDate.Add(2 * time.Minute),
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		Status:      200,
+		TotalTokens: 88,
+		Message:     "missing model",
+	})
+
+	usage, err := store.DailyUsage("2026-05-01", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(usage) != 1 {
+		t.Fatalf("expected one billable usage row, got %#v", usage)
+	}
+	if usage[0].Model != "gpt-5.5" || usage[0].RequestCount != 1 || usage[0].InputTokens != 100 || usage[0].OutputTokens != 50 || usage[0].TotalTokens != 150 {
+		t.Fatalf("unexpected usage row: %#v", usage[0])
+	}
+	dates, err := store.DailyUsageDates(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dates) != 1 || dates[0] != "2026-05-01" {
+		t.Fatalf("expected usage date to be listed, got %#v", dates)
+	}
+}
+
+func TestRecorderRetentionPrunesHistoryAndDailyUsageByDate(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	recorder, err := NewRecorder(store, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldTime := time.Now().AddDate(0, 0, -20)
+	recentTime := time.Now()
+	recorder.Add(Entry{
+		Time:        oldTime,
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		Model:       "gpt-5.4",
+		Status:      200,
+		TotalTokens: 100,
+		Message:     "old",
+	})
+	recorder.Add(Entry{
+		Time:        recentTime,
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		Model:       "gpt-5.5",
+		Status:      200,
+		TotalTokens: 200,
+		Message:     "recent",
+	})
+	if err := recorder.SetRetentionDays(14); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := recorder.List(Filter{})
+	if len(entries) != 1 || entries[0].Model != "gpt-5.5" {
+		t.Fatalf("expected only recent history after retention, got %#v", entries)
+	}
+	dates, err := store.DailyUsageDates(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dates) != 1 || dates[0] != recentTime.Format("2006-01-02") {
+		t.Fatalf("expected only recent usage date after retention, got %#v", dates)
+	}
+}
+
 func TestSQLiteStoreMigratesExistingRowsWithoutClientColumns(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "request_history.db")
 	db, err := sql.Open("sqlite", dbPath)

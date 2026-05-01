@@ -173,6 +173,44 @@ export function getHistory(filters = {}) {
   return request(`/history?${historyQuery(filters)}`)
 }
 
+export function getBillingUsage(date) {
+  const value = String(date || '').trim()
+  if (useWailsBindings() && DesktopApp.BillingUsage) {
+    return DesktopApp.BillingUsage(value)
+  }
+  const params = new URLSearchParams()
+  if (value) params.set('date', value)
+  return request(`/billing/usage?${params.toString()}`)
+}
+
+export function getBillingDates(limit = 30) {
+  const normalizedLimit = Number(limit || 30)
+  if (useWailsBindings() && DesktopApp.BillingDates) {
+    return DesktopApp.BillingDates(normalizedLimit)
+  }
+  const params = new URLSearchParams()
+  params.set('limit', String(normalizedLimit))
+  return request(`/billing/dates?${params.toString()}`)
+}
+
+export function clearBillingUsage() {
+  if (useWailsBindings() && DesktopApp.ClearBillingUsage) {
+    return DesktopApp.ClearBillingUsage()
+  }
+  return request('/billing/clear', {
+    method: 'DELETE',
+  })
+}
+
+export function clearRequestHistory() {
+  if (useWailsBindings() && DesktopApp.ClearRequestHistory) {
+    return DesktopApp.ClearRequestHistory()
+  }
+  return request('/history/clear', {
+    method: 'DELETE',
+  })
+}
+
 export function getDataDirectory() {
   if (useWailsBindings() && DesktopApp.DataDirectory) {
     return DesktopApp.DataDirectory()

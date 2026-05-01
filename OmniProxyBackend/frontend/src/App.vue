@@ -22,6 +22,8 @@ import {
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   checkForUpdates,
+  clearBillingUsage,
+  clearRequestHistory,
   deleteToken,
   downloadUpdate,
   exportCodexAuthFiles,
@@ -30,6 +32,8 @@ import {
   getAutoStartStatus,
   getAppInfo,
   getActiveRequests,
+  getBillingDates,
+  getBillingUsage,
   getConfig,
   getDataDirectory,
   getHistory,
@@ -106,6 +110,8 @@ const exportingHistory = ref('')
 const exportingTokens = ref(false)
 const exportingCodexAuth = ref(false)
 const codexAuthImporting = ref(false)
+const clearingBillingUsage = ref(false)
+const clearingRequestHistory = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const toastAutoCloseMs = 4000
@@ -118,6 +124,9 @@ const validatingIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
+const billingUsage = ref([])
+const billingDates = ref([])
+const selectedBillingDate = ref(localDateKey())
 const activeRequests = ref([])
 const selectedHistoryEntry = ref(null)
 const proxyStatus = reactive({ running: false, port: 3000 })
@@ -152,6 +161,7 @@ const config = reactive({
   codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
   switchThreshold: 15,
   maxRetries: 2,
+  historyRetentionDays: 14,
 })
 const dataDirectory = reactive({
   dataDir: '',
@@ -271,6 +281,8 @@ watch([errorMessage, successMessage], ([error, success]) => {
 watch(activeTab, (tab) => {
   if (tab === 'history') {
     refreshHistory()
+  } else if (tab === 'billing') {
+    refreshBilling()
   }
 })
 
@@ -313,6 +325,8 @@ async function refreshAll() {
     Object.assign(appInfo, loadedAppInfo)
     if (activeTab.value === 'history') {
       await refreshHistory()
+    } else if (activeTab.value === 'billing') {
+      await refreshBilling()
     }
   } catch (error) {
     errorMessage.value = error.message
@@ -342,6 +356,8 @@ async function refreshRealtime() {
     Object.assign(proxyStatus, loadedStatus)
     if (activeTab.value === 'history') {
       await refreshHistory()
+    } else if (activeTab.value === 'billing') {
+      await refreshBilling()
     }
   } catch (error) {
     errorMessage.value = error.message
@@ -515,6 +531,25 @@ async function refreshHistory(filters = {}) {
   } catch (error) {
     errorMessage.value = error.message
   }
+}
+
+async function refreshBilling(date = selectedBillingDate.value) {
+  try {
+    const normalizedDate = String(date || localDateKey()).trim() || localDateKey()
+    selectedBillingDate.value = normalizedDate
+    const [usage, dates] = await Promise.all([
+      getBillingUsage(normalizedDate),
+      getBillingDates(30),
+    ])
+    billingUsage.value = usage || []
+    billingDates.value = dates || []
+  } catch (error) {
+    errorMessage.value = error.message
+  }
+}
+
+async function changeBillingDate(date) {
+  await refreshBilling(date)
 }
 
 function openCreateForm(provider = 'openai') {
@@ -814,12 +849,65 @@ async function persistConfig() {
       codexUsageEndpoint: config.codexUsageEndpoint.trim(),
       switchThreshold: Number(config.switchThreshold),
       maxRetries: Number(config.maxRetries),
+      historyRetentionDays: Number(config.historyRetentionDays),
     })
     Object.assign(config, saved)
     await refreshRealtime()
     successMessage.value = '设置已保存'
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+async function clearBillingUsageData() {
+  try {
+    await ElMessageBox.confirm(
+      '将删除本地每日账单汇总，详细请求历史不会删除。此操作无法撤销。',
+      '清空账单汇总',
+      {
+        confirmButtonText: '清空汇总',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    clearingBillingUsage.value = true
+    errorMessage.value = ''
+    await clearBillingUsage()
+    billingUsage.value = []
+    billingDates.value = []
+    successMessage.value = '账单汇总已清空'
+  } catch (action) {
+    if (action instanceof Error) {
+      errorMessage.value = action.message
+    }
+  } finally {
+    clearingBillingUsage.value = false
+  }
+}
+
+async function clearRequestHistoryData() {
+  try {
+    await ElMessageBox.confirm(
+      '将删除本地请求历史明细，已保存的每日账单汇总会保留。此操作无法撤销。',
+      '清空请求历史',
+      {
+        confirmButtonText: '清空历史',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+    clearingRequestHistory.value = true
+    errorMessage.value = ''
+    await clearRequestHistory()
+    requestHistory.value = []
+    await refreshBilling()
+    successMessage.value = '请求历史已清空'
+  } catch (action) {
+    if (action instanceof Error) {
+      errorMessage.value = action.message
+    }
+  } finally {
+    clearingRequestHistory.value = false
   }
 }
 
@@ -1804,8 +1892,12 @@ async function refreshQuota(item) {
         v-else-if="activeTab === 'billing'"
         key="billing"
         :entries="requestHistory"
+        :daily-usage="billingUsage"
+        :available-dates="billingDates"
+        :selected-date="selectedBillingDate"
         :format-number="formatNumber"
-        @refresh="refreshHistory"
+        @date-change="changeBillingDate"
+        @refresh="refreshBilling"
       />
 
       <section v-else-if="activeTab === 'quotas'" key="quotas" class="panel">
@@ -1994,10 +2086,14 @@ async function refreshQuota(item) {
         :auto-start-changing="autoStartChanging"
         :auto-start-enabled="autoStartEnabled"
         :mimo-cookie-importing="mimoCookieImporting"
+        :clearing-billing-usage="clearingBillingUsage"
+        :clearing-request-history="clearingRequestHistory"
         @persist-config="persistConfig"
         @choose-data-directory="chooseDataDirectory"
         @toggle-auto-start="toggleAutoStart"
         @import-mimo-cookie="importMimoCookie"
+        @clear-billing-usage="clearBillingUsageData"
+        @clear-request-history="clearRequestHistoryData"
       />
 
       <AboutView

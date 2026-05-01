@@ -50,6 +50,7 @@ type Config struct {
 	CodexBaseURL                       string `json:"codexBaseUrl"`
 	SwitchThreshold                    int    `json:"switchThreshold"`
 	MaxRetries                         int    `json:"maxRetries"`
+	HistoryRetentionDays               int    `json:"historyRetentionDays"`
 	CodexUsageEndpoint                 string `json:"codexUsageEndpoint"`
 }
 
@@ -84,6 +85,7 @@ func Default() Config {
 		CodexBaseURL:                       "https://chatgpt.com/backend-api/codex",
 		SwitchThreshold:                    15,
 		MaxRetries:                         2,
+		HistoryRetentionDays:               14,
 		CodexUsageEndpoint:                 "https://chatgpt.com/backend-api/wham/usage",
 	}
 }
@@ -141,6 +143,7 @@ func (s *Store) Load() (Config, error) {
 		CodexBaseURL                       *string `json:"codexBaseUrl"`
 		SwitchThreshold                    *int    `json:"switchThreshold"`
 		MaxRetries                         *int    `json:"maxRetries"`
+		HistoryRetentionDays               *int    `json:"historyRetentionDays"`
 		CodexUsageEndpoint                 *string `json:"codexUsageEndpoint"`
 	}
 	if err := json.Unmarshal(data, &saved); err != nil {
@@ -235,6 +238,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.MaxRetries != nil && *saved.MaxRetries >= 0 {
 		cfg.MaxRetries = *saved.MaxRetries
+	}
+	if saved.HistoryRetentionDays != nil && *saved.HistoryRetentionDays > 0 {
+		cfg.HistoryRetentionDays = *saved.HistoryRetentionDays
 	}
 	if saved.CodexUsageEndpoint != nil && *saved.CodexUsageEndpoint != "" {
 		cfg.CodexUsageEndpoint = *saved.CodexUsageEndpoint
@@ -344,6 +350,12 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.MaxRetries < 0 {
 		cfg.MaxRetries = defaults.MaxRetries
+	}
+	if cfg.HistoryRetentionDays <= 0 {
+		cfg.HistoryRetentionDays = defaults.HistoryRetentionDays
+	}
+	if cfg.HistoryRetentionDays > 365 {
+		cfg.HistoryRetentionDays = 365
 	}
 	if cfg.CodexUsageEndpoint == "" {
 		cfg.CodexUsageEndpoint = defaults.CodexUsageEndpoint
