@@ -700,14 +700,15 @@ function replaceToken(updated) {
   tokens.value = tokens.value.map((item) => (item.id === updated.id ? updated : item))
 }
 
-async function toggleTokenEnabled(token, enabled) {
+async function toggleTokenEnabled(token, enabled = Boolean(token.disabled)) {
   errorMessage.value = ''
   successMessage.value = ''
   togglingTokenIds[token.id] = true
   try {
-    const updated = await setTokenDisabled(token.id, !enabled)
+    const nextEnabled = Boolean(enabled)
+    const updated = await setTokenDisabled(token.id, !nextEnabled)
     replaceToken(updated)
-    successMessage.value = enabled ? `已启用账号：${updated.name}` : `已停用账号：${updated.name}`
+    successMessage.value = nextEnabled ? `已启用账号：${updated.name}` : `已停用账号：${updated.name}`
   } catch (error) {
     errorMessage.value = error.message
     await refreshRealtime()
@@ -2111,13 +2112,21 @@ async function refreshQuota(item) {
                 </div>
                 <div class="quota-head-actions">
                   <div class="token-enable-control">
-                    <span>{{ item.disabled ? '停用' : '启用' }}</span>
                     <el-switch
                       :model-value="!item.disabled"
                       size="small"
+                      :disabled="togglingTokenIds[item.id]"
                       :loading="togglingTokenIds[item.id]"
-                      @change="toggleTokenEnabled(item, $event)"
+                      @update:model-value="toggleTokenEnabled(item, $event)"
                     />
+                    <button
+                      type="button"
+                      class="token-enable-text"
+                      :disabled="togglingTokenIds[item.id]"
+                      @click="toggleTokenEnabled(item)"
+                    >
+                      {{ item.disabled ? '启用账号' : '停用账号' }}
+                    </button>
                   </div>
                   <el-tag v-if="item.usage?.subscriptionQuotaAvailable && item.usage?.planType" type="primary" effect="plain">
                     {{ planLabel(item.usage?.planType) }}

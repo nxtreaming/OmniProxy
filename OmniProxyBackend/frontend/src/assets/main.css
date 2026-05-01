@@ -1033,17 +1033,30 @@ button:disabled {
   align-items: center;
   gap: 7px;
   min-height: 28px;
-  padding: 3px 8px;
+  padding: 3px 6px 3px 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
 }
 
-.token-enable-control span {
+.token-enable-text {
+  appearance: none;
+  border: 0;
+  background: transparent;
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+  cursor: pointer;
+}
+
+.token-enable-text:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
+.token-enable-text:not(:disabled):hover {
+  color: var(--primary);
 }
 
 .account-name {
