@@ -430,6 +430,18 @@ export function restoreKimiClaude() {
     : request('/kimi/claude/restore', { method: 'POST' })
 }
 
+export function configureZhipuClaude() {
+  return useWailsBindings()
+    ? DesktopApp.ConfigureZhipuClaude()
+    : request('/zhipu/claude/configure', { method: 'POST' })
+}
+
+export function restoreZhipuClaude() {
+  return useWailsBindings()
+    ? DesktopApp.RestoreZhipuClaude()
+    : request('/zhipu/claude/restore', { method: 'POST' })
+}
+
 export function configureGemini() {
   return useWailsBindings()
     ? DesktopApp.ConfigureGemini()

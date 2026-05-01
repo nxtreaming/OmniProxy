@@ -19,6 +19,7 @@ import {
   configureKimiClaude,
   configureMimoClaude,
   configureOpenCode,
+  configureZhipuClaude,
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   checkForUpdates,
@@ -54,6 +55,7 @@ import {
   restoreGemini,
   restoreMimoClaude,
   restoreOpenCode,
+  restoreZhipuClaude,
 } from './services/api'
 import {
   Coin,
@@ -92,6 +94,7 @@ const codexRestoring = ref(false)
 const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
+const zhipuClaudeConfiguring = ref(false)
 const geminiConfiguring = ref(false)
 const opencodeConfiguring = ref(false)
 const mimoClaudeRestoring = ref(false)
@@ -1041,6 +1044,20 @@ async function configureLocalKimiClaude() {
   }
 }
 
+async function configureLocalZhipuClaude() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  zhipuClaudeConfiguring.value = true
+  try {
+    const result = await configureZhipuClaude()
+    successMessage.value = result.message || 'Claude Code 已配置为使用 Zhipu GLM'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    zhipuClaudeConfiguring.value = false
+  }
+}
+
 async function configureLocalGemini() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -1103,6 +1120,20 @@ async function restoreLocalMimoClaude() {
   mimoClaudeRestoring.value = true
   try {
     const result = await restoreMimoClaude()
+    successMessage.value = result.message || 'Claude Code 配置已恢复'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    mimoClaudeRestoring.value = false
+  }
+}
+
+async function restoreLocalZhipuClaude() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  mimoClaudeRestoring.value = true
+  try {
+    const result = await restoreZhipuClaude()
     successMessage.value = result.message || 'Claude Code 配置已恢复'
   } catch (error) {
     errorMessage.value = error.message
@@ -2187,11 +2218,12 @@ async function refreshQuota(item) {
 
           <article class="wide-help">
             <strong>Claude Code</strong>
-            <p>每次只接入一个 Claude Code 上游。DeepSeek 和 MiMo 会分别写入两个模型槽位，并清理 OmniProxy 旧的多模型列表配置。</p>
+            <p>每次只接入一个 Claude Code 上游。DeepSeek 和 MiMo 会分别写入多个模型槽位，Kimi 和 GLM 会写入单模型槽位，并清理 OmniProxy 旧配置。</p>
             <pre class="help-code"><code>Claude Router URL: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
 DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
 MiMo: MiMo-V2.5-Pro / MiMo-V2.5
-Kimi model: kimi-for-coding</code></pre>
+Kimi model: kimi-for-coding
+GLM model: glm-5</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="configureLocalDeepSeekClaude">
                 {{ deepSeekClaudeConfiguring ? '配置中' : '接入 Claude DeepSeek' }}
@@ -2201,6 +2233,9 @@ Kimi model: kimi-for-coding</code></pre>
               </el-button>
               <el-button type="primary" plain :icon="MagicStick" :loading="kimiClaudeConfiguring" @click="configureLocalKimiClaude">
                 {{ kimiClaudeConfiguring ? '配置中' : '接入 Claude Kimi' }}
+              </el-button>
+              <el-button type="primary" plain :icon="MagicStick" :loading="zhipuClaudeConfiguring" @click="configureLocalZhipuClaude">
+                {{ zhipuClaudeConfiguring ? '配置中' : '接入 Claude GLM' }}
               </el-button>
               <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="restoreLocalMimoClaude">
                 {{ mimoClaudeRestoring ? '恢复中' : '恢复 Claude 配置' }}

@@ -18,6 +18,7 @@ const (
 	deepSeekProModel  = "deepseek-v4-pro[1m]"
 	deepSeekFastModel = "deepseek-v4-flash"
 	kimiCodingModel   = "kimi-for-coding"
+	zhipuGLMModel     = "glm-5"
 	omniProxyMimoAuth = "omniproxy"
 )
 
@@ -62,6 +63,13 @@ var (
 		LogMessage:  "kimi claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Kimi",
 	}
+	claudeZhipuTarget = claudeModelTarget{
+		Model:       zhipuGLMModel,
+		Name:        "GLM-5",
+		Description: "Zhipu GLM-5 routed through OmniProxy",
+		LogMessage:  "zhipu claude configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Zhipu GLM",
+	}
 )
 
 func (a *appServer) configureMimoClaude() (mimoConfigureResult, error) {
@@ -79,6 +87,12 @@ func (a *appServer) configureDeepSeekClaude() (mimoConfigureResult, error) {
 func (a *appServer) configureKimiClaude() (mimoConfigureResult, error) {
 	return a.configureClaudeWithWriter(claudeKimiTarget, func(path string, baseURL string) error {
 		return writeKimiClaudeSettings(path, baseURL)
+	})
+}
+
+func (a *appServer) configureZhipuClaude() (mimoConfigureResult, error) {
+	return a.configureClaudeWithWriter(claudeZhipuTarget, func(path string, baseURL string) error {
+		return writeZhipuClaudeSettings(path, baseURL)
 	})
 }
 
@@ -154,6 +168,10 @@ func (a *appServer) restoreKimiClaudeConfig() (mimoConfigureResult, error) {
 	return a.restoreMimoClaudeConfig()
 }
 
+func (a *appServer) restoreZhipuClaudeConfig() (mimoConfigureResult, error) {
+	return a.restoreMimoClaudeConfig()
+}
+
 func writeMimoClaudeSettings(path string, baseURL string) error {
 	data, err := readJSONObject(path)
 	if err != nil {
@@ -214,6 +232,10 @@ func writeDeepSeekClaudeSettings(path string, baseURL string) error {
 
 func writeKimiClaudeSettings(path string, baseURL string) error {
 	return writeClaudeSingleModelSettings(path, baseURL, claudeKimiTarget)
+}
+
+func writeZhipuClaudeSettings(path string, baseURL string) error {
+	return writeClaudeSingleModelSettings(path, baseURL, claudeZhipuTarget)
 }
 
 func writeClaudeSingleModelSettings(path string, baseURL string, target claudeModelTarget) error {
@@ -278,6 +300,7 @@ func claudeRouterAvailableModels() []string {
 		"claude-sonnet-4-20250514",
 		"claude-haiku-4-5-20251001",
 		kimiCodingModel,
+		zhipuGLMModel,
 	}
 }
 
@@ -383,7 +406,8 @@ func isKnownRouterDefaultModel(value string) bool {
 		strings.EqualFold(model, mimoStandardModel) ||
 		strings.EqualFold(model, deepSeekProModel) ||
 		strings.EqualFold(model, deepSeekFastModel) ||
-		strings.EqualFold(model, kimiCodingModel)
+		strings.EqualFold(model, kimiCodingModel) ||
+		strings.EqualFold(model, zhipuGLMModel)
 }
 
 func writeMimoClaudeOnboarding(path string) error {

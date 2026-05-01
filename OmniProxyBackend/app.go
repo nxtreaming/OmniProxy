@@ -613,6 +613,14 @@ func (a *DesktopApp) RestoreKimiClaude() (mimoConfigureResult, error) {
 	return a.server.restoreKimiClaudeConfig()
 }
 
+func (a *DesktopApp) ConfigureZhipuClaude() (mimoConfigureResult, error) {
+	return a.server.configureZhipuClaude()
+}
+
+func (a *DesktopApp) RestoreZhipuClaude() (mimoConfigureResult, error) {
+	return a.server.restoreZhipuClaudeConfig()
+}
+
 func (a *DesktopApp) ConfigureGemini() (clientConfigureResult, error) {
 	return a.server.configureGemini()
 }

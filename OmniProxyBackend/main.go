@@ -317,6 +317,8 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/deepseek/claude/restore", a.handleDeepSeekClaudeRestore)
 	mux.HandleFunc("/api/kimi/claude/configure", a.handleKimiClaudeConfigure)
 	mux.HandleFunc("/api/kimi/claude/restore", a.handleKimiClaudeRestore)
+	mux.HandleFunc("/api/zhipu/claude/configure", a.handleZhipuClaudeConfigure)
+	mux.HandleFunc("/api/zhipu/claude/restore", a.handleZhipuClaudeRestore)
 	mux.HandleFunc("/api/gemini/configure", a.handleGeminiConfigure)
 	mux.HandleFunc("/api/gemini/restore", a.handleGeminiRestore)
 	mux.HandleFunc("/api/opencode/configure", a.handleOpenCodeConfigure)
@@ -1224,6 +1226,32 @@ func (a *appServer) handleKimiClaudeRestore(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	result, err := a.restoreKimiClaudeConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleZhipuClaudeConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureZhipuClaude()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleZhipuClaudeRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.restoreZhipuClaudeConfig()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -1169,6 +1169,18 @@ func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
 			unwanted:         "mimo-v2.5-pro",
 			expectCustomName: true,
 		},
+		{
+			name:             "zhipu",
+			write:            writeZhipuClaudeSettings,
+			defaultModel:     "glm-5",
+			opusModel:        "glm-5",
+			sonnetModel:      "glm-5",
+			haikuModel:       "glm-5",
+			subagentModel:    "glm-5",
+			label:            "GLM-5",
+			unwanted:         "mimo-v2.5-pro",
+			expectCustomName: true,
+		},
 	}
 
 	for _, tc := range cases {

@@ -35,6 +35,8 @@ export function ConfigureKimiClaude():Promise<main.mimoConfigureResult>;
 
 export function ConfigureMimoClaude():Promise<main.mimoConfigureResult>;
 
+export function ConfigureZhipuClaude():Promise<main.mimoConfigureResult>;
+
 export function ConfigureOpenCode():Promise<main.clientConfigureResult>;
 
 export function ControlAPI():Promise<string>;
@@ -72,6 +74,8 @@ export function RestoreGemini():Promise<main.clientConfigureResult>;
 export function RestoreKimiClaude():Promise<main.mimoConfigureResult>;
 
 export function RestoreMimoClaude():Promise<main.mimoConfigureResult>;
+
+export function RestoreZhipuClaude():Promise<main.mimoConfigureResult>;
 
 export function RestoreOpenCode():Promise<main.clientConfigureResult>;
 
