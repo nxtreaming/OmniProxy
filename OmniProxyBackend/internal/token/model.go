@@ -27,6 +27,8 @@ const (
 	CredentialTypeAPIKey        = "api_key"
 	CredentialTypeCodexAuthJSON = "codex_auth_json"
 	CredentialTypeMimoTokenPlan = "mimo_token_plan"
+	CredentialTypeCodingPlan    = "coding_plan"
+	CredentialTypeClaudeOAuth   = "claude_oauth_json"
 )
 
 const (

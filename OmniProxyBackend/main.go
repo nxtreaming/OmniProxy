@@ -357,11 +357,11 @@ func (a *appServer) handleTokens(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token added"})
-		if isCodexToken(item) {
+		if isRefreshableAuthToken(item) {
 			result, err := a.validateAndRecordToken(r.Context(), item)
 			a.recordTokenMaintenanceHistory(historyEventCodexRefreshAdd, item, result, err)
 			if err != nil {
-				a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("codex usage refresh failed after add: %v", err)})
+				a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("OAuth validation failed after add: %v", err)})
 			}
 			if updated, err := a.tokens.Get(item.ID); err == nil {
 				item = updated
@@ -456,9 +456,9 @@ func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.T
 	cfg := a.cfg
 	a.mu.Unlock()
 
-	refreshedSelected, _, refreshErr := a.refreshCodexTokenIfNeeded(ctx, selected, false)
+	refreshedSelected, _, refreshErr := a.refreshAuthTokenIfNeeded(ctx, selected, false)
 	if refreshErr != nil {
-		_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("codex token refresh failed: %v", refreshErr))
+		_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("OAuth token refresh failed: %v", refreshErr))
 		return proxy.ValidationResult{}, refreshErr
 	}
 	selected = refreshedSelected
@@ -469,10 +469,10 @@ func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.T
 	}
 
 	result, err := validator.Validate(ctx, selected)
-	if err == nil && isCodexToken(selected) && (result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden) {
-		refreshedSelected, refreshed, refreshErr := a.refreshCodexTokenIfNeeded(ctx, selected, true)
+	if err == nil && isRefreshableAuthToken(selected) && (result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden) {
+		refreshedSelected, refreshed, refreshErr := a.refreshAuthTokenIfNeeded(ctx, selected, true)
 		if refreshErr != nil {
-			_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("codex token refresh failed: %v", refreshErr))
+			_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("OAuth token refresh failed: %v", refreshErr))
 			return result, refreshErr
 		}
 		if refreshed {
@@ -558,8 +558,8 @@ func tokenMaintenanceHistoryMessage(label string, result proxy.ValidationResult,
 	return strings.Join(parts, " · ")
 }
 
-func (a *appServer) refreshCodexTokenIfNeeded(ctx context.Context, selected token.Token, force bool) (token.Token, bool, error) {
-	if !isCodexToken(selected) {
+func (a *appServer) refreshAuthTokenIfNeeded(ctx context.Context, selected token.Token, force bool) (token.Token, bool, error) {
+	if !isRefreshableAuthToken(selected) {
 		return selected, false, nil
 	}
 
@@ -571,7 +571,17 @@ func (a *appServer) refreshCodexTokenIfNeeded(ctx context.Context, selected toke
 	}
 
 	client := &http.Client{Timeout: healthRequestTimeout}
-	updatedValue, refreshed, err := proxy.RefreshCodexAuthJSON(ctx, client, selected.TokenValue, force, time.Now())
+	var updatedValue string
+	var refreshed bool
+	var err error
+	switch {
+	case isCodexToken(selected):
+		updatedValue, refreshed, err = proxy.RefreshCodexAuthJSON(ctx, client, selected.TokenValue, force, time.Now())
+	case isClaudeOAuthToken(selected):
+		updatedValue, refreshed, err = proxy.RefreshClaudeOAuthJSON(ctx, client, selected.TokenValue, force, time.Now())
+	default:
+		return selected, false, nil
+	}
 	if err != nil || !refreshed {
 		return selected, refreshed, err
 	}
@@ -581,7 +591,7 @@ func (a *appServer) refreshCodexTokenIfNeeded(ctx context.Context, selected toke
 		return selected, true, err
 	}
 	if a.logs != nil {
-		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: updated.Name, Message: "codex access token refreshed"})
+		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: updated.Name, Message: "OAuth access token refreshed"})
 	}
 	return updated, true, nil
 }
@@ -779,6 +789,15 @@ func nextHealthCheckAt(result proxy.ValidationResult, err error) *time.Time {
 func isCodexToken(item token.Token) bool {
 	return token.NormalizeProvider(item.Provider) == token.ProviderOpenAI &&
 		item.CredentialType == token.CredentialTypeCodexAuthJSON
+}
+
+func isClaudeOAuthToken(item token.Token) bool {
+	return token.NormalizeProvider(item.Provider) == token.ProviderAnthropic &&
+		item.CredentialType == token.CredentialTypeClaudeOAuth
+}
+
+func isRefreshableAuthToken(item token.Token) bool {
+	return isCodexToken(item) || isClaudeOAuthToken(item)
 }
 
 func validationCooldownUntil(result proxy.ValidationResult) *time.Time {
@@ -1279,7 +1298,7 @@ func (a *appServer) startProxy() error {
 	if err != nil {
 		return err
 	}
-	svc.SetTokenRefresher(a.refreshCodexTokenIfNeeded)
+	svc.SetTokenRefresher(a.refreshAuthTokenIfNeeded)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", a.cfg.ProxyPort)
 	listener, err := net.Listen("tcp", addr)
@@ -1499,7 +1518,7 @@ func maskedTokenValue(item token.Token) string {
 	if strings.TrimSpace(item.TokenValue) == "" {
 		return ""
 	}
-	if item.CredentialType == token.CredentialTypeCodexAuthJSON {
+	if item.CredentialType == token.CredentialTypeCodexAuthJSON || item.CredentialType == token.CredentialTypeClaudeOAuth {
 		return "auth.json"
 	}
 	value := strings.TrimSpace(item.TokenValue)

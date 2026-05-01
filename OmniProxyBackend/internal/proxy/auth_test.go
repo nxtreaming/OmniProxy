@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"OmniProxyBackend/internal/token"
@@ -103,6 +104,29 @@ func TestApplyAuthUsesGeminiAPIKeyHeader(t *testing.T) {
 	}
 	if got := header.Get("x-goog-api-key"); got != "gemini-api-key-token" {
 		t.Fatalf("unexpected x-goog-api-key header: %q", got)
+	}
+}
+
+func TestApplyAuthUsesClaudeOAuthBearerHeaders(t *testing.T) {
+	header := http.Header{}
+	header.Set("x-api-key", "caller-key")
+	selected := token.Token{
+		Provider:       token.ProviderAnthropic,
+		CredentialType: token.CredentialTypeClaudeOAuth,
+		TokenValue:     `{"access_token":"claude-access-token","refresh_token":"claude-refresh-token"}`,
+	}
+
+	if err := applyRouteAuth(header, selected, routeInfo{Protocol: "anthropic"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := header.Get("Authorization"); got != "Bearer claude-access-token" {
+		t.Fatalf("unexpected Authorization header: %q", got)
+	}
+	if got := header.Get("x-api-key"); got != "" {
+		t.Fatalf("x-api-key should be cleared for OAuth, got %q", got)
+	}
+	if got := header.Get("anthropic-beta"); !strings.Contains(got, "oauth-2025-04-20") || !strings.Contains(got, "claude-code-20250219") {
+		t.Fatalf("unexpected anthropic-beta header: %q", got)
 	}
 }
 

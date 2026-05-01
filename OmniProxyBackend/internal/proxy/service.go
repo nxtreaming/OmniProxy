@@ -659,7 +659,7 @@ func upstreamWebSocketSwitchMessage(route routeInfo, selected token.Token, statu
 }
 
 func (s *Service) refreshSelectedToken(ctx context.Context, selected token.Token, force bool) (token.Token, error) {
-	if s.tokenRefresher == nil || selected.CredentialType != token.CredentialTypeCodexAuthJSON {
+	if s.tokenRefresher == nil || (selected.CredentialType != token.CredentialTypeCodexAuthJSON && selected.CredentialType != token.CredentialTypeClaudeOAuth) {
 		return selected, nil
 	}
 	updated, _, err := s.tokenRefresher(ctx, selected, force)

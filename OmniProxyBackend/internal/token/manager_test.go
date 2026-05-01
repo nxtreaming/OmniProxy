@@ -249,6 +249,25 @@ func TestManagerValidatesXiaomiCredentialFormats(t *testing.T) {
 	}
 }
 
+func TestManagerAllowsZhipuCodingPlanCredential(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{
+		Name:           "glm-coding",
+		Provider:       ProviderZhipu,
+		CredentialType: CredentialTypeCodingPlan,
+		TokenValue:     "zhipu-coding-plan-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.CredentialType != CredentialTypeCodingPlan {
+		t.Fatalf("expected coding plan credential type, got %q", item.CredentialType)
+	}
+}
+
 func TestManagerUpdatePreservesTokenValueWhenBlank(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {
@@ -334,6 +353,26 @@ func TestManagerUsesCodexEmailAsName(t *testing.T) {
 		t.Fatal(err)
 	}
 	if item.Name != "coder@example.com" {
+		t.Fatalf("expected email as name, got %q", item.Name)
+	}
+}
+
+func TestManagerUsesClaudeOAuthEmailAsName(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	item, err := manager.Add(UpsertRequest{
+		Name:           "",
+		Provider:       ProviderAnthropic,
+		CredentialType: CredentialTypeClaudeOAuth,
+		TokenValue:     `{"access_token":"claude-access-token","refresh_token":"claude-refresh-token","email":"claude@example.com","expired":"2026-05-01T08:09:54+08:00"}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Name != "claude@example.com" {
 		t.Fatalf("expected email as name, got %q", item.Name)
 	}
 }

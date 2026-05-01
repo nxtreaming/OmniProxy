@@ -828,6 +828,17 @@ func normalizeRequest(req UpsertRequest) (string, string, string, string, string
 			return "", "", "", "", "", errors.New("codex auth.json does not contain an email in tokens.id_token")
 		}
 		name = email
+	} else if credentialType == CredentialTypeClaudeOAuth {
+		if !json.Valid([]byte(value)) {
+			return "", "", "", "", "", errors.New("claude OAuth JSON must be valid JSON")
+		}
+		fields, ok := ExtractClaudeOAuthFields(value)
+		if !ok {
+			return "", "", "", "", "", errors.New("claude OAuth JSON must contain access_token or refresh_token")
+		}
+		if fields.Email != "" {
+			name = fields.Email
+		}
 	} else if provider == ProviderXiaomi && credentialType == CredentialTypeAPIKey && !strings.HasPrefix(value, "sk-") {
 		return "", "", "", "", "", errors.New("xiaomi pay-as-you-go API key must start with sk-")
 	} else if provider == ProviderXiaomi && credentialType == CredentialTypeMimoTokenPlan && !strings.HasPrefix(value, "tp-") {
@@ -861,7 +872,7 @@ func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, 
 	}
 
 	name := strings.TrimSpace(req.Name)
-	if credentialType == CredentialTypeCodexAuthJSON {
+	if credentialType == CredentialTypeCodexAuthJSON || credentialType == CredentialTypeClaudeOAuth {
 		name = existing.Name
 	}
 	if name == "" {
@@ -935,7 +946,21 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodexAuthJSON {
 			return "", "", errors.New("unsupported OpenAI credential type")
 		}
-	case ProviderAnthropic, ProviderDeepSeek, ProviderKimi, ProviderZhipu, ProviderMiniMax, ProviderGemini, ProviderCustom:
+	case ProviderAnthropic:
+		if credentialType == "" {
+			credentialType = CredentialTypeAPIKey
+		}
+		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeClaudeOAuth {
+			return "", "", errors.New("anthropic supports API key or Claude OAuth JSON only")
+		}
+	case ProviderZhipu:
+		if credentialType == "" {
+			credentialType = CredentialTypeAPIKey
+		}
+		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodingPlan {
+			return "", "", errors.New("zhipu supports API key or Coding Plan key only")
+		}
+	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderCustom:
 		if credentialType == "" {
 			credentialType = CredentialTypeAPIKey
 		}

@@ -1,0 +1,290 @@
+package proxy
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+const (
+	claudeOAuthClientID       = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	claudeOAuthTokenEndpoint  = "https://console.anthropic.com/v1/oauth/token"
+	claudeAccessRefreshMargin = 30 * time.Minute
+)
+
+type claudeOAuthRefreshResponse struct {
+	AccessToken  string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
+	TokenType    string      `json:"token_type"`
+	ExpiresIn    int         `json:"expires_in"`
+	ExpiresAt    json.Number `json:"expires_at"`
+}
+
+type claudeOAuthCredential struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresAt    time.Time
+	HasExpiresAt bool
+}
+
+var httpPostJSON = func(ctx context.Context, client *http.Client, endpoint string, payload any) (*http.Response, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	return client.Do(req)
+}
+
+func RefreshClaudeOAuthJSON(ctx context.Context, client *http.Client, raw string, force bool, now time.Time) (string, bool, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	auth, credential, err := parseClaudeOAuth(raw)
+	if err != nil {
+		return "", false, err
+	}
+	if strings.TrimSpace(credential.RefreshToken) == "" {
+		if force || claudeOAuthExpiredOrExpiring(credential, now) {
+			return "", false, errors.New("claude OAuth JSON does not contain refresh_token")
+		}
+		return raw, false, nil
+	}
+	if !force && !claudeOAuthExpiredOrExpiring(credential, now) {
+		return raw, false, nil
+	}
+
+	payload := map[string]string{
+		"grant_type":    "refresh_token",
+		"client_id":     claudeOAuthClientID,
+		"refresh_token": credential.RefreshToken,
+	}
+	resp, err := httpPostJSON(ctx, client, claudeOAuthTokenEndpoint, payload)
+	if err != nil {
+		return "", false, fmt.Errorf("refresh claude OAuth token: %w", err)
+	}
+	defer closeBody(resp.Body)
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", false, fmt.Errorf("refresh claude OAuth token returned %d: %s", resp.StatusCode, codexRefreshErrorMessage(body, resp.Status))
+	}
+
+	var refresh claudeOAuthRefreshResponse
+	if err := json.Unmarshal(body, &refresh); err != nil {
+		return "", false, fmt.Errorf("decode claude OAuth refresh response: %w", err)
+	}
+	if strings.TrimSpace(refresh.AccessToken) == "" {
+		return "", false, errors.New("claude OAuth refresh response did not include access_token")
+	}
+
+	expiresAt := claudeRefreshExpiresAt(refresh, now)
+	applyClaudeOAuthRefresh(auth, refresh, expiresAt, now)
+
+	updated, err := json.MarshalIndent(auth, "", "  ")
+	if err != nil {
+		return "", false, err
+	}
+	return string(updated), true, nil
+}
+
+func parseClaudeOAuth(raw string) (map[string]any, claudeOAuthCredential, error) {
+	var auth map[string]any
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&auth); err != nil {
+		return nil, claudeOAuthCredential{}, fmt.Errorf("claude OAuth JSON must be valid JSON: %w", err)
+	}
+
+	credential := claudeOAuthCredential{
+		AccessToken:  firstStringAny(auth, "access_token", "accessToken"),
+		RefreshToken: firstStringAny(auth, "refresh_token", "refreshToken"),
+	}
+	if expiresAt, ok := firstTimeAny(auth, "expired", "expires_at", "expiresAt"); ok {
+		credential.ExpiresAt = expiresAt
+		credential.HasExpiresAt = true
+	}
+
+	for _, key := range []string{"claudeAiOauth", "claude"} {
+		nested, ok := anyMap(auth[key])
+		if !ok {
+			continue
+		}
+		if credential.AccessToken == "" {
+			credential.AccessToken = firstStringAny(nested, "access_token", "accessToken")
+		}
+		if credential.RefreshToken == "" {
+			credential.RefreshToken = firstStringAny(nested, "refresh_token", "refreshToken")
+		}
+		if !credential.HasExpiresAt {
+			if expiresAt, ok := firstTimeAny(nested, "expired", "expires_at", "expiresAt"); ok {
+				credential.ExpiresAt = expiresAt
+				credential.HasExpiresAt = true
+			}
+		}
+	}
+
+	if credential.AccessToken == "" && credential.RefreshToken == "" {
+		return nil, claudeOAuthCredential{}, errors.New("claude OAuth JSON must contain access_token or refresh_token")
+	}
+	return auth, credential, nil
+}
+
+func claudeOAuthExpiredOrExpiring(credential claudeOAuthCredential, now time.Time) bool {
+	if strings.TrimSpace(credential.AccessToken) == "" {
+		return true
+	}
+	if !credential.HasExpiresAt {
+		return false
+	}
+	return !credential.ExpiresAt.After(now.Add(claudeAccessRefreshMargin))
+}
+
+func claudeRefreshExpiresAt(refresh claudeOAuthRefreshResponse, now time.Time) time.Time {
+	if refresh.ExpiresAt != "" {
+		if parsed, ok := timeFromAny(refresh.ExpiresAt); ok {
+			return parsed
+		}
+	}
+	if refresh.ExpiresIn > 0 {
+		return now.Add(time.Duration(refresh.ExpiresIn) * time.Second)
+	}
+	return now.Add(time.Hour)
+}
+
+func applyClaudeOAuthRefresh(auth map[string]any, refresh claudeOAuthRefreshResponse, expiresAt time.Time, now time.Time) {
+	accessToken := strings.TrimSpace(refresh.AccessToken)
+	refreshToken := strings.TrimSpace(refresh.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = firstStringAny(auth, "refresh_token", "refreshToken")
+	}
+
+	if _, ok := auth["access_token"]; ok || firstStringAny(auth, "accessToken") == "" {
+		auth["access_token"] = accessToken
+	}
+	if _, ok := auth["accessToken"]; ok {
+		auth["accessToken"] = accessToken
+	}
+	if refreshToken != "" {
+		if _, ok := auth["refresh_token"]; ok || firstStringAny(auth, "refreshToken") == "" {
+			auth["refresh_token"] = refreshToken
+		}
+		if _, ok := auth["refreshToken"]; ok {
+			auth["refreshToken"] = refreshToken
+		}
+	}
+	if _, ok := auth["expired"]; ok {
+		auth["expired"] = expiresAt.Format(time.RFC3339)
+	} else if _, ok := auth["expires_at"]; ok {
+		auth["expires_at"] = expiresAt.Format(time.RFC3339)
+	} else if _, ok := auth["expiresAt"]; ok {
+		auth["expiresAt"] = expiresAt.UnixMilli()
+	} else {
+		auth["expired"] = expiresAt.Format(time.RFC3339)
+	}
+	auth["last_refresh"] = now.Format(time.RFC3339)
+
+	for _, key := range []string{"claudeAiOauth", "claude"} {
+		nested, ok := anyMap(auth[key])
+		if !ok {
+			continue
+		}
+		if _, ok := nested["accessToken"]; ok {
+			nested["accessToken"] = accessToken
+		}
+		if _, ok := nested["access_token"]; ok {
+			nested["access_token"] = accessToken
+		}
+		if refreshToken != "" {
+			if _, ok := nested["refreshToken"]; ok {
+				nested["refreshToken"] = refreshToken
+			}
+			if _, ok := nested["refresh_token"]; ok {
+				nested["refresh_token"] = refreshToken
+			}
+		}
+		if _, ok := nested["expiresAt"]; ok {
+			nested["expiresAt"] = expiresAt.UnixMilli()
+		}
+		if _, ok := nested["expires_at"]; ok {
+			nested["expires_at"] = expiresAt.Format(time.RFC3339)
+		}
+		if _, ok := nested["expired"]; ok {
+			nested["expired"] = expiresAt.Format(time.RFC3339)
+		}
+	}
+}
+
+func firstStringAny(payload map[string]any, names ...string) string {
+	for _, name := range names {
+		if text, ok := payload[name].(string); ok && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+	return ""
+}
+
+func firstTimeAny(payload map[string]any, names ...string) (time.Time, bool) {
+	for _, name := range names {
+		if value, ok := payload[name]; ok {
+			if parsed, ok := timeFromAny(value); ok {
+				return parsed, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+func timeFromAny(value any) (time.Time, bool) {
+	switch typed := value.(type) {
+	case json.Number:
+		if parsed, err := typed.Int64(); err == nil {
+			return unixTimeFromNumber(parsed)
+		}
+	case float64:
+		return unixTimeFromNumber(int64(typed))
+	case int64:
+		return unixTimeFromNumber(typed)
+	case int:
+		return unixTimeFromNumber(int64(typed))
+	case string:
+		text := strings.TrimSpace(typed)
+		if text == "" {
+			return time.Time{}, false
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, text); err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func unixTimeFromNumber(value int64) (time.Time, bool) {
+	if value <= 0 {
+		return time.Time{}, false
+	}
+	if value > 1_000_000_000_000 {
+		value /= 1000
+	}
+	return time.Unix(value, 0), true
+}
+
+func anyMap(value any) (map[string]any, bool) {
+	nested, ok := value.(map[string]any)
+	return nested, ok
+}

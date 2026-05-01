@@ -38,7 +38,13 @@ func applyAuthWithProtocol(header http.Header, selected token.Token, protocol st
 
 	switch token.NormalizeProvider(selected.Provider) {
 	case token.ProviderAnthropic:
-		header.Set("x-api-key", secret)
+		if selected.CredentialType == token.CredentialTypeClaudeOAuth {
+			header.Set("Authorization", "Bearer "+secret)
+			appendHeaderValue(header, "anthropic-beta", "oauth-2025-04-20")
+			appendHeaderValue(header, "anthropic-beta", "claude-code-20250219")
+		} else {
+			header.Set("x-api-key", secret)
+		}
 		if header.Get("anthropic-version") == "" {
 			header.Set("anthropic-version", "2023-06-01")
 		}
@@ -75,6 +81,14 @@ func credentialSecret(selected token.Token) (string, error) {
 	credentialType := selected.CredentialType
 	if credentialType == "" {
 		credentialType = token.CredentialTypeAPIKey
+	}
+
+	if credentialType == token.CredentialTypeClaudeOAuth {
+		fields, ok := token.ExtractClaudeOAuthFields(selected.TokenValue)
+		if ok && strings.TrimSpace(fields.AccessToken) != "" {
+			return strings.TrimSpace(fields.AccessToken), nil
+		}
+		return "", errors.New("claude OAuth JSON does not contain access_token")
 	}
 
 	if credentialType != token.CredentialTypeCodexAuthJSON {
@@ -120,6 +134,24 @@ func codexAccess(raw string) (string, string, bool) {
 		return strings.TrimSpace(data.Tokens.IDToken), accountID, true
 	}
 	return "", "", false
+}
+
+func appendHeaderValue(header http.Header, key string, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	existing := strings.TrimSpace(header.Get(key))
+	if existing == "" {
+		header.Set(key, value)
+		return
+	}
+	for _, part := range strings.Split(existing, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), value) {
+			return
+		}
+	}
+	header.Set(key, existing+", "+value)
 }
 
 func codexAccountID(raw string) (string, bool) {

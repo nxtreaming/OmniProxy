@@ -171,11 +171,11 @@ func (a *DesktopApp) CreateToken(req token.UpsertRequest) (tokenResponse, error)
 		return tokenResponse{}, err
 	}
 	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token added"})
-	if isCodexToken(item) {
+	if isRefreshableAuthToken(item) {
 		result, err := a.server.validateAndRecordToken(a.callContext(), item)
 		a.server.recordTokenMaintenanceHistory(historyEventCodexRefreshAdd, item, result, err)
 		if err != nil {
-			a.server.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("codex usage refresh failed after add: %v", err)})
+			a.server.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("OAuth validation failed after add: %v", err)})
 		}
 		if updated, err := a.server.tokens.Get(item.ID); err == nil {
 			item = updated
