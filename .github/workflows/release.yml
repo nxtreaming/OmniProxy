@@ -77,12 +77,7 @@ jobs:
         run: |
           $version = "${{ steps.release.outputs.tag }}"
           $wails = Join-Path (go env GOPATH) "bin\wails.exe"
-          $buildArgs = @("build", "-clean", "-nsis")
-          if ("${{ steps.release.outputs.prerelease }}" -eq "true") {
-            $buildArgs += @("-tags", "omniproxy_dev")
-          }
-          $buildArgs += @("-ldflags", "-X main.appVersion=$version")
-          & $wails @buildArgs
+          & $wails build -clean -nsis -ldflags "-X main.appVersion=$version"
 
       - name: Prepare release assets
         working-directory: OmniProxyBackend
