@@ -88,6 +88,7 @@ func main() {
 		Height:            860,
 		MinWidth:          1040,
 		MinHeight:         720,
+		Frameless:         true,
 		StartHidden:       startHiddenFromArgs(),
 		HideWindowOnClose: true,
 		AssetServer: &assetserver.Options{

@@ -22,6 +22,10 @@
   --warning-bg: #fff4d8;
   --danger: #ba3b3b;
   --danger-bg: #fee8e7;
+  --toast-danger-bg: #fff5f5;
+  --toast-danger-border: #efb8b8;
+  --toast-success-bg: #f1fbf6;
+  --toast-success-border: #9bd9b8;
   --muted-bg: #e7ecea;
   --shadow: 0 18px 38px rgba(15, 23, 42, 0.06);
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.05);
@@ -93,8 +97,168 @@ button {
   min-height: 0;
   display: flex;
   overflow: hidden;
+  padding-top: 36px;
   background: var(--bg);
   color: var(--text);
+}
+
+.window-titlebar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 90;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg));
+  color: var(--text);
+  user-select: none;
+  --wails-draggable: drag;
+}
+
+.window-titlebar-drag {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  --wails-draggable: drag;
+}
+
+.window-titlebar-drag img {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.window-titlebar-drag div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-titlebar-drag strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.window-titlebar-drag span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-controls {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  --wails-draggable: no-drag;
+}
+
+.window-control {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: default;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+  --wails-draggable: no-drag;
+}
+
+.window-control:hover {
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+}
+
+.window-control.close:hover {
+  background: #d92d20;
+  color: #ffffff;
+}
+
+.control-mark {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.window-control.minimise .control-mark::before,
+.window-control.maximise .control-mark::before,
+.window-control.restore .control-mark::before,
+.window-control.restore .control-mark::after,
+.window-control.close .control-mark::before,
+.window-control.close .control-mark::after {
+  content: '';
+  position: absolute;
+  display: block;
+}
+
+.window-control.minimise .control-mark::before {
+  left: 2px;
+  right: 2px;
+  bottom: 3px;
+  height: 1.5px;
+  background: currentColor;
+}
+
+.window-control.maximise .control-mark::before {
+  left: 2px;
+  top: 2px;
+  width: 10px;
+  height: 9px;
+  border: 1.5px solid currentColor;
+}
+
+.window-control.restore .control-mark::before,
+.window-control.restore .control-mark::after {
+  width: 9px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+}
+
+.window-control.restore .control-mark::before {
+  left: 4px;
+  top: 2px;
+}
+
+.window-control.restore .control-mark::after {
+  left: 1px;
+  top: 5px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg));
+}
+
+.window-control.close .control-mark::before,
+.window-control.close .control-mark::after {
+  left: 6px;
+  top: 1px;
+  width: 1.5px;
+  height: 12px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.window-control.close .control-mark::before {
+  transform: rotate(45deg);
+}
+
+.window-control.close .control-mark::after {
+  transform: rotate(-45deg);
 }
 
 .shell.dark {
@@ -116,6 +280,10 @@ button {
   --success-bg: rgba(19, 137, 87, 0.18);
   --warning-bg: rgba(161, 98, 7, 0.2);
   --danger-bg: rgba(186, 59, 59, 0.18);
+  --toast-danger-bg: #311f22;
+  --toast-danger-border: #6f383d;
+  --toast-success-bg: #182b22;
+  --toast-success-border: #2f6d4e;
   --muted-bg: #283138;
   --shadow: none;
   --shadow-soft: none;
@@ -131,7 +299,7 @@ button {
 
 .sidebar {
   width: 236px;
-  height: 100vh;
+  height: calc(100vh - 36px);
   min-height: 0;
   flex: 0 0 auto;
   overflow: hidden;
@@ -270,7 +438,7 @@ label span {
 .workspace {
   flex: 1;
   min-width: 0;
-  height: 100vh;
+  height: calc(100vh - 36px);
   overflow-x: hidden;
   overflow-y: auto;
   padding: 24px;
@@ -483,9 +651,9 @@ td .el-tag {
 
 .toast-stack {
   position: fixed;
-  top: 24px;
+  top: 52px;
   right: 24px;
-  z-index: 30;
+  z-index: 100;
   width: min(520px, calc(100vw - 48px));
   display: grid;
   gap: 10px;
@@ -499,19 +667,59 @@ td .el-tag {
   align-items: start;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid #f2b9b9;
+  border: 1px solid var(--toast-danger-border);
   border-radius: 8px;
-  background: var(--danger-bg);
+  background: var(--toast-danger-bg);
   color: var(--danger);
   line-height: 1.45;
-  box-shadow: 0 18px 40px rgba(20, 32, 51, 0.16);
+  box-shadow:
+    0 22px 48px rgba(20, 32, 51, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.66);
   pointer-events: auto;
 }
 
 .notice {
-  border-color: #9bd9b8;
-  background: var(--success-bg);
+  border-color: var(--toast-success-border);
+  background: var(--toast-success-bg);
   color: var(--success);
+}
+
+.shell.dark .alert,
+.shell.dark .notice {
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.el-message,
+.el-notification {
+  border: 1px solid #d9dde3;
+  background: #ffffff;
+  color: #1d232a;
+  box-shadow:
+    0 22px 48px rgba(20, 32, 51, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.66);
+  backdrop-filter: none;
+}
+
+.el-message .el-message__content,
+.el-notification .el-notification__content {
+  color: #1d232a;
+}
+
+.el-overlay.is-message-box {
+  background-color: rgba(15, 23, 42, 0.62);
+}
+
+.el-message-box {
+  border: 1px solid #d9dde3;
+  background: #ffffff;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+}
+
+.el-message-box__title,
+.el-message-box__message {
+  color: #1d232a;
 }
 
 .toast-message {

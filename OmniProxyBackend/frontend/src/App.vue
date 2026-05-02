@@ -13,6 +13,12 @@ import appIconUrl from './assets/appicon.png'
 import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
 import { formatDuration, formatNumber, formatResetTime, formatTime, localDateKey } from './utils/format'
 import {
+  WindowHide,
+  WindowIsMaximised,
+  WindowMinimise,
+  WindowToggleMaximise,
+} from '../wailsjs/runtime/runtime'
+import {
   configureCodex,
   configureDeepSeekClaude,
   configureGemini,
@@ -100,6 +106,7 @@ const navSections = [
   { label: '系统', items: tabs.filter((tab) => ['settings', 'about', 'help'].includes(tab.key)) },
 ]
 const isDark = ref(false)
+const windowMaximised = ref(false)
 const loading = ref(false)
 const codexConfiguring = ref(false)
 const codexRestoring = ref(false)
@@ -288,10 +295,43 @@ const isAutoNameForm = computed(
     (form.provider === 'anthropic' && form.credentialType === 'claude_oauth_json'),
 )
 
+function hasWailsRuntime() {
+  return typeof window !== 'undefined' && Boolean(window.runtime)
+}
+
+async function refreshWindowState() {
+  if (!hasWailsRuntime()) return
+  try {
+    windowMaximised.value = await WindowIsMaximised()
+  } catch {
+    windowMaximised.value = false
+  }
+}
+
+function minimiseWindow() {
+  if (hasWailsRuntime()) {
+    WindowMinimise()
+  }
+}
+
+function toggleWindowMaximise() {
+  if (!hasWailsRuntime()) return
+  WindowToggleMaximise()
+  window.setTimeout(refreshWindowState, 120)
+}
+
+function closeWindow() {
+  if (hasWailsRuntime()) {
+    WindowHide()
+  }
+}
+
 onMounted(async () => {
   if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     isDark.value = true
   }
+  await refreshWindowState()
+  window.addEventListener('resize', refreshWindowState)
   await refreshAll()
   await refreshUpdateDownloadStatus()
   updateCheckTimer = window.setTimeout(() => checkForAvailableUpdate(), 2500)
@@ -299,6 +339,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', refreshWindowState)
   if (realtimeTimer) {
     window.clearInterval(realtimeTimer)
     realtimeTimer = null
@@ -1808,6 +1849,37 @@ async function refreshQuota(item) {
 
 <template>
   <div class="shell" :class="{ dark: isDark }">
+    <header
+      class="window-titlebar"
+      :class="{ maximised: windowMaximised }"
+      aria-label="窗口控制栏"
+      @dblclick="toggleWindowMaximise"
+    >
+      <div class="window-titlebar-drag">
+        <img :src="appIconUrl" alt="" />
+        <div>
+          <strong>OmniProxy</strong>
+          <span>{{ appInfo.isDevelopment ? 'Dev' : appInfo.version }} · {{ proxyStatus.running ? '代理运行中' : '代理未启动' }}</span>
+        </div>
+      </div>
+      <div class="window-controls" aria-label="窗口操作">
+        <button type="button" class="window-control minimise" aria-label="最小化" @click.stop="minimiseWindow">
+          <span class="control-mark" aria-hidden="true"></span>
+        </button>
+        <button
+          type="button"
+          :class="['window-control', windowMaximised ? 'restore' : 'maximise']"
+          :aria-label="windowMaximised ? '还原窗口' : '最大化'"
+          @click.stop="toggleWindowMaximise"
+        >
+          <span class="control-mark" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="window-control close" aria-label="关闭窗口" @click.stop="closeWindow">
+          <span class="control-mark" aria-hidden="true"></span>
+        </button>
+      </div>
+    </header>
+
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">
