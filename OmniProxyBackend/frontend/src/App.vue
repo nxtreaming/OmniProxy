@@ -60,18 +60,24 @@ import {
 } from './services/api'
 import {
   Coin,
+  CircleCheckFilled,
   Clock,
   DataBoard,
   HelpFilled,
   InfoFilled,
   Key,
+  Lightning,
   MagicStick,
   Memo,
+  Monitor,
   Money,
+  Moon,
   Refresh,
   RefreshRight,
   Setting,
+  Sunny,
   SwitchButton,
+  TrendCharts,
 } from '@element-plus/icons-vue'
 
 const activeTab = ref('dashboard')
@@ -88,6 +94,11 @@ const tabIcons = {
   about: InfoFilled,
   help: HelpFilled,
 }
+const navSections = [
+  { label: '总览', items: tabs.filter((tab) => ['dashboard', 'billing', 'quotas'].includes(tab.key)) },
+  { label: '运行', items: tabs.filter((tab) => ['tokens', 'history', 'logs', 'quickstart'].includes(tab.key)) },
+  { label: '系统', items: tabs.filter((tab) => ['settings', 'about', 'help'].includes(tab.key)) },
+]
 const isDark = ref(false)
 const loading = ref(false)
 const codexConfiguring = ref(false)
@@ -214,6 +225,30 @@ const activeProviderTokens = computed(() => providerTokens(activeProvider.value)
 const activeProviderEnabledCount = computed(
   () => activeProviderTokens.value.filter((item) => !item.disabled).length,
 )
+const currentTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label || '控制台')
+const proxyEndpoint = computed(() => `127.0.0.1:${proxyStatus.port || config.proxyPort}`)
+const dashboardSignals = computed(() => [
+  {
+    label: '代理端口',
+    value: proxyStatus.port || config.proxyPort,
+    meta: proxyStatus.running ? '在线' : '待启动',
+  },
+  {
+    label: '账号池',
+    value: tokens.value.length,
+    meta: `${activeTokens.value.length} 可用`,
+  },
+  {
+    label: '实时连接',
+    value: activeRequests.value.length,
+    meta: `${activeTokenIds.value.size} 个账号占用`,
+  },
+  {
+    label: '今日请求',
+    value: formatNumber(todayProxyRequests.value),
+    meta: `${formatNumber(todayProxyTokens.value)} Token`,
+  },
+])
 const subscriptionOverviewTokens = computed(() => tokens.value.filter((item) => showQuotaWindows(item)))
 const apiOverviewTokens = computed(() => tokens.value.filter((item) => !showQuotaWindows(item)))
 const totalProxyRequests = computed(() =>
@@ -231,6 +266,9 @@ const totalProxyOutputTokens = computed(() =>
 const dailyUsageRows = computed(() => aggregateDailyUsage(tokens.value))
 const todayProxyTokens = computed(
   () => dailyUsageRows.value.find((row) => row.date === localDateKey())?.totalTokens || 0,
+)
+const todayProxyRequests = computed(
+  () => dailyUsageRows.value.find((row) => row.date === localDateKey())?.requestCount || 0,
 )
 const recentDailyUsageRows = computed(() => dailyUsageRows.value.slice(0, 14).reverse())
 const usageTrendMax = computed(() =>
@@ -1777,39 +1815,60 @@ async function refreshQuota(item) {
         </div>
         <div>
           <strong>OmniProxy</strong>
-          <span>AI 令牌调度网关</span>
+          <span>本地 API 网关</span>
+        </div>
+      </div>
+
+      <div class="sidebar-status">
+        <div :class="['status-light', { online: proxyStatus.running }]"></div>
+        <div>
+          <strong>{{ proxyStatus.running ? '代理运行中' : '代理未启动' }}</strong>
+          <span>{{ proxyEndpoint }}</span>
         </div>
       </div>
 
       <nav class="nav-list">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          type="button"
-          :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
-        >
-          <component :is="tabIcons[tab.key]" class="nav-icon" aria-hidden="true" />
-          <span>{{ tab.label }}</span>
-        </button>
+        <section v-for="section in navSections" :key="section.label" class="nav-section">
+          <span class="nav-section-label">{{ section.label }}</span>
+          <button
+            v-for="tab in section.items"
+            :key="tab.key"
+            type="button"
+            :class="{ active: activeTab === tab.key }"
+            @click="activeTab = tab.key"
+          >
+            <component :is="tabIcons[tab.key]" class="nav-icon" aria-hidden="true" />
+            <span>{{ tab.label }}</span>
+          </button>
+        </section>
       </nav>
 
       <div class="sidebar-tools">
         <button type="button" class="ghost-button" @click="isDark = !isDark">
-          {{ isDark ? '浅色模式' : '深色模式' }}
+          <component :is="isDark ? Sunny : Moon" class="button-icon" aria-hidden="true" />
+          <span>{{ isDark ? '浅色模式' : '深色模式' }}</span>
         </button>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
-        <div>
+        <div class="topbar-title">
           <p class="eyebrow">本地控制台</p>
-          <h1>{{ tabs.find((tab) => tab.key === activeTab)?.label }}</h1>
+          <h1>{{ currentTabLabel }}</h1>
+          <p class="topbar-subtitle">{{ proxyEndpoint }} · {{ tokens.length }} 个账号</p>
         </div>
         <div class="topbar-actions">
-          <el-tag :type="proxyStatus.running ? 'success' : 'info'" effect="light" round>
-            代理 {{ proxyStatus.running ? '运行中' : '已停止' }} · :{{ proxyStatus.port }}
+          <div class="topbar-meta">
+            <span>端口</span>
+            <strong>{{ proxyStatus.port }}</strong>
+          </div>
+          <div class="topbar-meta">
+            <span>可用账号</span>
+            <strong>{{ activeTokens.length }}</strong>
+          </div>
+          <el-tag :type="proxyStatus.running ? 'success' : 'info'" effect="light" round class="proxy-tag">
+            {{ proxyStatus.running ? '运行中' : '已停止' }}
           </el-tag>
           <el-button type="primary" :icon="SwitchButton" @click="toggleProxy">
             {{ proxyStatus.running ? '停止代理' : '启动代理' }}
@@ -1829,9 +1888,36 @@ async function refreshQuota(item) {
       </div>
 
       <Transition name="page-switch" mode="out-in" appear>
-      <section v-if="activeTab === 'dashboard'" key="dashboard" class="view-grid">
+      <section v-if="activeTab === 'dashboard'" key="dashboard" class="view-grid dashboard-grid">
+        <section class="dashboard-brief full">
+          <div class="brief-status">
+            <span :class="['brief-dot', { online: proxyStatus.running }]"></span>
+            <div>
+              <strong>{{ proxyStatus.running ? '运行中' : '已停止' }}</strong>
+              <code>{{ proxyEndpoint }}</code>
+            </div>
+          </div>
+          <div class="brief-signal-grid">
+            <div v-for="item in dashboardSignals" :key="item.label" class="brief-signal">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <small>{{ item.meta }}</small>
+            </div>
+          </div>
+          <div class="brief-actions">
+            <el-button type="primary" :icon="SwitchButton" @click="toggleProxy">
+              {{ proxyStatus.running ? '停止' : '启动' }}
+            </el-button>
+            <el-button :icon="Refresh" @click="refreshAll">刷新</el-button>
+            <el-button plain @click="activeTab = 'settings'">设置</el-button>
+          </div>
+        </section>
+
         <article class="metric-card account-status-card">
-          <span>账号状态</span>
+          <div class="metric-card-head">
+            <span>账号状态</span>
+            <CircleCheckFilled class="metric-icon success-icon" aria-hidden="true" />
+          </div>
           <div class="account-status-metrics">
             <div>
               <strong>{{ activeTokens.length }}</strong>
@@ -1845,14 +1931,28 @@ async function refreshQuota(item) {
           <small>低额度 {{ lowTokens.length }} · 冷却 {{ coolingTokens.length }} · 耗尽 {{ exhaustedTokens.length }} · 停用 {{ disabledTokens.length }}</small>
         </article>
         <article class="metric-card">
-          <span>代理总 Token</span>
+          <div class="metric-card-head">
+            <span>代理总 Token</span>
+            <TrendCharts class="metric-icon" aria-hidden="true" />
+          </div>
           <strong>{{ formatNumber(totalProxyTokens) }}</strong>
           <small>输入 {{ formatNumber(totalProxyInputTokens) }} · 输出 {{ formatNumber(totalProxyOutputTokens) }}</small>
         </article>
         <article class="metric-card">
-          <span>今日 Token</span>
+          <div class="metric-card-head">
+            <span>今日 Token</span>
+            <Lightning class="metric-icon warning-icon" aria-hidden="true" />
+          </div>
           <strong>{{ formatNumber(todayProxyTokens) }}</strong>
           <small>累计请求 {{ formatNumber(totalProxyRequests) }} 次</small>
+        </article>
+        <article class="metric-card">
+          <div class="metric-card-head">
+            <span>当前连接</span>
+            <Monitor class="metric-icon" aria-hidden="true" />
+          </div>
+          <strong>{{ formatNumber(activeRequests.length) }}</strong>
+          <small>正在占用的上游账号 {{ activeTokenIds.size }} 个</small>
         </article>
 
         <section class="panel full tool-usage-panel">
@@ -1887,7 +1987,7 @@ async function refreshQuota(item) {
           <div v-else class="empty">暂无工具使用记录</div>
         </section>
 
-        <section class="panel wide">
+        <section class="panel wide quota-overview-panel">
           <div class="section-heading">
             <div>
               <h2>额度概览</h2>
@@ -1961,7 +2061,7 @@ async function refreshQuota(item) {
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel recent-log-panel">
           <div class="section-heading">
             <div>
               <h2>最近日志</h2>
@@ -1982,7 +2082,7 @@ async function refreshQuota(item) {
           </div>
         </section>
 
-        <section class="panel full">
+        <section class="panel full usage-overview-panel">
           <div class="section-heading">
             <div>
               <h2>分天用量统计</h2>
