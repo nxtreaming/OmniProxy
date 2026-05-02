@@ -86,6 +86,31 @@ func TestApplyAuthUsesTopLevelCodexAccountID(t *testing.T) {
 	}
 }
 
+func TestApplyAuthUsesFlatCodexAuthJSON(t *testing.T) {
+	header := http.Header{}
+	selected := token.Token{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue: `{
+			"type": "codex",
+			"email": "coder@example.com",
+			"access_token": "flat-access-token",
+			"id_token": "flat-id-token",
+			"account_id": "flat-account"
+		}`,
+	}
+
+	if err := applyAuth(header, selected); err != nil {
+		t.Fatal(err)
+	}
+	if got := header.Get("Authorization"); got != "Bearer flat-access-token" {
+		t.Fatalf("unexpected Authorization header: %q", got)
+	}
+	if got := header.Get("ChatGPT-Account-Id"); got != "flat-account" {
+		t.Fatalf("unexpected ChatGPT-Account-Id header: %q", got)
+	}
+}
+
 func TestApplyAuthUsesGeminiAPIKeyHeader(t *testing.T) {
 	header := http.Header{}
 	header.Set("Authorization", "Bearer caller")

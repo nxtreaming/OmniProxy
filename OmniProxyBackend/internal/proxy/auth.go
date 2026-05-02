@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -99,41 +98,13 @@ func credentialSecret(selected token.Token) (string, error) {
 		return value, nil
 	}
 
-	if accessToken, accountID, ok := codexAccess(selected.TokenValue); ok {
-		_ = accountID
-		return accessToken, nil
+	if fields, ok := token.ExtractCodexAuthFields(selected.TokenValue); ok {
+		if secret := fields.Secret(); secret != "" {
+			return secret, nil
+		}
 	}
 
 	return "", errors.New("codex auth.json does not contain a supported token field")
-}
-
-func codexAccess(raw string) (string, string, bool) {
-	var data struct {
-		OpenAIAPIKey *string `json:"OPENAI_API_KEY"`
-		AccountID    string  `json:"account_id"`
-		Tokens       struct {
-			AccessToken string `json:"access_token"`
-			AccountID   string `json:"account_id"`
-			IDToken     string `json:"id_token"`
-		} `json:"tokens"`
-	}
-	if err := json.Unmarshal([]byte(raw), &data); err != nil {
-		return "", "", false
-	}
-	accountID := strings.TrimSpace(data.Tokens.AccountID)
-	if accountID == "" {
-		accountID = strings.TrimSpace(data.AccountID)
-	}
-	if data.Tokens.AccessToken != "" {
-		return strings.TrimSpace(data.Tokens.AccessToken), accountID, true
-	}
-	if data.OpenAIAPIKey != nil && strings.TrimSpace(*data.OpenAIAPIKey) != "" {
-		return strings.TrimSpace(*data.OpenAIAPIKey), accountID, true
-	}
-	if data.Tokens.IDToken != "" {
-		return strings.TrimSpace(data.Tokens.IDToken), accountID, true
-	}
-	return "", "", false
 }
 
 func appendHeaderValue(header http.Header, key string, value string) {
@@ -155,7 +126,8 @@ func appendHeaderValue(header http.Header, key string, value string) {
 }
 
 func codexAccountID(raw string) (string, bool) {
-	_, accountID, ok := codexAccess(raw)
+	fields, ok := token.ExtractCodexAuthFields(raw)
+	accountID := strings.TrimSpace(fields.AccountID)
 	return accountID, ok && accountID != ""
 }
 

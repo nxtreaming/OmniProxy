@@ -132,7 +132,8 @@ export namespace history {
 	    inputTokens: number;
 	    outputTokens: number;
 	    totalTokens: number;
-	    updatedAt: string;
+	    // Go type: time
+	    updatedAt: any;
 
 	    static createFrom(source: any = {}) {
 	        return new DailyUsage(source);
@@ -150,8 +151,26 @@ export namespace history {
 	        this.inputTokens = source["inputTokens"];
 	        this.outputTokens = source["outputTokens"];
 	        this.totalTokens = source["totalTokens"];
-	        this.updatedAt = source["updatedAt"];
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Filter {
 	    provider?: string;
@@ -240,6 +259,34 @@ export namespace main {
 	        this.goVersion = source["goVersion"];
 	        this.executablePath = source["executablePath"];
 	        this.startedAt = source["startedAt"];
+	    }
+	}
+	export class balancePackageResponse {
+	    name?: string;
+	    consumeType?: string;
+	    balanceRemaining?: number;
+	    balanceTotal?: number;
+	    unit?: string;
+	    status?: string;
+	    expirationTime?: string;
+	    suitableModel?: string;
+	    suitableScene?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new balancePackageResponse(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.consumeType = source["consumeType"];
+	        this.balanceRemaining = source["balanceRemaining"];
+	        this.balanceTotal = source["balanceTotal"];
+	        this.unit = source["unit"];
+	        this.status = source["status"];
+	        this.expirationTime = source["expirationTime"];
+	        this.suitableModel = source["suitableModel"];
+	        this.suitableScene = source["suitableScene"];
 	    }
 	}
 	export class clientConfigureResult {
@@ -633,34 +680,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class balancePackageResponse {
-	    name?: string;
-	    consumeType?: string;
-	    balanceRemaining?: number;
-	    balanceTotal?: number;
-	    unit?: string;
-	    status?: string;
-	    expirationTime?: string;
-	    suitableModel?: string;
-	    suitableScene?: string;
-
-	    static createFrom(source: any = {}) {
-	        return new balancePackageResponse(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.consumeType = source["consumeType"];
-	        this.balanceRemaining = source["balanceRemaining"];
-	        this.balanceTotal = source["balanceTotal"];
-	        this.unit = source["unit"];
-	        this.status = source["status"];
-	        this.expirationTime = source["expirationTime"];
-	        this.suitableModel = source["suitableModel"];
-	        this.suitableScene = source["suitableScene"];
-	    }
-	}
 	export class tokenResponse {
 	    id: string;
 	    name: string;
@@ -699,7 +718,7 @@ export namespace main {
 	        this.stats = this.convertValues(source["stats"], tokenStatsResponse);
 	        this.health = this.convertValues(source["health"], healthResponse);
 	        this.status = source["status"];
-	        this.disabled = Boolean(source["disabled"]);
+	        this.disabled = source["disabled"];
 	        this.lastUsedAt = source["lastUsedAt"];
 	        this.lastError = source["lastError"];
 	        this.cooldownUntil = source["cooldownUntil"];

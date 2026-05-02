@@ -397,6 +397,35 @@ func TestManagerUsesCodexEmailAsName(t *testing.T) {
 	}
 }
 
+func TestManagerUsesFlatCodexEmailAsName(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authJSON, err := json.Marshal(map[string]any{
+		"type":         "codex",
+		"email":        "flat@example.com",
+		"access_token": "flat-access-token",
+		"id_token":     codexJWTForTest(t, "flat@example.com", "flat-account"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{
+		Name:           "",
+		Provider:       ProviderOpenAI,
+		CredentialType: CredentialTypeCodexAuthJSON,
+		TokenValue:     string(authJSON),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Name != "flat@example.com" {
+		t.Fatalf("expected flat email as name, got %q", item.Name)
+	}
+}
+
 func TestManagerUsesClaudeOAuthEmailAsName(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {

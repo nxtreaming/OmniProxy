@@ -924,27 +924,57 @@ function codexEmailFromAuthJSON(text) {
     throw new Error('不是有效 JSON')
   }
 
-  const idToken = data?.tokens?.id_token
+  const type = codexStringField(data?.type)
+  if (type && type.toLowerCase() !== 'codex') {
+    throw new Error('不是 Codex auth JSON')
+  }
+  if (!codexAuthSecretFromData(data)) {
+    throw new Error('缺少可用的 access_token 或 id_token')
+  }
+
+  const directEmail = codexStringField(data?.email)
+  if (directEmail) {
+    return directEmail
+  }
+
+  const idToken = codexIDTokenFromData(data)
   if (typeof idToken !== 'string' || !idToken.trim()) {
-    throw new Error('缺少 tokens.id_token')
+    throw new Error('缺少 email，且无法从 id_token 解析邮箱')
   }
   const parts = idToken.split('.')
   if (parts.length !== 3) {
-    throw new Error('tokens.id_token 格式不正确')
+    throw new Error('id_token 格式不正确')
   }
 
   let payload
   try {
     payload = JSON.parse(decodeBase64URL(parts[1]))
   } catch {
-    throw new Error('无法解析 tokens.id_token')
+    throw new Error('无法解析 id_token')
   }
 
   const email = payload?.['https://api.openai.com/profile']?.email || payload?.email
   if (typeof email !== 'string' || !email.trim()) {
-    throw new Error('tokens.id_token 中没有邮箱')
+    throw new Error('id_token 中没有邮箱')
   }
   return email.trim()
+}
+
+function codexIDTokenFromData(data) {
+  return codexStringField(data?.tokens?.id_token) || codexStringField(data?.id_token)
+}
+
+function codexAuthSecretFromData(data) {
+  return (
+    codexStringField(data?.tokens?.access_token) ||
+    codexStringField(data?.access_token) ||
+    codexStringField(data?.OPENAI_API_KEY) ||
+    codexIDTokenFromData(data)
+  )
+}
+
+function codexStringField(value) {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 function decodeBase64URL(value) {
@@ -1361,7 +1391,7 @@ function credentialPlaceholder() {
     return '留空表示保留当前凭据'
   }
   if (form.credentialType === 'codex_auth_json') {
-    return '粘贴 ~/.codex/auth.json 的完整 JSON 内容'
+    return '粘贴 ~/.codex/auth.json 或 CLIProxyAPI Codex JSON 的完整内容'
   }
   if (form.credentialType === 'claude_oauth_json') {
     return '粘贴 Claude OAuth JSON，需包含 access_token / refresh_token / expired'

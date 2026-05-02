@@ -62,12 +62,12 @@ export function ConfigureMimoClaude() {
   return window['go']['main']['DesktopApp']['ConfigureMimoClaude']();
 }
 
-export function ConfigureZhipuClaude() {
-  return window['go']['main']['DesktopApp']['ConfigureZhipuClaude']();
-}
-
 export function ConfigureOpenCode() {
   return window['go']['main']['DesktopApp']['ConfigureOpenCode']();
+}
+
+export function ConfigureZhipuClaude() {
+  return window['go']['main']['DesktopApp']['ConfigureZhipuClaude']();
 }
 
 export function ControlAPI() {
@@ -84,10 +84,6 @@ export function DataDirectory() {
 
 export function DeleteToken(arg1) {
   return window['go']['main']['DesktopApp']['DeleteToken'](arg1);
-}
-
-export function SetTokenDisabled(arg1, arg2) {
-  return window['go']['main']['DesktopApp']['SetTokenDisabled'](arg1, arg2);
 }
 
 export function DownloadUpdate(arg1) {
@@ -146,12 +142,12 @@ export function RestoreMimoClaude() {
   return window['go']['main']['DesktopApp']['RestoreMimoClaude']();
 }
 
-export function RestoreZhipuClaude() {
-  return window['go']['main']['DesktopApp']['RestoreZhipuClaude']();
-}
-
 export function RestoreOpenCode() {
   return window['go']['main']['DesktopApp']['RestoreOpenCode']();
+}
+
+export function RestoreZhipuClaude() {
+  return window['go']['main']['DesktopApp']['RestoreZhipuClaude']();
 }
 
 export function SaveConfig(arg1) {
@@ -160,6 +156,10 @@ export function SaveConfig(arg1) {
 
 export function SetAutoStart(arg1) {
   return window['go']['main']['DesktopApp']['SetAutoStart'](arg1);
+}
+
+export function SetTokenDisabled(arg1, arg2) {
+  return window['go']['main']['DesktopApp']['SetTokenDisabled'](arg1, arg2);
 }
 
 export function StartProxy() {

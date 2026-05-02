@@ -120,6 +120,75 @@ func TestRefreshCodexAuthJSONSkipsFreshAccessToken(t *testing.T) {
 	}
 }
 
+func TestRefreshCodexAuthJSONSupportsFlatCLIProxyAPIFormat(t *testing.T) {
+	now := time.Date(2026, 4, 29, 10, 0, 0, 0, time.UTC)
+	var form url.Values
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatal(err)
+		}
+		form = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"access_token": "new-flat-access-token",
+			"id_token": "new-flat-id-token",
+			"refresh_token": "new-flat-refresh-token",
+			"expires_in": 3600
+		}`))
+	}))
+	defer upstream.Close()
+
+	restore := replaceHTTPPostFormForTest(func(ctx context.Context, client *http.Client, endpoint string, values url.Values) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, upstream.URL, strings.NewReader(values.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return upstream.Client().Do(req)
+	})
+	defer restore()
+
+	raw := `{
+		"type": "codex",
+		"email": "coder@example.com",
+		"access_token": "opaque-flat-access-token",
+		"id_token": "old-flat-id-token",
+		"refresh_token": "old-flat-refresh-token",
+		"account_id": "flat-account",
+		"expired": "` + now.Add(time.Minute).Format(time.RFC3339) + `"
+	}`
+	updated, refreshed, err := RefreshCodexAuthJSON(context.Background(), upstream.Client(), raw, false, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed {
+		t.Fatal("expected refresh")
+	}
+	if form.Get("refresh_token") != "old-flat-refresh-token" {
+		t.Fatalf("unexpected refresh_token: %q", form.Get("refresh_token"))
+	}
+
+	var saved map[string]any
+	if err := json.Unmarshal([]byte(updated), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := saved["tokens"]; ok {
+		t.Fatalf("flat auth JSON should stay flat, got %s", updated)
+	}
+	if saved["access_token"] != "new-flat-access-token" || saved["id_token"] != "new-flat-id-token" || saved["refresh_token"] != "new-flat-refresh-token" {
+		t.Fatalf("unexpected refreshed flat tokens: %#v", saved)
+	}
+	if saved["type"] != "codex" || saved["email"] != "coder@example.com" || saved["account_id"] != "flat-account" {
+		t.Fatalf("flat metadata should be preserved, got %#v", saved)
+	}
+	if saved["last_refresh"] != now.Format(time.RFC3339Nano) {
+		t.Fatalf("unexpected last_refresh: %q", saved["last_refresh"])
+	}
+	if saved["expired"] != now.Add(time.Hour).Format(time.RFC3339) {
+		t.Fatalf("unexpected expired timestamp: %q", saved["expired"])
+	}
+}
+
 func TestRefreshCodexAuthJSONFailsWhenExpiredAndRefreshTokenMissing(t *testing.T) {
 	now := time.Date(2026, 4, 29, 10, 0, 0, 0, time.UTC)
 	raw := `{"tokens":{"access_token":"` + jwtWithExp(t, now.Add(-time.Minute)) + `"}}`

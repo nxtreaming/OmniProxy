@@ -851,11 +851,20 @@ func normalizeRequest(req UpsertRequest) (string, string, string, string, string
 		if !json.Valid([]byte(value)) {
 			return "", "", "", "", "", errors.New("codex auth.json must be valid JSON")
 		}
-		email, ok := ExtractCodexEmail(value)
+		fields, ok := ExtractCodexAuthFields(value)
 		if !ok {
-			return "", "", "", "", "", errors.New("codex auth.json does not contain an email in tokens.id_token")
+			return "", "", "", "", "", errors.New("codex auth.json must be a JSON object")
 		}
-		name = email
+		if fields.Type != "" && !strings.EqualFold(fields.Type, "codex") {
+			return "", "", "", "", "", errors.New("codex auth.json type must be codex")
+		}
+		if strings.TrimSpace(fields.Email) == "" {
+			return "", "", "", "", "", errors.New("codex auth.json does not contain email or an email in id_token")
+		}
+		if !fields.HasSupportedToken() {
+			return "", "", "", "", "", errors.New("codex auth.json does not contain a supported token field")
+		}
+		name = fields.Email
 	} else if credentialType == CredentialTypeClaudeOAuth {
 		if !json.Valid([]byte(value)) {
 			return "", "", "", "", "", errors.New("claude OAuth JSON must be valid JSON")

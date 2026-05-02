@@ -52,19 +52,23 @@ func RefreshCodexAuthJSON(ctx context.Context, client *http.Client, raw string, 
 		now = time.Now()
 	}
 
-	auth, tokens, err := parseCodexAuth(raw)
+	auth, tokens, topLevelTokens, err := parseCodexAuth(raw)
 	if err != nil {
 		return "", false, err
 	}
 	accessToken := stringMapValue(tokens, "access_token")
 	refreshToken := stringMapValue(tokens, "refresh_token")
+	accessExpiredOrExpiring := codexAccessTokenExpiredOrExpiring(accessToken, now)
+	if !accessExpiredOrExpiring {
+		accessExpiredOrExpiring = codexAuthExpiredOrExpiring(auth, now)
+	}
 	if strings.TrimSpace(refreshToken) == "" {
-		if force || codexAccessTokenExpiredOrExpiring(accessToken, now) {
-			return "", false, errors.New("codex auth.json does not contain tokens.refresh_token")
+		if force || accessExpiredOrExpiring {
+			return "", false, errors.New("codex auth.json does not contain refresh_token")
 		}
 		return raw, false, nil
 	}
-	if !force && !codexAccessTokenExpiredOrExpiring(accessToken, now) {
+	if !force && !accessExpiredOrExpiring {
 		return raw, false, nil
 	}
 
@@ -99,7 +103,12 @@ func RefreshCodexAuthJSON(ctx context.Context, client *http.Client, raw string, 
 	if strings.TrimSpace(refresh.RefreshToken) != "" {
 		tokens["refresh_token"] = strings.TrimSpace(refresh.RefreshToken)
 	}
-	auth["tokens"] = tokens
+	if !topLevelTokens {
+		auth["tokens"] = tokens
+	}
+	if topLevelTokens && refresh.ExpiresIn > 0 {
+		auth["expired"] = now.UTC().Add(time.Duration(refresh.ExpiresIn) * time.Second).Format(time.RFC3339)
+	}
 	auth["last_refresh"] = now.UTC().Format(time.RFC3339Nano)
 
 	updated, err := json.MarshalIndent(auth, "", "  ")
@@ -109,22 +118,37 @@ func RefreshCodexAuthJSON(ctx context.Context, client *http.Client, raw string, 
 	return string(updated), true, nil
 }
 
-func parseCodexAuth(raw string) (map[string]any, map[string]any, error) {
+func parseCodexAuth(raw string) (map[string]any, map[string]any, bool, error) {
 	var auth map[string]any
 	decoder := json.NewDecoder(strings.NewReader(raw))
 	decoder.UseNumber()
 	if err := decoder.Decode(&auth); err != nil {
-		return nil, nil, fmt.Errorf("codex auth.json must be valid JSON: %w", err)
+		return nil, nil, false, fmt.Errorf("codex auth.json must be valid JSON: %w", err)
 	}
 	tokensValue, ok := auth["tokens"]
 	if !ok {
-		return nil, nil, errors.New("codex auth.json does not contain tokens")
+		if hasTopLevelCodexTokenFields(auth) {
+			return auth, auth, true, nil
+		}
+		return nil, nil, false, errors.New("codex auth.json does not contain tokens or top-level token fields")
 	}
 	tokens, ok := tokensValue.(map[string]any)
 	if !ok {
-		return nil, nil, errors.New("codex auth.json tokens must be an object")
+		return nil, nil, false, errors.New("codex auth.json tokens must be an object")
 	}
-	return auth, tokens, nil
+	return auth, tokens, false, nil
+}
+
+func hasTopLevelCodexTokenFields(auth map[string]any) bool {
+	if auth == nil {
+		return false
+	}
+	for _, key := range []string{"access_token", "refresh_token", "id_token", "OPENAI_API_KEY"} {
+		if stringMapValue(auth, key) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func codexAccessTokenExpiredOrExpiring(accessToken string, now time.Time) bool {
@@ -133,6 +157,53 @@ func codexAccessTokenExpiredOrExpiring(accessToken string, now time.Time) bool {
 		return false
 	}
 	return !expiresAt.After(now.Add(codexAccessRefreshMargin))
+}
+
+func codexAuthExpiredOrExpiring(auth map[string]any, now time.Time) bool {
+	expiresAt, ok := codexAuthExpiresAt(auth)
+	if !ok {
+		return false
+	}
+	return !expiresAt.After(now.Add(codexAccessRefreshMargin))
+}
+
+func codexAuthExpiresAt(auth map[string]any) (time.Time, bool) {
+	if auth == nil {
+		return time.Time{}, false
+	}
+	for _, key := range []string{"expired", "expires_at", "expiresAt"} {
+		if value, ok := auth[key]; ok {
+			if expiresAt, ok := parseCodexExpiryValue(value); ok {
+				return expiresAt, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+func parseCodexExpiryValue(value any) (time.Time, bool) {
+	switch typed := value.(type) {
+	case string:
+		text := strings.TrimSpace(typed)
+		if text == "" {
+			return time.Time{}, false
+		}
+		for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
+			if parsed, err := time.Parse(layout, text); err == nil {
+				return parsed, true
+			}
+		}
+	case json.Number:
+		seconds, err := typed.Int64()
+		if err == nil && seconds > 0 {
+			return time.Unix(seconds, 0), true
+		}
+	case float64:
+		if typed > 0 {
+			return time.Unix(int64(typed), 0), true
+		}
+	}
+	return time.Time{}, false
 }
 
 func jwtExpiresAt(jwt string) (time.Time, bool) {
