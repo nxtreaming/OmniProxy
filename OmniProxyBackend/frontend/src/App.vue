@@ -136,6 +136,8 @@ const clearingBillingUsage = ref(false)
 const clearingRequestHistory = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const deleteCandidate = ref(null)
+const deleteBusy = ref(false)
 const toastAutoCloseMs = 4000
 const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
 let toastTimer = null
@@ -762,15 +764,27 @@ async function submitForm() {
 }
 
 async function removeToken(token) {
-  if (!window.confirm(`删除账号「${token.name}」？`)) {
-    return
-  }
+  deleteCandidate.value = token
+}
+
+function closeDeleteConfirm() {
+  if (deleteBusy.value) return
+  deleteCandidate.value = null
+}
+
+async function confirmRemoveToken() {
+  if (!deleteCandidate.value?.id) return
+  const target = deleteCandidate.value
+  deleteBusy.value = true
   try {
-    await deleteToken(token.id)
+    await deleteToken(target.id)
     await refreshAll()
-    successMessage.value = '账号已删除'
+    successMessage.value = `账号已删除：${target.name}`
+    deleteCandidate.value = null
   } catch (error) {
     errorMessage.value = error.message
+  } finally {
+    deleteBusy.value = false
   }
 }
 
@@ -2612,16 +2626,48 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
         @close="closeHistoryDiagnosis"
       />
 
-      <TokenEditorModal
-        v-if="form.visible"
-        :form="form"
-        :providers="providers"
-        :is-codex-form="isAutoNameForm"
-        :placeholder="credentialPlaceholder()"
-        @close="closeForm"
-        @submit="submitForm"
-        @provider-change="onProviderChange"
-      />
+      <Transition name="modal-pop" appear>
+        <TokenEditorModal
+          v-if="form.visible"
+          :form="form"
+          :providers="providers"
+          :is-codex-form="isAutoNameForm"
+          :placeholder="credentialPlaceholder()"
+          @close="closeForm"
+          @submit="submitForm"
+          @provider-change="onProviderChange"
+        />
+      </Transition>
+
+      <Transition name="modal-pop" appear>
+        <div v-if="deleteCandidate" class="danger-confirm-backdrop" @click.self="closeDeleteConfirm">
+          <section class="danger-confirm" role="dialog" aria-modal="true" aria-labelledby="delete-token-title">
+            <div class="danger-confirm-mark" aria-hidden="true">
+              <span></span>
+            </div>
+            <div class="danger-confirm-body">
+              <p class="danger-confirm-kicker">危险操作</p>
+              <h2 id="delete-token-title">删除这个账号？</h2>
+              <p>
+                删除后该账号会立即从调度池移除，已保存的凭据也会从本机账号池删除。历史请求记录不会被清空。
+              </p>
+              <div class="danger-confirm-card">
+                <span>账号</span>
+                <strong>{{ deleteCandidate.name }}</strong>
+                <small>{{ providerLabel(deleteCandidate.provider) }} · {{ credentialLabel(deleteCandidate) }}</small>
+              </div>
+            </div>
+            <div class="danger-confirm-actions">
+              <button type="button" class="ghost-button" :disabled="deleteBusy" @click="closeDeleteConfirm">
+                取消
+              </button>
+              <button type="button" class="danger-button solid" :disabled="deleteBusy" @click="confirmRemoveToken">
+                {{ deleteBusy ? '删除中' : '删除账号' }}
+              </button>
+            </div>
+          </section>
+        </div>
+      </Transition>
 
       <div v-if="loading" class="loading">加载中...</div>
     </main>
