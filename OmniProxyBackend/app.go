@@ -650,6 +650,14 @@ func (a *DesktopApp) RestoreOpenCode() (clientConfigureResult, error) {
 	return a.server.restoreOpenCodeConfig()
 }
 
+func (a *DesktopApp) OpenRouterModels(refresh bool) (openRouterModelsResponse, error) {
+	return a.server.openRouterModels(a.callContext(), refresh)
+}
+
+func (a *DesktopApp) OpenRouterChat(req openRouterChatRequest) (openRouterChatResponse, error) {
+	return a.server.openRouterChat(a.callContext(), req)
+}
+
 func (a *DesktopApp) callContext() context.Context {
 	if a.ctx != nil {
 		return a.ctx

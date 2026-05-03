@@ -114,6 +114,14 @@ export function Logs() {
   return window['go']['main']['DesktopApp']['Logs']();
 }
 
+export function OpenRouterChat(arg1) {
+  return window['go']['main']['DesktopApp']['OpenRouterChat'](arg1);
+}
+
+export function OpenRouterModels(arg1) {
+  return window['go']['main']['DesktopApp']['OpenRouterModels'](arg1);
+}
+
 export function ProxyStatus() {
   return window['go']['main']['DesktopApp']['ProxyStatus']();
 }

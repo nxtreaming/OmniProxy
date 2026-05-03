@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	geminiDefaultModel       = "gemini-3-pro-preview"
-	opencodeOmniProviderID   = "omniproxy"
-	opencodeGeminiProviderID = "omniproxy-gemini"
-	opencodeCustomProviderID = "omniproxy-custom"
-	localClientAPIKey        = "omniproxy-local"
+	geminiDefaultModel           = "gemini-3-pro-preview"
+	opencodeOmniProviderID       = "omniproxy"
+	opencodeGeminiProviderID     = "omniproxy-gemini"
+	opencodeOpenRouterProviderID = "omniproxy-openrouter"
+	opencodeCustomProviderID     = "omniproxy-custom"
+	localClientAPIKey            = "omniproxy-local"
 )
 
 type clientConfigureResult struct {
@@ -188,9 +189,11 @@ func (a *appServer) configureOpenCode() (clientConfigureResult, error) {
 	configPath := filepath.Join(opencodeDir, "opencode.json")
 	routerBaseURL := fmt.Sprintf("http://127.0.0.1:%d/opencode-router/v1", port)
 	geminiBaseURL := fmt.Sprintf("http://127.0.0.1:%d/gemini", port)
+	openRouterBaseURL := fmt.Sprintf("http://127.0.0.1:%d/openrouter/v1", port)
 	customBaseURL := fmt.Sprintf("http://127.0.0.1:%d/custom/v1", port)
+	openRouterModels := a.openCodeOpenRouterModels()
 
-	if err := writeOpenCodeConfig(configPath, routerBaseURL, geminiBaseURL, customBaseURL); err != nil {
+	if err := writeOpenCodeConfig(configPath, routerBaseURL, geminiBaseURL, openRouterBaseURL, customBaseURL, openRouterModels); err != nil {
 		return clientConfigureResult{}, err
 	}
 
@@ -200,7 +203,7 @@ func (a *appServer) configureOpenCode() (clientConfigureResult, error) {
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    routerBaseURL,
 		ProviderID: opencodeOmniProviderID,
-		Message:    "OpenCode 已添加 OmniProxy、OmniProxy Gemini 和 OmniProxy 自定义网关 provider",
+		Message:    "OpenCode 已添加 OmniProxy、OmniProxy Gemini、OmniProxy OpenRouter 和 OmniProxy 自定义网关 provider",
 	}, nil
 }
 
@@ -223,7 +226,7 @@ func (a *appServer) restoreOpenCodeConfig() (clientConfigureResult, error) {
 	}, nil
 }
 
-func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string, customBaseURL string) error {
+func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string, openRouterBaseURL string, customBaseURL string, openRouterModels map[string]any) error {
 	data, err := readJSONObject(path)
 	if err != nil {
 		return err
@@ -241,10 +244,21 @@ func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string
 	}
 	providers[opencodeOmniProviderID] = openCodeRouterProvider(routerBaseURL)
 	providers[opencodeGeminiProviderID] = openCodeGeminiProvider(geminiBaseURL)
+	providers[opencodeOpenRouterProviderID] = openCodeOpenRouterProvider(openRouterBaseURL, openRouterModels)
 	providers[opencodeCustomProviderID] = openCodeCustomProvider(customBaseURL)
 	data["provider"] = providers
 
 	return writeJSONObject(path, data)
+}
+
+func (a *appServer) openCodeOpenRouterModels() map[string]any {
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+	if cached, ok := a.cachedOpenRouterModels(cfg.OpenRouterBaseURL, "", false); ok {
+		return openCodeModelsFromOpenRouter(cached.Models)
+	}
+	return defaultOpenCodeOpenRouterModels()
 }
 
 func openCodeRouterProvider(baseURL string) map[string]any {
@@ -279,6 +293,47 @@ func openCodeGeminiProvider(baseURL string) map[string]any {
 			"gemini-3-flash-preview": map[string]any{"name": "Gemini 3 Flash Preview"},
 			"gemini-2.5-flash-lite":  map[string]any{"name": "Gemini 2.5 Flash Lite"},
 		},
+	}
+}
+
+func openCodeOpenRouterProvider(baseURL string, models map[string]any) map[string]any {
+	if len(models) == 0 {
+		models = defaultOpenCodeOpenRouterModels()
+	}
+	return map[string]any{
+		"npm":  "@ai-sdk/openai-compatible",
+		"name": "OmniProxy OpenRouter",
+		"options": map[string]any{
+			"baseURL":     baseURL,
+			"apiKey":      localClientAPIKey,
+			"setCacheKey": true,
+		},
+		"models": models,
+	}
+}
+
+func openCodeModelsFromOpenRouter(models []openRouterModelResponse) map[string]any {
+	out := map[string]any{}
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		name := strings.TrimSpace(model.Name)
+		if name == "" {
+			name = id
+		}
+		out[id] = map[string]any{"name": name}
+	}
+	if len(out) == 0 {
+		return defaultOpenCodeOpenRouterModels()
+	}
+	return out
+}
+
+func defaultOpenCodeOpenRouterModels() map[string]any {
+	return map[string]any{
+		"openrouter/auto": map[string]any{"name": "OpenRouter Auto"},
 	}
 }
 

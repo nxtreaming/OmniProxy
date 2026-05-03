@@ -13,8 +13,8 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if cfg.XiaomiCredentialPriority != MimoCredentialPriorityTokenPlan {
 		t.Fatalf("expected default MiMo token plan priority, got %q", cfg.XiaomiCredentialPriority)
 	}
-	if cfg.ZhipuBaseURL == "" || cfg.MiniMaxBaseURL == "" || cfg.GeminiBaseURL == "" {
-		t.Fatalf("expected new provider default base urls, got zhipu=%q minimax=%q gemini=%q", cfg.ZhipuBaseURL, cfg.MiniMaxBaseURL, cfg.GeminiBaseURL)
+	if cfg.ZhipuBaseURL == "" || cfg.MiniMaxBaseURL == "" || cfg.GeminiBaseURL == "" || cfg.OpenRouterBaseURL == "" {
+		t.Fatalf("expected new provider default base urls, got zhipu=%q minimax=%q gemini=%q openrouter=%q", cfg.ZhipuBaseURL, cfg.MiniMaxBaseURL, cfg.GeminiBaseURL, cfg.OpenRouterBaseURL)
 	}
 
 	cfg = Normalize(Config{

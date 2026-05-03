@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -565,6 +566,84 @@ func TestValidatorUsesGeminiAPIKey(t *testing.T) {
 	}
 	if !result.OK {
 		t.Fatalf("expected gemini validation to pass: %#v", result)
+	}
+}
+
+func TestValidatorQueriesOpenRouterKeyUsage(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/key" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer openrouter-api-key" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"usage":12.5,"limit":50,"limit_remaining":37.5}}`))
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		OpenRouterBaseURL: upstream.URL + "/api/v1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(context.Background(), token.Token{
+		Provider:       token.ProviderOpenRouter,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "openrouter-api-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || result.Usage == nil || result.Remaining == nil {
+		t.Fatalf("expected openrouter validation usage, got %#v", result)
+	}
+	if *result.Remaining != 75 {
+		t.Fatalf("expected 75 percent remaining, got %d", *result.Remaining)
+	}
+	if result.Usage.BalanceRemaining != 37.5 || result.Usage.BalanceTotal != 50 || result.Usage.BalanceUsed != 12.5 || result.Usage.BalanceUnit != "USD" {
+		t.Fatalf("unexpected openrouter usage: %#v", result.Usage)
+	}
+}
+
+func TestValidatorQueriesOpenRouterUnlimitedKeyUsage(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/key" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"usage":0.017,"limit":null,"limit_remaining":null,"is_free_tier":true}}`))
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		OpenRouterBaseURL: upstream.URL + "/api/v1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(context.Background(), token.Token{
+		Provider:       token.ProviderOpenRouter,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "openrouter-api-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || result.Usage == nil || result.Remaining == nil {
+		t.Fatalf("expected openrouter validation usage, got %#v", result)
+	}
+	if *result.Remaining != 100 {
+		t.Fatalf("expected unlimited key to remain active, got %d", *result.Remaining)
+	}
+	if !result.Usage.BalanceUnlimited || result.Usage.BalanceUnit != "USD" || result.Usage.BalanceUsed != 0.017 {
+		t.Fatalf("unexpected unlimited openrouter usage: %#v", result.Usage)
+	}
+	if result.Usage.PlanType != "OpenRouter Free Tier" {
+		t.Fatalf("unexpected plan type: %q", result.Usage.PlanType)
 	}
 }
 

@@ -11,18 +11,19 @@ type ClientInfo struct {
 }
 
 const (
-	clientCodex    = "codex"
-	clientClaude   = "claude"
-	clientOpenCode = "opencode"
-	clientGemini   = "gemini"
-	clientCursor   = "cursor"
-	clientVSCode   = "vscode"
-	clientWindsurf = "windsurf"
-	clientAider    = "aider"
-	clientContinue = "continue"
-	clientCustom   = "custom"
-	clientAPI      = "api"
-	clientUnknown  = "unknown"
+	clientCodex      = "codex"
+	clientClaude     = "claude"
+	clientOpenCode   = "opencode"
+	clientGemini     = "gemini"
+	clientOpenRouter = "openrouter"
+	clientCursor     = "cursor"
+	clientVSCode     = "vscode"
+	clientWindsurf   = "windsurf"
+	clientAider      = "aider"
+	clientContinue   = "continue"
+	clientCustom     = "custom"
+	clientAPI        = "api"
+	clientUnknown    = "unknown"
 )
 
 func clientInfoForRequest(r *http.Request, route routeInfo) ClientInfo {
@@ -102,6 +103,8 @@ func pathClientInfo(path string, route routeInfo) (ClientInfo, bool) {
 		return knownClient(clientClaude), true
 	case strings.HasPrefix(path, "/gemini/") || path == "/gemini":
 		return knownClient(clientGemini), true
+	case strings.HasPrefix(path, "/openrouter/") || path == "/openrouter":
+		return knownClient(clientOpenRouter), true
 	case strings.HasPrefix(path, "/custom/") || path == "/custom":
 		return knownClient(clientCustom), true
 	default:
@@ -122,6 +125,8 @@ func clientInfoFromLabel(value string) ClientInfo {
 		return knownClient(clientClaude)
 	case strings.Contains(normalized, "gemini"):
 		return knownClient(clientGemini)
+	case strings.Contains(normalized, "openrouter"):
+		return knownClient(clientOpenRouter)
 	case strings.Contains(normalized, "cursor"):
 		return knownClient(clientCursor)
 	case strings.Contains(normalized, "windsurf"):
@@ -150,6 +155,8 @@ func knownClient(key string) ClientInfo {
 		return ClientInfo{Key: clientOpenCode, Name: "OpenCode"}
 	case clientGemini:
 		return ClientInfo{Key: clientGemini, Name: "Gemini CLI"}
+	case clientOpenRouter:
+		return ClientInfo{Key: clientOpenRouter, Name: "OpenRouter"}
 	case clientCursor:
 		return ClientInfo{Key: clientCursor, Name: "Cursor"}
 	case clientVSCode:

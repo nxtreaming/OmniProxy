@@ -1786,6 +1786,48 @@ func TestServiceRoutesGeminiNativeRequests(t *testing.T) {
 	}
 }
 
+func TestServiceRoutesOpenRouterRequests(t *testing.T) {
+	var upstreamPath string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":5}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "openrouter", Provider: token.ProviderOpenRouter, TokenValue: "sk-or-test-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:         3000,
+		ControlPort:       3890,
+		OpenRouterBaseURL: upstream.URL + "/api/v1",
+		SwitchThreshold:   15,
+		MaxRetries:        0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/openrouter/v1/chat/completions", stringsReader(`{"model":"openai/gpt-test","messages":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/api/v1/chat/completions" || authorization != "Bearer sk-or-test-token" {
+		t.Fatalf("unexpected openrouter route path=%q authorization=%q", upstreamPath, authorization)
+	}
+}
+
 func TestServiceRoutesOpenCodeRouterToZhipu(t *testing.T) {
 	var upstreamPath string
 	var authorization string

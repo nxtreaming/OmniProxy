@@ -61,6 +61,10 @@ export function InstallDownloadedUpdate():Promise<main.updateDownloadStatus>;
 
 export function Logs():Promise<Array<main.logResponse>>;
 
+export function OpenRouterChat(arg1:main.openRouterChatRequest):Promise<main.openRouterChatResponse>;
+
+export function OpenRouterModels(arg1:boolean):Promise<main.openRouterModelsResponse>;
+
 export function ProxyStatus():Promise<Record<string, any>>;
 
 export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyResponse>>;

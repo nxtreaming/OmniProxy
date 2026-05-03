@@ -1360,7 +1360,10 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := writeOpenCodeConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "http://127.0.0.1:3000/gemini", "http://127.0.0.1:3000/custom/v1"); err != nil {
+	openRouterModels := map[string]any{
+		"openai/gpt-test": map[string]any{"name": "GPT Test"},
+	}
+	if err := writeOpenCodeConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "http://127.0.0.1:3000/gemini", "http://127.0.0.1:3000/openrouter/v1", "http://127.0.0.1:3000/custom/v1", openRouterModels); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1369,7 +1372,7 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	providers := data["provider"].(map[string]any)
-	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeCustomProviderID} {
+	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeCustomProviderID} {
 		if providers[id] == nil {
 			t.Fatalf("expected provider %s in %#v", id, providers)
 		}
@@ -1378,6 +1381,15 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 	options := routerProvider["options"].(map[string]any)
 	if options["baseURL"] != "http://127.0.0.1:3000/opencode-router/v1" {
 		t.Fatalf("unexpected router baseURL: %#v", options)
+	}
+	openRouterProvider := providers[opencodeOpenRouterProviderID].(map[string]any)
+	openRouterOptions := openRouterProvider["options"].(map[string]any)
+	if openRouterOptions["baseURL"] != "http://127.0.0.1:3000/openrouter/v1" {
+		t.Fatalf("unexpected openrouter baseURL: %#v", openRouterOptions)
+	}
+	openRouterProviderModels := openRouterProvider["models"].(map[string]any)
+	if openRouterProviderModels["openai/gpt-test"] == nil {
+		t.Fatalf("expected openrouter models in %#v", openRouterProviderModels)
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
 		t.Fatalf("expected opencode backup: %v", err)

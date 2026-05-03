@@ -12,15 +12,16 @@ const (
 )
 
 const (
-	ProviderOpenAI    = "openai"
-	ProviderAnthropic = "anthropic"
-	ProviderDeepSeek  = "deepseek"
-	ProviderKimi      = "kimi"
-	ProviderXiaomi    = "xiaomi"
-	ProviderZhipu     = "zhipu"
-	ProviderMiniMax   = "minimax"
-	ProviderGemini    = "gemini"
-	ProviderCustom    = "custom"
+	ProviderOpenAI     = "openai"
+	ProviderAnthropic  = "anthropic"
+	ProviderDeepSeek   = "deepseek"
+	ProviderKimi       = "kimi"
+	ProviderXiaomi     = "xiaomi"
+	ProviderZhipu      = "zhipu"
+	ProviderMiniMax    = "minimax"
+	ProviderGemini     = "gemini"
+	ProviderOpenRouter = "openrouter"
+	ProviderCustom     = "custom"
 )
 
 const (
@@ -71,6 +72,7 @@ type UsageInfo struct {
 	BalanceTotal               float64          `json:"balanceTotal,omitempty"`
 	BalanceUsed                float64          `json:"balanceUsed,omitempty"`
 	BalanceUnit                string           `json:"balanceUnit,omitempty"`
+	BalanceUnlimited           bool             `json:"balanceUnlimited,omitempty"`
 	BalancePackages            []BalancePackage `json:"balancePackages,omitempty"`
 	SubscriptionQuotaAvailable bool             `json:"subscriptionQuotaAvailable,omitempty"`
 	Message                    string           `json:"message,omitempty"`

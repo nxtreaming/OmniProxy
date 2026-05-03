@@ -69,6 +69,7 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 		token.ProviderMiniMax:             cfg.MiniMaxBaseURL,
 		"minimax_anthropic":               cfg.MiniMaxAnthropicBaseURL,
 		token.ProviderGemini:              cfg.GeminiBaseURL,
+		token.ProviderOpenRouter:          cfg.OpenRouterBaseURL,
 		"custom_gateway":                  cfg.CustomGatewayBaseURL,
 		"custom_gateway_anthropic":        cfg.CustomGatewayAnthropicBaseURL,
 		"xiaomi_api":                      cfg.XiaomiAPIBaseURL,

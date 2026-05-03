@@ -36,20 +36,22 @@ import (
 var assets embed.FS
 
 type appServer struct {
-	mu             sync.Mutex
-	codexRefreshMu sync.Mutex
-	dataDir        string
-	cfg            config.Config
-	configStore    *config.Store
-	tokens         *token.Manager
-	logs           *logs.Recorder
-	history        *history.Recorder
-	proxyServer    *http.Server
-	proxyService   *proxy.Service
-	control        *http.Server
-	controlToken   string
-	updates        *updateDownloader
-	healthStop     context.CancelFunc
+	mu                    sync.Mutex
+	codexRefreshMu        sync.Mutex
+	dataDir               string
+	cfg                   config.Config
+	configStore           *config.Store
+	tokens                *token.Manager
+	logs                  *logs.Recorder
+	history               *history.Recorder
+	proxyServer           *http.Server
+	proxyService          *proxy.Service
+	control               *http.Server
+	controlToken          string
+	updates               *updateDownloader
+	healthStop            context.CancelFunc
+	openRouterModelsMu    sync.Mutex
+	openRouterModelsCache openRouterModelsCache
 }
 
 const (
@@ -322,6 +324,8 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/zhipu/claude/restore", a.handleZhipuClaudeRestore)
 	mux.HandleFunc("/api/gemini/configure", a.handleGeminiConfigure)
 	mux.HandleFunc("/api/gemini/restore", a.handleGeminiRestore)
+	mux.HandleFunc("/api/openrouter/models", a.handleOpenRouterModels)
+	mux.HandleFunc("/api/openrouter/chat", a.handleOpenRouterChat)
 	mux.HandleFunc("/api/opencode/configure", a.handleOpenCodeConfigure)
 	mux.HandleFunc("/api/opencode/restore", a.handleOpenCodeRestore)
 	return withControlTokenAuth(a.controlToken, mux)
@@ -939,6 +943,45 @@ func (a *appServer) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, logResponses(a.logs.List()))
+}
+
+func (a *appServer) handleOpenRouterModels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	refresh := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("refresh")), "true") ||
+		strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
+	result, err := a.openRouterModels(r.Context(), refresh)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleOpenRouterChat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+	var req openRouterChatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	result, err := a.openRouterChat(r.Context(), req)
+	if err != nil {
+		var requestErr openRouterRequestError
+		if errors.As(err, &requestErr) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -1565,6 +1608,7 @@ func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 		oldCfg.MiniMaxBaseURL != nextCfg.MiniMaxBaseURL ||
 		oldCfg.MiniMaxAnthropicBaseURL != nextCfg.MiniMaxAnthropicBaseURL ||
 		oldCfg.GeminiBaseURL != nextCfg.GeminiBaseURL ||
+		oldCfg.OpenRouterBaseURL != nextCfg.OpenRouterBaseURL ||
 		oldCfg.CustomGatewayBaseURL != nextCfg.CustomGatewayBaseURL ||
 		oldCfg.CustomGatewayAnthropicBaseURL != nextCfg.CustomGatewayAnthropicBaseURL ||
 		oldCfg.XiaomiBaseURL != nextCfg.XiaomiBaseURL ||

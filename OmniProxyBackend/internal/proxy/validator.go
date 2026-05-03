@@ -52,6 +52,7 @@ func NewValidator(cfg config.Config) (*Validator, error) {
 		"minimax":                         cfg.MiniMaxBaseURL,
 		"minimax_anthropic":               cfg.MiniMaxAnthropicBaseURL,
 		"gemini":                          cfg.GeminiBaseURL,
+		"openrouter":                      cfg.OpenRouterBaseURL,
 		"custom_gateway":                  cfg.CustomGatewayBaseURL,
 		"custom_gateway_anthropic":        cfg.CustomGatewayAnthropicBaseURL,
 		"xiaomi_api":                      cfg.XiaomiAPIBaseURL,
@@ -130,6 +131,14 @@ func (v *Validator) Validate(ctx context.Context, selected token.Token) (Validat
 			}
 		}
 	}
+	if result.OK && token.NormalizeProvider(selected.Provider) == token.ProviderOpenRouter {
+		if usage, remaining, ok := parseOpenRouterKeyUsage(body); ok {
+			result.Usage = &usage
+			if remaining != nil {
+				result.Remaining = remaining
+			}
+		}
+	}
 	if result.OK && selected.CredentialType != token.CredentialTypeCodexAuthJSON {
 		if usage, remaining, ok := v.queryProviderQuota(ctx, selected); ok {
 			result.Usage = &usage
@@ -162,6 +171,8 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 		path = "/v1/models"
 	case token.ProviderGemini:
 		path = "/v1beta/models"
+	case token.ProviderOpenRouter:
+		path = "/key"
 	case token.ProviderXiaomi:
 		path = "/models"
 	case token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
@@ -188,6 +199,8 @@ func (v *Validator) baseURL(selected token.Token) string {
 		return v.cfg.MiniMaxBaseURL
 	case token.ProviderGemini:
 		return v.cfg.GeminiBaseURL
+	case token.ProviderOpenRouter:
+		return v.cfg.OpenRouterBaseURL
 	case token.ProviderCustom:
 		return v.cfg.CustomGatewayBaseURL
 	case token.ProviderXiaomi:
@@ -248,6 +261,70 @@ func parseCodexUsage(body []byte) (token.UsageInfo, bool) {
 	}
 
 	return usage, usage.PlanType != "" || usage.SubscriptionQuotaAvailable
+}
+
+func parseOpenRouterKeyUsage(body []byte) (token.UsageInfo, *int, bool) {
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+
+	data := payload
+	if nested, ok := payload["data"].(map[string]any); ok {
+		data = nested
+	}
+
+	usageValue, usageOK := floatFromAny(data["usage"])
+	limitValue, limitOK := floatFromAny(data["limit"])
+	remainingValue, remainingOK := floatFromAny(data["limit_remaining"])
+	if !remainingOK && limitOK && usageOK {
+		remainingValue = limitValue - usageValue
+		if remainingValue < 0 {
+			remainingValue = 0
+		}
+		remainingOK = true
+	}
+
+	planType := "OpenRouter API Key"
+	if boolFromAny(data["is_free_tier"], false) {
+		planType = "OpenRouter Free Tier"
+	}
+	usage := token.UsageInfo{
+		Source:   token.ProviderOpenRouter,
+		PlanType: planType,
+		Message:  "OpenRouter key usage",
+	}
+	if usageOK {
+		usage.BalanceUsed = usageValue
+	}
+	if usageOK || limitOK || remainingOK {
+		usage.BalanceUnit = "USD"
+	}
+	if limitOK {
+		usage.BalanceTotal = limitValue
+	}
+	if remainingOK {
+		usage.BalanceRemaining = remainingValue
+	}
+	if usageOK && !limitOK && !remainingOK {
+		usage.BalanceUnlimited = true
+	}
+
+	var remaining *int
+	if usage.BalanceUnlimited {
+		value := 100
+		remaining = &value
+	} else if remainingOK {
+		value := 100
+		if limitOK && limitValue > 0 {
+			value = percent((remainingValue / limitValue) * 100)
+		} else if remainingValue <= 0 {
+			value = 0
+		}
+		remaining = &value
+	}
+
+	return usage, remaining, usageOK || limitOK || remainingOK
 }
 
 func percent(value float64) int {

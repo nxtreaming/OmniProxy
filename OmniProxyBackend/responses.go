@@ -45,6 +45,7 @@ type usageResponse struct {
 	BalanceTotal               float64                  `json:"balanceTotal,omitempty"`
 	BalanceUsed                float64                  `json:"balanceUsed,omitempty"`
 	BalanceUnit                string                   `json:"balanceUnit,omitempty"`
+	BalanceUnlimited           bool                     `json:"balanceUnlimited,omitempty"`
 	BalancePackages            []balancePackageResponse `json:"balancePackages,omitempty"`
 	SubscriptionQuotaAvailable bool                     `json:"subscriptionQuotaAvailable,omitempty"`
 	Message                    string                   `json:"message,omitempty"`
@@ -205,6 +206,7 @@ func usageResponseFor(usage token.UsageInfo) usageResponse {
 		BalanceTotal:               usage.BalanceTotal,
 		BalanceUsed:                usage.BalanceUsed,
 		BalanceUnit:                usage.BalanceUnit,
+		BalanceUnlimited:           usage.BalanceUnlimited,
 		BalancePackages:            balancePackageResponses(usage.BalancePackages),
 		SubscriptionQuotaAvailable: usage.SubscriptionQuotaAvailable,
 		Message:                    usage.Message,

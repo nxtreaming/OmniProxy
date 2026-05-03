@@ -59,6 +59,14 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			outPath:  "/v1/chat/completions",
 		},
 		{
+			name:     "opencode router openrouter",
+			path:     "/opencode-router/v1/chat/completions",
+			body:     `{"model":"openai/gpt-test"}`,
+			provider: token.ProviderOpenRouter,
+			protocol: "openai",
+			outPath:  "/v1/chat/completions",
+		},
+		{
 			name:     "opencode router custom",
 			path:     "/opencode-router/v1/chat/completions",
 			body:     `{"model":"custom-model"}`,
@@ -73,6 +81,14 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			provider: token.ProviderGemini,
 			protocol: "gemini",
 			outPath:  "/v1beta/models/gemini-3-pro-preview:generateContent",
+		},
+		{
+			name:     "openrouter direct",
+			path:     "/openrouter/v1/chat/completions",
+			body:     `{"model":"anthropic/claude-test"}`,
+			provider: token.ProviderOpenRouter,
+			protocol: "openai",
+			outPath:  "/v1/chat/completions",
 		},
 	}
 	for _, tt := range cases {

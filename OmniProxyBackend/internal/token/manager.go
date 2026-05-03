@@ -397,6 +397,8 @@ func (m *Manager) RecordUsageInfo(id string, usage UsageInfo) error {
 			remaining := balanceRemainingPercent(usage)
 			m.tokens[i].Remaining = remaining
 			switch {
+			case usage.BalanceUnlimited:
+				m.tokens[i].Status = StatusActive
 			case usage.BalanceRemaining <= 0:
 				m.tokens[i].Status = StatusExhausted
 			case remaining <= m.threshold:
@@ -413,6 +415,9 @@ func (m *Manager) RecordUsageInfo(id string, usage UsageInfo) error {
 }
 
 func balanceRemainingPercent(usage UsageInfo) int {
+	if usage.BalanceUnlimited {
+		return 100
+	}
 	if usage.BalanceTotal > 0 {
 		value := int(math.Round((usage.BalanceRemaining / usage.BalanceTotal) * 100))
 		if value < 0 {
@@ -997,7 +1002,7 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodingPlan {
 			return "", "", errors.New("zhipu supports API key or Coding Plan key only")
 		}
-	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderCustom:
+	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderCustom:
 		if credentialType == "" {
 			credentialType = CredentialTypeAPIKey
 		}

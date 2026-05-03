@@ -36,6 +36,7 @@ type Config struct {
 	MiniMaxBaseURL                     string `json:"minimaxBaseUrl"`
 	MiniMaxAnthropicBaseURL            string `json:"minimaxAnthropicBaseUrl"`
 	GeminiBaseURL                      string `json:"geminiBaseUrl"`
+	OpenRouterBaseURL                  string `json:"openrouterBaseUrl"`
 	CustomGatewayBaseURL               string `json:"customGatewayBaseUrl"`
 	CustomGatewayAnthropicBaseURL      string `json:"customGatewayAnthropicBaseUrl"`
 	XiaomiBaseURL                      string `json:"xiaomiBaseUrl"`
@@ -71,6 +72,7 @@ func Default() Config {
 		MiniMaxBaseURL:                     "https://api.minimaxi.com/v1",
 		MiniMaxAnthropicBaseURL:            "https://api.minimaxi.com/anthropic",
 		GeminiBaseURL:                      "https://generativelanguage.googleapis.com",
+		OpenRouterBaseURL:                  "https://openrouter.ai/api/v1",
 		CustomGatewayBaseURL:               "",
 		CustomGatewayAnthropicBaseURL:      "",
 		XiaomiBaseURL:                      "",
@@ -129,6 +131,7 @@ func (s *Store) Load() (Config, error) {
 		MiniMaxBaseURL                     *string `json:"minimaxBaseUrl"`
 		MiniMaxAnthropicBaseURL            *string `json:"minimaxAnthropicBaseUrl"`
 		GeminiBaseURL                      *string `json:"geminiBaseUrl"`
+		OpenRouterBaseURL                  *string `json:"openrouterBaseUrl"`
 		CustomGatewayBaseURL               *string `json:"customGatewayBaseUrl"`
 		CustomGatewayAnthropicBaseURL      *string `json:"customGatewayAnthropicBaseUrl"`
 		XiaomiBaseURL                      *string `json:"xiaomiBaseUrl"`
@@ -194,6 +197,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.GeminiBaseURL != nil && *saved.GeminiBaseURL != "" {
 		cfg.GeminiBaseURL = *saved.GeminiBaseURL
+	}
+	if saved.OpenRouterBaseURL != nil && *saved.OpenRouterBaseURL != "" {
+		cfg.OpenRouterBaseURL = *saved.OpenRouterBaseURL
 	}
 	if saved.CustomGatewayBaseURL != nil {
 		cfg.CustomGatewayBaseURL = *saved.CustomGatewayBaseURL
@@ -308,6 +314,9 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.GeminiBaseURL == "" {
 		cfg.GeminiBaseURL = defaults.GeminiBaseURL
+	}
+	if cfg.OpenRouterBaseURL == "" {
+		cfg.OpenRouterBaseURL = defaults.OpenRouterBaseURL
 	}
 	if cfg.CodexBaseURL == "" {
 		cfg.CodexBaseURL = defaults.CodexBaseURL
