@@ -6,6 +6,7 @@ import BillingView from './components/BillingView.vue'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
 import HistoryView from './components/HistoryView.vue'
 import LogsView from './components/LogsView.vue'
+import OpenRouterChatView from './components/OpenRouterChatView.vue'
 import SettingsView from './components/SettingsView.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
 import TokensView from './components/TokensView.vue'
@@ -45,6 +46,7 @@ import {
   getDataDirectory,
   getHistory,
   getLogs,
+  getOpenRouterModels,
   getProxyStatus,
   getTokens,
   getUpdateDownloadStatus,
@@ -65,6 +67,8 @@ import {
   restoreZhipuClaude,
 } from './services/api'
 import {
+  ArrowLeft,
+  ArrowRight,
   Coin,
   CircleCheckFilled,
   Clock,
@@ -93,6 +97,7 @@ const tabIcons = {
   billing: Money,
   quotas: Coin,
   tokens: Key,
+  'openrouter-chat': Monitor,
   history: Clock,
   logs: Memo,
   quickstart: MagicStick,
@@ -103,6 +108,7 @@ const tabIcons = {
 const navSections = [
   { label: '总览', items: tabs.filter((tab) => ['dashboard', 'billing', 'quotas'].includes(tab.key)) },
   { label: '运行', items: tabs.filter((tab) => ['tokens', 'history', 'logs', 'quickstart'].includes(tab.key)) },
+  { label: '体验', items: tabs.filter((tab) => ['openrouter-chat'].includes(tab.key)) },
   { label: '系统', items: tabs.filter((tab) => ['settings', 'about', 'help'].includes(tab.key)) },
 ]
 const isDark = ref(false)
@@ -153,7 +159,15 @@ const billingUsage = ref([])
 const billingDates = ref([])
 const selectedBillingDate = ref(localDateKey())
 const activeRequests = ref([])
+const openRouterModels = ref([])
+const openRouterModelsFetchedAt = ref('')
+const openRouterModelsCached = ref(false)
+const openRouterModelsLoading = ref(false)
+const openRouterModelsError = ref('')
+const selectedOpenRouterChatModel = ref('')
 const selectedHistoryEntry = ref(null)
+const subscriptionQuotaPage = ref(0)
+const apiQuotaPage = ref(0)
 const proxyStatus = reactive({ running: false, port: 3000 })
 const config = reactive({
   proxyPort: 3000,
@@ -171,6 +185,7 @@ const config = reactive({
   minimaxBaseUrl: 'https://api.minimaxi.com/v1',
   minimaxAnthropicBaseUrl: 'https://api.minimaxi.com/anthropic',
   geminiBaseUrl: 'https://generativelanguage.googleapis.com',
+  openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
   xiaomiBaseUrl: '',
@@ -234,6 +249,7 @@ const activeProviderTokens = computed(() => providerTokens(activeProvider.value)
 const activeProviderEnabledCount = computed(
   () => activeProviderTokens.value.filter((item) => !item.disabled).length,
 )
+const openRouterTokens = computed(() => providerTokens('openrouter'))
 const currentTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label || '控制台')
 const proxyEndpoint = computed(() => `127.0.0.1:${proxyStatus.port || config.proxyPort}`)
 const dashboardSignals = computed(() => [
@@ -260,6 +276,23 @@ const dashboardSignals = computed(() => [
 ])
 const subscriptionOverviewTokens = computed(() => tokens.value.filter((item) => showQuotaWindows(item)))
 const apiOverviewTokens = computed(() => tokens.value.filter((item) => !showQuotaWindows(item)))
+const quotaOverviewPageSize = 4
+const subscriptionOverviewPageCount = computed(() =>
+  quotaOverviewPageCount(subscriptionOverviewTokens.value.length),
+)
+const apiOverviewPageCount = computed(() => quotaOverviewPageCount(apiOverviewTokens.value.length))
+const pagedSubscriptionOverviewTokens = computed(() =>
+  quotaOverviewPageItems(subscriptionOverviewTokens.value, subscriptionQuotaPage.value),
+)
+const pagedApiOverviewTokens = computed(() =>
+  quotaOverviewPageItems(apiOverviewTokens.value, apiQuotaPage.value),
+)
+const subscriptionQuotaPageText = computed(() =>
+  quotaOverviewPageText(subscriptionQuotaPage.value, subscriptionOverviewPageCount.value, subscriptionOverviewTokens.value.length),
+)
+const apiQuotaPageText = computed(() =>
+  quotaOverviewPageText(apiQuotaPage.value, apiOverviewPageCount.value, apiOverviewTokens.value.length),
+)
 const totalProxyRequests = computed(() =>
   tokens.value.reduce((sum, item) => sum + Number(item.stats?.requestCount || 0), 0),
 )
@@ -280,11 +313,13 @@ const todayProxyRequests = computed(
   () => dailyUsageRows.value.find((row) => row.date === localDateKey())?.requestCount || 0,
 )
 const recentDailyUsageRows = computed(() => dailyUsageRows.value.slice(0, 14).reverse())
+const dashboardTrendRows = computed(() => recentDailyUsageRows.value.slice(-7))
+const dashboardDailyUsageRows = computed(() => dailyUsageRows.value.slice(0, 5))
 const usageTrendMax = computed(() =>
-  Math.max(1, ...recentDailyUsageRows.value.map((row) => Number(row.totalTokens || 0))),
+  Math.max(1, ...dashboardTrendRows.value.map((row) => Number(row.totalTokens || 0))),
 )
 const requestTrendMax = computed(() =>
-  Math.max(1, ...recentDailyUsageRows.value.map((row) => Number(row.requestCount || 0))),
+  Math.max(1, ...dashboardTrendRows.value.map((row) => Number(row.requestCount || 0))),
 )
 const trendGridColumns = computed(
   () => `repeat(${Math.max(1, recentDailyUsageRows.value.length)}, minmax(0, 1fr))`,
@@ -377,7 +412,31 @@ watch(activeTab, (tab) => {
     refreshHistory()
   } else if (tab === 'billing') {
     refreshBilling()
+  } else if (tab === 'tokens' && activeProvider.value === 'openrouter') {
+    refreshOpenRouterModels()
+  } else if (tab === 'openrouter-chat') {
+    refreshOpenRouterModels()
   }
+})
+
+watch(activeProvider, (provider) => {
+  if (activeTab.value === 'tokens' && provider === 'openrouter') {
+    refreshOpenRouterModels()
+  }
+})
+
+watch(openRouterModels, (models) => {
+  if (!selectedOpenRouterChatModel.value && models.length) {
+    selectedOpenRouterChatModel.value = models[0].id
+  }
+})
+
+watch(subscriptionOverviewPageCount, (count) => {
+  subscriptionQuotaPage.value = clampQuotaOverviewPage(subscriptionQuotaPage.value, count)
+})
+
+watch(apiOverviewPageCount, (count) => {
+  apiQuotaPage.value = clampQuotaOverviewPage(apiQuotaPage.value, count)
 })
 
 async function refreshAll() {
@@ -642,6 +701,39 @@ async function refreshBilling(date = selectedBillingDate.value) {
   }
 }
 
+async function refreshOpenRouterModels({ force = false } = {}) {
+  if (openRouterModelsLoading.value) {
+    return
+  }
+  openRouterModelsLoading.value = true
+  openRouterModelsError.value = ''
+  try {
+    const result = await getOpenRouterModels(force)
+    openRouterModels.value = result?.models || []
+    openRouterModelsFetchedAt.value = result?.fetchedAt || ''
+    openRouterModelsCached.value = Boolean(result?.cached)
+  } catch (error) {
+    openRouterModelsError.value = error.message
+  } finally {
+    openRouterModelsLoading.value = false
+  }
+}
+
+function openOpenRouterChat(model) {
+  const modelId = typeof model === 'string' ? model : model?.id
+  if (modelId) {
+    selectedOpenRouterChatModel.value = modelId
+  }
+  activeTab.value = 'openrouter-chat'
+  if (!openRouterModels.value.length && !openRouterModelsLoading.value) {
+    refreshOpenRouterModels()
+  }
+}
+
+function selectOpenRouterChatModel(modelId) {
+  selectedOpenRouterChatModel.value = String(modelId || '').trim()
+}
+
 async function changeBillingDate(date) {
   await refreshBilling(date)
 }
@@ -757,6 +849,9 @@ async function submitForm() {
     }
     closeForm()
     await refreshAll()
+    if (provider === 'openrouter') {
+      await refreshOpenRouterModels({ force: true })
+    }
     successMessage.value = form.editingId ? '账号已更新' : '账号已添加'
   } catch (error) {
     errorMessage.value = error.message
@@ -818,7 +913,7 @@ async function verifyToken(token) {
     const result = await validateToken(token.id)
     await refreshRealtime()
     if (result.ok) {
-      successMessage.value = `验证通过：${result.status}，耗时 ${result.durationMs}ms`
+      successMessage.value = validationSuccessMessage(token, result)
     } else {
       errorMessage.value = `验证未通过：${result.status || '-'} ${result.message || ''}`
     }
@@ -1003,6 +1098,7 @@ async function persistConfig() {
       minimaxBaseUrl: config.minimaxBaseUrl.trim(),
       minimaxAnthropicBaseUrl: config.minimaxAnthropicBaseUrl.trim(),
       geminiBaseUrl: config.geminiBaseUrl.trim(),
+      openrouterBaseUrl: config.openrouterBaseUrl.trim(),
       customGatewayBaseUrl: config.customGatewayBaseUrl.trim(),
       customGatewayAnthropicBaseUrl: config.customGatewayAnthropicBaseUrl.trim(),
       xiaomiBaseUrl: config.xiaomiBaseUrl.trim(),
@@ -1417,6 +1513,9 @@ function credentialPlaceholder() {
   if (form.provider === 'gemini') {
     return '粘贴 Google Gemini API Key'
   }
+  if (form.provider === 'openrouter') {
+    return '粘贴 OpenRouter API Key'
+  }
   if (form.provider === 'custom') {
     return '粘贴自定义网关 API Key'
   }
@@ -1489,6 +1588,7 @@ const knownClientTools = [
   { key: 'claude', label: 'Claude Code' },
   { key: 'opencode', label: 'OpenCode' },
   { key: 'gemini', label: 'Gemini CLI' },
+  { key: 'openrouter', label: 'OpenRouter' },
   { key: 'cursor', label: 'Cursor' },
   { key: 'vscode', label: 'VS Code' },
   { key: 'windsurf', label: 'Windsurf' },
@@ -1625,7 +1725,15 @@ function hasBalanceUsage(item) {
   return Boolean(item.usage?.balanceUnit)
 }
 
+function hasOpenRouterQuotaUsage(item) {
+  if (item?.provider !== 'openrouter') return false
+  return hasBalanceUsage(item) || Boolean(item.usage?.balanceUnlimited)
+}
+
 function quotaDisplay(item) {
+  if (item.usage?.balanceUnlimited) {
+    return '不限制'
+  }
   if (hasBalanceUsage(item)) {
     return `${formatBalance(item.usage.balanceRemaining)} ${item.usage.balanceUnit}`
   }
@@ -1639,6 +1747,9 @@ function quotaStatLabel(item) {
 function quotaStatMeta(item) {
   if (hasBalanceUsage(item)) {
     const parts = []
+    if (item.usage?.balanceUnlimited) {
+      parts.push('未设置消费上限')
+    }
     if (Number(item.usage?.balanceTotal || 0) > 0) {
       parts.push(`总额 ${formatBalance(item.usage.balanceTotal)} ${item.usage.balanceUnit}`)
     }
@@ -1649,6 +1760,70 @@ function quotaStatMeta(item) {
     return parts.join(' · ')
   }
   return `最后更新 ${usageUpdatedAt(item)}`
+}
+
+function openRouterQuotaValue(item, field) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return '-'
+  }
+  return `${formatBalance(item.usage?.[field])} ${item.usage.balanceUnit}`
+}
+
+function openRouterQuotaRemaining(item) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return '待刷新'
+  }
+  if (item.usage?.balanceUnlimited) {
+    return '不限制'
+  }
+  if (Number(item.usage?.balanceTotal || 0) <= 0 && Number(item.usage?.balanceRemaining || 0) <= 0) {
+    return '未返回'
+  }
+  return openRouterQuotaValue(item, 'balanceRemaining')
+}
+
+function openRouterQuotaLimit(item) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return '-'
+  }
+  if (item.usage?.balanceUnlimited) {
+    return '不限制'
+  }
+  if (Number(item.usage?.balanceTotal || 0) <= 0) {
+    return '未设置'
+  }
+  return openRouterQuotaValue(item, 'balanceTotal')
+}
+
+function openRouterQuotaMeta(item) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return item?.disabled ? '已停用，启用后可刷新额度' : '点击刷新额度获取 OpenRouter /key 余额'
+  }
+  const parts = []
+  if (item?.usage?.planType) {
+    parts.push(item.usage.planType)
+  }
+  if (item?.usage?.message) {
+    parts.push(item.usage.message)
+  }
+  parts.push(`最后更新 ${usageUpdatedAt(item)}`)
+  return parts.join(' · ')
+}
+
+function validationSuccessMessage(token, result) {
+  if (token?.provider === 'openrouter' && result?.usage) {
+    const usage = result.usage
+    if (usage.balanceUnlimited) {
+      const used = usage.balanceUnit ? `${formatBalance(usage.balanceUsed)} ${usage.balanceUnit}` : '-'
+      return `OpenRouter 额度已刷新：消费上限不限制，已用 ${used}`
+    }
+    if (usage.balanceUnit) {
+      const remaining = `${formatBalance(usage.balanceRemaining)} ${usage.balanceUnit}`
+      const used = `${formatBalance(usage.balanceUsed)} ${usage.balanceUnit}`
+      return `OpenRouter 额度已刷新：剩余 ${remaining}，已用 ${used}`
+    }
+  }
+  return `验证通过：${result.status}，耗时 ${result.durationMs}ms`
 }
 
 function balancePackages(item) {
@@ -1849,6 +2024,55 @@ function requestTrendHeight(row) {
   return `${Math.max(8, Math.round((value / requestTrendMax.value) * 100))}%`
 }
 
+function trendWidth(row) {
+  const value = Number(row.totalTokens || 0)
+  if (value <= 0) return '2%'
+  return `${Math.max(6, Math.round((value / usageTrendMax.value) * 100))}%`
+}
+
+function requestTrendWidth(row) {
+  const value = Number(row.requestCount || 0)
+  if (value <= 0) return '2%'
+  return `${Math.max(6, Math.round((value / requestTrendMax.value) * 100))}%`
+}
+
+function quotaOverviewPageCount(total) {
+  return Math.max(1, Math.ceil(Number(total || 0) / quotaOverviewPageSize))
+}
+
+function clampQuotaOverviewPage(page, pageCount) {
+  const maxPage = Math.max(0, Number(pageCount || 1) - 1)
+  const nextPage = Number(page || 0)
+  if (!Number.isFinite(nextPage) || nextPage < 0) return 0
+  if (nextPage > maxPage) return maxPage
+  return nextPage
+}
+
+function quotaOverviewPageItems(items, page) {
+  const safeItems = Array.isArray(items) ? items : []
+  const safePage = clampQuotaOverviewPage(page, quotaOverviewPageCount(safeItems.length))
+  const start = safePage * quotaOverviewPageSize
+  return safeItems.slice(start, start + quotaOverviewPageSize)
+}
+
+function quotaOverviewPageText(page, pageCount, total) {
+  if (!total) return '0 / 0'
+  return `${clampQuotaOverviewPage(page, pageCount) + 1} / ${pageCount}`
+}
+
+function quotaOverviewRangeText(page, total) {
+  if (!total) return ''
+  const start = clampQuotaOverviewPage(page, quotaOverviewPageCount(total)) * quotaOverviewPageSize + 1
+  const end = Math.min(total, start + quotaOverviewPageSize - 1)
+  return `${start}-${end} / ${total}`
+}
+
+function changeQuotaOverviewPage(type, direction) {
+  const target = type === 'subscription' ? subscriptionQuotaPage : apiQuotaPage
+  const count = type === 'subscription' ? subscriptionOverviewPageCount.value : apiOverviewPageCount.value
+  target.value = clampQuotaOverviewPage(target.value + direction, count)
+}
+
 function closeHistoryDiagnosis() {
   selectedHistoryEntry.value = null
 }
@@ -1868,7 +2092,10 @@ async function refreshProviderQuotas() {
     for (const item of items) {
       validatingIds[item.id] = true
       try {
-        await validateToken(item.id)
+        const result = await validateToken(item.id)
+        if (!result?.ok) {
+          failed += 1
+        }
       } catch {
         failed += 1
       } finally {
@@ -1967,7 +2194,7 @@ async function refreshQuota(item) {
       </div>
     </aside>
 
-    <main class="workspace">
+    <main :class="['workspace', { 'openrouter-workspace': activeTab === 'openrouter-chat' }]">
       <header class="topbar">
         <div class="topbar-title">
           <p class="eyebrow">本地控制台</p>
@@ -2114,12 +2341,38 @@ async function refreshQuota(item) {
           <div class="quota-overview-grid">
             <section class="quota-overview-block">
               <div class="quota-overview-head">
-                <strong>订阅额度</strong>
-                <small>Codex / Token Plan</small>
+                <div class="quota-overview-title">
+                  <strong>订阅额度</strong>
+                  <small>
+                    Codex / Token Plan
+                    <template v-if="subscriptionOverviewTokens.length">
+                      · {{ quotaOverviewRangeText(subscriptionQuotaPage, subscriptionOverviewTokens.length) }}
+                    </template>
+                  </small>
+                </div>
+                <div v-if="subscriptionOverviewPageCount > 1" class="quota-overview-pager">
+                  <button
+                    type="button"
+                    aria-label="上一页订阅额度"
+                    :disabled="subscriptionQuotaPage <= 0"
+                    @click="changeQuotaOverviewPage('subscription', -1)"
+                  >
+                    <ArrowLeft class="pager-icon" aria-hidden="true" />
+                  </button>
+                  <span>{{ subscriptionQuotaPageText }}</span>
+                  <button
+                    type="button"
+                    aria-label="下一页订阅额度"
+                    :disabled="subscriptionQuotaPage >= subscriptionOverviewPageCount - 1"
+                    @click="changeQuotaOverviewPage('subscription', 1)"
+                  >
+                    <ArrowRight class="pager-icon" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               <div class="quota-list compact-quota-list">
                 <div
-                  v-for="item in subscriptionOverviewTokens"
+                  v-for="item in pagedSubscriptionOverviewTokens"
                   :key="item.id"
                   :class="['quota-row', 'subscription-quota-row', { 'current-quota-row': isTokenActiveNow(item) }]"
                   :aria-current="isTokenActiveNow(item) ? 'true' : undefined"
@@ -2148,12 +2401,38 @@ async function refreshQuota(item) {
 
             <section class="quota-overview-block">
               <div class="quota-overview-head">
-                <strong>API / 余额状态</strong>
-                <small>API Key 不按百分比展示</small>
+                <div class="quota-overview-title">
+                  <strong>API / 余额状态</strong>
+                  <small>
+                    API Key 不按百分比展示
+                    <template v-if="apiOverviewTokens.length">
+                      · {{ quotaOverviewRangeText(apiQuotaPage, apiOverviewTokens.length) }}
+                    </template>
+                  </small>
+                </div>
+                <div v-if="apiOverviewPageCount > 1" class="quota-overview-pager">
+                  <button
+                    type="button"
+                    aria-label="上一页 API 余额"
+                    :disabled="apiQuotaPage <= 0"
+                    @click="changeQuotaOverviewPage('api', -1)"
+                  >
+                    <ArrowLeft class="pager-icon" aria-hidden="true" />
+                  </button>
+                  <span>{{ apiQuotaPageText }}</span>
+                  <button
+                    type="button"
+                    aria-label="下一页 API 余额"
+                    :disabled="apiQuotaPage >= apiOverviewPageCount - 1"
+                    @click="changeQuotaOverviewPage('api', 1)"
+                  >
+                    <ArrowRight class="pager-icon" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
               <div class="quota-list compact-quota-list">
                 <div
-                  v-for="item in apiOverviewTokens"
+                  v-for="item in pagedApiOverviewTokens"
                   :key="item.id"
                   :class="['quota-row', 'api-quota-row', { 'current-quota-row': isTokenActiveNow(item) }]"
                   :aria-current="isTokenActiveNow(item) ? 'true' : undefined"
@@ -2204,48 +2483,75 @@ async function refreshQuota(item) {
               <h2>分天用量统计</h2>
               <p>Token 数来自上游 usage；请求数按成功通过代理返回的请求统计</p>
             </div>
+            <button type="button" class="ghost-button" @click="activeTab = 'billing'">查看明细</button>
           </div>
-          <div v-if="recentDailyUsageRows.length" class="trend-panels">
-            <div class="trend-panel" aria-label="最近 Token 趋势">
+
+          <div class="dashboard-usage-summary">
+            <div>
+              <span>今日 Token</span>
+              <strong>{{ formatNumber(todayProxyTokens) }}</strong>
+              <small>请求 {{ formatNumber(todayProxyRequests) }} 次</small>
+            </div>
+            <div>
+              <span>总 Token</span>
+              <strong>{{ formatNumber(totalProxyTokens) }}</strong>
+              <small>输入 {{ formatNumber(totalProxyInputTokens) }} · 输出 {{ formatNumber(totalProxyOutputTokens) }}</small>
+            </div>
+            <div>
+              <span>总请求</span>
+              <strong>{{ formatNumber(totalProxyRequests) }}</strong>
+              <small>最近 {{ formatNumber(dashboardTrendRows.length) }} 天趋势</small>
+            </div>
+            <div>
+              <span>今日输入 / 输出</span>
+              <strong>{{ formatNumber(dailyUsageRows[0]?.inputTokens || 0) }} / {{ formatNumber(dailyUsageRows[0]?.outputTokens || 0) }}</strong>
+              <small>{{ dailyUsageRows[0]?.date || '暂无日期' }}</small>
+            </div>
+          </div>
+
+          <div v-if="dashboardTrendRows.length" class="compact-trend-panels">
+            <div class="compact-trend-panel" aria-label="最近 Token 趋势">
               <div class="trend-panel-head">
                 <span>Token 趋势</span>
                 <strong>{{ formatNumber(totalProxyTokens) }}</strong>
               </div>
-              <div class="usage-trend" :style="{ gridTemplateColumns: trendGridColumns }">
+              <div class="compact-trend-list">
                 <div
-                  v-for="row in recentDailyUsageRows"
+                  v-for="row in dashboardTrendRows"
                   :key="row.date"
-                  class="trend-column"
+                  class="compact-trend-row"
                   :title="`${row.date} · ${formatNumber(row.totalTokens)} Token`"
                 >
-                  <div class="trend-bar">
-                    <span :style="{ height: trendHeight(row) }"></span>
+                  <span>{{ row.date.slice(5) }}</span>
+                  <div class="compact-trend-track">
+                    <i :style="{ width: trendWidth(row) }"></i>
                   </div>
-                  <small>{{ row.date.slice(5) }}</small>
+                  <strong>{{ formatNumber(row.totalTokens) }}</strong>
                 </div>
               </div>
             </div>
-            <div class="trend-panel" aria-label="最近请求次数趋势">
+            <div class="compact-trend-panel" aria-label="最近请求次数趋势">
               <div class="trend-panel-head">
                 <span>请求次数趋势</span>
                 <strong>{{ formatNumber(totalProxyRequests) }}</strong>
               </div>
-              <div class="usage-trend request-trend" :style="{ gridTemplateColumns: trendGridColumns }">
+              <div class="compact-trend-list request-trend">
                 <div
-                  v-for="row in recentDailyUsageRows"
+                  v-for="row in dashboardTrendRows"
                   :key="`requests-${row.date}`"
-                  class="trend-column"
+                  class="compact-trend-row"
                   :title="`${row.date} · ${formatNumber(row.requestCount)} 次请求`"
                 >
-                  <div class="trend-bar">
-                    <span :style="{ height: requestTrendHeight(row) }"></span>
+                  <span>{{ row.date.slice(5) }}</span>
+                  <div class="compact-trend-track">
+                    <i :style="{ width: requestTrendWidth(row) }"></i>
                   </div>
-                  <small>{{ row.date.slice(5) }}</small>
+                  <strong>{{ formatNumber(row.requestCount) }}</strong>
                 </div>
               </div>
             </div>
           </div>
-          <div class="usage-table">
+          <div class="usage-table compact-dashboard-usage-table">
             <div class="usage-row header">
               <span>日期</span>
               <span>总 Token</span>
@@ -2253,7 +2559,7 @@ async function refreshQuota(item) {
               <span>输出</span>
               <span>请求</span>
             </div>
-            <div v-for="row in dailyUsageRows" :key="row.date" class="usage-row">
+            <div v-for="row in dashboardDailyUsageRows" :key="row.date" class="usage-row">
               <span>{{ row.date }}</span>
               <strong>{{ formatNumber(row.totalTokens) }}</strong>
               <span>{{ formatNumber(row.inputTokens) }}</span>
@@ -2261,6 +2567,10 @@ async function refreshQuota(item) {
               <span>{{ formatNumber(row.requestCount) }}</span>
             </div>
             <div v-if="!dailyUsageRows.length" class="empty">暂无代理 Token 用量</div>
+            <div v-else-if="dailyUsageRows.length > dashboardDailyUsageRows.length" class="usage-table-footer">
+              <span>仅显示最近 {{ dashboardDailyUsageRows.length }} 天</span>
+              <button type="button" @click="activeTab = 'billing'">查看全部</button>
+            </div>
           </div>
         </section>
       </section>
@@ -2308,6 +2618,56 @@ async function refreshQuota(item) {
           <div>
             <h3>{{ activeProviderInfo.label }}</h3>
             <p>{{ activeProviderEnabledCount }} 启用 / {{ activeProviderTokens.length }} 总数 · {{ activeProviderInfo.note }}</p>
+          </div>
+        </div>
+
+        <div v-if="activeProvider === 'openrouter' && activeProviderTokens.length" class="openrouter-quota-panel">
+          <div class="openrouter-quota-panel-head">
+            <div>
+              <span>OpenRouter 额度</span>
+              <strong>API Key 余额来自 OpenRouter /key</strong>
+              <small>刷新后显示剩余额度、已用额度和额度上限；没有设置上限时 OpenRouter 可能只返回用量。</small>
+            </div>
+            <el-button
+              :icon="RefreshRight"
+              :loading="refreshingProvider"
+              @click="refreshProviderQuotas"
+            >
+              刷新 OpenRouter 额度
+            </el-button>
+          </div>
+          <div class="openrouter-quota-summary-list">
+            <article
+              v-for="item in activeProviderTokens"
+              :key="`openrouter-quota-${item.id}`"
+              :class="['openrouter-quota-summary-row', { disabled: item.disabled }]"
+            >
+              <div class="openrouter-quota-account">
+                <strong>{{ item.name }}</strong>
+                <small>{{ openRouterQuotaMeta(item) }}</small>
+              </div>
+              <div>
+                <span>剩余</span>
+                <strong>{{ openRouterQuotaRemaining(item) }}</strong>
+              </div>
+              <div>
+                <span>已用</span>
+                <strong>{{ openRouterQuotaValue(item, 'balanceUsed') }}</strong>
+              </div>
+              <div>
+                <span>上限</span>
+                <strong>{{ openRouterQuotaLimit(item) }}</strong>
+              </div>
+              <el-button
+                text
+                :icon="Refresh"
+                :loading="validatingIds[item.id]"
+                :disabled="item.disabled"
+                @click="refreshQuota(item)"
+              >
+                刷新
+              </el-button>
+            </article>
           </div>
         </div>
 
@@ -2449,6 +2809,11 @@ async function refreshQuota(item) {
         :exporting-tokens="exportingTokens"
         :exporting-codex-auth="exportingCodexAuth"
         :codex-auth-importing="codexAuthImporting"
+        :open-router-models="openRouterModels"
+        :open-router-models-loading="openRouterModelsLoading"
+        :open-router-models-error="openRouterModelsError"
+        :open-router-models-fetched-at="openRouterModelsFetchedAt"
+        :open-router-models-cached="openRouterModelsCached"
         :validating-ids="validatingIds"
         :provider-tokens="providerTokens"
         :credential-label="credentialLabel"
@@ -2464,10 +2829,29 @@ async function refreshQuota(item) {
         @open-codex-auth-file-picker="openCodexAuthFilePicker"
         @import-codex-auth-files="importCodexAuthFiles"
         @export-codex-auth-backups="exportCodexAuthBackups"
+        @refresh-open-router-models="refreshOpenRouterModels({ force: true })"
+        @open-router-model-chat="openOpenRouterChat"
         @open-create-form="openCreateForm"
         @verify-token="verifyToken"
         @open-edit-form="openEditForm"
         @remove-token="removeToken"
+      />
+
+      <OpenRouterChatView
+        v-else-if="activeTab === 'openrouter-chat'"
+        key="openrouter-chat"
+        :models="openRouterModels"
+        :selected-model="selectedOpenRouterChatModel"
+        :models-loading="openRouterModelsLoading"
+        :models-error="openRouterModelsError"
+        :open-router-tokens="openRouterTokens"
+        :validating-ids="validatingIds"
+        :format-time="formatTime"
+        :format-number="formatNumber"
+        @update:selected-model="selectOpenRouterChatModel"
+        @refresh-models="refreshOpenRouterModels({ force: true })"
+        @refresh-token="verifyToken"
+        @open-create-key="openCreateForm('openrouter')"
       />
 
       <HistoryView
@@ -2599,9 +2983,10 @@ GEMINI_MODEL=gemini-3-pro-preview</code></pre>
 
           <article class="wide-help">
             <strong>OpenCode</strong>
-            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini 和自定义网关三个 provider。</p>
+            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini、OpenRouter 和自定义网关 provider。</p>
             <pre class="help-code"><code>OpenAI-compatible Router: http://127.0.0.1:{{ config.proxyPort }}/opencode-router/v1
 Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini
+OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
 Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="opencodeConfiguring" @click="configureLocalOpenCode">
