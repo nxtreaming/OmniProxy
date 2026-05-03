@@ -1,8 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Connection, Download, Refresh, Upload } from '@element-plus/icons-vue'
 
-defineProps({
+const props = defineProps({
   providers: {
     type: Array,
     required: true,
@@ -30,6 +30,26 @@ defineProps({
   codexAuthImporting: {
     type: Boolean,
     required: true,
+  },
+  openRouterModels: {
+    type: Array,
+    default: () => [],
+  },
+  openRouterModelsLoading: {
+    type: Boolean,
+    default: false,
+  },
+  openRouterModelsError: {
+    type: String,
+    default: '',
+  },
+  openRouterModelsFetchedAt: {
+    type: String,
+    default: '',
+  },
+  openRouterModelsCached: {
+    type: Boolean,
+    default: false,
   },
   validatingIds: {
     type: Object,
@@ -79,6 +99,8 @@ const emit = defineEmits([
   'open-codex-auth-file-picker',
   'import-codex-auth-files',
   'export-codex-auth-backups',
+  'refresh-open-router-models',
+  'open-router-model-chat',
   'open-create-form',
   'verify-token',
   'open-edit-form',
@@ -86,10 +108,44 @@ const emit = defineEmits([
 ])
 
 const codexAuthInput = ref(null)
+const openRouterModelPage = ref(1)
+const openRouterModelPageSize = 24
+
+const openRouterModelPageCount = computed(() =>
+  Math.max(1, Math.ceil(props.openRouterModels.length / openRouterModelPageSize)),
+)
+const openRouterModelStart = computed(() => (openRouterModelPage.value - 1) * openRouterModelPageSize)
+const openRouterModelEnd = computed(() =>
+  Math.min(props.openRouterModels.length, openRouterModelStart.value + openRouterModelPageSize),
+)
+const pagedOpenRouterModels = computed(() =>
+  props.openRouterModels.slice(openRouterModelStart.value, openRouterModelEnd.value),
+)
+
+watch(
+  () => props.openRouterModels.length,
+  () => {
+    if (openRouterModelPage.value > openRouterModelPageCount.value) {
+      openRouterModelPage.value = openRouterModelPageCount.value
+    }
+  },
+)
+
+watch(
+  () => props.activeProvider,
+  () => {
+    openRouterModelPage.value = 1
+  },
+)
 
 function openCodexAuthFilePicker() {
   emit('open-codex-auth-file-picker')
   codexAuthInput.value?.click()
+}
+
+function changeOpenRouterModelPage(delta) {
+  const nextPage = openRouterModelPage.value + delta
+  openRouterModelPage.value = Math.min(openRouterModelPageCount.value, Math.max(1, nextPage))
 }
 </script>
 
@@ -148,9 +204,78 @@ function openCodexAuthFilePicker() {
         >
           {{ exportingCodexAuth ? '导出中' : '导出 auth 文件' }}
         </el-button>
+        <el-button
+          v-if="activeProvider === 'openrouter'"
+          :icon="Refresh"
+          :loading="openRouterModelsLoading"
+          @click="$emit('refresh-open-router-models')"
+        >
+          {{ openRouterModelsLoading ? '刷新中' : '刷新模型' }}
+        </el-button>
         <el-button type="primary" :icon="Connection" @click="$emit('open-create-form', activeProvider)">
           添加 {{ activeProviderInfo.label }}
         </el-button>
+      </div>
+    </div>
+
+    <div v-if="activeProvider === 'openrouter'" class="openrouter-model-panel">
+      <div class="openrouter-model-head">
+        <div>
+          <strong>OpenRouter 模型</strong>
+          <small>
+            {{ openRouterModels.length ? `${openRouterModels.length} 个模型` : '添加 API Key 后可刷新模型列表' }}
+            <template v-if="openRouterModelsFetchedAt">
+              · {{ openRouterModelsCached ? '缓存' : '刚刚刷新' }} {{ formatTime(openRouterModelsFetchedAt) }}
+            </template>
+          </small>
+        </div>
+      </div>
+      <div v-if="openRouterModelsError" class="inline-error">{{ openRouterModelsError }}</div>
+      <div v-else-if="openRouterModelsLoading && !openRouterModels.length" class="openrouter-model-skeleton-list">
+        <div v-for="index in 6" :key="index" class="openrouter-model-skeleton-row">
+          <span></span>
+          <small></small>
+        </div>
+      </div>
+      <div v-else-if="openRouterModels.length" class="openrouter-model-list">
+        <button
+          v-for="model in pagedOpenRouterModels"
+          :key="model.id"
+          type="button"
+          class="openrouter-model-row"
+          @click="$emit('open-router-model-chat', model)"
+        >
+          <div>
+            <strong>{{ model.id }}</strong>
+            <small>{{ model.name || model.id }}</small>
+          </div>
+          <span v-if="model.contextLength">{{ formatNumber(model.contextLength) }} ctx</span>
+        </button>
+      </div>
+      <div v-if="openRouterModels.length" class="openrouter-model-pagination">
+        <span>
+          {{ formatNumber(openRouterModelStart + 1) }}-{{ formatNumber(openRouterModelEnd) }}
+          / {{ formatNumber(openRouterModels.length) }}
+        </span>
+        <div>
+          <button
+            type="button"
+            class="ghost-button compact-button"
+            :disabled="openRouterModelPage <= 1"
+            @click="changeOpenRouterModelPage(-1)"
+          >
+            上一页
+          </button>
+          <strong>第 {{ openRouterModelPage }} / {{ openRouterModelPageCount }} 页</strong>
+          <button
+            type="button"
+            class="ghost-button compact-button"
+            :disabled="openRouterModelPage >= openRouterModelPageCount"
+            @click="changeOpenRouterModelPage(1)"
+          >
+            下一页
+          </button>
+        </div>
       </div>
     </div>
 

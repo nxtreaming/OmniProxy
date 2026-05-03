@@ -151,6 +151,25 @@ export function validateToken(id) {
   })
 }
 
+export function getOpenRouterModels(refresh = false) {
+  if (useWailsBindings() && DesktopApp.OpenRouterModels) {
+    return DesktopApp.OpenRouterModels(Boolean(refresh))
+  }
+  const params = new URLSearchParams()
+  if (refresh) params.set('refresh', 'true')
+  return request(`/openrouter/models?${params.toString()}`)
+}
+
+export function sendOpenRouterChat(payload) {
+  if (useWailsBindings() && DesktopApp.OpenRouterChat) {
+    return DesktopApp.OpenRouterChat(payload)
+  }
+  return request('/openrouter/chat', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getConfig() {
   return useWailsBindings() ? DesktopApp.Config() : request('/config')
 }

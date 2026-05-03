@@ -3,6 +3,7 @@ export const tabs = [
   { key: 'billing', label: '费用账单' },
   { key: 'quotas', label: '额度' },
   { key: 'tokens', label: '账号管理' },
+  { key: 'openrouter-chat', label: 'OpenRouter 对话' },
   { key: 'history', label: '请求历史' },
   { key: 'logs', label: '实时日志' },
   { key: 'quickstart', label: '一键配置' },
@@ -20,6 +21,7 @@ export const providers = [
   { key: 'zhipu', label: 'Zhipu GLM', note: 'API Key 或 Coding Plan，模型 glm-5.1' },
   { key: 'minimax', label: 'MiniMax', note: 'API Key，模型 MiniMax-M2.7' },
   { key: 'gemini', label: 'Gemini', note: 'Google Gemini API Key' },
+  { key: 'openrouter', label: 'OpenRouter', note: 'OpenRouter API Key，自动拉取模型列表' },
   { key: 'custom', label: '自定义网关', note: 'OpenAI / Anthropic 兼容网关 API Key' },
 ]
 
