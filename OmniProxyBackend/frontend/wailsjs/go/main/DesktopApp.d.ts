@@ -15,6 +15,8 @@ export function BillingDates(arg1:number):Promise<Array<string>>;
 
 export function BillingUsage(arg1:string):Promise<Array<history.DailyUsage>>;
 
+export function CancelUseOnlyToken(arg1:string):Promise<Array<main.tokenResponse>>;
+
 export function CheckForUpdates():Promise<main.updateInfo>;
 
 export function ChooseDataDirectory(arg1:boolean):Promise<config.DataDirectoryChangeResult>;
@@ -89,6 +91,8 @@ export function SetAutoStart(arg1:boolean):Promise<Record<string, any>>;
 
 export function SetTokenDisabled(arg1:string,arg2:boolean):Promise<main.tokenResponse>;
 
+export function SetTokenSelected(arg1:string,arg2:boolean):Promise<Array<main.tokenResponse>>;
+
 export function StartProxy():Promise<Record<string, any>>;
 
 export function StopProxy():Promise<Record<string, any>>;
@@ -98,5 +102,7 @@ export function Tokens():Promise<Array<main.tokenResponse>>;
 export function UpdateDownloadStatus():Promise<main.updateDownloadStatus>;
 
 export function UpdateToken(arg1:string,arg2:token.UpsertRequest):Promise<main.tokenResponse>;
+
+export function UseOnlyToken(arg1:string):Promise<Array<main.tokenResponse>>;
 
 export function ValidateToken(arg1:string):Promise<main.validationResponse>;

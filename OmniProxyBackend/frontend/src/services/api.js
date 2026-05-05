@@ -142,6 +142,34 @@ export function setTokenDisabled(id, disabled) {
   })
 }
 
+export function useOnlyToken(id) {
+  if (useWailsBindings()) {
+    return DesktopApp.UseOnlyToken(id)
+  }
+  return request(`/tokens/${id}/exclusive`, {
+    method: 'PUT',
+  })
+}
+
+export function cancelUseOnlyToken(id) {
+  if (useWailsBindings()) {
+    return DesktopApp.CancelUseOnlyToken(id)
+  }
+  return request(`/tokens/${id}/exclusive`, {
+    method: 'DELETE',
+  })
+}
+
+export function setTokenSelected(id, selected) {
+  if (useWailsBindings()) {
+    return DesktopApp.SetTokenSelected(id, selected)
+  }
+  return request(`/tokens/${id}/selected`, {
+    method: 'PUT',
+    body: JSON.stringify({ selected }),
+  })
+}
+
 export function validateToken(id) {
   if (useWailsBindings()) {
     return DesktopApp.ValidateToken(id)

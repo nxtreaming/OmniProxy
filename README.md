@@ -19,12 +19,14 @@ OmniProxy 面向本地 AI 开发工作流设计。它可以让 Codex、Claude Co
 - 🖥️ **桌面端闭环**：Wails + Go + Vue 3，一站式管理账号、代理、日志、额度和设置。
 - 🔐 **本地透明代理**：客户端只连 `127.0.0.1`，真实上游 Token 由 OmniProxy 自动注入。
 - 🧠 **多账号调度**：支持队列模式和优先平衡使用模式，并避开正在请求中的账号。
+- 🎯 **账号选择调度**：同一厂商默认轮换全部可用账号；勾选一个或多个账号后，仅在已选账号内轮换。
 - 🧯 **失败自动切换**：遇到 `429`、`502`、`503`、`504` 等错误时可换账号重试。
 - 📊 **额度与用量观测**：展示剩余额度、重置时间、请求次数、输入 / 输出 / 总 Token。
 - 📈 **历史统计分析**：按日期、厂商、模型和失败原因汇总请求历史，并展示模型 Token 饼图。
 - ⚡ **当前账号额度刷新**：正在使用的 Codex 和可验证账号会每 30 秒自动刷新额度状态。
 - 🧭 **Claude Code 快速接入**：支持将 Claude Code 指向 DeepSeek、Kimi、Xiaomi MiMo 的本地路由。
 - 🧵 **Codex WebSocket 代理**：可在设置页开启或关闭，并继续记录请求用量。
+- 💬 **OpenRouter 对话与模型列表**：可刷新 OpenRouter 模型列表，并在桌面端快速试聊。
 - 🧱 **本地持久化**：配置、账号、统计数据写入本地文件，Windows 上账号凭据使用 DPAPI 加密落盘。
 - 📤 **凭据导出**：支持导出完整账号池备份，也可以把 Codex auth.json 按账号导出为独立文件。
 - 🎨 **更顺手的控制台**：页面切换动画、当前账号高亮、导航图标、桌面图标已统一。
@@ -43,6 +45,7 @@ Codex / Claude Code / API Client
               |
               v
 OpenAI / Anthropic / DeepSeek / Kimi / Xiaomi MiMo
+Zhipu GLM / MiniMax / Gemini / OpenRouter / Custom Gateway
 ```
 
 OmniProxy 不改变客户端的使用方式。你只需要把客户端的 Base URL 指向本机代理，后续账号选择、鉴权头注入、重试切换、额度更新和日志记录都由本地程序完成。
@@ -59,17 +62,20 @@ OmniProxy 不改变客户端的使用方式。你只需要把客户端的 Base U
 │   ├── internal/token/            # Token 池、调度、状态、统计
 │   └── frontend/                  # Vue 3 + Vite + Element Plus 前端
 ├── scripts/dev.ps1                # Wails 桌面开发启动脚本
+├── scripts/build-dev.ps1          # 构建可与正式版共存的 Dev exe
+├── docs/releases/                 # 发布说明
 ├── README.md                      # 中文文档
 └── README_EN.md                   # English README
 ```
 
 默认端口和数据位置：
 
-| 项目 | 默认值 |
-| --- | --- |
-| 🧩 控制 API | `http://127.0.0.1:3890/api` |
-| 🚪 代理服务 | `http://127.0.0.1:3000` |
-| 💾 本地数据 | `%USERPROFILE%\.omniproxy` |
+| 项目 | 正式版 | Dev 版 |
+| --- | --- | --- |
+| 🧩 控制 API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
+| 🚪 代理服务 | `http://127.0.0.1:3000` | `http://127.0.0.1:3001` |
+| 💾 本地数据 | `%USERPROFILE%\.omniproxy` | `%USERPROFILE%\.omniproxy-dev` |
+| 🧭 指针文件 | `%USERPROFILE%\.omniproxy-bootstrap.json` | `%USERPROFILE%\.omniproxy-dev-bootstrap.json` |
 
 ## ⚡ 快速开始
 
@@ -92,7 +98,7 @@ C:\Users\mimanchi\go\bin\wails.exe dev
 .\scripts\dev.ps1
 ```
 
-### 3. 构建桌面应用
+### 3. 构建正式桌面应用
 
 ```powershell
 cd .\OmniProxyBackend
@@ -105,14 +111,35 @@ C:\Users\mimanchi\go\bin\wails.exe build
 .\OmniProxyBackend\build\bin\OmniProxy.exe
 ```
 
+### 4. 构建可共存的 Dev 版 exe
+
+Dev 版使用 `omniproxy_dev` build tag，应用标题为 `OmniProxy Dev`，单实例 ID、数据目录和默认端口都与正式版隔离。适合在已安装正式版的机器上并行验证新功能。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Clean
+```
+
+构建产物：
+
+```powershell
+.\OmniProxyBackend\build\bin\OmniProxy-Dev.exe
+```
+
+也可以指定显示版本号：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Version dev-issue-4
+```
+
 ## 🧭 使用流程
 
 1. 🚀 启动 OmniProxy。
-2. 🔑 在「账号管理」里添加 OpenAI、Anthropic、DeepSeek、Kimi 或 Xiaomi MiMo 账号。
+2. 🔑 在「账号管理」里添加 OpenAI、Anthropic、DeepSeek、Kimi、Xiaomi MiMo、Zhipu、MiniMax、Gemini、OpenRouter 或自定义网关账号。
 3. ⚙️ 在「全局设置」里确认代理端口和各厂商 Base URL。
 4. 🟢 启动本地代理。
 5. 🧩 将 Codex、Claude Code 或其他 API 客户端指向本地代理地址。
-6. 📊 在「仪表盘」和「额度」页面查看当前账号、额度重置时间、Token 明细和实时日志。
+6. 🎯 需要限定调度范围时，在额度卡片点击「选择」；没有账号被选中时默认轮换全部可用账号，有一个或多个账号被选中时仅在已选账号内轮换。账号启用 / 停用在「账号管理」里操作。
+7. 📊 在「仪表盘」「额度」「请求历史」和「费用账单」页面查看当前账号、额度重置时间、Token 明细和实时日志。
 
 常见代理地址：
 
@@ -120,6 +147,14 @@ C:\Users\mimanchi\go\bin\wails.exe build
 OpenAI compatible: http://127.0.0.1:3000
 Codex backend:     http://127.0.0.1:3000/backend-api/codex
 Claude router:     http://127.0.0.1:3000/anthropic-router
+```
+
+Dev 版默认把端口整体后移：
+
+```text
+OpenAI compatible: http://127.0.0.1:3001
+Codex backend:     http://127.0.0.1:3001/backend-api/codex
+Claude router:     http://127.0.0.1:3001/anthropic-router
 ```
 
 桌面端也提供「一键配置」入口，可将本机 Codex 或 Claude Code 写入 OmniProxy 本地代理地址，并保留原始配置备份用于恢复。
@@ -131,10 +166,17 @@ Claude router:     http://127.0.0.1:3000/anthropic-router
 | OpenAI | API Key | 使用 `Authorization: Bearer` |
 | OpenAI / Codex | `auth.json` | 自动解析邮箱、access token、account id，并刷新 Codex 额度 |
 | Anthropic | API Key | 使用 `x-api-key` |
+| Anthropic / Claude | OAuth JSON | 支持包含 `access_token` / `refresh_token` 的 Claude OAuth JSON |
 | DeepSeek | API Key | 支持 OpenAI 兼容和 Anthropic 路由 |
 | Kimi | API Key | 支持 Kimi Code 相关路由 |
 | Xiaomi MiMo | API Key | 按量 API Key，通常以 `sk-` 开头 |
 | Xiaomi MiMo | Token Plan | Token Plan Key，通常以 `tp-` 开头 |
+| Zhipu GLM | API Key | 支持 OpenAI 兼容和 Anthropic 路由 |
+| Zhipu GLM | Coding Plan | 通过订阅额度接口刷新 Coding Plan 用量 |
+| MiniMax | API Key | 支持 OpenAI 兼容和 Anthropic 路由 |
+| Gemini | API Key | 支持 Gemini API 路由 |
+| OpenRouter | API Key | 支持模型列表刷新、余额查询和桌面端对话 |
+| 自定义网关 | API Key | 支持 OpenAI / Anthropic 兼容网关 |
 
 ## 🧰 控制 API
 
@@ -145,13 +187,30 @@ Claude router:     http://127.0.0.1:3000/anthropic-router
 - `POST /api/tokens`
 - `PUT /api/tokens/{id}`
 - `DELETE /api/tokens/{id}`
+- `PUT /api/tokens/{id}/disabled`
+- `PUT /api/tokens/{id}/selected`
+- `PUT /api/tokens/{id}/exclusive`
+- `DELETE /api/tokens/{id}/exclusive`
 - `POST /api/tokens/{id}/validate`
 - `GET /api/config`
 - `PUT /api/config`
 - `GET /api/logs`
+- `GET /api/history`
+- `POST /api/history/clear`
+- `GET /api/billing/usage`
+- `GET /api/billing/dates`
+- `POST /api/billing/clear`
 - `GET /api/proxy/status`
+- `GET /api/proxy/active-requests`
 - `POST /api/proxy/start`
 - `POST /api/proxy/stop`
+- `GET /api/app/info`
+- `POST /api/update/check`
+- `POST /api/update/download`
+- `GET /api/update/download/status`
+- `POST /api/update/install`
+- `GET /api/data-directory`
+- `PUT /api/data-directory`
 - `POST /api/codex/configure`
 - `POST /api/codex/restore`
 - `POST /api/mimo/claude/configure`
@@ -160,6 +219,16 @@ Claude router:     http://127.0.0.1:3000/anthropic-router
 - `POST /api/deepseek/claude/restore`
 - `POST /api/kimi/claude/configure`
 - `POST /api/kimi/claude/restore`
+- `POST /api/zhipu/claude/configure`
+- `POST /api/zhipu/claude/restore`
+- `POST /api/gemini/configure`
+- `POST /api/gemini/restore`
+- `GET /api/openrouter/models`
+- `POST /api/openrouter/chat`
+- `POST /api/opencode/configure`
+- `POST /api/opencode/restore`
+
+`/selected` 用于把账号加入或移出所属厂商的调度选择集合；该厂商没有已选账号时会回到默认轮换全部可用账号。`/exclusive` 保留为旧接口兼容，表示清空同厂商选择集合后只选择当前账号。
 
 使用 HTTP 控制 API 时，除 `GET /api/control-token` 外，其它接口需要带上 `X-OmniProxy-Control-Token` 请求头；也可以使用 `Authorization: Bearer <token>`。
 
@@ -191,6 +260,12 @@ npm run build
 ```powershell
 cd .\OmniProxyBackend
 C:\Users\mimanchi\go\bin\wails.exe build
+```
+
+可共存 Dev 版 exe：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Clean
 ```
 
 ## 🛡️ 安全说明

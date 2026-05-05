@@ -50,6 +50,8 @@ type Token struct {
 	Health         HealthInfo `json:"health"`
 	Status         Status     `json:"status"`
 	Disabled       bool       `json:"disabled,omitempty"`
+	Selected       bool       `json:"selected,omitempty"`
+	Pinned         bool       `json:"pinned,omitempty"`
 	LastUsedAt     *time.Time `json:"lastUsedAt,omitempty"`
 	LastError      string     `json:"lastError,omitempty"`
 	CooldownUntil  *time.Time `json:"cooldownUntil,omitempty"`

@@ -3,6 +3,7 @@ package token
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,6 +105,120 @@ func TestManagerSkipsDisabledTokens(t *testing.T) {
 	candidates := manager.HealthCheckCandidates(time.Now(), time.Millisecond, time.Millisecond)
 	if len(candidates) != 1 || candidates[0].ID != enabled.ID {
 		t.Fatalf("expected only enabled health check candidate, got %#v", candidates)
+	}
+}
+
+func TestManagerSelectedProviderAccountsRestrictSchedulingWithoutDisablingOthers(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	target, err := manager.Add(UpsertRequest{Name: "target", Provider: "openai", TokenValue: "sk-target-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherOpenAI, err := manager.Add(UpsertRequest{Name: "other", Provider: "openai", TokenValue: "sk-other-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unselectedOpenAI, err := manager.Add(UpsertRequest{Name: "unselected", Provider: "openai", TokenValue: "sk-unselected-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherProvider, err := manager.Add(UpsertRequest{Name: "anthropic", Provider: "anthropic", TokenValue: "sk-ant-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetDisabled(otherProvider.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.SetSelected(target.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	items, err := manager.SetSelected(otherOpenAI.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]Token{}
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	if !byID[target.ID].Selected || !byID[otherOpenAI.ID].Selected {
+		t.Fatal("expected selected OpenAI tokens to be marked selected")
+	}
+	if byID[unselectedOpenAI.ID].Selected {
+		t.Fatal("expected unselected OpenAI token to remain outside the selection set")
+	}
+	if byID[unselectedOpenAI.ID].Disabled {
+		t.Fatal("expected unselected OpenAI token to keep enabled state")
+	}
+	if !byID[otherProvider.ID].Disabled {
+		t.Fatal("expected other provider token state to be unchanged")
+	}
+
+	selected, err := manager.Acquire(ProviderOpenAI, map[string]bool{target.ID: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != otherOpenAI.ID {
+		t.Fatalf("expected scheduling to stay inside selected accounts, got %s", selected.Name)
+	}
+	if _, err := manager.Acquire(ProviderOpenAI, map[string]bool{target.ID: true, otherOpenAI.ID: true}); !errors.Is(err, ErrNoActiveToken) {
+		t.Fatalf("expected selected provider not to fall back to unselected accounts, got %v", err)
+	}
+
+	items, err = manager.ClearProviderSelectionForToken(target.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID = map[string]Token{}
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	if byID[target.ID].Selected || byID[otherOpenAI.ID].Selected || byID[unselectedOpenAI.ID].Selected {
+		t.Fatal("expected OpenAI provider selection to be cleared")
+	}
+	if byID[target.ID].Disabled || byID[otherOpenAI.ID].Disabled || byID[unselectedOpenAI.ID].Disabled {
+		t.Fatal("expected OpenAI disabled states to remain enabled after clearing selection")
+	}
+	if !byID[otherProvider.ID].Disabled {
+		t.Fatal("expected other provider token state to remain unchanged after clearing selection")
+	}
+}
+
+func TestManagerDisablingSelectedTokenClearsSelection(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	target, err := manager.Add(UpsertRequest{Name: "target", Provider: "openai", TokenValue: "sk-target-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, err := manager.Add(UpsertRequest{Name: "backup", Provider: "openai", TokenValue: "sk-backup-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSelected(target.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := manager.SetDisabled(target.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Selected {
+		t.Fatal("expected disabling a selected token to clear its selection")
+	}
+
+	selected, err := manager.Acquire(ProviderOpenAI, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != backup.ID {
+		t.Fatalf("expected backup token after disabling pinned token, got %s", selected.Name)
 	}
 }
 

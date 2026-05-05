@@ -397,6 +397,14 @@ func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 		a.handleTokenDisabled(w, r, id)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "exclusive" {
+		a.handleTokenExclusive(w, r, id)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "selected" {
+		a.handleTokenSelected(w, r, id)
+		return
+	}
 	if len(parts) > 1 {
 		writeError(w, http.StatusNotFound, "token not found")
 		return
@@ -432,6 +440,10 @@ type tokenDisabledRequest struct {
 	Disabled bool `json:"disabled"`
 }
 
+type tokenSelectedRequest struct {
+	Selected bool `json:"selected"`
+}
+
 func (a *appServer) handleTokenDisabled(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodPut {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -454,6 +466,62 @@ func (a *appServer) handleTokenDisabled(w http.ResponseWriter, r *http.Request, 
 	}
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
 	writeJSON(w, http.StatusOK, tokenResponseFor(item))
+}
+
+func (a *appServer) handleTokenExclusive(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPut && r.Method != http.MethodDelete {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	item, err := a.tokens.Get(id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	var items []token.Token
+	message := "token selected as only provider account"
+	if r.Method == http.MethodDelete {
+		items, err = a.tokens.ClearProviderSelectionForToken(id)
+		message = "provider account selection cleared"
+	} else {
+		items, err = a.tokens.SelectOnly(id)
+	}
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	writeJSON(w, http.StatusOK, tokenResponses(items))
+}
+
+func (a *appServer) handleTokenSelected(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req tokenSelectedRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	item, err := a.tokens.Get(id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	items, err := a.tokens.SetSelected(id, req.Selected)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	message := "token removed from provider selection"
+	if req.Selected {
+		message = "token added to provider selection"
+	}
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	writeJSON(w, http.StatusOK, tokenResponses(items))
 }
 
 func (a *appServer) handleTokenValidate(w http.ResponseWriter, r *http.Request, id string) {

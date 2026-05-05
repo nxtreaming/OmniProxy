@@ -22,6 +22,10 @@ export function BillingUsage(arg1) {
   return window['go']['main']['DesktopApp']['BillingUsage'](arg1);
 }
 
+export function CancelUseOnlyToken(arg1) {
+  return window['go']['main']['DesktopApp']['CancelUseOnlyToken'](arg1);
+}
+
 export function CheckForUpdates() {
   return window['go']['main']['DesktopApp']['CheckForUpdates']();
 }
@@ -170,6 +174,10 @@ export function SetTokenDisabled(arg1, arg2) {
   return window['go']['main']['DesktopApp']['SetTokenDisabled'](arg1, arg2);
 }
 
+export function SetTokenSelected(arg1, arg2) {
+  return window['go']['main']['DesktopApp']['SetTokenSelected'](arg1, arg2);
+}
+
 export function StartProxy() {
   return window['go']['main']['DesktopApp']['StartProxy']();
 }
@@ -188,6 +196,10 @@ export function UpdateDownloadStatus() {
 
 export function UpdateToken(arg1, arg2) {
   return window['go']['main']['DesktopApp']['UpdateToken'](arg1, arg2);
+}
+
+export function UseOnlyToken(arg1) {
+  return window['go']['main']['DesktopApp']['UseOnlyToken'](arg1);
 }
 
 export function ValidateToken(arg1) {

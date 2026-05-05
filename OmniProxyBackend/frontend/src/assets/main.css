@@ -191,6 +191,24 @@ button {
   color: #ffffff;
 }
 
+.window-resize-edge {
+  position: fixed;
+  z-index: 110;
+  --wails-draggable: no-drag;
+}
+
+.window-resize-edge-right {
+  top: 36px;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.window-titlebar.maximised + .window-resize-edge-right {
+  display: none;
+}
+
 .control-mark {
   position: relative;
   width: 14px;
@@ -2143,55 +2161,112 @@ button:disabled {
   padding: 14px;
 }
 
-.quota-card-head,
-.quota-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.quota-card-head {
+  display: grid;
+  gap: 5px;
 }
 
 .quota-card-head > div {
   min-width: 0;
 }
 
-.quota-head-actions {
+.quota-card-title-row,
+.quota-card-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quota-status-tags {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.token-enable-control {
+.quota-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 58px);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.quota-chip.el-tag,
+.quota-card-actions .account-action-button.el-button {
+  --el-button-size: 24px;
+  box-sizing: border-box;
+  width: 58px !important;
+  min-width: 58px !important;
+  max-width: 58px;
+  height: 24px !important;
+  min-height: 24px;
+  max-height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 28px;
-  padding: 3px 6px 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
+  justify-content: center;
+  flex: 0 0 58px;
+  gap: 4px;
 }
 
-.token-enable-text {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
+.quota-chip.el-tag .el-tag__content {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quota-card-actions .account-action-button.el-button > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.account-select-button.el-button {
+  --el-button-hover-bg-color: color-mix(in srgb, var(--surface) 78%, var(--primary) 22%);
+  --el-button-hover-border-color: color-mix(in srgb, var(--primary) 52%, var(--line) 48%);
+  --el-button-hover-text-color: var(--primary);
+  border-color: color-mix(in srgb, var(--line) 76%, var(--primary) 24%);
+  color: color-mix(in srgb, var(--text) 80%, var(--primary) 20%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--primary) 12%);
+}
+
+.account-select-button.el-button.selected,
+.account-select-button.el-button.selected:hover,
+.account-select-button.el-button.selected:focus {
+  --el-button-bg-color: var(--primary);
+  --el-button-border-color: color-mix(in srgb, var(--primary) 82%, #111827 18%);
+  --el-button-text-color: #fff;
+  --el-button-hover-bg-color: color-mix(in srgb, var(--primary) 86%, #111827 14%);
+  --el-button-hover-border-color: color-mix(in srgb, var(--primary) 76%, #111827 24%);
+  --el-button-hover-text-color: #fff;
+  border-color: var(--el-button-border-color);
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 80%, #111827 20%));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff 18%, transparent),
+    0 7px 16px color-mix(in srgb, var(--primary) 26%, transparent);
+}
+
+.account-select-button.el-button .el-icon {
   font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
-  cursor: pointer;
 }
 
-.token-enable-text:disabled {
-  cursor: wait;
-  opacity: 0.64;
+.account-select-button.el-button.selected .el-icon {
+  color: #fff;
 }
 
-.token-enable-text:not(:disabled):hover {
-  color: var(--primary);
+.account-action-button.el-button + .account-action-button.el-button {
+  margin-left: 0;
 }
 
 .account-name {
@@ -2202,7 +2277,7 @@ button:disabled {
   word-break: break-word;
 }
 
-.quota-card-head > div > span,
+.quota-card-meta-row > span,
 .quota-fields span,
 .quota-fields small,
 .quota-limit span,
@@ -2214,7 +2289,7 @@ button:disabled {
 
 .quota-layout {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -2376,8 +2451,8 @@ table {
 }
 
 .account-table {
-  width: max(100%, 1080px);
-  min-width: 1080px;
+  width: max(100%, 1254px);
+  min-width: 1254px;
   table-layout: fixed;
 }
 
@@ -2410,7 +2485,7 @@ table {
 }
 
 .account-col-actions {
-  width: 206px;
+  width: 380px;
 }
 
 th,
@@ -2458,7 +2533,7 @@ tr:last-child td {
 .row-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-start;
   flex-wrap: nowrap;
 }
@@ -2468,9 +2543,13 @@ tr:last-child td {
 }
 
 .row-actions .el-button {
-  min-width: 54px;
-  padding-left: 8px;
-  padding-right: 8px;
+  width: 86px !important;
+  min-width: 86px !important;
+  max-width: 86px;
+  height: 30px !important;
+  min-height: 30px;
+  max-height: 30px;
+  flex: 0 0 86px;
 }
 
 .log-row {
@@ -5364,10 +5443,6 @@ tbody tr:hover td {
   background: color-mix(in srgb, var(--surface-soft) 70%, transparent);
 }
 
-.row-actions .el-button {
-  min-width: 52px;
-}
-
 .quota-card {
   border-color: var(--line);
   background: var(--surface-raised);
@@ -5384,15 +5459,6 @@ tbody tr:hover td {
 
 .quota-detail strong {
   color: var(--brand-strong);
-}
-
-.token-enable-control {
-  border-color: var(--line);
-  background: var(--surface-raised);
-}
-
-.token-enable-text:not(:disabled):hover {
-  color: var(--brand);
 }
 
 .log-row {
@@ -6332,6 +6398,18 @@ h1 {
   .openrouter-quota-summary-row,
   .openrouter-model-list {
     grid-template-columns: 1fr;
+  }
+
+  .quota-card-title-row,
+  .quota-card-meta-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .quota-card-actions,
+  .quota-status-tags {
+    justify-content: flex-start;
   }
 
   .usage-trend {

@@ -55,6 +55,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  togglingTokenIds: {
+    type: Object,
+    required: true,
+  },
   providerTokens: {
     type: Function,
     required: true,
@@ -103,6 +107,7 @@ const emit = defineEmits([
   'open-router-model-chat',
   'open-create-form',
   'verify-token',
+  'toggle-token-enabled',
   'open-edit-form',
   'remove-token',
 ])
@@ -327,14 +332,34 @@ function changeOpenRouterModelPage(delta) {
               <div class="row-actions">
                 <el-button
                   size="small"
+                  class="account-action-button"
+                  plain
                   :icon="Refresh"
                   :loading="validatingIds[item.id]"
                   @click="$emit('verify-token', item)"
                 >
-                  {{ validatingIds[item.id] ? '验证中' : '验证' }}
+                  验证
                 </el-button>
-                <el-button size="small" @click="$emit('open-edit-form', item)">编辑</el-button>
-                <el-button size="small" type="danger" plain @click="$emit('remove-token', item)">删除</el-button>
+                <el-button
+                  size="small"
+                  class="account-action-button"
+                  :type="item.disabled ? 'primary' : 'info'"
+                  plain
+                  :loading="togglingTokenIds[item.id]"
+                  @click="$emit('toggle-token-enabled', item, item.disabled)"
+                >
+                  {{ item.disabled ? '启用' : '停用' }}
+                </el-button>
+                <el-button size="small" class="account-action-button" plain @click="$emit('open-edit-form', item)">编辑</el-button>
+                <el-button
+                  size="small"
+                  class="account-action-button"
+                  type="danger"
+                  plain
+                  @click="$emit('remove-token', item)"
+                >
+                  删除
+                </el-button>
               </div>
             </td>
           </tr>

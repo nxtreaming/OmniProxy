@@ -23,6 +23,7 @@ type tokenResponse struct {
 	Health           healthResponse     `json:"health"`
 	Status           token.Status       `json:"status"`
 	Disabled         bool               `json:"disabled"`
+	Selected         bool               `json:"selected"`
 	LastUsedAt       string             `json:"lastUsedAt,omitempty"`
 	LastError        string             `json:"lastError,omitempty"`
 	CooldownUntil    string             `json:"cooldownUntil,omitempty"`
@@ -182,6 +183,7 @@ func tokenResponseFor(item token.Token) tokenResponse {
 		Health:           healthResponseFor(item.Health),
 		Status:           item.Status,
 		Disabled:         item.Disabled,
+		Selected:         item.Selected,
 		LastUsedAt:       timePtrString(item.LastUsedAt),
 		LastError:        item.LastError,
 		CooldownUntil:    timePtrString(item.CooldownUntil),

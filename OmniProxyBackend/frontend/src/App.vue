@@ -56,6 +56,7 @@ import {
   saveConfig,
   setAutoStart,
   setTokenDisabled,
+  setTokenSelected,
   startProxy,
   stopProxy,
   updateToken,
@@ -82,6 +83,7 @@ import {
   Monitor,
   Money,
   Moon,
+  Plus,
   Refresh,
   RefreshRight,
   Setting,
@@ -152,6 +154,7 @@ let updateCheckTimer = null
 let updateDownloadTimer = null
 const validatingIds = reactive({})
 const togglingTokenIds = reactive({})
+const switchingOnlyTokenIds = reactive({})
 const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
@@ -355,6 +358,13 @@ function toggleWindowMaximise() {
   if (!hasWailsRuntime()) return
   WindowToggleMaximise()
   window.setTimeout(refreshWindowState, 120)
+}
+
+function startWindowResize(edge) {
+  if (windowMaximised.value || typeof window === 'undefined' || !window.WailsInvoke) {
+    return
+  }
+  window.WailsInvoke(`resize:${edge}`)
 }
 
 function closeWindow() {
@@ -902,6 +912,45 @@ async function toggleTokenEnabled(token, enabled = Boolean(token.disabled)) {
     await refreshRealtime()
   } finally {
     togglingTokenIds[token.id] = false
+  }
+}
+
+function providerSelectedTokens(provider) {
+  return providerTokens(provider).filter((item) => item.selected)
+}
+
+async function toggleTokenSelected(token) {
+  if (!token?.id) return
+  if (token.disabled) {
+    errorMessage.value = '已停用账号需要先在账号管理中启用'
+    return
+  }
+  errorMessage.value = ''
+  successMessage.value = ''
+  switchingOnlyTokenIds[token.id] = true
+  try {
+    const nextSelected = !token.selected
+    const updatedTokens = await setTokenSelected(token.id, nextSelected)
+    if (Array.isArray(updatedTokens)) {
+      tokens.value = updatedTokens
+    } else {
+      await refreshRealtime()
+    }
+    const selectedCount = Array.isArray(updatedTokens)
+      ? updatedTokens.filter((item) => item.provider === token.provider && item.selected).length
+      : providerSelectedTokens(token.provider).length
+    if (nextSelected) {
+      successMessage.value = `已选择 ${providerLabel(token.provider)} 账号：${token.name}`
+    } else if (selectedCount > 0) {
+      successMessage.value = `已取消选择 ${token.name}，${providerLabel(token.provider)} 仍仅使用已选账号`
+    } else {
+      successMessage.value = `已恢复 ${providerLabel(token.provider)} 默认轮换`
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+    await refreshRealtime()
+  } finally {
+    switchingOnlyTokenIds[token.id] = false
   }
 }
 
@@ -2150,6 +2199,12 @@ async function refreshQuota(item) {
         </button>
       </div>
     </header>
+    <div
+      v-if="hasWailsRuntime()"
+      class="window-resize-edge window-resize-edge-right"
+      aria-hidden="true"
+      @mousedown.prevent.stop="startWindowResize('e-resize')"
+    ></div>
 
     <aside class="sidebar">
       <div class="brand">
@@ -2681,43 +2736,51 @@ async function refreshQuota(item) {
           >
             <div class="quota-card-inner">
               <div class="quota-card-head">
-                <div>
+                <div class="quota-card-title-row">
                   <strong class="account-name">{{ item.name }}</strong>
-                  <span>{{ isCodexToken(item) ? 'Codex auth.json' : credentialLabel(item) }} · {{ providerLabel(item.provider) }}</span>
-                  <small class="health-line">{{ healthSummary(item) }}</small>
-                </div>
-                <div class="quota-head-actions">
-                  <div class="token-enable-control">
-                    <el-switch
-                      :model-value="!item.disabled"
-                      size="small"
-                      :disabled="togglingTokenIds[item.id]"
-                      :loading="togglingTokenIds[item.id]"
-                      @update:model-value="toggleTokenEnabled(item, $event)"
-                    />
-                    <button
-                      type="button"
-                      class="token-enable-text"
-                      :disabled="togglingTokenIds[item.id]"
-                      @click="toggleTokenEnabled(item)"
+                  <div class="quota-status-tags">
+                    <el-tag
+                      v-if="item.usage?.subscriptionQuotaAvailable && item.usage?.planType"
+                      type="primary"
+                      effect="plain"
+                      class="quota-chip"
                     >
-                      {{ item.disabled ? '启用账号' : '停用账号' }}
-                    </button>
+                      {{ planLabel(item.usage?.planType) }}
+                    </el-tag>
+                    <el-tag v-if="weeklyLimitReached(item)" type="danger" effect="light">周限额已达</el-tag>
+                    <el-tag :type="displayStatusType(item)" effect="light" class="status-tag quota-chip">{{ displayStatusLabel(item) }}</el-tag>
                   </div>
-                  <el-tag v-if="item.usage?.subscriptionQuotaAvailable && item.usage?.planType" type="primary" effect="plain">
-                    {{ planLabel(item.usage?.planType) }}
-                  </el-tag>
-                  <el-tag v-if="weeklyLimitReached(item)" type="danger" effect="light">周限额已达</el-tag>
-                  <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">{{ displayStatusLabel(item) }}</el-tag>
-                  <el-tooltip content="刷新额度" placement="top">
-                    <el-button
-                      circle
-                      :icon="Refresh"
-                      :loading="validatingIds[item.id]"
-                      @click="refreshQuota(item)"
-                    />
-                  </el-tooltip>
                 </div>
+                <div class="quota-card-meta-row">
+                  <span>{{ isCodexToken(item) ? 'Codex auth.json' : credentialLabel(item) }} · {{ providerLabel(item.provider) }}</span>
+                  <div class="quota-card-actions">
+                    <el-button
+                      size="small"
+                      :class="['account-action-button', 'account-select-button', { selected: item.selected }]"
+                      :type="item.selected ? 'primary' : ''"
+                      :plain="!item.selected"
+                      :icon="item.selected ? CircleCheckFilled : Plus"
+                      :loading="switchingOnlyTokenIds[item.id]"
+                      :disabled="item.disabled"
+                      @click="toggleTokenSelected(item)"
+                    >
+                      {{ item.selected ? '已选' : '选择' }}
+                    </el-button>
+                    <el-tooltip content="刷新额度" placement="top">
+                      <el-button
+                        size="small"
+                        class="account-action-button"
+                        plain
+                        :icon="Refresh"
+                        :loading="validatingIds[item.id]"
+                        @click="refreshQuota(item)"
+                      >
+                        刷新
+                      </el-button>
+                    </el-tooltip>
+                  </div>
+                </div>
+                <small class="health-line">{{ healthSummary(item) }}</small>
               </div>
 
               <div :class="['quota-layout', { 'codex-layout': isCodexToken(item) }]">
@@ -2815,6 +2878,7 @@ async function refreshQuota(item) {
         :open-router-models-fetched-at="openRouterModelsFetchedAt"
         :open-router-models-cached="openRouterModelsCached"
         :validating-ids="validatingIds"
+        :toggling-token-ids="togglingTokenIds"
         :provider-tokens="providerTokens"
         :credential-label="credentialLabel"
         :credential-display="credentialDisplay"
@@ -2833,6 +2897,7 @@ async function refreshQuota(item) {
         @open-router-model-chat="openOpenRouterChat"
         @open-create-form="openCreateForm"
         @verify-token="verifyToken"
+        @toggle-token-enabled="toggleTokenEnabled"
         @open-edit-form="openEditForm"
         @remove-token="removeToken"
       />

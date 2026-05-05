@@ -214,6 +214,49 @@ func (a *DesktopApp) SetTokenDisabled(id string, disabled bool) (tokenResponse, 
 	return tokenResponseFor(item), nil
 }
 
+func (a *DesktopApp) UseOnlyToken(id string) ([]tokenResponse, error) {
+	item, err := a.server.tokens.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	items, err := a.server.tokens.SelectOnly(id)
+	if err != nil {
+		return nil, err
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token selected as only provider account"})
+	return tokenResponses(items), nil
+}
+
+func (a *DesktopApp) CancelUseOnlyToken(id string) ([]tokenResponse, error) {
+	item, err := a.server.tokens.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	items, err := a.server.tokens.ClearProviderSelectionForToken(id)
+	if err != nil {
+		return nil, err
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "provider account selection cleared"})
+	return tokenResponses(items), nil
+}
+
+func (a *DesktopApp) SetTokenSelected(id string, selected bool) ([]tokenResponse, error) {
+	item, err := a.server.tokens.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	items, err := a.server.tokens.SetSelected(id, selected)
+	if err != nil {
+		return nil, err
+	}
+	message := "token removed from provider selection"
+	if selected {
+		message = "token added to provider selection"
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	return tokenResponses(items), nil
+}
+
 func (a *DesktopApp) ValidateToken(id string) (validationResponse, error) {
 	selected, err := a.server.tokens.Get(id)
 	if err != nil {

@@ -237,11 +237,123 @@ func (m *Manager) SetDisabled(id string, disabled bool) (Token, error) {
 			continue
 		}
 		m.tokens[i].Disabled = disabled
+		if disabled {
+			m.tokens[i].Selected = false
+		}
 		m.tokens[i].UpdatedAt = time.Now()
 		return m.tokens[i], m.persistLocked()
 	}
 
 	return Token{}, ErrTokenNotFound
+}
+
+func (m *Manager) EnableOnly(id string) ([]Token, error) {
+	return m.SelectOnly(id)
+}
+
+func (m *Manager) SelectOnly(id string) ([]Token, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	targetIndex := -1
+	for i := range m.tokens {
+		if m.tokens[i].ID == id {
+			targetIndex = i
+			break
+		}
+	}
+	if targetIndex == -1 {
+		return nil, ErrTokenNotFound
+	}
+
+	provider := NormalizeProvider(m.tokens[targetIndex].Provider)
+	now := time.Now()
+	for i := range m.tokens {
+		if NormalizeProvider(m.tokens[i].Provider) != provider {
+			continue
+		}
+		nextSelected := m.tokens[i].ID == id
+		changed := m.tokens[i].Selected != nextSelected
+		m.tokens[i].Selected = nextSelected
+		if nextSelected && m.tokens[i].Disabled {
+			m.tokens[i].Disabled = false
+			changed = true
+		}
+		if !changed {
+			continue
+		}
+		m.tokens[i].UpdatedAt = now
+	}
+
+	out := make([]Token, len(m.tokens))
+	copy(out, m.tokens)
+	return out, m.persistLocked()
+}
+
+func (m *Manager) EnableProviderForToken(id string) ([]Token, error) {
+	return m.ClearProviderSelectionForToken(id)
+}
+
+func (m *Manager) ClearProviderSelectionForToken(id string) ([]Token, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	targetIndex := -1
+	for i := range m.tokens {
+		if m.tokens[i].ID == id {
+			targetIndex = i
+			break
+		}
+	}
+	if targetIndex == -1 {
+		return nil, ErrTokenNotFound
+	}
+
+	provider := NormalizeProvider(m.tokens[targetIndex].Provider)
+	now := time.Now()
+	for i := range m.tokens {
+		if NormalizeProvider(m.tokens[i].Provider) != provider {
+			continue
+		}
+		if !m.tokens[i].Selected {
+			continue
+		}
+		m.tokens[i].Selected = false
+		m.tokens[i].UpdatedAt = now
+	}
+
+	out := make([]Token, len(m.tokens))
+	copy(out, m.tokens)
+	return out, m.persistLocked()
+}
+
+func (m *Manager) SetSelected(id string, selected bool) ([]Token, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	found := false
+	now := time.Now()
+	for i := range m.tokens {
+		if m.tokens[i].ID != id {
+			continue
+		}
+		found = true
+		if m.tokens[i].Disabled && selected {
+			return nil, ErrNoActiveToken
+		}
+		if m.tokens[i].Selected != selected {
+			m.tokens[i].Selected = selected
+			m.tokens[i].UpdatedAt = now
+		}
+		break
+	}
+	if !found {
+		return nil, ErrTokenNotFound
+	}
+
+	out := make([]Token, len(m.tokens))
+	copy(out, m.tokens)
+	return out, m.persistLocked()
 }
 
 func (m *Manager) Acquire(provider string, excluded map[string]bool) (Token, error) {
@@ -264,10 +376,11 @@ func (m *Manager) AcquireBalancedMatching(provider string, credentialType string
 		}
 	}
 
-	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded); ok {
+	selectedIDs, hasSelection := m.selectedProviderTokenIDsLocked(provider)
+	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
 	}
-	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded); ok {
+	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
 	}
 
@@ -286,18 +399,19 @@ func (m *Manager) AcquirePreferredMatching(provider string, credentialType strin
 		}
 	}
 
+	selectedIDs, hasSelection := m.selectedProviderTokenIDsLocked(provider)
 	if preferred != nil {
-		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusActive, excluded, preferred); ok {
+		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusActive, excluded, preferred, selectedIDs, hasSelection); ok {
 			return m.reserveLocked(token), nil
 		}
-		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusLow, excluded, preferred); ok {
+		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusLow, excluded, preferred, selectedIDs, hasSelection); ok {
 			return m.reserveLocked(token), nil
 		}
 	}
-	if token, ok := m.firstUsableLocked(provider, credentialType, StatusActive, excluded); ok {
+	if token, ok := m.firstUsableLocked(provider, credentialType, StatusActive, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
 	}
-	if token, ok := m.firstUsableLocked(provider, credentialType, StatusLow, excluded); ok {
+	if token, ok := m.firstUsableLocked(provider, credentialType, StatusLow, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
 	}
 
@@ -582,10 +696,26 @@ func (m *Manager) HealthCheckCandidates(now time.Time, activeInterval time.Durat
 	return out
 }
 
-func (m *Manager) firstUsableLocked(provider string, credentialType string, status Status, excluded map[string]bool) (Token, bool) {
+func (m *Manager) selectedProviderTokenIDsLocked(provider string) (map[string]bool, bool) {
+	ids := map[string]bool{}
+	for _, item := range m.tokens {
+		if item.Selected && NormalizeProvider(item.Provider) == provider {
+			ids[item.ID] = true
+		}
+	}
+	if len(ids) == 0 {
+		return nil, false
+	}
+	return ids, true
+}
+
+func (m *Manager) firstUsableLocked(provider string, credentialType string, status Status, excluded map[string]bool, selectedIDs map[string]bool, hasSelection bool) (Token, bool) {
 	var busy Token
 	hasBusy := false
 	for _, item := range m.tokens {
+		if hasSelection && !selectedIDs[item.ID] {
+			continue
+		}
 		if item.Disabled {
 			continue
 		}
@@ -615,10 +745,13 @@ func (m *Manager) firstUsableLocked(provider string, credentialType string, stat
 	return busy, hasBusy
 }
 
-func (m *Manager) firstUsablePreferredLocked(provider string, credentialType string, status Status, excluded map[string]bool, preferred func(Token) bool) (Token, bool) {
+func (m *Manager) firstUsablePreferredLocked(provider string, credentialType string, status Status, excluded map[string]bool, preferred func(Token) bool, selectedIDs map[string]bool, hasSelection bool) (Token, bool) {
 	var busy Token
 	hasBusy := false
 	for _, item := range m.tokens {
+		if hasSelection && !selectedIDs[item.ID] {
+			continue
+		}
 		if item.Disabled {
 			continue
 		}
@@ -666,10 +799,13 @@ func (m *Manager) reserveLocked(item Token) Token {
 	return item
 }
 
-func (m *Manager) bestBalancedLocked(provider string, credentialType string, status Status, excluded map[string]bool) (Token, bool) {
+func (m *Manager) bestBalancedLocked(provider string, credentialType string, status Status, excluded map[string]bool, selectedIDs map[string]bool, hasSelection bool) (Token, bool) {
 	var selected Token
 	found := false
 	for _, item := range m.tokens {
+		if hasSelection && !selectedIDs[item.ID] {
+			continue
+		}
 		if item.Disabled {
 			continue
 		}
@@ -747,6 +883,13 @@ func normalizeStoredToken(item Token) Token {
 	item.Region = normalizeStoredRegion(provider, credentialType, item.Region)
 	if item.Status == "" {
 		item.Status = StatusActive
+	}
+	if item.Pinned {
+		item.Selected = true
+		item.Pinned = false
+	}
+	if item.Disabled {
+		item.Selected = false
 	}
 	return item
 }

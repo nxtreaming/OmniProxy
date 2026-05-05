@@ -900,6 +900,7 @@ export namespace main {
 	    health: healthResponse;
 	    status: string;
 	    disabled: boolean;
+	    selected: boolean;
 	    lastUsedAt?: string;
 	    lastError?: string;
 	    cooldownUntil?: string;
@@ -925,6 +926,7 @@ export namespace main {
 	        this.health = this.convertValues(source["health"], healthResponse);
 	        this.status = source["status"];
 	        this.disabled = source["disabled"];
+	        this.selected = source["selected"];
 	        this.lastUsedAt = source["lastUsedAt"];
 	        this.lastError = source["lastError"];
 	        this.cooldownUntil = source["cooldownUntil"];
