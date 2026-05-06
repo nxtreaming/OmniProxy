@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	mimoModel         = "mimo-v2.5-pro"
-	mimoStandardModel = "mimo-v2.5"
-	deepSeekProModel  = "deepseek-v4-pro[1m]"
-	deepSeekFastModel = "deepseek-v4-flash"
-	kimiCodingModel   = "kimi-for-coding"
-	zhipuGLMModel     = "glm-5.1"
-	omniProxyMimoAuth = "omniproxy"
+	mimoModel            = "mimo-v2.5-pro"
+	mimoLongContextModel = "mimo-v2.5-pro[1m]"
+	mimoStandardModel    = "mimo-v2.5"
+	deepSeekProModel     = "deepseek-v4-pro[1m]"
+	deepSeekFastModel    = "deepseek-v4-flash"
+	kimiCodingModel      = "kimi-for-coding"
+	zhipuGLMModel        = "glm-5.1"
+	omniProxyMimoAuth    = "omniproxy"
 )
 
 type mimoConfigureResult struct {
@@ -43,9 +44,9 @@ type claudeModelTarget struct {
 
 var (
 	claudeMimoTarget = claudeModelTarget{
-		Model:       mimoModel,
-		Name:        "MiMo-V2.5-Pro",
-		Description: "Xiaomi MiMo-V2.5-Pro routed through OmniProxy",
+		Model:       mimoLongContextModel,
+		Name:        "MiMo-V2.5-Pro [1m]",
+		Description: "Xiaomi MiMo-V2.5-Pro 1M context routed through OmniProxy",
 		LogMessage:  "mimo claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Xiaomi MiMo",
 	}
@@ -184,10 +185,10 @@ func writeMimoClaudeSettings(path string, baseURL string) error {
 	env := cleanClaudeEnv(data)
 	env["ANTHROPIC_BASE_URL"] = baseURL
 	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
-	env["ANTHROPIC_MODEL"] = mimoModel
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = mimoModel
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = "MiMo-V2.5-Pro"
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5-Pro routed through OmniProxy"
+	env["ANTHROPIC_MODEL"] = mimoLongContextModel
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = mimoLongContextModel
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = "MiMo-V2.5-Pro [1m]"
+	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5-Pro 1M context routed through OmniProxy"
 	env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = mimoStandardModel
 	env["ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"] = "MiMo-V2.5"
 	env["ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
@@ -195,9 +196,9 @@ func writeMimoClaudeSettings(path string, baseURL string) error {
 	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"] = "MiMo-V2.5"
 	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
 	env["CLAUDE_CODE_SUBAGENT_MODEL"] = mimoStandardModel
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION"] = mimoStandardModel
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"] = "MiMo-V2.5"
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION"] = mimoModel
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"] = "MiMo-V2.5-Pro"
+	env["ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"] = "Xiaomi MiMo-V2.5-Pro routed through OmniProxy"
 	data["env"] = env
 	return writeJSONObject(path, data)
 }
@@ -306,7 +307,7 @@ func claudeRouterAvailableModels() []string {
 
 func claudeRouterModelOverrides() map[string]string {
 	return map[string]string{
-		"claude-opus-4-7":            mimoModel,
+		"claude-opus-4-7":            mimoLongContextModel,
 		"claude-opus-4-6":            mimoStandardModel,
 		"claude-opus-4-5-20251101":   deepSeekProModel,
 		"claude-opus-4-1-20250422":   mimoStandardModel,
@@ -373,13 +374,21 @@ func removeClaudeRouterModelOverrides(data map[string]any) {
 	}
 
 	for key, value := range claudeRouterModelOverrides() {
-		if existingValue, ok := existing[key].(string); ok && existingValue == value {
+		if existingValue, ok := existing[key].(string); ok && isKnownRouterOverrideValue(value, existingValue) {
 			delete(existing, key)
 		}
 	}
 	if len(existing) == 0 {
 		delete(data, "modelOverrides")
 	}
+}
+
+func isKnownRouterOverrideValue(current string, existing string) bool {
+	existing = strings.TrimSpace(existing)
+	if strings.EqualFold(existing, current) {
+		return true
+	}
+	return strings.EqualFold(current, mimoLongContextModel) && strings.EqualFold(existing, mimoModel)
 }
 
 func clearKnownRouterModelGroup(env map[string]any, key string) {
@@ -403,6 +412,7 @@ func clearDeepSeekEffortOverride(env map[string]any) {
 func isKnownRouterDefaultModel(value string) bool {
 	model := strings.TrimSpace(value)
 	return strings.EqualFold(model, mimoModel) ||
+		strings.EqualFold(model, mimoLongContextModel) ||
 		strings.EqualFold(model, mimoStandardModel) ||
 		strings.EqualFold(model, deepSeekProModel) ||
 		strings.EqualFold(model, deepSeekFastModel) ||

@@ -1624,6 +1624,12 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	mimoLongReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"mimo-v2.5-pro[1m]","messages":[]}`))
+	mimoLongReq.Header.Set("Authorization", "Bearer caller")
+	mimoLongReq.Header.Set("X-Api-Key", "caller")
+	mimoLongRes := httptest.NewRecorder()
+	service.ServeHTTP(mimoLongRes, mimoLongReq)
+
 	mimoReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"mimo-v2.5-pro","messages":[]}`))
 	mimoReq.Header.Set("Authorization", "Bearer caller")
 	mimoReq.Header.Set("X-Api-Key", "caller")
@@ -1654,8 +1660,11 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	officialRes := httptest.NewRecorder()
 	service.ServeHTTP(officialRes, officialReq)
 
+	if mimoLongRes.Code != http.StatusOK {
+		t.Fatalf("expected long-context mimo route status 200, got %d body=%s", mimoLongRes.Code, mimoLongRes.Body.String())
+	}
 	if mimoRes.Code != http.StatusOK {
-		t.Fatalf("expected mimo route status 200, got %d body=%s", mimoRes.Code, mimoRes.Body.String())
+		t.Fatalf("expected pro mimo route status 200, got %d body=%s", mimoRes.Code, mimoRes.Body.String())
 	}
 	if mimoStandardRes.Code != http.StatusOK {
 		t.Fatalf("expected standard mimo route status 200, got %d body=%s", mimoStandardRes.Code, mimoStandardRes.Body.String())
@@ -1672,17 +1681,20 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	if mimoPath != "/anthropic/v1/messages" || mimoKey != "sk-mimo-router-key" {
 		t.Fatalf("unexpected mimo route path=%q key=%q", mimoPath, mimoKey)
 	}
-	if len(mimoBodies) != 2 {
-		t.Fatalf("expected 2 mimo requests, got %d", len(mimoBodies))
+	if len(mimoBodies) != 3 {
+		t.Fatalf("expected 3 mimo requests, got %d", len(mimoBodies))
 	}
-	if !strings.Contains(mimoBodies[0], `"model":"mimo-v2.5-pro"`) {
-		t.Fatalf("expected pro mimo model to be preserved, got %q", mimoBodies[0])
+	if !strings.Contains(mimoBodies[0], `"model":"mimo-v2.5-pro[1m]"`) {
+		t.Fatalf("expected long-context pro mimo model to be preserved, got %q", mimoBodies[0])
 	}
-	if !strings.Contains(mimoBodies[1], `"model":"mimo-v2.5"`) {
-		t.Fatalf("expected standard mimo model to be preserved, got %q", mimoBodies[1])
+	if !strings.Contains(mimoBodies[1], `"model":"mimo-v2.5-pro"`) {
+		t.Fatalf("expected pro mimo model to be preserved, got %q", mimoBodies[1])
 	}
-	if strings.Contains(mimoBodies[1], `"model":"mimo-v2.5-pro"`) {
-		t.Fatalf("standard mimo model was rewritten to pro: %q", mimoBodies[1])
+	if !strings.Contains(mimoBodies[2], `"model":"mimo-v2.5"`) {
+		t.Fatalf("expected standard mimo model to be preserved, got %q", mimoBodies[2])
+	}
+	if strings.Contains(mimoBodies[2], `"model":"mimo-v2.5-pro"`) {
+		t.Fatalf("standard mimo model was rewritten to pro: %q", mimoBodies[2])
 	}
 	if deepSeekPath != "/anthropic/v1/messages" || deepSeekKey != "sk-deepseek-router-key" || deepSeekAuthorization != "" {
 		t.Fatalf("unexpected deepseek route path=%q key=%q authorization=%q", deepSeekPath, deepSeekKey, deepSeekAuthorization)
