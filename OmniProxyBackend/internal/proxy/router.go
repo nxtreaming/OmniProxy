@@ -53,6 +53,15 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 			RawQuery: incoming.RawQuery,
 		}
 	}
+	if isPiRouterPath(path) {
+		return routeInfo{
+			Provider: providerForOpenCodeModel(model),
+			Protocol: "openai",
+			Model:    model,
+			Path:     stripPathPrefix(path, "/pi-router"),
+			RawQuery: incoming.RawQuery,
+		}
+	}
 
 	trimmed := strings.TrimPrefix(path, "/")
 	parts := strings.SplitN(trimmed, "/", 2)
@@ -206,6 +215,10 @@ func isOpenCodeRouterPath(path string) bool {
 	return path == "/opencode-router" || strings.HasPrefix(path, "/opencode-router/")
 }
 
+func isPiRouterPath(path string) bool {
+	return path == "/pi-router" || strings.HasPrefix(path, "/pi-router/")
+}
+
 func isAnthropicRouterProbe(r *http.Request) bool {
 	if r.URL == nil || r.URL.Path != "/anthropic-router" {
 		return false
@@ -215,6 +228,13 @@ func isAnthropicRouterProbe(r *http.Request) bool {
 
 func isOpenCodeRouterProbe(r *http.Request) bool {
 	if r.URL == nil || r.URL.Path != "/opencode-router" {
+		return false
+	}
+	return r.Method == http.MethodHead || r.Method == http.MethodGet
+}
+
+func isPiRouterProbe(r *http.Request) bool {
+	if r.URL == nil || r.URL.Path != "/pi-router" {
 		return false
 	}
 	return r.Method == http.MethodHead || r.Method == http.MethodGet
@@ -295,6 +315,9 @@ func providerForOpenCodeModel(model string) string {
 	}
 	if strings.HasPrefix(model, "deepseek-") {
 		return token.ProviderDeepSeek
+	}
+	if strings.HasPrefix(model, "kimi-") {
+		return token.ProviderKimi
 	}
 	if strings.HasPrefix(model, "glm-") || strings.HasPrefix(model, "zhipu-") {
 		return token.ProviderZhipu

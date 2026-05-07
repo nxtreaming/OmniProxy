@@ -14,6 +14,7 @@ const (
 	clientCodex      = "codex"
 	clientClaude     = "claude"
 	clientOpenCode   = "opencode"
+	clientPi         = "pi"
 	clientGemini     = "gemini"
 	clientOpenRouter = "openrouter"
 	clientCursor     = "cursor"
@@ -72,6 +73,8 @@ func userAgentClientInfo(userAgent string) (ClientInfo, bool) {
 	switch {
 	case strings.Contains(ua, "opencode"):
 		return knownClient(clientOpenCode), true
+	case strings.Contains(ua, "pi-coding-agent") || strings.Contains(ua, "pi.dev"):
+		return knownClient(clientPi), true
 	case strings.Contains(ua, "codex"):
 		return knownClient(clientCodex), true
 	case strings.Contains(ua, "claude"):
@@ -97,6 +100,8 @@ func pathClientInfo(path string, route routeInfo) (ClientInfo, bool) {
 	switch {
 	case isOpenCodeRouterPath(path):
 		return knownClient(clientOpenCode), true
+	case isPiRouterPath(path):
+		return knownClient(clientPi), true
 	case isCodexProxyPath(path) || route.CredentialType == "codex_auth_json":
 		return knownClient(clientCodex), true
 	case isAnthropicRouterPath(path):
@@ -119,6 +124,8 @@ func clientInfoFromLabel(value string) ClientInfo {
 	switch {
 	case strings.Contains(normalized, "opencode"):
 		return knownClient(clientOpenCode)
+	case strings.Contains(normalized, "pi-coding-agent") || normalized == "pi":
+		return knownClient(clientPi)
 	case strings.Contains(normalized, "codex"):
 		return knownClient(clientCodex)
 	case strings.Contains(normalized, "claude"):
@@ -153,6 +160,8 @@ func knownClient(key string) ClientInfo {
 		return ClientInfo{Key: clientClaude, Name: "Claude Code"}
 	case clientOpenCode:
 		return ClientInfo{Key: clientOpenCode, Name: "OpenCode"}
+	case clientPi:
+		return ClientInfo{Key: clientPi, Name: "Pi Coding Agent"}
 	case clientGemini:
 		return ClientInfo{Key: clientGemini, Name: "Gemini CLI"}
 	case clientOpenRouter:

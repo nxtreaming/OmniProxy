@@ -522,3 +522,15 @@ export function restoreOpenCode() {
     ? DesktopApp.RestoreOpenCode()
     : request('/opencode/restore', { method: 'POST' })
 }
+
+export function configurePi() {
+  return useWailsBindings()
+    ? DesktopApp.ConfigurePi()
+    : request('/pi/configure', { method: 'POST' })
+}
+
+export function restorePi() {
+  return useWailsBindings()
+    ? DesktopApp.RestorePi()
+    : request('/pi/restore', { method: 'POST' })
+}

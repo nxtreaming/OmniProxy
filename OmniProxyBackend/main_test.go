@@ -1542,3 +1542,84 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatalf("expected opencode backup: %v", err)
 	}
 }
+
+func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "models.json")
+	if err := os.WriteFile(path, []byte(`{"providers":{"existing":{"api":"openai-completions","models":[]}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	openRouterModels := []map[string]any{
+		{"id": "openai/gpt-test", "name": "GPT Test"},
+	}
+	if err := writePiModelsConfig(
+		path,
+		"http://127.0.0.1:3000/pi-router/v1",
+		"http://127.0.0.1:3000/anthropic-router",
+		"http://127.0.0.1:3000/gemini/v1beta",
+		"http://127.0.0.1:3000/openrouter/v1",
+		"http://127.0.0.1:3000/custom/v1",
+		openRouterModels,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := readJSONObject(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	providers := data["providers"].(map[string]any)
+	for _, id := range []string{"existing", piOmniProviderID, piAnthropicProviderID, piGeminiProviderID, piOpenRouterProviderID, piCustomProviderID} {
+		if providers[id] == nil {
+			t.Fatalf("expected provider %s in %#v", id, providers)
+		}
+	}
+	routerProvider := providers[piOmniProviderID].(map[string]any)
+	if routerProvider["api"] != "openai-completions" || routerProvider["baseUrl"] != "http://127.0.0.1:3000/pi-router/v1" {
+		t.Fatalf("unexpected Pi router provider: %#v", routerProvider)
+	}
+	routerModels := routerProvider["models"].([]any)
+	if len(routerModels) == 0 {
+		t.Fatalf("expected Pi router models: %#v", routerProvider)
+	}
+	routerCompat := routerProvider["compat"].(map[string]any)
+	if routerCompat["supportsReasoningEffort"] != true {
+		t.Fatalf("expected Pi router provider to support reasoning effort: %#v", routerCompat)
+	}
+	mimoModel, ok := piTestFindModel(routerModels, "mimo-v2.5-pro[1m]")
+	if !ok {
+		t.Fatalf("expected Pi router models to include MiMo 1M model: %#v", routerModels)
+	}
+	if mimoModel["reasoning"] != true {
+		t.Fatalf("expected MiMo Pi model to be marked reasoning-capable: %#v", mimoModel)
+	}
+	mimoCompat := mimoModel["compat"].(map[string]any)
+	if mimoCompat["supportsReasoningEffort"] != true {
+		t.Fatalf("expected MiMo Pi model to support reasoning effort: %#v", mimoCompat)
+	}
+	openRouterProvider := providers[piOpenRouterProviderID].(map[string]any)
+	if openRouterProvider["baseUrl"] != "http://127.0.0.1:3000/openrouter/v1" {
+		t.Fatalf("unexpected Pi openrouter provider: %#v", openRouterProvider)
+	}
+	openRouterProviderModels := openRouterProvider["models"].([]any)
+	if len(openRouterProviderModels) != 1 {
+		t.Fatalf("expected Pi openrouter models, got %#v", openRouterProviderModels)
+	}
+	firstModel := openRouterProviderModels[0].(map[string]any)
+	if firstModel["id"] != "openai/gpt-test" {
+		t.Fatalf("unexpected Pi openrouter model: %#v", firstModel)
+	}
+	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
+		t.Fatalf("expected Pi backup: %v", err)
+	}
+}
+
+func piTestFindModel(models []any, id string) (map[string]any, bool) {
+	for _, item := range models {
+		model, ok := item.(map[string]any)
+		if ok && model["id"] == id {
+			return model, true
+		}
+	}
+	return nil, false
+}

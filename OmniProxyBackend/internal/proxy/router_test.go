@@ -75,6 +75,14 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			outPath:  "/v1/chat/completions",
 		},
 		{
+			name:     "pi router kimi",
+			path:     "/pi-router/v1/chat/completions",
+			body:     `{"model":"kimi-for-coding"}`,
+			provider: token.ProviderKimi,
+			protocol: "openai",
+			outPath:  "/v1/chat/completions",
+		},
+		{
 			name:     "gemini direct",
 			path:     "/gemini/v1beta/models/gemini-3-pro-preview:generateContent",
 			body:     `{}`,

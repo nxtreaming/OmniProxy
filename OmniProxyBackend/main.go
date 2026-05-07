@@ -328,6 +328,8 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/openrouter/chat", a.handleOpenRouterChat)
 	mux.HandleFunc("/api/opencode/configure", a.handleOpenCodeConfigure)
 	mux.HandleFunc("/api/opencode/restore", a.handleOpenCodeRestore)
+	mux.HandleFunc("/api/pi/configure", a.handlePiConfigure)
+	mux.HandleFunc("/api/pi/restore", a.handlePiRestore)
 	return withControlTokenAuth(a.controlToken, mux)
 }
 
@@ -1454,6 +1456,32 @@ func (a *appServer) handleOpenCodeRestore(w http.ResponseWriter, r *http.Request
 		return
 	}
 	result, err := a.restoreOpenCodeConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handlePiConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configurePi()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handlePiRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.restorePiConfig()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -70,6 +70,10 @@ export function ConfigureOpenCode() {
   return window['go']['main']['DesktopApp']['ConfigureOpenCode']();
 }
 
+export function ConfigurePi() {
+  return window['go']['main']['DesktopApp']['ConfigurePi']();
+}
+
 export function ConfigureZhipuClaude() {
   return window['go']['main']['DesktopApp']['ConfigureZhipuClaude']();
 }
@@ -156,6 +160,10 @@ export function RestoreMimoClaude() {
 
 export function RestoreOpenCode() {
   return window['go']['main']['DesktopApp']['RestoreOpenCode']();
+}
+
+export function RestorePi() {
+  return window['go']['main']['DesktopApp']['RestorePi']();
 }
 
 export function RestoreZhipuClaude() {

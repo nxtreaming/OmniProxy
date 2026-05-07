@@ -4,7 +4,7 @@
 
 English · [中文](README.md)
 
-OmniProxy is built for local AI development workflows. Codex, Claude Code, and OpenAI / Anthropic-compatible clients can connect to a local proxy, while OmniProxy chooses an available account, injects credentials, records usage, refreshes quotas, retries transient failures, and switches accounts when needed.
+OmniProxy is built for local AI development workflows. Codex, Claude Code, OpenCode, Pi Coding Agent, and OpenAI / Anthropic-compatible clients can connect to a local proxy, while OmniProxy chooses an available account, injects credentials, records usage, refreshes quotas, retries transient failures, and switches accounts when needed.
 
 OmniProxy is useful when you run into problems like:
 
@@ -12,7 +12,7 @@ OmniProxy is useful when you run into problems like:
 - 🔁 You keep switching accounts by editing local config files.
 - 🧩 OpenAI, Anthropic, DeepSeek, Kimi, and Xiaomi MiMo all use different endpoints and auth styles.
 - 🕵️ You cannot tell which account handled a request, how many tokens were used, or where a failure happened.
-- 🛠️ You want Codex / Claude Code config to be written locally and restored safely.
+- 🛠️ You want Codex / Claude Code / OpenCode / Pi Coding Agent config to be written locally and restored safely.
 
 ## ✨ Highlights
 
@@ -24,7 +24,7 @@ OmniProxy is useful when you run into problems like:
 - 📊 **Quota and usage visibility**: remaining quota, reset time, request counts, input / output / total tokens.
 - 📈 **History analytics**: summarize request history by date, provider, model, and failure reason, including a model token pie chart.
 - ⚡ **Active account quota refresh**: Codex and verifiable active accounts refresh quota state automatically every 30 seconds.
-- 🧭 **Claude Code routing**: route Claude Code locally to DeepSeek, Kimi, or Xiaomi MiMo.
+- 🧭 **Client routing**: route Claude Code locally to DeepSeek, Kimi, or Xiaomi MiMo, and write local provider configs for OpenCode and Pi Coding Agent.
 - 🧵 **Codex WebSocket proxy**: optional Codex WebSocket proxying with usage logging.
 - 💬 **OpenRouter chat and models**: refresh OpenRouter model lists and run quick desktop chat checks.
 - 🧱 **Local persistence**: config, accounts, and usage stats are stored locally; on Windows, account credentials are encrypted at rest with DPAPI.
@@ -34,7 +34,7 @@ OmniProxy is useful when you run into problems like:
 ## 🧠 How It Works
 
 ```text
-Codex / Claude Code / API Client
+Codex / Claude Code / OpenCode / Pi / API Client
               |
               v
      http://127.0.0.1:3000
@@ -137,7 +137,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Version dev-is
 2. 🔑 Add OpenAI, Anthropic, DeepSeek, Kimi, Xiaomi MiMo, Zhipu, MiniMax, Gemini, OpenRouter, or custom gateway accounts in **Account Management**.
 3. ⚙️ Confirm proxy port and provider Base URLs in **Global Settings**.
 4. 🟢 Start the local proxy.
-5. 🧩 Point Codex, Claude Code, or your API client to the local proxy.
+5. 🧩 Point Codex, Claude Code, OpenCode, Pi Coding Agent, or your API client to the local proxy.
 6. 🎯 To limit routing, click **Select** on quota cards. With no selected accounts, the provider rotates all usable accounts; with one or more selected accounts, it rotates only within that selected set. Enable / disable accounts from **Account Management**.
 7. 📊 Use the dashboard, quota, request history, and billing pages to inspect the active account, reset time, token usage, and live logs.
 
@@ -147,6 +147,7 @@ Common local endpoints:
 OpenAI compatible: http://127.0.0.1:3000
 Codex backend:     http://127.0.0.1:3000/backend-api/codex
 Claude router:     http://127.0.0.1:3000/anthropic-router
+Pi router:         http://127.0.0.1:3000/pi-router/v1
 ```
 
 The Dev build shifts the default ports:
@@ -155,9 +156,10 @@ The Dev build shifts the default ports:
 OpenAI compatible: http://127.0.0.1:3001
 Codex backend:     http://127.0.0.1:3001/backend-api/codex
 Claude router:     http://127.0.0.1:3001/anthropic-router
+Pi router:         http://127.0.0.1:3001/pi-router/v1
 ```
 
-The desktop app also includes one-click setup actions for local Codex and Claude Code configuration, with restore support for previous config files.
+The desktop app also includes one-click setup actions for local Codex, Claude Code, OpenCode, and Pi Coding Agent configuration, with restore support for previous config files.
 
 ## 🔌 Supported Credentials
 
@@ -227,6 +229,8 @@ The desktop frontend prefers Wails bindings. The local HTTP control API is still
 - `POST /api/openrouter/chat`
 - `POST /api/opencode/configure`
 - `POST /api/opencode/restore`
+- `POST /api/pi/configure`
+- `POST /api/pi/restore`
 
 `/selected` adds or removes an account from its provider's scheduling selection set. If a provider has no selected accounts, it rotates all usable accounts by default. `/exclusive` remains for compatibility and means clearing the provider selection set before selecting only the current account.
 
@@ -296,7 +300,7 @@ Issues and pull requests are welcome.
 When opening an Issue, please include:
 
 - 🖥️ Operating system and run mode.
-- 🧰 Client tool, such as Codex, Claude Code, or a custom API client.
+- 🧰 Client tool, such as Codex, Claude Code, OpenCode, Pi Coding Agent, or a custom API client.
 - 🔌 Provider, route path, and relevant error logs.
 - 🎯 Expected behavior and actual behavior.
 

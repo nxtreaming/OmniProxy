@@ -39,6 +39,8 @@ export function ConfigureMimoClaude():Promise<main.mimoConfigureResult>;
 
 export function ConfigureOpenCode():Promise<main.clientConfigureResult>;
 
+export function ConfigurePi():Promise<main.clientConfigureResult>;
+
 export function ConfigureZhipuClaude():Promise<main.mimoConfigureResult>;
 
 export function ControlAPI():Promise<string>;
@@ -82,6 +84,8 @@ export function RestoreKimiClaude():Promise<main.mimoConfigureResult>;
 export function RestoreMimoClaude():Promise<main.mimoConfigureResult>;
 
 export function RestoreOpenCode():Promise<main.clientConfigureResult>;
+
+export function RestorePi():Promise<main.clientConfigureResult>;
 
 export function RestoreZhipuClaude():Promise<main.mimoConfigureResult>;
 

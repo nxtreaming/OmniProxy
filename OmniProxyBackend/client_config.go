@@ -17,6 +17,11 @@ const (
 	opencodeGeminiProviderID     = "omniproxy-gemini"
 	opencodeOpenRouterProviderID = "omniproxy-openrouter"
 	opencodeCustomProviderID     = "omniproxy-custom"
+	piOmniProviderID             = "omniproxy"
+	piAnthropicProviderID        = "omniproxy-anthropic"
+	piGeminiProviderID           = "omniproxy-gemini"
+	piOpenRouterProviderID       = "omniproxy-openrouter"
+	piCustomProviderID           = "omniproxy-custom"
 	localClientAPIKey            = "omniproxy-local"
 )
 
@@ -226,6 +231,61 @@ func (a *appServer) restoreOpenCodeConfig() (clientConfigureResult, error) {
 	}, nil
 }
 
+func (a *appServer) configurePi() (clientConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	a.mu.Lock()
+	port := a.cfg.ProxyPort
+	a.mu.Unlock()
+
+	piDir := filepath.Join(home, ".pi", "agent")
+	if err := os.MkdirAll(piDir, 0o755); err != nil {
+		return clientConfigureResult{}, err
+	}
+	configPath := filepath.Join(piDir, "models.json")
+	routerBaseURL := fmt.Sprintf("http://127.0.0.1:%d/pi-router/v1", port)
+	anthropicBaseURL := fmt.Sprintf("http://127.0.0.1:%d/anthropic-router", port)
+	geminiBaseURL := fmt.Sprintf("http://127.0.0.1:%d/gemini/v1beta", port)
+	openRouterBaseURL := fmt.Sprintf("http://127.0.0.1:%d/openrouter/v1", port)
+	customBaseURL := fmt.Sprintf("http://127.0.0.1:%d/custom/v1", port)
+	openRouterModels := a.piOpenRouterModels()
+
+	if err := writePiModelsConfig(configPath, routerBaseURL, anthropicBaseURL, geminiBaseURL, openRouterBaseURL, customBaseURL, openRouterModels); err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "pi configured for omniproxy"})
+	return clientConfigureResult{
+		ConfigPath: configPath,
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    routerBaseURL,
+		ProviderID: piOmniProviderID,
+		Message:    "Pi Coding Agent 已添加 OmniProxy provider",
+	}, nil
+}
+
+func (a *appServer) restorePiConfig() (clientConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	configPath := filepath.Join(home, ".pi", "agent", "models.json")
+	if err := restoreBackup(configPath, configPath+".omniproxy.bak"); err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "pi config restored"})
+	return clientConfigureResult{
+		ConfigPath: configPath,
+		BackupPath: configPath + ".omniproxy.bak",
+		Message:    "Pi Coding Agent 配置已恢复到一键配置前的原始配置",
+	}, nil
+}
+
 func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string, openRouterBaseURL string, customBaseURL string, openRouterModels map[string]any) error {
 	data, err := readJSONObject(path)
 	if err != nil {
@@ -251,6 +311,40 @@ func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string
 	return writeJSONObject(path, data)
 }
 
+func writePiModelsConfig(path string, routerBaseURL string, anthropicBaseURL string, geminiBaseURL string, openRouterBaseURL string, customBaseURL string, openRouterModels []map[string]any) error {
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	if err := backupFile(path, path+".omniproxy.bak", []byte("{\n  \"providers\": {}\n}\n")); err != nil {
+		return err
+	}
+
+	providers, _ := data["providers"].(map[string]any)
+	if providers == nil {
+		providers = map[string]any{}
+	}
+	providers[piOmniProviderID] = piOpenAIProvider("OmniProxy", routerBaseURL, []map[string]any{
+		{"id": "gpt-5.4", "name": "GPT-5.4"},
+		{"id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro"},
+		{"id": "kimi-for-coding", "name": "Kimi for Coding"},
+		{"id": "glm-5.1", "name": "GLM-5.1"},
+		{"id": "MiniMax-M2.7", "name": "MiniMax M2.7"},
+		piReasoningModel(mimoLongContextModel, "MiMo V2.5 Pro 1M"),
+		{"id": "openrouter/auto", "name": "OpenRouter Auto"},
+		{"id": "custom-model", "name": "Custom Gateway Model"},
+	}, true)
+	providers[piAnthropicProviderID] = piAnthropicProvider(anthropicBaseURL)
+	providers[piGeminiProviderID] = piGeminiProvider(geminiBaseURL)
+	providers[piOpenRouterProviderID] = piOpenAIProvider("OmniProxy OpenRouter", openRouterBaseURL, openRouterModels, false)
+	providers[piCustomProviderID] = piOpenAIProvider("OmniProxy Custom Gateway", customBaseURL, []map[string]any{
+		{"id": "custom-model", "name": "Custom Gateway Model"},
+	}, false)
+	data["providers"] = providers
+
+	return writeJSONObject(path, data)
+}
+
 func (a *appServer) openCodeOpenRouterModels() map[string]any {
 	a.mu.Lock()
 	cfg := a.cfg
@@ -259,6 +353,100 @@ func (a *appServer) openCodeOpenRouterModels() map[string]any {
 		return openCodeModelsFromOpenRouter(cached.Models)
 	}
 	return defaultOpenCodeOpenRouterModels()
+}
+
+func (a *appServer) piOpenRouterModels() []map[string]any {
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+	if cached, ok := a.cachedOpenRouterModels(cfg.OpenRouterBaseURL, "", false); ok {
+		return piModelsFromOpenRouter(cached.Models)
+	}
+	return defaultPiOpenRouterModels()
+}
+
+func piOpenAIProvider(name string, baseURL string, models []map[string]any, supportsReasoningEffort bool) map[string]any {
+	if len(models) == 0 {
+		models = defaultPiOpenRouterModels()
+	}
+	return map[string]any{
+		"name":       name,
+		"api":        "openai-completions",
+		"baseUrl":    baseURL,
+		"apiKey":     localClientAPIKey,
+		"authHeader": true,
+		"compat": map[string]any{
+			"supportsDeveloperRole":   false,
+			"supportsReasoningEffort": supportsReasoningEffort,
+		},
+		"models": models,
+	}
+}
+
+func piReasoningModel(id string, name string) map[string]any {
+	return map[string]any{
+		"id":        id,
+		"name":      name,
+		"reasoning": true,
+		"compat": map[string]any{
+			"supportsReasoningEffort": true,
+		},
+	}
+}
+
+func piAnthropicProvider(baseURL string) map[string]any {
+	return map[string]any{
+		"name":    "OmniProxy Anthropic Router",
+		"api":     "anthropic-messages",
+		"baseUrl": baseURL,
+		"apiKey":  localClientAPIKey,
+		"models": []map[string]any{
+			{"id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5"},
+			{"id": "deepseek-v4-pro[1m]", "name": "DeepSeek V4 Pro"},
+			{"id": "kimi-for-coding", "name": "Kimi for Coding"},
+			{"id": "glm-5.1", "name": "GLM-5.1"},
+			{"id": "mimo-v2.5-pro[1m]", "name": "MiMo V2.5 Pro 1M"},
+		},
+	}
+}
+
+func piGeminiProvider(baseURL string) map[string]any {
+	return map[string]any{
+		"name":    "OmniProxy Gemini",
+		"api":     "google-generative-ai",
+		"baseUrl": baseURL,
+		"apiKey":  localClientAPIKey,
+		"models": []map[string]any{
+			{"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro Preview"},
+			{"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview"},
+			{"id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite"},
+		},
+	}
+}
+
+func piModelsFromOpenRouter(models []openRouterModelResponse) []map[string]any {
+	out := make([]map[string]any, 0, len(models))
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		name := strings.TrimSpace(model.Name)
+		if name == "" {
+			name = id
+		}
+		out = append(out, map[string]any{"id": id, "name": name})
+	}
+	if len(out) == 0 {
+		return defaultPiOpenRouterModels()
+	}
+	return out
+}
+
+func defaultPiOpenRouterModels() []map[string]any {
+	return []map[string]any{
+		{"id": "openrouter/auto", "name": "OpenRouter Auto"},
+	}
 }
 
 func openCodeRouterProvider(baseURL string) map[string]any {

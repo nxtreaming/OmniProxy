@@ -693,6 +693,14 @@ func (a *DesktopApp) RestoreOpenCode() (clientConfigureResult, error) {
 	return a.server.restoreOpenCodeConfig()
 }
 
+func (a *DesktopApp) ConfigurePi() (clientConfigureResult, error) {
+	return a.server.configurePi()
+}
+
+func (a *DesktopApp) RestorePi() (clientConfigureResult, error) {
+	return a.server.restorePiConfig()
+}
+
 func (a *DesktopApp) OpenRouterModels(refresh bool) (openRouterModelsResponse, error) {
 	return a.server.openRouterModels(a.callContext(), refresh)
 }

@@ -26,6 +26,7 @@ import {
   configureKimiClaude,
   configureMimoClaude,
   configureOpenCode,
+  configurePi,
   configureZhipuClaude,
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
@@ -65,6 +66,7 @@ import {
   restoreGemini,
   restoreMimoClaude,
   restoreOpenCode,
+  restorePi,
   restoreZhipuClaude,
 } from './services/api'
 import {
@@ -124,9 +126,11 @@ const kimiClaudeConfiguring = ref(false)
 const zhipuClaudeConfiguring = ref(false)
 const geminiConfiguring = ref(false)
 const opencodeConfiguring = ref(false)
+const piConfiguring = ref(false)
 const mimoClaudeRestoring = ref(false)
 const geminiRestoring = ref(false)
 const opencodeRestoring = ref(false)
+const piRestoring = ref(false)
 const mimoCookieImporting = ref(false)
 const refreshingProvider = ref(false)
 const dataDirChanging = ref(false)
@@ -1411,6 +1415,34 @@ async function restoreLocalOpenCode() {
   }
 }
 
+async function configureLocalPi() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  piConfiguring.value = true
+  try {
+    const result = await configurePi()
+    successMessage.value = result.message || 'Pi Coding Agent 已配置为使用 OmniProxy'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    piConfiguring.value = false
+  }
+}
+
+async function restoreLocalPi() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  piRestoring.value = true
+  try {
+    const result = await restorePi()
+    successMessage.value = result.message || 'Pi Coding Agent 配置已恢复'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    piRestoring.value = false
+  }
+}
+
 async function restoreLocalMimoClaude() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -1636,6 +1668,7 @@ const knownClientTools = [
   { key: 'codex', label: 'Codex' },
   { key: 'claude', label: 'Claude Code' },
   { key: 'opencode', label: 'OpenCode' },
+  { key: 'pi', label: 'Pi Coding Agent' },
   { key: 'gemini', label: 'Gemini CLI' },
   { key: 'openrouter', label: 'OpenRouter' },
   { key: 'cursor', label: 'Cursor' },
@@ -2985,7 +3018,7 @@ async function refreshQuota(item) {
         <div class="section-heading">
           <div>
             <h2>一键配置</h2>
-            <p>把本机 Codex、Claude Code、Gemini CLI 或 OpenCode 指向 OmniProxy，本页只负责写入本地客户端配置</p>
+            <p>把本机 Codex、Claude Code、Gemini CLI、OpenCode 或 Pi Coding Agent 指向 OmniProxy，本页只负责写入本地客户端配置</p>
           </div>
         </div>
 
@@ -3059,6 +3092,24 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
               </el-button>
               <el-button :icon="RefreshRight" :loading="opencodeRestoring" @click="restoreLocalOpenCode">
                 {{ opencodeRestoring ? '恢复中' : '恢复 OpenCode 配置' }}
+              </el-button>
+            </div>
+          </article>
+
+          <article class="wide-help">
+            <strong>Pi Coding Agent</strong>
+            <p>写入 <code>%USERPROFILE%\.pi\agent\models.json</code>，添加 OmniProxy provider，可通过 <code>pi --provider omniproxy --model gpt-5.4</code> 使用。</p>
+            <pre class="help-code"><code>Pi Router: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1
+Anthropic Router: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
+Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini/v1beta
+OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
+Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
+            <div class="help-actions">
+              <el-button type="primary" :icon="MagicStick" :loading="piConfiguring" @click="configureLocalPi">
+                {{ piConfiguring ? '配置中' : '配置 Pi Coding Agent' }}
+              </el-button>
+              <el-button :icon="RefreshRight" :loading="piRestoring" @click="restoreLocalPi">
+                {{ piRestoring ? '恢复中' : '恢复 Pi 配置' }}
               </el-button>
             </div>
           </article>
