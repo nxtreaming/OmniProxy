@@ -247,13 +247,9 @@ func (a *appServer) configurePi() (clientConfigureResult, error) {
 	}
 	configPath := filepath.Join(piDir, "models.json")
 	routerBaseURL := fmt.Sprintf("http://127.0.0.1:%d/pi-router/v1", port)
-	anthropicBaseURL := fmt.Sprintf("http://127.0.0.1:%d/anthropic-router", port)
-	geminiBaseURL := fmt.Sprintf("http://127.0.0.1:%d/gemini/v1beta", port)
-	openRouterBaseURL := fmt.Sprintf("http://127.0.0.1:%d/openrouter/v1", port)
-	customBaseURL := fmt.Sprintf("http://127.0.0.1:%d/custom/v1", port)
 	openRouterModels := a.piOpenRouterModels()
 
-	if err := writePiModelsConfig(configPath, routerBaseURL, anthropicBaseURL, geminiBaseURL, openRouterBaseURL, customBaseURL, openRouterModels); err != nil {
+	if err := writePiModelsConfig(configPath, routerBaseURL, openRouterModels); err != nil {
 		return clientConfigureResult{}, err
 	}
 
@@ -311,7 +307,7 @@ func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string
 	return writeJSONObject(path, data)
 }
 
-func writePiModelsConfig(path string, routerBaseURL string, anthropicBaseURL string, geminiBaseURL string, openRouterBaseURL string, customBaseURL string, openRouterModels []map[string]any) error {
+func writePiModelsConfig(path string, routerBaseURL string, openRouterModels []map[string]any) error {
 	data, err := readJSONObject(path)
 	if err != nil {
 		return err
@@ -324,25 +320,44 @@ func writePiModelsConfig(path string, routerBaseURL string, anthropicBaseURL str
 	if providers == nil {
 		providers = map[string]any{}
 	}
-	providers[piOmniProviderID] = piOpenAIProvider("OmniProxy", routerBaseURL, []map[string]any{
+	for _, id := range []string{piAnthropicProviderID, piGeminiProviderID, piOpenRouterProviderID, piCustomProviderID} {
+		delete(providers, id)
+	}
+	providers[piOmniProviderID] = piOpenAIProvider("OmniProxy", routerBaseURL, piRouterModels(openRouterModels), true)
+	data["providers"] = providers
+
+	return writeJSONObject(path, data)
+}
+
+func piRouterModels(openRouterModels []map[string]any) []map[string]any {
+	models := []map[string]any{
 		{"id": "gpt-5.4", "name": "GPT-5.4"},
 		{"id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro"},
 		{"id": "kimi-for-coding", "name": "Kimi for Coding"},
 		{"id": "glm-5.1", "name": "GLM-5.1"},
 		{"id": "MiniMax-M2.7", "name": "MiniMax M2.7"},
-		piReasoningModel(mimoLongContextModel, "MiMo V2.5 Pro 1M"),
-		{"id": "openrouter/auto", "name": "OpenRouter Auto"},
+		piReasoningModel(mimoModel, "MiMo V2.5 Pro"),
 		{"id": "custom-model", "name": "Custom Gateway Model"},
-	}, true)
-	providers[piAnthropicProviderID] = piAnthropicProvider(anthropicBaseURL)
-	providers[piGeminiProviderID] = piGeminiProvider(geminiBaseURL)
-	providers[piOpenRouterProviderID] = piOpenAIProvider("OmniProxy OpenRouter", openRouterBaseURL, openRouterModels, false)
-	providers[piCustomProviderID] = piOpenAIProvider("OmniProxy Custom Gateway", customBaseURL, []map[string]any{
-		{"id": "custom-model", "name": "Custom Gateway Model"},
-	}, false)
-	data["providers"] = providers
-
-	return writeJSONObject(path, data)
+	}
+	seen := map[string]bool{}
+	for _, model := range models {
+		if id, ok := model["id"].(string); ok {
+			seen[strings.ToLower(strings.TrimSpace(id))] = true
+		}
+	}
+	for _, model := range openRouterModels {
+		id, _ := model["id"].(string)
+		key := strings.ToLower(strings.TrimSpace(id))
+		if key == "" || seen[key] {
+			continue
+		}
+		models = append(models, model)
+		seen[key] = true
+	}
+	if !seen["openrouter/auto"] {
+		models = append(models, defaultPiOpenRouterModels()...)
+	}
+	return models
 }
 
 func (a *appServer) openCodeOpenRouterModels() map[string]any {

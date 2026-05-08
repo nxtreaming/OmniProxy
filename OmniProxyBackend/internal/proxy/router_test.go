@@ -24,6 +24,14 @@ func TestRouterReadsQueryModel(t *testing.T) {
 	}
 }
 
+func TestPiRouterOpenAIModelsRequireAPIKeyCredential(t *testing.T) {
+	route := NewRouter(config.Config{}).Route(mustRouterTestURL(t, "/pi-router/v1/chat/completions"), []byte(`{"model":"gpt-5.4"}`))
+
+	if route.Provider != token.ProviderOpenAI || route.CredentialType != token.CredentialTypeAPIKey {
+		t.Fatalf("expected Pi OpenAI model to require API key credential, got %#v", route)
+	}
+}
+
 func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 	router := NewRouter(config.Config{})
 	cases := []struct {

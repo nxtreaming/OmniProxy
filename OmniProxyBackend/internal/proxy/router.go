@@ -54,12 +54,14 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 		}
 	}
 	if isPiRouterPath(path) {
+		provider, credentialType := providerForPiModel(model)
 		return routeInfo{
-			Provider: providerForOpenCodeModel(model),
-			Protocol: "openai",
-			Model:    model,
-			Path:     stripPathPrefix(path, "/pi-router"),
-			RawQuery: incoming.RawQuery,
+			Provider:       provider,
+			CredentialType: credentialType,
+			Protocol:       "openai",
+			Model:          model,
+			Path:           stripPathPrefix(path, "/pi-router"),
+			RawQuery:       incoming.RawQuery,
 		}
 	}
 
@@ -332,6 +334,15 @@ func providerForOpenCodeModel(model string) string {
 		return token.ProviderCustom
 	}
 	return token.ProviderOpenAI
+}
+
+func providerForPiModel(model string) (string, string) {
+	provider := providerForOpenCodeModel(model)
+	credentialType := ""
+	if provider == token.ProviderOpenAI {
+		credentialType = token.CredentialTypeAPIKey
+	}
+	return provider, credentialType
 }
 
 func isCodexCredential(selected token.Token) bool {
