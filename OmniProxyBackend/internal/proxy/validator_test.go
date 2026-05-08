@@ -647,6 +647,57 @@ func TestValidatorQueriesOpenRouterUnlimitedKeyUsage(t *testing.T) {
 	}
 }
 
+func TestValidatorUsesTokenRouterRoutingRules(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL func(string) string
+	}{
+		{
+			name:    "base without version",
+			baseURL: func(serverURL string) string { return serverURL },
+		},
+		{
+			name:    "base with version",
+			baseURL: func(serverURL string) string { return serverURL + "/v1" },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v1/routing-rules" {
+					t.Fatalf("unexpected path: %s", r.URL.Path)
+				}
+				if r.Header.Get("Authorization") != "Bearer tr_test_token" {
+					t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"rules":[]}`))
+			}))
+			defer upstream.Close()
+
+			validator, err := NewValidator(config.Config{
+				TokenRouterBaseURL: tt.baseURL(upstream.URL),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			result, err := validator.Validate(context.Background(), token.Token{
+				Provider:       token.ProviderTokenRouter,
+				CredentialType: token.CredentialTypeAPIKey,
+				TokenValue:     "tr_test_token",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.OK {
+				t.Fatalf("expected tokenrouter validation to pass: %#v", result)
+			}
+		})
+	}
+}
+
 func TestValidatorQueriesMimoTokenPlanUsage(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("api-key") != "tp-mimo-token-plan" {

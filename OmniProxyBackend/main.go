@@ -1705,6 +1705,7 @@ func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 		oldCfg.MiniMaxAnthropicBaseURL != nextCfg.MiniMaxAnthropicBaseURL ||
 		oldCfg.GeminiBaseURL != nextCfg.GeminiBaseURL ||
 		oldCfg.OpenRouterBaseURL != nextCfg.OpenRouterBaseURL ||
+		oldCfg.TokenRouterBaseURL != nextCfg.TokenRouterBaseURL ||
 		oldCfg.CustomGatewayBaseURL != nextCfg.CustomGatewayBaseURL ||
 		oldCfg.CustomGatewayAnthropicBaseURL != nextCfg.CustomGatewayAnthropicBaseURL ||
 		oldCfg.XiaomiBaseURL != nextCfg.XiaomiBaseURL ||

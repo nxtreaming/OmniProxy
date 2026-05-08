@@ -53,6 +53,7 @@ func NewValidator(cfg config.Config) (*Validator, error) {
 		"minimax_anthropic":               cfg.MiniMaxAnthropicBaseURL,
 		"gemini":                          cfg.GeminiBaseURL,
 		"openrouter":                      cfg.OpenRouterBaseURL,
+		"tokenrouter":                     cfg.TokenRouterBaseURL,
 		"custom_gateway":                  cfg.CustomGatewayBaseURL,
 		"custom_gateway_anthropic":        cfg.CustomGatewayAnthropicBaseURL,
 		"xiaomi_api":                      cfg.XiaomiAPIBaseURL,
@@ -173,6 +174,12 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 		path = "/v1beta/models"
 	case token.ProviderOpenRouter:
 		path = "/key"
+	case token.ProviderTokenRouter:
+		if basePathHasVersionSuffix(base.Path) {
+			path = "/routing-rules"
+		} else {
+			path = "/v1/routing-rules"
+		}
 	case token.ProviderXiaomi:
 		path = "/models"
 	case token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
@@ -201,6 +208,8 @@ func (v *Validator) baseURL(selected token.Token) string {
 		return v.cfg.GeminiBaseURL
 	case token.ProviderOpenRouter:
 		return v.cfg.OpenRouterBaseURL
+	case token.ProviderTokenRouter:
+		return v.cfg.TokenRouterBaseURL
 	case token.ProviderCustom:
 		return v.cfg.CustomGatewayBaseURL
 	case token.ProviderXiaomi:

@@ -70,7 +70,7 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 	if len(parts) > 0 {
 		candidate := strings.ToLower(parts[0])
 		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderCustom:
+		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderCustom:
 			provider = candidate
 			if len(parts) == 2 {
 				path = "/" + parts[1]
@@ -159,6 +159,8 @@ func (r Router) BaseURL(route routeInfo, selected token.Token) string {
 		return r.cfg.GeminiBaseURL
 	case token.ProviderOpenRouter:
 		return r.cfg.OpenRouterBaseURL
+	case token.ProviderTokenRouter:
+		return r.cfg.TokenRouterBaseURL
 	case token.ProviderCustom:
 		if route.Protocol == "anthropic" && r.cfg.CustomGatewayAnthropicBaseURL != "" {
 			return r.cfg.CustomGatewayAnthropicBaseURL
@@ -326,6 +328,9 @@ func providerForOpenCodeModel(model string) string {
 	}
 	if strings.HasPrefix(model, "minimax-") {
 		return token.ProviderMiniMax
+	}
+	if strings.HasPrefix(model, "auto:") || strings.HasPrefix(model, "tokenrouter:") || strings.HasPrefix(model, "tokenrouter/") {
+		return token.ProviderTokenRouter
 	}
 	if strings.Contains(model, "/") {
 		return token.ProviderOpenRouter

@@ -12,17 +12,18 @@ import (
 )
 
 const (
-	geminiDefaultModel           = "gemini-3-pro-preview"
-	opencodeOmniProviderID       = "omniproxy"
-	opencodeGeminiProviderID     = "omniproxy-gemini"
-	opencodeOpenRouterProviderID = "omniproxy-openrouter"
-	opencodeCustomProviderID     = "omniproxy-custom"
-	piOmniProviderID             = "omniproxy"
-	piAnthropicProviderID        = "omniproxy-anthropic"
-	piGeminiProviderID           = "omniproxy-gemini"
-	piOpenRouterProviderID       = "omniproxy-openrouter"
-	piCustomProviderID           = "omniproxy-custom"
-	localClientAPIKey            = "omniproxy-local"
+	geminiDefaultModel            = "gemini-3-pro-preview"
+	opencodeOmniProviderID        = "omniproxy"
+	opencodeGeminiProviderID      = "omniproxy-gemini"
+	opencodeOpenRouterProviderID  = "omniproxy-openrouter"
+	opencodeTokenRouterProviderID = "omniproxy-tokenrouter"
+	opencodeCustomProviderID      = "omniproxy-custom"
+	piOmniProviderID              = "omniproxy"
+	piAnthropicProviderID         = "omniproxy-anthropic"
+	piGeminiProviderID            = "omniproxy-gemini"
+	piOpenRouterProviderID        = "omniproxy-openrouter"
+	piCustomProviderID            = "omniproxy-custom"
+	localClientAPIKey             = "omniproxy-local"
 )
 
 type clientConfigureResult struct {
@@ -195,10 +196,11 @@ func (a *appServer) configureOpenCode() (clientConfigureResult, error) {
 	routerBaseURL := fmt.Sprintf("http://127.0.0.1:%d/opencode-router/v1", port)
 	geminiBaseURL := fmt.Sprintf("http://127.0.0.1:%d/gemini", port)
 	openRouterBaseURL := fmt.Sprintf("http://127.0.0.1:%d/openrouter/v1", port)
+	tokenRouterBaseURL := fmt.Sprintf("http://127.0.0.1:%d/tokenrouter/v1", port)
 	customBaseURL := fmt.Sprintf("http://127.0.0.1:%d/custom/v1", port)
 	openRouterModels := a.openCodeOpenRouterModels()
 
-	if err := writeOpenCodeConfig(configPath, routerBaseURL, geminiBaseURL, openRouterBaseURL, customBaseURL, openRouterModels); err != nil {
+	if err := writeOpenCodeConfig(configPath, routerBaseURL, geminiBaseURL, openRouterBaseURL, tokenRouterBaseURL, customBaseURL, openRouterModels); err != nil {
 		return clientConfigureResult{}, err
 	}
 
@@ -208,7 +210,7 @@ func (a *appServer) configureOpenCode() (clientConfigureResult, error) {
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    routerBaseURL,
 		ProviderID: opencodeOmniProviderID,
-		Message:    "OpenCode 已添加 OmniProxy、OmniProxy Gemini、OmniProxy OpenRouter 和 OmniProxy 自定义网关 provider",
+		Message:    "OpenCode 已添加 OmniProxy、OmniProxy Gemini、OmniProxy OpenRouter、OmniProxy TokenRouter 和 OmniProxy 自定义网关 provider",
 	}, nil
 }
 
@@ -282,7 +284,7 @@ func (a *appServer) restorePiConfig() (clientConfigureResult, error) {
 	}, nil
 }
 
-func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string, openRouterBaseURL string, customBaseURL string, openRouterModels map[string]any) error {
+func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string, openRouterBaseURL string, tokenRouterBaseURL string, customBaseURL string, openRouterModels map[string]any) error {
 	data, err := readJSONObject(path)
 	if err != nil {
 		return err
@@ -301,6 +303,7 @@ func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string
 	providers[opencodeOmniProviderID] = openCodeRouterProvider(routerBaseURL)
 	providers[opencodeGeminiProviderID] = openCodeGeminiProvider(geminiBaseURL)
 	providers[opencodeOpenRouterProviderID] = openCodeOpenRouterProvider(openRouterBaseURL, openRouterModels)
+	providers[opencodeTokenRouterProviderID] = openCodeTokenRouterProvider(tokenRouterBaseURL)
 	providers[opencodeCustomProviderID] = openCodeCustomProvider(customBaseURL)
 	data["provider"] = providers
 
@@ -336,6 +339,10 @@ func piRouterModels(openRouterModels []map[string]any) []map[string]any {
 		{"id": "kimi-for-coding", "name": "Kimi for Coding"},
 		{"id": "glm-5.1", "name": "GLM-5.1"},
 		{"id": "MiniMax-M2.7", "name": "MiniMax M2.7"},
+		{"id": "auto:balance", "name": "TokenRouter Auto Balance"},
+		{"id": "auto:quality", "name": "TokenRouter Auto Quality"},
+		{"id": "auto:speed", "name": "TokenRouter Auto Speed"},
+		{"id": "auto:cost", "name": "TokenRouter Auto Cost"},
 		piReasoningModel(mimoModel, "MiMo V2.5 Pro"),
 		{"id": "custom-model", "name": "Custom Gateway Model"},
 	}
@@ -512,6 +519,24 @@ func openCodeOpenRouterProvider(baseURL string, models map[string]any) map[strin
 			"setCacheKey": true,
 		},
 		"models": models,
+	}
+}
+
+func openCodeTokenRouterProvider(baseURL string) map[string]any {
+	return map[string]any{
+		"npm":  "@ai-sdk/openai-compatible",
+		"name": "OmniProxy TokenRouter",
+		"options": map[string]any{
+			"baseURL":     baseURL,
+			"apiKey":      localClientAPIKey,
+			"setCacheKey": true,
+		},
+		"models": map[string]any{
+			"auto:balance": map[string]any{"name": "Auto Balance"},
+			"auto:quality": map[string]any{"name": "Auto Quality"},
+			"auto:speed":   map[string]any{"name": "Auto Speed"},
+			"auto:cost":    map[string]any{"name": "Auto Cost"},
+		},
 	}
 }
 

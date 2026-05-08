@@ -45,7 +45,7 @@ Codex / Claude Code / OpenCode / Pi / API Client
               |
               v
 OpenAI / Anthropic / DeepSeek / Kimi / Xiaomi MiMo
-Zhipu GLM / MiniMax / Gemini / OpenRouter / Custom Gateway
+Zhipu GLM / MiniMax / Gemini / OpenRouter / TokenRouter / Custom Gateway
 ```
 
 OmniProxy 不改变客户端的使用方式。你只需要把客户端的 Base URL 指向本机代理，后续账号选择、鉴权头注入、重试切换、额度更新和日志记录都由本地程序完成。
@@ -134,7 +134,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Version dev-is
 ## 🧭 使用流程
 
 1. 🚀 启动 OmniProxy。
-2. 🔑 在「账号管理」里添加 OpenAI、Anthropic、DeepSeek、Kimi、Xiaomi MiMo、Zhipu、MiniMax、Gemini、OpenRouter 或自定义网关账号。
+2. 🔑 在「账号管理」里添加 OpenAI、Anthropic、DeepSeek、Kimi、Xiaomi MiMo、Zhipu、MiniMax、Gemini、OpenRouter、TokenRouter 或自定义网关账号。
 3. ⚙️ 在「全局设置」里确认代理端口和各厂商 Base URL。
 4. 🟢 启动本地代理。
 5. 🧩 将 Codex、Claude Code、OpenCode、Pi Coding Agent 或其他 API 客户端指向本地代理地址。
@@ -148,6 +148,7 @@ OpenAI compatible: http://127.0.0.1:3000
 Codex backend:     http://127.0.0.1:3000/backend-api/codex
 Claude router:     http://127.0.0.1:3000/anthropic-router
 Pi router:         http://127.0.0.1:3000/pi-router/v1
+TokenRouter:       http://127.0.0.1:3000/tokenrouter/v1
 ```
 
 Dev 版默认把端口整体后移：
@@ -157,6 +158,7 @@ OpenAI compatible: http://127.0.0.1:3001
 Codex backend:     http://127.0.0.1:3001/backend-api/codex
 Claude router:     http://127.0.0.1:3001/anthropic-router
 Pi router:         http://127.0.0.1:3001/pi-router/v1
+TokenRouter:       http://127.0.0.1:3001/tokenrouter/v1
 ```
 
 桌面端也提供「一键配置」入口，可将本机 Codex、Claude Code、OpenCode、Pi Coding Agent 写入 OmniProxy 本地代理地址，并保留原始配置备份用于恢复。
@@ -178,6 +180,7 @@ Pi router:         http://127.0.0.1:3001/pi-router/v1
 | MiniMax | API Key | 支持 OpenAI 兼容和 Anthropic 路由 |
 | Gemini | API Key | 支持 Gemini API 路由 |
 | OpenRouter | API Key | 支持模型列表刷新、余额查询和桌面端对话 |
+| TokenRouter | API Key | 支持 OpenAI 兼容路由，API Key 通常以 `tr_` 开头 |
 | 自定义网关 | API Key | 支持 OpenAI / Anthropic 兼容网关 |
 
 ## 🧰 控制 API

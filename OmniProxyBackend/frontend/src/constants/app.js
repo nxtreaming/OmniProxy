@@ -22,6 +22,7 @@ export const providers = [
   { key: 'minimax', label: 'MiniMax', note: 'API Key，模型 MiniMax-M2.7' },
   { key: 'gemini', label: 'Gemini', note: 'Google Gemini API Key' },
   { key: 'openrouter', label: 'OpenRouter', note: 'OpenRouter API Key，自动拉取模型列表' },
+  { key: 'tokenrouter', label: 'TokenRouter', note: 'TokenRouter API Key，OpenAI 兼容路由' },
   { key: 'custom', label: '自定义网关', note: 'OpenAI / Anthropic 兼容网关 API Key' },
 ]
 

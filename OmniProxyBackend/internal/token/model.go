@@ -12,16 +12,17 @@ const (
 )
 
 const (
-	ProviderOpenAI     = "openai"
-	ProviderAnthropic  = "anthropic"
-	ProviderDeepSeek   = "deepseek"
-	ProviderKimi       = "kimi"
-	ProviderXiaomi     = "xiaomi"
-	ProviderZhipu      = "zhipu"
-	ProviderMiniMax    = "minimax"
-	ProviderGemini     = "gemini"
-	ProviderOpenRouter = "openrouter"
-	ProviderCustom     = "custom"
+	ProviderOpenAI      = "openai"
+	ProviderAnthropic   = "anthropic"
+	ProviderDeepSeek    = "deepseek"
+	ProviderKimi        = "kimi"
+	ProviderXiaomi      = "xiaomi"
+	ProviderZhipu       = "zhipu"
+	ProviderMiniMax     = "minimax"
+	ProviderGemini      = "gemini"
+	ProviderOpenRouter  = "openrouter"
+	ProviderTokenRouter = "tokenrouter"
+	ProviderCustom      = "custom"
 )
 
 const (

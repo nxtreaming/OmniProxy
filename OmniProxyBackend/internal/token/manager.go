@@ -1028,6 +1028,8 @@ func normalizeRequest(req UpsertRequest) (string, string, string, string, string
 		return "", "", "", "", "", errors.New("xiaomi pay-as-you-go API key must start with sk-")
 	} else if provider == ProviderXiaomi && credentialType == CredentialTypeMimoTokenPlan && !strings.HasPrefix(value, "tp-") {
 		return "", "", "", "", "", errors.New("xiaomi token plan API key must start with tp-")
+	} else if provider == ProviderTokenRouter && credentialType == CredentialTypeAPIKey && !strings.HasPrefix(value, "tr_") {
+		return "", "", "", "", "", errors.New("tokenrouter API key must start with tr_")
 	} else if len(value) < 12 {
 		return "", "", "", "", "", errors.New("token value is too short")
 	}
@@ -1145,7 +1147,7 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodingPlan {
 			return "", "", errors.New("zhipu supports API key or Coding Plan key only")
 		}
-	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderCustom:
+	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderTokenRouter, ProviderCustom:
 		if credentialType == "" {
 			credentialType = CredentialTypeAPIKey
 		}

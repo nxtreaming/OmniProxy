@@ -193,6 +193,7 @@ const config = reactive({
   minimaxAnthropicBaseUrl: 'https://api.minimaxi.com/anthropic',
   geminiBaseUrl: 'https://generativelanguage.googleapis.com',
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
+  tokenrouterBaseUrl: 'https://api.tokenrouter.io',
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
   xiaomiBaseUrl: '',
@@ -842,6 +843,9 @@ async function submitForm() {
   } else if (replacingCredential && provider === 'xiaomi' && credentialType === 'api_key' && !tokenValue.startsWith('sk-')) {
     errorMessage.value = 'MiMo 按量 API Key 必须以 sk- 开头'
     return
+  } else if (replacingCredential && provider === 'tokenrouter' && !tokenValue.startsWith('tr_')) {
+    errorMessage.value = 'TokenRouter API Key 必须以 tr_ 开头'
+    return
   } else if ((!isEditing || replacingCredential) && tokenValue.length < 12) {
     errorMessage.value = 'Token 长度过短'
     return
@@ -1152,6 +1156,7 @@ async function persistConfig() {
       minimaxAnthropicBaseUrl: config.minimaxAnthropicBaseUrl.trim(),
       geminiBaseUrl: config.geminiBaseUrl.trim(),
       openrouterBaseUrl: config.openrouterBaseUrl.trim(),
+      tokenrouterBaseUrl: config.tokenrouterBaseUrl.trim(),
       customGatewayBaseUrl: config.customGatewayBaseUrl.trim(),
       customGatewayAnthropicBaseUrl: config.customGatewayAnthropicBaseUrl.trim(),
       xiaomiBaseUrl: config.xiaomiBaseUrl.trim(),
@@ -1596,6 +1601,9 @@ function credentialPlaceholder() {
   }
   if (form.provider === 'openrouter') {
     return '粘贴 OpenRouter API Key'
+  }
+  if (form.provider === 'tokenrouter') {
+    return '粘贴 tr_ 开头的 TokenRouter API Key'
   }
   if (form.provider === 'custom') {
     return '粘贴自定义网关 API Key'
@@ -3081,10 +3089,11 @@ GEMINI_MODEL=gemini-3-pro-preview</code></pre>
 
           <article class="wide-help">
             <strong>OpenCode</strong>
-            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini、OpenRouter 和自定义网关 provider。</p>
+            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini、OpenRouter、TokenRouter 和自定义网关 provider。</p>
             <pre class="help-code"><code>OpenAI-compatible Router: http://127.0.0.1:{{ config.proxyPort }}/opencode-router/v1
 Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini
 OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
+TokenRouter: http://127.0.0.1:{{ config.proxyPort }}/tokenrouter/v1
 Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="opencodeConfiguring" @click="configureLocalOpenCode">
@@ -3103,6 +3112,7 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
 Anthropic Router: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
 Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini/v1beta
 OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
+TokenRouter auto: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1 + model auto:balance
 Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="piConfiguring" @click="configureLocalPi">

@@ -1510,7 +1510,7 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 	openRouterModels := map[string]any{
 		"openai/gpt-test": map[string]any{"name": "GPT Test"},
 	}
-	if err := writeOpenCodeConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "http://127.0.0.1:3000/gemini", "http://127.0.0.1:3000/openrouter/v1", "http://127.0.0.1:3000/custom/v1", openRouterModels); err != nil {
+	if err := writeOpenCodeConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "http://127.0.0.1:3000/gemini", "http://127.0.0.1:3000/openrouter/v1", "http://127.0.0.1:3000/tokenrouter/v1", "http://127.0.0.1:3000/custom/v1", openRouterModels); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1519,7 +1519,7 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	providers := data["provider"].(map[string]any)
-	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeCustomProviderID} {
+	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeTokenRouterProviderID, opencodeCustomProviderID} {
 		if providers[id] == nil {
 			t.Fatalf("expected provider %s in %#v", id, providers)
 		}
@@ -1537,6 +1537,15 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 	openRouterProviderModels := openRouterProvider["models"].(map[string]any)
 	if openRouterProviderModels["openai/gpt-test"] == nil {
 		t.Fatalf("expected openrouter models in %#v", openRouterProviderModels)
+	}
+	tokenRouterProvider := providers[opencodeTokenRouterProviderID].(map[string]any)
+	tokenRouterOptions := tokenRouterProvider["options"].(map[string]any)
+	if tokenRouterOptions["baseURL"] != "http://127.0.0.1:3000/tokenrouter/v1" {
+		t.Fatalf("unexpected tokenrouter baseURL: %#v", tokenRouterOptions)
+	}
+	tokenRouterModels := tokenRouterProvider["models"].(map[string]any)
+	if tokenRouterModels["auto:balance"] == nil {
+		t.Fatalf("expected tokenrouter models in %#v", tokenRouterProvider)
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
 		t.Fatalf("expected opencode backup: %v", err)
@@ -1603,6 +1612,9 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 	}
 	if _, ok := piTestFindModel(routerModels, "custom-model"); !ok {
 		t.Fatalf("expected Pi router models to include custom gateway model: %#v", routerModels)
+	}
+	if _, ok := piTestFindModel(routerModels, "auto:balance"); !ok {
+		t.Fatalf("expected Pi router models to include TokenRouter auto model: %#v", routerModels)
 	}
 	openRouterModel, ok := piTestFindModel(routerModels, "openai/gpt-test")
 	if !ok {

@@ -248,7 +248,7 @@ defineEmits([
         <div class="settings-section-head">
           <div>
             <h3>第三方路由</h3>
-            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、Xiaomi MiMo 和自定义网关入口。</p>
+            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、Xiaomi MiMo 和自定义网关入口。</p>
           </div>
           <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
             {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
@@ -290,6 +290,10 @@ defineEmits([
           <label class="wide-field">
             <span>OpenRouter OpenAI Base URL</span>
             <input v-model="config.openrouterBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>TokenRouter OpenAI Base URL</span>
+            <input v-model="config.tokenrouterBaseUrl" type="url" />
           </label>
           <label class="wide-field">
             <span>自定义网关 OpenAI Base URL</span>

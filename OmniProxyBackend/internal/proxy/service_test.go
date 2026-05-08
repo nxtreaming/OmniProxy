@@ -1840,6 +1840,48 @@ func TestServiceRoutesOpenRouterRequests(t *testing.T) {
 	}
 }
 
+func TestServiceRoutesTokenRouterRequests(t *testing.T) {
+	var upstreamPath string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":7}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "tokenrouter", Provider: token.ProviderTokenRouter, TokenValue: "tr_test_token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:          3000,
+		ControlPort:        3890,
+		TokenRouterBaseURL: upstream.URL,
+		SwitchThreshold:    15,
+		MaxRetries:         0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/tokenrouter/v1/chat/completions", stringsReader(`{"model":"auto:balance","messages":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1/chat/completions" || authorization != "Bearer tr_test_token" {
+		t.Fatalf("unexpected tokenrouter route path=%q authorization=%q", upstreamPath, authorization)
+	}
+}
+
 func TestServiceRoutesOpenCodeRouterToZhipu(t *testing.T) {
 	var upstreamPath string
 	var authorization string

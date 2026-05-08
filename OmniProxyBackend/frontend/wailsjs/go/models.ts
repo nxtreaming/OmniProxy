@@ -17,6 +17,7 @@ export namespace config {
 	    minimaxAnthropicBaseUrl: string;
 	    geminiBaseUrl: string;
 	    openrouterBaseUrl: string;
+	    tokenrouterBaseUrl: string;
 	    customGatewayBaseUrl: string;
 	    customGatewayAnthropicBaseUrl: string;
 	    xiaomiBaseUrl: string;
@@ -56,6 +57,7 @@ export namespace config {
 	        this.minimaxAnthropicBaseUrl = source["minimaxAnthropicBaseUrl"];
 	        this.geminiBaseUrl = source["geminiBaseUrl"];
 	        this.openrouterBaseUrl = source["openrouterBaseUrl"];
+	        this.tokenrouterBaseUrl = source["tokenrouterBaseUrl"];
 	        this.customGatewayBaseUrl = source["customGatewayBaseUrl"];
 	        this.customGatewayAnthropicBaseUrl = source["customGatewayAnthropicBaseUrl"];
 	        this.xiaomiBaseUrl = source["xiaomiBaseUrl"];

@@ -45,7 +45,7 @@ Codex / Claude Code / OpenCode / Pi / API Client
               |
               v
 OpenAI / Anthropic / DeepSeek / Kimi / Xiaomi MiMo
-Zhipu GLM / MiniMax / Gemini / OpenRouter / Custom Gateway
+Zhipu GLM / MiniMax / Gemini / OpenRouter / TokenRouter / Custom Gateway
 ```
 
 OmniProxy does not require clients to know which real account is being used. Point your client to the local proxy, and OmniProxy handles account selection, auth header injection, retries, quota updates, and logs.
@@ -134,7 +134,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Version dev-is
 ## 🧭 Usage
 
 1. 🚀 Start OmniProxy.
-2. 🔑 Add OpenAI, Anthropic, DeepSeek, Kimi, Xiaomi MiMo, Zhipu, MiniMax, Gemini, OpenRouter, or custom gateway accounts in **Account Management**.
+2. 🔑 Add OpenAI, Anthropic, DeepSeek, Kimi, Xiaomi MiMo, Zhipu, MiniMax, Gemini, OpenRouter, TokenRouter, or custom gateway accounts in **Account Management**.
 3. ⚙️ Confirm proxy port and provider Base URLs in **Global Settings**.
 4. 🟢 Start the local proxy.
 5. 🧩 Point Codex, Claude Code, OpenCode, Pi Coding Agent, or your API client to the local proxy.
@@ -148,6 +148,7 @@ OpenAI compatible: http://127.0.0.1:3000
 Codex backend:     http://127.0.0.1:3000/backend-api/codex
 Claude router:     http://127.0.0.1:3000/anthropic-router
 Pi router:         http://127.0.0.1:3000/pi-router/v1
+TokenRouter:       http://127.0.0.1:3000/tokenrouter/v1
 ```
 
 The Dev build shifts the default ports:
@@ -157,6 +158,7 @@ OpenAI compatible: http://127.0.0.1:3001
 Codex backend:     http://127.0.0.1:3001/backend-api/codex
 Claude router:     http://127.0.0.1:3001/anthropic-router
 Pi router:         http://127.0.0.1:3001/pi-router/v1
+TokenRouter:       http://127.0.0.1:3001/tokenrouter/v1
 ```
 
 The desktop app also includes one-click setup actions for local Codex, Claude Code, OpenCode, and Pi Coding Agent configuration, with restore support for previous config files.
@@ -178,6 +180,7 @@ The desktop app also includes one-click setup actions for local Codex, Claude Co
 | MiniMax | API Key | Supports OpenAI-compatible and Anthropic routing |
 | Gemini | API Key | Supports Gemini API routing |
 | OpenRouter | API Key | Supports model refresh, balance checks, and desktop chat |
+| TokenRouter | API Key | Supports OpenAI-compatible routing, usually starts with `tr_` |
 | Custom Gateway | API Key | Supports OpenAI / Anthropic-compatible gateways |
 
 ## 🧰 Control API
