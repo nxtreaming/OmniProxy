@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1401,6 +1402,88 @@ func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
 				t.Fatalf("expected settings not to contain %q, got:\n%s", tc.unwanted, text)
 			}
 		})
+	}
+}
+
+func TestWriteSelectedClaudeSettingsUsesSelectedModels(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	initial := `{"env":{"ANTHROPIC_MODEL":"mimo-v2.5-pro[1m]","ANTHROPIC_DEFAULT_HAIKU_MODEL":"mimo-v2.5","ANTHROPIC_CUSTOM_MODEL_OPTION":"mimo-v2.5-pro","OTHER":"keep"},"availableModels":["custom-existing-model","mimo-v2.5-pro[1m]"],"modelOverrides":{"claude-opus-4-7":"mimo-v2.5-pro"}}` + "\n"
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := normalizeClaudeModelTargets([]string{"deepseek-v4-pro", "mimo-2.5-pro"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeSelectedClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router", targets); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/anthropic-router"`,
+		`"ANTHROPIC_AUTH_TOKEN": "omniproxy"`,
+		`"ANTHROPIC_MODEL": "deepseek-v4-pro[1m]"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "DeepSeek V4 Pro"`,
+		`"ANTHROPIC_DEFAULT_SONNET_MODEL": "mimo-v2.5-pro"`,
+		`"ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "MiMo-V2.5-Pro"`,
+		`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "mimo-v2.5-pro"`,
+		`"CLAUDE_CODE_SUBAGENT_MODEL": "mimo-v2.5-pro"`,
+		`"CLAUDE_CODE_EFFORT_LEVEL": "max"`,
+		`"OTHER": "keep"`,
+		`"custom-existing-model"`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
+		}
+	}
+	for _, unwanted := range []string{
+		`"ANTHROPIC_CUSTOM_MODEL_OPTION"`,
+		`"claude-opus-4-7"`,
+		`"mimo-v2.5-pro[1m]"`,
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
+		}
+	}
+}
+
+func TestNormalizeClaudeModelTargetsValidatesSelection(t *testing.T) {
+	targets, err := normalizeClaudeModelTargets([]string{
+		"deepseek-4-pro",
+		"deepseek-v4-pro[1m]",
+		"mimo-2.5-pro",
+		"kimi-for-coding",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	models := claudeModelIDs(targets)
+	expected := []string{deepSeekProModel, mimoModel, kimiCodingModel}
+	if !reflect.DeepEqual(models, expected) {
+		t.Fatalf("expected normalized models %#v, got %#v", expected, models)
+	}
+
+	if _, err := normalizeClaudeModelTargets(nil); err == nil {
+		t.Fatal("expected empty model selection to fail")
+	}
+	if _, err := normalizeClaudeModelTargets([]string{"unknown-model"}); err == nil {
+		t.Fatal("expected unknown model to fail")
+	}
+	if _, err := normalizeClaudeModelTargets([]string{
+		deepSeekProModel,
+		deepSeekFastModel,
+		mimoLongContextModel,
+		mimoModel,
+		kimiCodingModel,
+	}); err == nil {
+		t.Fatal("expected more than four selected models to fail")
 	}
 }
 

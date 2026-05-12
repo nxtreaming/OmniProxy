@@ -27,6 +27,8 @@ export function ClearRequestHistory():Promise<void>;
 
 export function Config():Promise<config.Config>;
 
+export function ConfigureClaudeModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
+
 export function ConfigureCodex():Promise<main.codexConfigureResult>;
 
 export function ConfigureDeepSeekClaude():Promise<main.mimoConfigureResult>;

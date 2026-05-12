@@ -293,6 +293,18 @@ export namespace main {
 	        this.suitableScene = source["suitableScene"];
 	    }
 	}
+	export class claudeModelsConfigureRequest {
+	    models: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new claudeModelsConfigureRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.models = source["models"];
+	    }
+	}
 	export class clientConfigureResult {
 	    configPath?: string;
 	    settingsPath?: string;
@@ -520,6 +532,7 @@ export namespace main {
 	    backupPath?: string;
 	    baseUrl?: string;
 	    model?: string;
+	    models?: string[];
 	    envConfigured?: boolean;
 	    message: string;
 	
@@ -535,6 +548,7 @@ export namespace main {
 	        this.backupPath = source["backupPath"];
 	        this.baseUrl = source["baseUrl"];
 	        this.model = source["model"];
+	        this.models = source["models"];
 	        this.envConfigured = source["envConfigured"];
 	        this.message = source["message"];
 	    }
@@ -1133,4 +1147,3 @@ export namespace token {
 	}
 
 }
-

@@ -322,6 +322,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/kimi/claude/restore", a.handleKimiClaudeRestore)
 	mux.HandleFunc("/api/zhipu/claude/configure", a.handleZhipuClaudeConfigure)
 	mux.HandleFunc("/api/zhipu/claude/restore", a.handleZhipuClaudeRestore)
+	mux.HandleFunc("/api/claude/models/configure", a.handleClaudeModelsConfigure)
 	mux.HandleFunc("/api/gemini/configure", a.handleGeminiConfigure)
 	mux.HandleFunc("/api/gemini/restore", a.handleGeminiRestore)
 	mux.HandleFunc("/api/openrouter/models", a.handleOpenRouterModels)
@@ -1405,6 +1406,30 @@ func (a *appServer) handleZhipuClaudeRestore(w http.ResponseWriter, r *http.Requ
 	}
 	result, err := a.restoreZhipuClaudeConfig()
 	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleClaudeModelsConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	var req claudeModelsConfigureRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	result, err := a.configureClaudeModels(req)
+	if err != nil {
+		var selectionErr *claudeModelSelectionError
+		if errors.As(err, &selectionErr) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

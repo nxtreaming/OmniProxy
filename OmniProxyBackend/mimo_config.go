@@ -21,17 +21,23 @@ const (
 	kimiCodingModel      = "kimi-for-coding"
 	zhipuGLMModel        = "glm-5.1"
 	omniProxyMimoAuth    = "omniproxy"
+	maxClaudeModels      = 4
 )
 
 type mimoConfigureResult struct {
-	ConfigPath    string `json:"configPath,omitempty"`
-	SettingsPath  string `json:"settingsPath,omitempty"`
-	ClaudePath    string `json:"claudePath,omitempty"`
-	BackupPath    string `json:"backupPath,omitempty"`
-	BaseURL       string `json:"baseUrl,omitempty"`
-	Model         string `json:"model,omitempty"`
-	EnvConfigured bool   `json:"envConfigured,omitempty"`
-	Message       string `json:"message"`
+	ConfigPath    string   `json:"configPath,omitempty"`
+	SettingsPath  string   `json:"settingsPath,omitempty"`
+	ClaudePath    string   `json:"claudePath,omitempty"`
+	BackupPath    string   `json:"backupPath,omitempty"`
+	BaseURL       string   `json:"baseUrl,omitempty"`
+	Model         string   `json:"model,omitempty"`
+	Models        []string `json:"models,omitempty"`
+	EnvConfigured bool     `json:"envConfigured,omitempty"`
+	Message       string   `json:"message"`
+}
+
+type claudeModelsConfigureRequest struct {
+	Models []string `json:"models"`
 }
 
 type claudeModelTarget struct {
@@ -73,6 +79,14 @@ var (
 	}
 )
 
+type claudeModelSelectionError struct {
+	message string
+}
+
+func (e *claudeModelSelectionError) Error() string {
+	return e.message
+}
+
 func (a *appServer) configureMimoClaude() (mimoConfigureResult, error) {
 	return a.configureClaudeWithWriter(claudeMimoTarget, func(path string, baseURL string) error {
 		return writeMimoClaudeSettings(path, baseURL)
@@ -95,6 +109,28 @@ func (a *appServer) configureZhipuClaude() (mimoConfigureResult, error) {
 	return a.configureClaudeWithWriter(claudeZhipuTarget, func(path string, baseURL string) error {
 		return writeZhipuClaudeSettings(path, baseURL)
 	})
+}
+
+func (a *appServer) configureClaudeModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
+	targets, err := normalizeClaudeModelTargets(req.Models)
+	if err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	models := claudeModelIDs(targets)
+	target := claudeModelTarget{
+		Model:      targets[0].Model,
+		LogMessage: "selected claude models configured",
+		Message:    fmt.Sprintf("Claude Code 已配置 %d 个模型：%s", len(targets), strings.Join(claudeModelNames(targets), "、")),
+	}
+	result, err := a.configureClaudeWithWriter(target, func(path string, baseURL string) error {
+		return writeSelectedClaudeSettings(path, baseURL, targets)
+	})
+	if err != nil {
+		return mimoConfigureResult{}, err
+	}
+	result.Models = models
+	return result, nil
 }
 
 func (a *appServer) configureClaudeWithWriter(target claudeModelTarget, writeSettings func(string, string) error) (mimoConfigureResult, error) {
@@ -239,6 +275,37 @@ func writeZhipuClaudeSettings(path string, baseURL string) error {
 	return writeClaudeSingleModelSettings(path, baseURL, claudeZhipuTarget)
 }
 
+func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeModelTarget) error {
+	if len(targets) == 0 {
+		return &claudeModelSelectionError{message: "至少选择一个 Claude Code 模型"}
+	}
+
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+		return err
+	}
+
+	env := cleanClaudeEnv(data)
+	env["ANTHROPIC_BASE_URL"] = baseURL
+	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
+	env["ANTHROPIC_MODEL"] = targets[0].Model
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeTargetAt(targets, 0))
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeTargetAt(targets, 1))
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeTargetAt(targets, 2))
+	env["CLAUDE_CODE_SUBAGENT_MODEL"] = claudeTargetAt(targets, 1).Model
+	if len(targets) == maxClaudeModels {
+		setClaudeModelGroup(env, "ANTHROPIC_CUSTOM_MODEL_OPTION", targets[maxClaudeModels-1])
+	}
+	if claudeTargetsInclude(targets, deepSeekProModel) {
+		env["CLAUDE_CODE_EFFORT_LEVEL"] = "max"
+	}
+	data["env"] = env
+	return writeJSONObject(path, data)
+}
+
 func writeClaudeSingleModelSettings(path string, baseURL string, target claudeModelTarget) error {
 	data, err := readJSONObject(path)
 	if err != nil {
@@ -274,6 +341,123 @@ func writeClaudeSingleModelSettings(path string, baseURL string, target claudeMo
 	return writeJSONObject(path, data)
 }
 
+func setClaudeModelGroup(env map[string]any, key string, target claudeModelTarget) {
+	env[key] = target.Model
+	env[key+"_NAME"] = target.Name
+	env[key+"_DESCRIPTION"] = target.Description
+}
+
+func claudeTargetAt(targets []claudeModelTarget, index int) claudeModelTarget {
+	if index < len(targets) {
+		return targets[index]
+	}
+	return targets[len(targets)-1]
+}
+
+func claudeTargetsInclude(targets []claudeModelTarget, model string) bool {
+	for _, target := range targets {
+		if strings.EqualFold(target.Model, model) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeClaudeModelTargets(models []string) ([]claudeModelTarget, error) {
+	if len(models) == 0 {
+		return nil, &claudeModelSelectionError{message: "至少选择一个 Claude Code 模型"}
+	}
+
+	targetsByModel := claudeSelectableTargetsByModel()
+	seen := map[string]bool{}
+	targets := make([]claudeModelTarget, 0, len(models))
+	for _, raw := range models {
+		model := normalizeClaudeModelID(raw)
+		if model == "" {
+			continue
+		}
+		target, ok := targetsByModel[model]
+		if !ok {
+			return nil, &claudeModelSelectionError{message: fmt.Sprintf("不支持的 Claude Code 模型：%s", strings.TrimSpace(raw))}
+		}
+		if seen[target.Model] {
+			continue
+		}
+		targets = append(targets, target)
+		seen[target.Model] = true
+		if len(targets) > maxClaudeModels {
+			return nil, &claudeModelSelectionError{message: fmt.Sprintf("Claude Code 最多选择 %d 个模型", maxClaudeModels)}
+		}
+	}
+	if len(targets) == 0 {
+		return nil, &claudeModelSelectionError{message: "至少选择一个 Claude Code 模型"}
+	}
+	return targets, nil
+}
+
+func normalizeClaudeModelID(model string) string {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "deepseek-v4-pro", "deepseek-4-pro":
+		return deepSeekProModel
+	case "mimo-v2.5-pro-1m", "mimo-2.5-pro-1m":
+		return mimoLongContextModel
+	case "mimo-2.5-pro":
+		return mimoModel
+	case "mimo-2.5":
+		return mimoStandardModel
+	default:
+		return strings.ToLower(strings.TrimSpace(model))
+	}
+}
+
+func claudeSelectableTargetsByModel() map[string]claudeModelTarget {
+	targets := map[string]claudeModelTarget{}
+	for _, target := range claudeSelectableTargets() {
+		targets[strings.ToLower(target.Model)] = target
+	}
+	return targets
+}
+
+func claudeSelectableTargets() []claudeModelTarget {
+	return []claudeModelTarget{
+		claudeDeepSeekTarget,
+		{
+			Model:       deepSeekFastModel,
+			Name:        "DeepSeek V4 Flash",
+			Description: "DeepSeek V4 Flash routed through OmniProxy",
+		},
+		claudeMimoTarget,
+		{
+			Model:       mimoModel,
+			Name:        "MiMo-V2.5-Pro",
+			Description: "Xiaomi MiMo-V2.5-Pro routed through OmniProxy",
+		},
+		{
+			Model:       mimoStandardModel,
+			Name:        "MiMo-V2.5",
+			Description: "Xiaomi MiMo-V2.5 routed through OmniProxy",
+		},
+		claudeKimiTarget,
+		claudeZhipuTarget,
+	}
+}
+
+func claudeModelIDs(targets []claudeModelTarget) []string {
+	models := make([]string, 0, len(targets))
+	for _, target := range targets {
+		models = append(models, target.Model)
+	}
+	return models
+}
+
+func claudeModelNames(targets []claudeModelTarget) []string {
+	names := make([]string, 0, len(targets))
+	for _, target := range targets {
+		names = append(names, target.Name)
+	}
+	return names
+}
+
 func cleanClaudeEnv(data map[string]any) map[string]any {
 	env, _ := data["env"].(map[string]any)
 	if env == nil {
@@ -300,6 +484,11 @@ func claudeRouterAvailableModels() []string {
 		"claude-sonnet-4-5-20250929",
 		"claude-sonnet-4-20250514",
 		"claude-haiku-4-5-20251001",
+		mimoModel,
+		mimoLongContextModel,
+		mimoStandardModel,
+		deepSeekProModel,
+		deepSeekFastModel,
 		kimiCodingModel,
 		zhipuGLMModel,
 	}

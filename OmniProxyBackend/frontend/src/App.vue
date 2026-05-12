@@ -21,6 +21,7 @@ import {
 } from '../wailsjs/runtime/runtime'
 import {
   configureCodex,
+  configureClaudeModels,
   configureDeepSeekClaude,
   configureGemini,
   configureKimiClaude,
@@ -124,6 +125,7 @@ const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
 const zhipuClaudeConfiguring = ref(false)
+const claudeModelsConfiguring = ref(false)
 const geminiConfiguring = ref(false)
 const opencodeConfiguring = ref(false)
 const piConfiguring = ref(false)
@@ -219,6 +221,45 @@ const dataDirectory = reactive({
   pendingDataDir: '',
   restartRequired: false,
 })
+const claudeModelSelectionLimit = 4
+const claudeModelOptions = [
+  {
+    id: 'deepseek-v4-pro[1m]',
+    label: 'DeepSeek V4 Pro',
+    description: 'deepseek-v4-pro[1m]',
+  },
+  {
+    id: 'deepseek-v4-flash',
+    label: 'DeepSeek V4 Flash',
+    description: 'deepseek-v4-flash',
+  },
+  {
+    id: 'mimo-v2.5-pro[1m]',
+    label: 'MiMo V2.5 Pro 1M',
+    description: 'mimo-v2.5-pro[1m]',
+  },
+  {
+    id: 'mimo-v2.5-pro',
+    label: 'MiMo V2.5 Pro',
+    description: 'mimo-v2.5-pro',
+  },
+  {
+    id: 'mimo-v2.5',
+    label: 'MiMo V2.5',
+    description: 'mimo-v2.5',
+  },
+  {
+    id: 'kimi-for-coding',
+    label: 'Kimi for Coding',
+    description: 'kimi-for-coding',
+  },
+  {
+    id: 'glm-5.1',
+    label: 'GLM-5.1',
+    description: 'glm-5.1',
+  },
+]
+const selectedClaudeModels = ref([])
 const appInfo = reactive({
   name: 'OmniProxy',
   version: 'dev',
@@ -260,6 +301,12 @@ const activeProviderEnabledCount = computed(
 const openRouterTokens = computed(() => providerTokens('openrouter'))
 const currentTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label || '控制台')
 const proxyEndpoint = computed(() => `127.0.0.1:${proxyStatus.port || config.proxyPort}`)
+const selectedClaudeModelLabels = computed(() =>
+  selectedClaudeModels.value.map((model) => claudeModelLabel(model)).filter(Boolean),
+)
+const canConfigureClaudeModels = computed(
+  () => selectedClaudeModels.value.length > 0 && selectedClaudeModels.value.length <= claudeModelSelectionLimit,
+)
 const dashboardSignals = computed(() => [
   {
     label: '代理端口',
@@ -443,6 +490,18 @@ watch(activeProvider, (provider) => {
 watch(openRouterModels, (models) => {
   if (!selectedOpenRouterChatModel.value && models.length) {
     selectedOpenRouterChatModel.value = models[0].id
+  }
+})
+
+watch(selectedClaudeModels, (models) => {
+  const normalized = []
+  for (const model of models) {
+    if (!model || normalized.includes(model)) continue
+    normalized.push(model)
+    if (normalized.length >= claudeModelSelectionLimit) break
+  }
+  if (normalized.length !== models.length || normalized.some((model, index) => model !== models[index])) {
+    selectedClaudeModels.value = normalized
   }
 })
 
@@ -1361,6 +1420,41 @@ async function configureLocalZhipuClaude() {
     errorMessage.value = error.message
   } finally {
     zhipuClaudeConfiguring.value = false
+  }
+}
+
+function claudeModelLabel(modelId) {
+  return claudeModelOptions.find((option) => option.id === modelId)?.label || modelId
+}
+
+function isClaudeModelOptionDisabled(modelId) {
+  return selectedClaudeModels.value.length >= claudeModelSelectionLimit && !selectedClaudeModels.value.includes(modelId)
+}
+
+function selectedClaudeModelIds() {
+  return selectedClaudeModels.value.map((model) => String(model || '').trim()).filter(Boolean)
+}
+
+async function configureLocalClaudeModels() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  const models = selectedClaudeModelIds()
+  if (models.length === 0) {
+    errorMessage.value = '至少选择一个 Claude Code 模型'
+    return
+  }
+  if (models.length > claudeModelSelectionLimit) {
+    errorMessage.value = `Claude Code 最多选择 ${claudeModelSelectionLimit} 个模型`
+    return
+  }
+  claudeModelsConfiguring.value = true
+  try {
+    const result = await configureClaudeModels(models)
+    successMessage.value = result.message || 'Claude Code 已按选择模型完成配置'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    claudeModelsConfiguring.value = false
   }
 }
 
@@ -3047,13 +3141,55 @@ async function refreshQuota(item) {
 
           <article class="wide-help">
             <strong>Claude Code</strong>
-            <p>每次只接入一个 Claude Code 上游。DeepSeek 和 MiMo 会分别写入多个模型槽位，Kimi 和 GLM 会写入单模型槽位，并清理 OmniProxy 旧配置。</p>
+            <p>每次只接入一个 Claude Code 上游，也可以按需选择最多 4 个模型写入模型槽位，并清理 OmniProxy 旧配置。</p>
             <pre class="help-code"><code>Claude Router URL: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
 DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
 MiMo: MiMo-V2.5-Pro / MiMo-V2.5
 Kimi model: kimi-for-coding
 GLM model: glm-5.1</code></pre>
+            <div class="claude-model-config">
+              <div class="claude-model-config-head">
+                <span>可选模型</span>
+                <small>{{ selectedClaudeModels.length }} / {{ claudeModelSelectionLimit }}</small>
+              </div>
+              <div class="claude-model-picker" role="group" aria-label="Claude Code 可选模型">
+                <label
+                  v-for="option in claudeModelOptions"
+                  :key="option.id"
+                  :class="[
+                    'claude-model-choice',
+                    {
+                      selected: selectedClaudeModels.includes(option.id),
+                      disabled: isClaudeModelOptionDisabled(option.id),
+                    },
+                  ]"
+                >
+                  <input
+                    v-model="selectedClaudeModels"
+                    type="checkbox"
+                    :value="option.id"
+                    :disabled="isClaudeModelOptionDisabled(option.id)"
+                  />
+                  <span>
+                    <strong>{{ option.label }}</strong>
+                    <small>{{ option.description }}</small>
+                  </span>
+                </label>
+              </div>
+              <small class="claude-model-selection">
+                已选：{{ selectedClaudeModelLabels.length ? selectedClaudeModelLabels.join('、') : '未选择' }}
+              </small>
+            </div>
             <div class="help-actions">
+              <el-button
+                type="success"
+                :icon="MagicStick"
+                :loading="claudeModelsConfiguring"
+                :disabled="!canConfigureClaudeModels"
+                @click="configureLocalClaudeModels"
+              >
+                {{ claudeModelsConfiguring ? '配置中' : '按选择接入 Claude' }}
+              </el-button>
               <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="configureLocalDeepSeekClaude">
                 {{ deepSeekClaudeConfiguring ? '配置中' : '接入 Claude DeepSeek' }}
               </el-button>

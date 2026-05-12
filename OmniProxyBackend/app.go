@@ -673,6 +673,10 @@ func (a *DesktopApp) ConfigureZhipuClaude() (mimoConfigureResult, error) {
 	return a.server.configureZhipuClaude()
 }
 
+func (a *DesktopApp) ConfigureClaudeModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
+	return a.server.configureClaudeModels(req)
+}
+
 func (a *DesktopApp) RestoreZhipuClaude() (mimoConfigureResult, error) {
 	return a.server.restoreZhipuClaudeConfig()
 }

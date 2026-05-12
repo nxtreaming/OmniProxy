@@ -493,6 +493,13 @@ export function configureZhipuClaude() {
     : request('/zhipu/claude/configure', { method: 'POST' })
 }
 
+export function configureClaudeModels(models) {
+  const payload = { models: Array.isArray(models) ? models : [] }
+  return useWailsBindings() && DesktopApp.ConfigureClaudeModels
+    ? DesktopApp.ConfigureClaudeModels(payload)
+    : request('/claude/models/configure', { method: 'POST', body: JSON.stringify(payload) })
+}
+
 export function restoreZhipuClaude() {
   return useWailsBindings()
     ? DesktopApp.RestoreZhipuClaude()

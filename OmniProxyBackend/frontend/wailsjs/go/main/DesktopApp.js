@@ -46,6 +46,10 @@ export function Config() {
   return window['go']['main']['DesktopApp']['Config']();
 }
 
+export function ConfigureClaudeModels(arg1) {
+  return window['go']['main']['DesktopApp']['ConfigureClaudeModels'](arg1);
+}
+
 export function ConfigureCodex() {
   return window['go']['main']['DesktopApp']['ConfigureCodex']();
 }

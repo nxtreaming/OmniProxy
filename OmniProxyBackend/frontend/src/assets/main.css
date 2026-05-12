@@ -4555,6 +4555,72 @@ tr:last-child td {
   justify-content: flex-start;
 }
 
+.claude-model-config {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.claude-model-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.claude-model-config-head span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.claude-model-config-head small,
+.claude-model-selection,
+.claude-model-choice small {
+  color: var(--text-muted);
+}
+
+.claude-model-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+  border-top: 1px solid var(--line);
+}
+
+.claude-model-choice {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.claude-model-choice input {
+  margin-top: 3px;
+}
+
+.claude-model-choice span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.claude-model-choice strong {
+  font-size: 13px;
+}
+
+.claude-model-choice.selected strong {
+  color: var(--brand);
+}
+
+.claude-model-choice.disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
 .wide-field {
   grid-column: span 2;
 }
@@ -6369,6 +6435,7 @@ h1 {
   .view-grid,
   .settings-grid,
   .help-grid,
+  .claude-model-picker,
   .about-page,
   .about-page-column,
   .about-info-grid,
