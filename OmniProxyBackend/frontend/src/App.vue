@@ -8,6 +8,7 @@ import HistoryView from './components/HistoryView.vue'
 import LogsView from './components/LogsView.vue'
 import OpenRouterChatView from './components/OpenRouterChatView.vue'
 import SettingsView from './components/SettingsView.vue'
+import TokenBatchImportModal from './components/TokenBatchImportModal.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
 import TokensView from './components/TokensView.vue'
 import appIconUrl from './assets/appicon.png'
@@ -55,7 +56,9 @@ import {
   getUpdateDownloadStatus,
   importMimoCookieFromHAR,
   installDownloadedUpdate,
+  importAPIKeys,
   openExternalURL,
+  refreshTokenAuth,
   saveConfig,
   setAutoStart,
   setTokenDisabled,
@@ -148,6 +151,7 @@ const exportingHistory = ref('')
 const exportingTokens = ref(false)
 const exportingCodexAuth = ref(false)
 const codexAuthImporting = ref(false)
+const batchImporting = ref(false)
 const clearingBillingUsage = ref(false)
 const clearingRequestHistory = ref(false)
 const errorMessage = ref('')
@@ -161,6 +165,7 @@ let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
 const validatingIds = reactive({})
+const refreshingTokenIds = reactive({})
 const togglingTokenIds = reactive({})
 const switchingOnlyTokenIds = reactive({})
 const tokens = ref([])
@@ -284,6 +289,12 @@ const form = reactive({
   region: 'cn',
   baseUrl: '',
   tokenValue: '',
+})
+const batchImportForm = reactive({
+  visible: false,
+  provider: 'openai',
+  baseUrl: '',
+  tokenText: '',
 })
 const enabledTokens = computed(() => tokens.value.filter((item) => !item.disabled))
 const disabledTokens = computed(() => tokens.value.filter((item) => item.disabled))
@@ -959,6 +970,94 @@ async function submitForm() {
   }
 }
 
+function openBatchImport(provider = 'openai') {
+  Object.assign(batchImportForm, {
+    visible: true,
+    provider,
+    baseUrl: provider === 'sub2api' ? config.sub2apiBaseUrl : '',
+    tokenText: '',
+  })
+}
+
+function closeBatchImport() {
+  if (batchImporting.value) return
+  batchImportForm.visible = false
+}
+
+function onBatchImportProviderChange() {
+  if (batchImportForm.provider === 'sub2api' && !batchImportForm.baseUrl) {
+    batchImportForm.baseUrl = config.sub2apiBaseUrl
+  } else if (batchImportForm.provider !== 'sub2api') {
+    batchImportForm.baseUrl = ''
+  }
+}
+
+function batchImportPlaceholder() {
+  return [
+    'sk-aa0aeaf480484648a8a93d672d76334d  # balance: 10.14 CNY',
+    'sk-460d28e38c7e4b05a13fa2bebd27159c  # balance: 0.24 USD',
+    'sk-3d7acb8511ad4da18e8b0c89733f472b  # balance: 7.18 USD',
+  ].join('\n')
+}
+
+async function submitBatchImport() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  const provider = batchImportForm.provider.trim() || 'openai'
+  const baseUrl = provider === 'sub2api' ? batchImportForm.baseUrl.trim() : ''
+  const tokenText = batchImportForm.tokenText.trim()
+
+  if (!tokenText) {
+    errorMessage.value = '请先粘贴要导入的 API Key'
+    return
+  }
+  if (provider === 'sub2api') {
+    if (!baseUrl) {
+      errorMessage.value = 'sub2api Base URL 不能为空'
+      return
+    }
+    try {
+      const parsed = new URL(baseUrl)
+      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host) {
+        errorMessage.value = 'sub2api Base URL 格式不正确'
+        return
+      }
+    } catch {
+      errorMessage.value = 'sub2api Base URL 格式不正确'
+      return
+    }
+  }
+
+  batchImporting.value = true
+  try {
+    const result = await importAPIKeys({
+      provider,
+      credentialType: 'api_key',
+      region: '',
+      baseUrl,
+      tokenText,
+    })
+    batchImportForm.visible = false
+    activeProvider.value = provider
+    await refreshAll()
+    if (provider === 'openrouter' && result.createdCount) {
+      await refreshOpenRouterModels({ force: true })
+    }
+
+    const created = result.createdCount || 0
+    const skipped = result.skipped?.length || 0
+    if (created > 0) {
+      successMessage.value = `已导入 ${created} 个 API Key${skipped ? `，跳过 ${skipped} 行` : ''}`
+    } else {
+      errorMessage.value = skipped ? `没有导入新的 API Key，已跳过 ${skipped} 行` : '没有导入新的 API Key'
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    batchImporting.value = false
+  }
+}
+
 async function removeToken(token) {
   deleteCandidate.value = token
 }
@@ -1061,6 +1160,26 @@ async function verifyToken(token) {
     errorMessage.value = error.message
   } finally {
     validatingIds[token.id] = false
+  }
+}
+
+async function refreshAuthToken(token) {
+  if (!isCodexToken(token)) {
+    errorMessage.value = '当前账号不支持刷新令牌'
+    return
+  }
+  errorMessage.value = ''
+  successMessage.value = ''
+  refreshingTokenIds[token.id] = true
+  try {
+    const updated = await refreshTokenAuth(token.id)
+    replaceToken(updated)
+    await refreshRealtime()
+    successMessage.value = `令牌已刷新：${updated.name}`
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    refreshingTokenIds[token.id] = false
   }
 }
 
@@ -3089,12 +3208,14 @@ async function refreshQuota(item) {
         :exporting-tokens="exportingTokens"
         :exporting-codex-auth="exportingCodexAuth"
         :codex-auth-importing="codexAuthImporting"
+        :batch-importing="batchImporting"
         :open-router-models="openRouterModels"
         :open-router-models-loading="openRouterModelsLoading"
         :open-router-models-error="openRouterModelsError"
         :open-router-models-fetched-at="openRouterModelsFetchedAt"
         :open-router-models-cached="openRouterModelsCached"
         :validating-ids="validatingIds"
+        :refreshing-token-ids="refreshingTokenIds"
         :toggling-token-ids="togglingTokenIds"
         :provider-tokens="providerTokens"
         :credential-label="credentialLabel"
@@ -3113,7 +3234,9 @@ async function refreshQuota(item) {
         @refresh-open-router-models="refreshOpenRouterModels({ force: true })"
         @open-router-model-chat="openOpenRouterChat"
         @open-create-form="openCreateForm"
+        @open-batch-import="openBatchImport"
         @verify-token="verifyToken"
+        @refresh-token-auth="refreshAuthToken"
         @toggle-token-enabled="toggleTokenEnabled"
         @open-edit-form="openEditForm"
         @remove-token="removeToken"
@@ -3401,6 +3524,19 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
           @close="closeForm"
           @submit="submitForm"
           @provider-change="onProviderChange"
+        />
+      </Transition>
+
+      <Transition name="modal-pop" appear>
+        <TokenBatchImportModal
+          v-if="batchImportForm.visible"
+          :form="batchImportForm"
+          :providers="providers"
+          :placeholder="batchImportPlaceholder()"
+          :importing="batchImporting"
+          @close="closeBatchImport"
+          @submit="submitBatchImport"
+          @provider-change="onBatchImportProviderChange"
         />
       </Transition>
 

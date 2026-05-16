@@ -5,9 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -548,6 +550,143 @@ func TestAddCodexTokenRefreshesUsage(t *testing.T) {
 	}
 	if items[0].Remaining != 77 || items[0].Usage.PrimaryRemainingPercent != 77 || items[0].Usage.SecondaryRemainingPercent != 59 {
 		t.Fatalf("expected usage to be refreshed after add, got remaining=%d usage=%#v", items[0].Remaining, items[0].Usage)
+	}
+}
+
+func TestTokenRefreshEndpointForcesCodexRefresh(t *testing.T) {
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForMainTestWithRefreshToken(t, "coder@example.com", "account-123", "old-access-token", "old-refresh-token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newIDToken := codexIDTokenForMainTest(t, "coder@example.com")
+	refreshBody, err := json.Marshal(map[string]any{
+		"access_token":  "new-access-token",
+		"id_token":      newIDToken,
+		"refresh_token": "new-refresh-token",
+		"expires_in":    3600,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalTransport := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != "https://auth.openai.com/oauth/token" {
+			t.Fatalf("unexpected refresh endpoint: %s", req.URL.String())
+		}
+		if req.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", req.Method)
+		}
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		values, err := url.ParseQuery(string(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if values.Get("refresh_token") != "old-refresh-token" {
+			t.Fatalf("unexpected refresh_token: %q", values.Get("refresh_token"))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(string(refreshBody))),
+		}, nil
+	})
+	defer func() {
+		http.DefaultTransport = originalTransport
+	}()
+
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:       3000,
+			ControlPort:     3890,
+			UpstreamBaseURL: "https://api.openai.com",
+			SwitchThreshold: 15,
+			MaxRetries:      1,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tokens/"+item.ID+"/refresh", nil)
+	res := httptest.NewRecorder()
+	app.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(updated.TokenValue, "new-access-token") || !strings.Contains(updated.TokenValue, "new-refresh-token") {
+		t.Fatalf("expected stored auth token to be refreshed, got %s", updated.TokenValue)
+	}
+}
+
+func TestImportAPIKeysParsesCommentsAndGeneratesNames(t *testing.T) {
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "existing", Provider: token.ProviderOpenAI, TokenValue: "sk-existing-token-value"}); err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:       3000,
+			ControlPort:     3890,
+			UpstreamBaseURL: "https://api.openai.com",
+			SwitchThreshold: 15,
+			MaxRetries:      1,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	result, err := app.importAPIKeys(apiKeyBatchImportRequest{
+		Provider: token.ProviderOpenAI,
+		TokenText: strings.Join([]string{
+			"# comment only",
+			"sk-aa0aeaf480484648a8a93d672d76334d  # balance: 10.14 CNY",
+			"sk-aa0aeff80f84d05a13fa2bebd27159c  # balance: 0.24 USD",
+			"sk-aa0aeaf480484648a8a93d672d76334d",
+			"sk-existing-token-value # already saved",
+			"tiny",
+		}, "\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.CreatedCount != 2 {
+		t.Fatalf("expected 2 imported keys, got %#v", result)
+	}
+	if len(result.Skipped) != 3 {
+		t.Fatalf("expected duplicate, existing, and invalid lines to be skipped, got %#v", result.Skipped)
+	}
+
+	items := manager.List()
+	if len(items) != 3 {
+		t.Fatalf("expected 3 total tokens, got %d", len(items))
+	}
+	byName := map[string]token.Token{}
+	for _, item := range items {
+		byName[item.Name] = item
+	}
+	if byName["sk-aa0ae"].TokenValue != "sk-aa0aeaf480484648a8a93d672d76334d" ||
+		byName["sk-aa0ae-2"].TokenValue != "sk-aa0aeff80f84d05a13fa2bebd27159c" {
+		t.Fatalf("unexpected generated tokens: %#v", items)
 	}
 }
 
@@ -1200,24 +1339,52 @@ func codexAuthJSONForMainTest(t *testing.T, email string) string {
 func codexAuthJSONForMainTestWithCredentials(t *testing.T, email string, accountID string, accessToken string) string {
 	t.Helper()
 
-	payload, err := json.Marshal(map[string]any{
-		"https://api.openai.com/profile": map[string]string{"email": email},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	idToken := "header." + base64.RawURLEncoding.EncodeToString(payload) + ".signature"
 	authJSON, err := json.Marshal(map[string]any{
 		"tokens": map[string]string{
 			"access_token": accessToken,
 			"account_id":   accountID,
-			"id_token":     idToken,
+			"id_token":     codexIDTokenForMainTest(t, email),
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return string(authJSON)
+}
+
+func codexAuthJSONForMainTestWithRefreshToken(t *testing.T, email string, accountID string, accessToken string, refreshToken string) string {
+	t.Helper()
+
+	authJSON, err := json.Marshal(map[string]any{
+		"tokens": map[string]string{
+			"access_token":  accessToken,
+			"account_id":    accountID,
+			"id_token":      codexIDTokenForMainTest(t, email),
+			"refresh_token": refreshToken,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(authJSON)
+}
+
+func codexIDTokenForMainTest(t *testing.T, email string) string {
+	t.Helper()
+
+	payload, err := json.Marshal(map[string]any{
+		"https://api.openai.com/profile": map[string]string{"email": email},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "header." + base64.RawURLEncoding.EncodeToString(payload) + ".signature"
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestWriteCodexOmniProxyConfig(t *testing.T) {

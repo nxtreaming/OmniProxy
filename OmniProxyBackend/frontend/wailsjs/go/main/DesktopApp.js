@@ -118,6 +118,10 @@ export function ExportTokens() {
   return window['go']['main']['DesktopApp']['ExportTokens']();
 }
 
+export function ImportAPIKeys(arg1) {
+  return window['go']['main']['DesktopApp']['ImportAPIKeys'](arg1);
+}
+
 export function ImportMimoCookieFromHAR() {
   return window['go']['main']['DesktopApp']['ImportMimoCookieFromHAR']();
 }
@@ -140,6 +144,10 @@ export function OpenRouterModels(arg1) {
 
 export function ProxyStatus() {
   return window['go']['main']['DesktopApp']['ProxyStatus']();
+}
+
+export function RefreshTokenAuth(arg1) {
+  return window['go']['main']['DesktopApp']['RefreshTokenAuth'](arg1);
 }
 
 export function RequestHistory(arg1) {

@@ -63,6 +63,8 @@ export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<st
 
 export function ExportTokens():Promise<main.tokenExportResult>;
 
+export function ImportAPIKeys(arg1:main.apiKeyBatchImportRequest):Promise<main.apiKeyBatchImportResult>;
+
 export function ImportMimoCookieFromHAR():Promise<main.mimoCookieImportResult>;
 
 export function InstallDownloadedUpdate():Promise<main.updateDownloadStatus>;
@@ -74,6 +76,8 @@ export function OpenRouterChat(arg1:main.openRouterChatRequest):Promise<main.ope
 export function OpenRouterModels(arg1:boolean):Promise<main.openRouterModelsResponse>;
 
 export function ProxyStatus():Promise<Record<string, any>>;
+
+export function RefreshTokenAuth(arg1:string):Promise<main.tokenResponse>;
 
 export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyResponse>>;
 

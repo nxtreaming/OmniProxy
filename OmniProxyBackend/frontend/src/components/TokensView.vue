@@ -31,6 +31,10 @@ const props = defineProps({
     type: Boolean,
     required: true,
   },
+  batchImporting: {
+    type: Boolean,
+    required: true,
+  },
   openRouterModels: {
     type: Array,
     default: () => [],
@@ -52,6 +56,10 @@ const props = defineProps({
     default: false,
   },
   validatingIds: {
+    type: Object,
+    required: true,
+  },
+  refreshingTokenIds: {
     type: Object,
     required: true,
   },
@@ -106,7 +114,9 @@ const emit = defineEmits([
   'refresh-open-router-models',
   'open-router-model-chat',
   'open-create-form',
+  'open-batch-import',
   'verify-token',
+  'refresh-token-auth',
   'toggle-token-enabled',
   'open-edit-form',
   'remove-token',
@@ -151,6 +161,10 @@ function openCodexAuthFilePicker() {
 function changeOpenRouterModelPage(delta) {
   const nextPage = openRouterModelPage.value + delta
   openRouterModelPage.value = Math.min(openRouterModelPageCount.value, Math.max(1, nextPage))
+}
+
+function canRefreshAuthToken(item) {
+  return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
 }
 </script>
 
@@ -216,6 +230,9 @@ function changeOpenRouterModelPage(delta) {
           @click="$emit('refresh-open-router-models')"
         >
           {{ openRouterModelsLoading ? '刷新中' : '刷新模型' }}
+        </el-button>
+        <el-button :icon="Upload" :loading="batchImporting" @click="$emit('open-batch-import', activeProvider)">
+          {{ batchImporting ? '导入中' : '批量导入 Key' }}
         </el-button>
         <el-button type="primary" :icon="Connection" @click="$emit('open-create-form', activeProvider)">
           添加 {{ activeProviderInfo.label }}
@@ -330,6 +347,17 @@ function changeOpenRouterModelPage(delta) {
             <td>{{ formatTime(item.lastUsedAt) }}</td>
             <td class="actions-cell">
               <div class="row-actions">
+                <el-button
+                  v-if="canRefreshAuthToken(item)"
+                  size="small"
+                  class="account-action-button"
+                  plain
+                  :icon="Refresh"
+                  :loading="refreshingTokenIds[item.id]"
+                  @click="$emit('refresh-token-auth', item)"
+                >
+                  刷新令牌
+                </el-button>
                 <el-button
                   size="small"
                   class="account-action-button"

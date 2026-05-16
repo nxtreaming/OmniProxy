@@ -113,6 +113,16 @@ export function createToken(payload) {
   })
 }
 
+export function importAPIKeys(payload) {
+  if (useWailsBindings() && DesktopApp.ImportAPIKeys) {
+    return DesktopApp.ImportAPIKeys(payload)
+  }
+  return request('/tokens/import-api-keys', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function updateToken(id, payload) {
   if (useWailsBindings()) {
     return DesktopApp.UpdateToken(id, payload)
@@ -175,6 +185,15 @@ export function validateToken(id) {
     return DesktopApp.ValidateToken(id)
   }
   return request(`/tokens/${id}/validate`, {
+    method: 'POST',
+  })
+}
+
+export function refreshTokenAuth(id) {
+  if (useWailsBindings() && DesktopApp.RefreshTokenAuth) {
+    return DesktopApp.RefreshTokenAuth(id)
+  }
+  return request(`/tokens/${id}/refresh`, {
     method: 'POST',
   })
 }

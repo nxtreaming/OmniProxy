@@ -279,6 +279,18 @@ func (a *DesktopApp) ValidateToken(id string) (validationResponse, error) {
 	return validationResponseFor(result), err
 }
 
+func (a *DesktopApp) RefreshTokenAuth(id string) (tokenResponse, error) {
+	item, err := a.server.refreshStoredAuthToken(a.callContext(), id)
+	if err != nil {
+		return tokenResponse{}, err
+	}
+	return tokenResponseFor(item), nil
+}
+
+func (a *DesktopApp) ImportAPIKeys(req apiKeyBatchImportRequest) (apiKeyBatchImportResult, error) {
+	return a.server.importAPIKeys(req)
+}
+
 func (a *DesktopApp) Config() config.Config {
 	a.server.mu.Lock()
 	defer a.server.mu.Unlock()

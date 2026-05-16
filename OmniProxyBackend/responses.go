@@ -32,6 +32,24 @@ type tokenResponse struct {
 	UpdatedAt        string             `json:"updatedAt"`
 }
 
+type apiKeyBatchImportRequest struct {
+	Provider       string `json:"provider"`
+	CredentialType string `json:"credentialType"`
+	Region         string `json:"region,omitempty"`
+	BaseURL        string `json:"baseUrl,omitempty"`
+	TokenText      string `json:"tokenText"`
+}
+
+type apiKeyBatchImportSkipped struct {
+	Line   int    `json:"line"`
+	Reason string `json:"reason"`
+}
+
+type apiKeyBatchImportResult struct {
+	CreatedCount int                        `json:"createdCount"`
+	Skipped      []apiKeyBatchImportSkipped `json:"skipped"`
+}
+
 type usageResponse struct {
 	Source                     string                   `json:"source,omitempty"`
 	PlanType                   string                   `json:"planType,omitempty"`

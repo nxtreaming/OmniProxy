@@ -294,6 +294,7 @@ func (a *appServer) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/control-token", a.handleControlToken)
 	mux.HandleFunc("/api/tokens", a.handleTokens)
+	mux.HandleFunc("/api/tokens/import-api-keys", a.handleImportAPIKeys)
 	mux.HandleFunc("/api/tokens/", a.handleTokenByID)
 	mux.HandleFunc("/api/config", a.handleConfig)
 	mux.HandleFunc("/api/logs", a.handleLogs)
@@ -384,6 +385,29 @@ func (a *appServer) handleTokens(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (a *appServer) handleImportAPIKeys(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req apiKeyBatchImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	result, err := a.importAPIKeys(req)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if result.CreatedCount > 0 {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, result)
+}
+
 func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 	rest := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/tokens/"), "/")
 	parts := strings.Split(rest, "/")
@@ -395,6 +419,10 @@ func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 
 	if len(parts) == 2 && parts[1] == "validate" {
 		a.handleTokenValidate(w, r, id)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "refresh" {
+		a.handleTokenRefresh(w, r, id)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "disabled" {
@@ -562,6 +590,20 @@ func (a *appServer) handleTokenValidate(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, validationResponseFor(result))
 }
 
+func (a *appServer) handleTokenRefresh(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	item, err := a.refreshStoredAuthToken(r.Context(), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tokenResponseFor(item))
+}
+
 func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.Token) (proxy.ValidationResult, error) {
 	a.mu.Lock()
 	cfg := a.cfg
@@ -607,6 +649,149 @@ func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.T
 		_ = a.tokens.MarkActive(selected.ID)
 	}
 	return result, err
+}
+
+func (a *appServer) refreshStoredAuthToken(ctx context.Context, id string) (token.Token, error) {
+	selected, err := a.tokens.Get(id)
+	if err != nil {
+		return token.Token{}, err
+	}
+	if !isRefreshableAuthToken(selected) {
+		return token.Token{}, errors.New("token credential does not support refresh")
+	}
+
+	updated, _, err := a.refreshAuthTokenIfNeeded(ctx, selected, true)
+	if err != nil {
+		_ = a.tokens.MarkInvalid(selected.ID, fmt.Sprintf("OAuth token refresh failed: %v", err))
+		return token.Token{}, err
+	}
+	if a.logs != nil {
+		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: updated.Name, Message: "manual OAuth token refresh completed"})
+	}
+	return updated, nil
+}
+
+type parsedAPIKeyLine struct {
+	line  int
+	value string
+}
+
+func (a *appServer) importAPIKeys(req apiKeyBatchImportRequest) (apiKeyBatchImportResult, error) {
+	provider, credentialType, err := token.NormalizeProviderAndCredential(req.Provider, token.CredentialTypeAPIKey)
+	if err != nil {
+		return apiKeyBatchImportResult{}, err
+	}
+	if credentialType != token.CredentialTypeAPIKey {
+		return apiKeyBatchImportResult{}, errors.New("批量导入仅支持 API Key")
+	}
+	region, err := token.NormalizeRegion(provider, credentialType, req.Region)
+	if err != nil {
+		return apiKeyBatchImportResult{}, err
+	}
+	baseURL, err := token.NormalizeBaseURL(provider, req.BaseURL, true)
+	if err != nil {
+		return apiKeyBatchImportResult{}, err
+	}
+
+	lines := parseAPIKeyBatchLines(req.TokenText)
+	if len(lines) == 0 {
+		return apiKeyBatchImportResult{}, errors.New("未找到可导入的 API Key")
+	}
+
+	usedNames := map[string]bool{}
+	existingKeys := map[string]bool{}
+	for _, item := range a.tokens.List() {
+		if token.NormalizeProvider(item.Provider) != provider || item.CredentialType != credentialType {
+			continue
+		}
+		usedNames[strings.ToLower(strings.TrimSpace(item.Name))] = true
+		if strings.TrimSpace(item.BaseURL) == baseURL {
+			existingKeys[strings.TrimSpace(item.TokenValue)] = true
+		}
+	}
+
+	result := apiKeyBatchImportResult{
+		Skipped: []apiKeyBatchImportSkipped{},
+	}
+	seenKeys := map[string]bool{}
+	for _, line := range lines {
+		if seenKeys[line.value] {
+			result.Skipped = append(result.Skipped, apiKeyBatchImportSkipped{Line: line.line, Reason: "本次导入中重复"})
+			continue
+		}
+		seenKeys[line.value] = true
+		if existingKeys[line.value] {
+			result.Skipped = append(result.Skipped, apiKeyBatchImportSkipped{Line: line.line, Reason: "账号池中已存在"})
+			continue
+		}
+
+		name := uniqueAPIKeyImportName(line.value, usedNames)
+		if _, err := a.tokens.Add(token.UpsertRequest{
+			Name:           name,
+			Provider:       provider,
+			CredentialType: credentialType,
+			Region:         region,
+			BaseURL:        baseURL,
+			TokenValue:     line.value,
+		}); err != nil {
+			delete(usedNames, strings.ToLower(name))
+			result.Skipped = append(result.Skipped, apiKeyBatchImportSkipped{Line: line.line, Reason: err.Error()})
+			continue
+		}
+		existingKeys[line.value] = true
+		result.CreatedCount++
+	}
+
+	if a.logs != nil && result.CreatedCount > 0 {
+		a.logs.Add(logs.Entry{
+			Level:   logs.LevelInfo,
+			Message: fmt.Sprintf("%s batch imported API keys: %d created, %d skipped", provider, result.CreatedCount, len(result.Skipped)),
+		})
+	}
+	return result, nil
+}
+
+func parseAPIKeyBatchLines(text string) []parsedAPIKeyLine {
+	normalized := strings.ReplaceAll(text, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	lines := strings.Split(normalized, "\n")
+	out := []parsedAPIKeyLine{}
+	for index, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if before, _, ok := strings.Cut(line, "#"); ok {
+			line = strings.TrimSpace(before)
+		}
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		out = append(out, parsedAPIKeyLine{line: index + 1, value: strings.TrimSpace(fields[0])})
+	}
+	return out
+}
+
+func uniqueAPIKeyImportName(value string, used map[string]bool) string {
+	base := apiKeyImportName(value)
+	name := base
+	for suffix := 2; used[strings.ToLower(name)]; suffix++ {
+		name = fmt.Sprintf("%s-%d", base, suffix)
+	}
+	used[strings.ToLower(name)] = true
+	return name
+}
+
+func apiKeyImportName(value string) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) == 0 {
+		return "api-key"
+	}
+	if len(runes) > 8 {
+		runes = runes[:8]
+	}
+	return string(runes)
 }
 
 func (a *appServer) recordTokenMaintenanceHistory(event string, selected token.Token, result proxy.ValidationResult, err error) {
