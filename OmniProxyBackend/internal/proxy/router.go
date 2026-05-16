@@ -91,6 +91,9 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 		credentialType = token.CredentialTypeCodexAuthJSON
 	}
 	protocol := protocolForRoute(provider, &path)
+	if provider == token.ProviderSub2API && protocol == "openai" {
+		path = versionedSub2APIOpenAIPath(path)
+	}
 	return routeInfo{Provider: provider, CredentialType: credentialType, Protocol: protocol, Model: model, Path: path, RawQuery: incoming.RawQuery}
 }
 
@@ -229,6 +232,14 @@ func stripProtocolPrefix(path *string, prefix string) bool {
 		return true
 	}
 	return false
+}
+
+func versionedSub2APIOpenAIPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || path == "/" || path == "/v1" || strings.HasPrefix(path, "/v1/") {
+		return path
+	}
+	return singleJoiningSlash("/v1", path)
 }
 
 func isAnthropicRouterPath(path string) bool {

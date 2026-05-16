@@ -357,6 +357,9 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 	if err != nil {
 		return nil, err
 	}
+	if updatedBody, changed := normalizeSub2APIRequestBody(original.URL.Path, route, body); changed {
+		body = updatedBody
+	}
 
 	req, err := http.NewRequestWithContext(ctx, original.Method, targetURL, bytes.NewReader(body))
 	if err != nil {

@@ -1885,9 +1885,12 @@ func TestServiceRoutesTokenRouterRequests(t *testing.T) {
 func TestServiceRoutesSub2APIRequests(t *testing.T) {
 	var upstreamPath string
 	var authorization string
+	var upstreamBody string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamPath = r.URL.Path
 		authorization = r.Header.Get("Authorization")
+		body, _ := io.ReadAll(r.Body)
+		upstreamBody = string(body)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"usage":{"total_tokens":9}}`))
 	}))
@@ -1910,7 +1913,7 @@ func TestServiceRoutesSub2APIRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/sub2api/v1/responses", stringsReader(`{"model":"gpt-5.4","input":"hi"}`))
+	req := httptest.NewRequest(http.MethodPost, "/sub2api/responses", stringsReader(`{"model":"gpt-5.5","input":"hi","tools":[{"type":"image_generation"},{"type":"web_search_preview"}],"tool_choice":{"type":"image_generation"}}`))
 	req.Header.Set("Authorization", "Bearer caller")
 	res := httptest.NewRecorder()
 	service.ServeHTTP(res, req)
@@ -1920,6 +1923,12 @@ func TestServiceRoutesSub2APIRequests(t *testing.T) {
 	}
 	if upstreamPath != "/v1/responses" || authorization != "Bearer sub2api-api-key-token" {
 		t.Fatalf("unexpected sub2api route path=%q authorization=%q", upstreamPath, authorization)
+	}
+	if strings.Contains(upstreamBody, "image_generation") {
+		t.Fatalf("sub2api codex text request should strip image_generation tool, got body=%s", upstreamBody)
+	}
+	if !strings.Contains(upstreamBody, "web_search_preview") {
+		t.Fatalf("sub2api request should preserve non-image tools, got body=%s", upstreamBody)
 	}
 }
 

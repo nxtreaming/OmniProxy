@@ -131,6 +131,14 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			outPath:  "/v1/responses",
 		},
 		{
+			name:     "sub2api codex responses without version",
+			path:     "/sub2api/responses",
+			body:     `{"model":"gpt-5.5"}`,
+			provider: token.ProviderSub2API,
+			protocol: "openai",
+			outPath:  "/v1/responses",
+		},
+		{
 			name:     "sub2api anthropic direct",
 			path:     "/sub2api/anthropic/v1/messages",
 			body:     `{"model":"claude-sonnet-4-5"}`,
