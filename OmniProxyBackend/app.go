@@ -641,6 +641,10 @@ func (a *DesktopApp) ConfigureCodex() (codexConfigureResult, error) {
 	return a.server.configureCodex()
 }
 
+func (a *DesktopApp) ConfigureCodexSub2API() (codexConfigureResult, error) {
+	return a.server.configureCodexSub2API()
+}
+
 func (a *DesktopApp) RestoreCodex() (codexConfigureResult, error) {
 	return a.server.restoreCodexConfig()
 }

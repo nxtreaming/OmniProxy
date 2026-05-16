@@ -451,6 +451,12 @@ export function configureCodex() {
   return useWailsBindings() ? DesktopApp.ConfigureCodex() : request('/codex/configure', { method: 'POST' })
 }
 
+export function configureCodexSub2API() {
+  return useWailsBindings()
+    ? DesktopApp.ConfigureCodexSub2API()
+    : request('/codex/sub2api/configure', { method: 'POST' })
+}
+
 export function restoreCodex() {
   return useWailsBindings() ? DesktopApp.RestoreCodex() : request('/codex/restore', { method: 'POST' })
 }

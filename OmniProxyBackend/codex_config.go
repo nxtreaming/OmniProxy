@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"OmniProxyBackend/internal/logs"
 	"OmniProxyBackend/internal/token"
 )
+
+const codexSub2APILocalAPIKey = "sk-omniproxy-local-sub2api"
 
 type codexConfigureResult struct {
 	ConfigPath       string `json:"configPath"`
@@ -54,6 +57,11 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 	authValue := strings.TrimSpace(string(authBytes))
 	switch {
 	case err == nil:
+		fields, ok := token.ExtractCodexAuthFields(authValue)
+		if !ok || strings.TrimSpace(fields.Email) == "" || !fields.HasSupportedToken() {
+			a.logs.Add(logs.Entry{Level: logs.LevelWarn, Message: "codex auth skipped: auth.json is not importable Codex auth"})
+			break
+		}
 		req := token.UpsertRequest{
 			Provider:       token.ProviderOpenAI,
 			CredentialType: token.CredentialTypeCodexAuthJSON,
@@ -102,10 +110,65 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 	} else if result.AuthAlreadyAdded {
 		parts = append(parts, "auth.json 账号已存在")
 	} else {
-		parts = append(parts, "未找到 auth.json，请先运行 codex login 或手动添加账号")
+		parts = append(parts, "未找到可导入的 Codex auth.json，请先运行 codex login 或手动添加账号")
 	}
 	result.Message = strings.Join(parts, "；")
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy"})
+	return result, nil
+}
+
+func (a *appServer) configureCodexSub2API() (codexConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/sub2api", cfg.ProxyPort)
+	configPath := filepath.Join(codexDir, "config.toml")
+	if err := writeCodexSub2APIConfig(configPath, baseURL); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	result := codexConfigureResult{
+		ConfigPath: configPath,
+		AuthPath:   filepath.Join(codexDir, "auth.json"),
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    baseURL,
+	}
+
+	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+	switch authState {
+	case "created":
+		result.ImportedAuth = true
+	case "updated":
+		result.AuthUpdated = true
+	case "existing":
+		result.AuthAlreadyAdded = true
+	}
+
+	parts := []string{"Codex 已切换到 OmniProxy sub2api 本地代理"}
+	if result.ImportedAuth {
+		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
+	} else if result.AuthUpdated {
+		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
+	} else {
+		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
+	}
+	parts = append(parts, "请在 OmniProxy 的 sub2api 账号中保存真实 API Key")
+	result.Message = strings.Join(parts, "；")
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy sub2api"})
 	return result, nil
 }
 
@@ -166,8 +229,91 @@ func writeCodexOmniProxyConfig(path string, baseURL string) error {
 	return os.WriteFile(path, []byte(next), 0o600)
 }
 
+func writeCodexSub2APIConfig(path string, baseURL string) error {
+	content, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	lines := []string{}
+	if text != "" {
+		lines = strings.Split(strings.TrimRight(text, "\n"), "\n")
+	}
+
+	lines = setRootStringKey(lines, "model_provider", "OpenAI")
+	lines = setRootStringKey(lines, "model", "gpt-5.4")
+	lines = setRootStringKey(lines, "review_model", "gpt-5.4")
+	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
+	lines = setRootRawKey(lines, "disable_response_storage", "true")
+	lines = setRootStringKey(lines, "network_access", "enabled")
+	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
+	lines = setRootRawKey(lines, "model_context_window", "1000000")
+	lines = setRootRawKey(lines, "model_auto_compact_token_limit", "900000")
+	lines = removeRootKey(lines, "openai_base_url")
+	lines = removeRootKey(lines, "chatgpt_base_url")
+	lines = removeTomlSection(lines, "[model_providers.openai]")
+	lines = removeTomlSection(lines, "[model_providers.OpenAI]")
+	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
+	lines = removeTomlSection(lines, "[model_providers.sub2api]")
+	lines = appendTomlSection(lines, []string{
+		"[model_providers.OpenAI]",
+		`name = "OpenAI"`,
+		fmt.Sprintf(`base_url = "%s"`, tomlEscape(baseURL)),
+		`wire_api = "responses"`,
+		"requires_openai_auth = true",
+	})
+
+	next := strings.Join(lines, "\n") + "\n"
+	if len(content) > 0 {
+		backupPath := path + ".omniproxy.bak"
+		if _, err := os.Stat(backupPath); errors.Is(err, os.ErrNotExist) {
+			_ = os.WriteFile(backupPath, content, 0o600)
+		}
+	}
+	return os.WriteFile(path, []byte(next), 0o600)
+}
+
+func ensureCodexOpenAIAPIKey(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		data, marshalErr := json.MarshalIndent(map[string]any{
+			"OPENAI_API_KEY": codexSub2APILocalAPIKey,
+		}, "", "  ")
+		if marshalErr != nil {
+			return "", marshalErr
+		}
+		return "created", os.WriteFile(path, append(data, '\n'), 0o600)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(content, &payload); err != nil {
+		return "", err
+	}
+	if value, ok := payload["OPENAI_API_KEY"].(string); ok && strings.TrimSpace(value) != "" {
+		return "existing", nil
+	}
+	payload["OPENAI_API_KEY"] = codexSub2APILocalAPIKey
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return "updated", os.WriteFile(path, append(data, '\n'), 0o600)
+}
+
 func setRootStringKey(lines []string, key string, value string) []string {
 	replacement := fmt.Sprintf(`%s = "%s"`, key, tomlEscape(value))
+	return setRootLine(lines, key, replacement)
+}
+
+func setRootRawKey(lines []string, key string, value string) []string {
+	return setRootLine(lines, key, fmt.Sprintf("%s = %s", key, value))
+}
+
+func setRootLine(lines []string, key string, replacement string) []string {
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "[") {
@@ -195,6 +341,16 @@ func setRootStringKey(lines []string, key string, value string) []string {
 	}
 	next = append(next, lines[insertAt:]...)
 	return next
+}
+
+func appendTomlSection(lines []string, section []string) []string {
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) > 0 {
+		lines = append(lines, "")
+	}
+	return append(lines, section...)
 }
 
 func removeTomlSection(lines []string, section string) []string {

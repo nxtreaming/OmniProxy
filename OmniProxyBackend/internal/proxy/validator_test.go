@@ -698,6 +698,121 @@ func TestValidatorUsesTokenRouterRoutingRules(t *testing.T) {
 	}
 }
 
+func TestValidatorUsesSub2APIUsageEndpoint(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL func(string) string
+	}{
+		{
+			name:    "base without version",
+			baseURL: func(serverURL string) string { return serverURL },
+		},
+		{
+			name:    "base with version",
+			baseURL: func(serverURL string) string { return serverURL + "/v1" },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v1/usage" {
+					t.Fatalf("unexpected path: %s", r.URL.Path)
+				}
+				if r.Header.Get("Authorization") != "Bearer sub2api-api-key-token" {
+					t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{
+					"mode": "quota_limited",
+					"isValid": true,
+					"status": "active",
+					"quota": {"limit": 100, "used": 12.5, "remaining": 87.5, "unit": "USD"},
+					"usage": {
+						"today": {"requests": 2, "total_tokens": 10, "actual_cost": 0.12},
+						"total": {"requests": 9, "total_tokens": 80, "actual_cost": 1.25}
+					},
+					"model_stats": []
+				}`))
+			}))
+			defer upstream.Close()
+
+			validator, err := NewValidator(config.Config{
+				Sub2APIBaseURL: tt.baseURL(upstream.URL),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			result, err := validator.Validate(context.Background(), token.Token{
+				Provider:       token.ProviderSub2API,
+				CredentialType: token.CredentialTypeAPIKey,
+				BaseURL:        tt.baseURL(upstream.URL),
+				TokenValue:     "sub2api-api-key-token",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.OK {
+				t.Fatalf("expected sub2api validation to pass: %#v", result)
+			}
+			if result.Usage == nil {
+				t.Fatal("expected sub2api usage details")
+			}
+			if result.Usage.Source != token.ProviderSub2API || result.Usage.BalanceUnit != "USD" {
+				t.Fatalf("unexpected sub2api usage source/unit: %#v", result.Usage)
+			}
+			if result.Usage.BalanceTotal != 100 || result.Usage.BalanceUsed != 12.5 || result.Usage.BalanceRemaining != 87.5 {
+				t.Fatalf("unexpected sub2api quota usage: %#v", result.Usage)
+			}
+			if result.Remaining == nil || *result.Remaining != 88 {
+				t.Fatalf("expected result remaining 88, got %#v", result.Remaining)
+			}
+		})
+	}
+}
+
+func TestValidatorParsesSub2APIWalletUsage(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/usage" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"mode": "unrestricted",
+			"isValid": true,
+			"planName": "Wallet",
+			"remaining": 23.4,
+			"unit": "USD",
+			"balance": 23.4
+		}`))
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		Sub2APIBaseURL: upstream.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(context.Background(), token.Token{
+		Provider:       token.ProviderSub2API,
+		CredentialType: token.CredentialTypeAPIKey,
+		BaseURL:        upstream.URL,
+		TokenValue:     "sub2api-api-key-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil || result.Usage.BalanceRemaining != 23.4 || result.Usage.BalanceUnit != "USD" {
+		t.Fatalf("unexpected sub2api wallet usage: %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 100 {
+		t.Fatalf("expected wallet balance to map to remaining 100, got %#v", result.Remaining)
+	}
+}
+
 func TestValidatorQueriesMimoTokenPlanUsage(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("api-key") != "tp-mimo-token-plan" {

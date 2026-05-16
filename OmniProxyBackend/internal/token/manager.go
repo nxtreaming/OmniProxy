@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -92,7 +93,7 @@ func (m *Manager) Get(id string) (Token, error) {
 }
 
 func (m *Manager) Add(req UpsertRequest) (Token, error) {
-	name, provider, credentialType, region, value, err := normalizeRequest(req)
+	name, provider, credentialType, region, baseURL, value, err := normalizeRequest(req)
 	if err != nil {
 		return Token{}, err
 	}
@@ -111,6 +112,7 @@ func (m *Manager) Add(req UpsertRequest) (Token, error) {
 		Provider:       provider,
 		CredentialType: credentialType,
 		Region:         region,
+		BaseURL:        baseURL,
 		TokenValue:     value,
 		Remaining:      100,
 		Status:         StatusActive,
@@ -147,8 +149,11 @@ func (m *Manager) Update(id string, req UpsertRequest) (Token, error) {
 	if strings.TrimSpace(req.Region) == "" {
 		req.Region = existing.Region
 	}
+	if strings.TrimSpace(req.BaseURL) == "" {
+		req.BaseURL = existing.BaseURL
+	}
 
-	name, provider, credentialType, region, value, err := normalizeUpdateRequest(existing, req)
+	name, provider, credentialType, region, baseURL, value, err := normalizeUpdateRequest(existing, req)
 	if err != nil {
 		return Token{}, err
 	}
@@ -161,6 +166,7 @@ func (m *Manager) Update(id string, req UpsertRequest) (Token, error) {
 	m.tokens[index].Provider = provider
 	m.tokens[index].CredentialType = credentialType
 	m.tokens[index].Region = region
+	m.tokens[index].BaseURL = baseURL
 	m.tokens[index].TokenValue = value
 	m.tokens[index].UpdatedAt = time.Now()
 	if m.tokens[index].Status == "" {
@@ -190,9 +196,10 @@ func (m *Manager) UpdateTokenValue(id string, value string) (Token, error) {
 		Provider:       existing.Provider,
 		CredentialType: existing.CredentialType,
 		Region:         existing.Region,
+		BaseURL:        existing.BaseURL,
 		TokenValue:     value,
 	}
-	name, provider, credentialType, region, normalizedValue, err := normalizeRequest(req)
+	name, provider, credentialType, region, baseURL, normalizedValue, err := normalizeRequest(req)
 	if err != nil {
 		return Token{}, err
 	}
@@ -204,6 +211,7 @@ func (m *Manager) UpdateTokenValue(id string, value string) (Token, error) {
 	m.tokens[index].Provider = provider
 	m.tokens[index].CredentialType = credentialType
 	m.tokens[index].Region = region
+	m.tokens[index].BaseURL = baseURL
 	m.tokens[index].TokenValue = normalizedValue
 	m.tokens[index].UpdatedAt = time.Now()
 	if m.tokens[index].Status == "" || m.tokens[index].Status == StatusInvalid {
@@ -882,6 +890,7 @@ func normalizeStoredToken(item Token) Token {
 	item.Provider = provider
 	item.CredentialType = credentialType
 	item.Region = normalizeStoredRegion(provider, credentialType, item.Region)
+	item.BaseURL = normalizeStoredBaseURL(provider, item.BaseURL)
 	if item.Status == "" {
 		item.Status = StatusActive
 	}
@@ -981,7 +990,7 @@ func (m *Manager) Flush() error {
 	return m.persistLocked()
 }
 
-func normalizeRequest(req UpsertRequest) (string, string, string, string, string, error) {
+func normalizeRequest(req UpsertRequest) (string, string, string, string, string, string, error) {
 	name := strings.TrimSpace(req.Name)
 	provider := strings.TrimSpace(strings.ToLower(req.Provider))
 	credentialType := strings.TrimSpace(strings.ToLower(req.CredentialType))
@@ -989,74 +998,82 @@ func normalizeRequest(req UpsertRequest) (string, string, string, string, string
 
 	provider, credentialType, err := NormalizeProviderAndCredential(provider, credentialType)
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", "", "", err
 	}
 	region, err := NormalizeRegion(provider, credentialType, req.Region)
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", "", "", err
+	}
+	baseURL, err := NormalizeBaseURL(provider, req.BaseURL, true)
+	if err != nil {
+		return "", "", "", "", "", "", err
 	}
 
 	if credentialType == CredentialTypeCodexAuthJSON {
 		if !json.Valid([]byte(value)) {
-			return "", "", "", "", "", errors.New("codex auth.json must be valid JSON")
+			return "", "", "", "", "", "", errors.New("codex auth.json must be valid JSON")
 		}
 		fields, ok := ExtractCodexAuthFields(value)
 		if !ok {
-			return "", "", "", "", "", errors.New("codex auth.json must be a JSON object")
+			return "", "", "", "", "", "", errors.New("codex auth.json must be a JSON object")
 		}
 		if fields.Type != "" && !strings.EqualFold(fields.Type, "codex") {
-			return "", "", "", "", "", errors.New("codex auth.json type must be codex")
+			return "", "", "", "", "", "", errors.New("codex auth.json type must be codex")
 		}
 		if strings.TrimSpace(fields.Email) == "" {
-			return "", "", "", "", "", errors.New("codex auth.json does not contain email or an email in id_token")
+			return "", "", "", "", "", "", errors.New("codex auth.json does not contain email or an email in id_token")
 		}
 		if !fields.HasSupportedToken() {
-			return "", "", "", "", "", errors.New("codex auth.json does not contain a supported token field")
+			return "", "", "", "", "", "", errors.New("codex auth.json does not contain a supported token field")
 		}
 		name = fields.Email
 	} else if credentialType == CredentialTypeClaudeOAuth {
 		if !json.Valid([]byte(value)) {
-			return "", "", "", "", "", errors.New("claude OAuth JSON must be valid JSON")
+			return "", "", "", "", "", "", errors.New("claude OAuth JSON must be valid JSON")
 		}
 		fields, ok := ExtractClaudeOAuthFields(value)
 		if !ok {
-			return "", "", "", "", "", errors.New("claude OAuth JSON must contain access_token or refresh_token")
+			return "", "", "", "", "", "", errors.New("claude OAuth JSON must contain access_token or refresh_token")
 		}
 		if fields.Email != "" {
 			name = fields.Email
 		}
 	} else if provider == ProviderXiaomi && credentialType == CredentialTypeAPIKey && !strings.HasPrefix(value, "sk-") {
-		return "", "", "", "", "", errors.New("xiaomi pay-as-you-go API key must start with sk-")
+		return "", "", "", "", "", "", errors.New("xiaomi pay-as-you-go API key must start with sk-")
 	} else if provider == ProviderXiaomi && credentialType == CredentialTypeMimoTokenPlan && !strings.HasPrefix(value, "tp-") {
-		return "", "", "", "", "", errors.New("xiaomi token plan API key must start with tp-")
+		return "", "", "", "", "", "", errors.New("xiaomi token plan API key must start with tp-")
 	} else if provider == ProviderTokenRouter && credentialType == CredentialTypeAPIKey && !strings.HasPrefix(value, "tr_") {
-		return "", "", "", "", "", errors.New("tokenrouter API key must start with tr_")
+		return "", "", "", "", "", "", errors.New("tokenrouter API key must start with tr_")
 	} else if len(value) < 12 {
-		return "", "", "", "", "", errors.New("token value is too short")
+		return "", "", "", "", "", "", errors.New("token value is too short")
 	}
 
 	if name == "" {
-		return "", "", "", "", "", errors.New("token name is required")
+		return "", "", "", "", "", "", errors.New("token name is required")
 	}
 
-	return name, provider, credentialType, region, value, nil
+	return name, provider, credentialType, region, baseURL, value, nil
 }
 
-func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, string, string, string, error) {
+func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, string, string, string, string, error) {
 	if strings.TrimSpace(req.TokenValue) != "" {
 		return normalizeRequest(req)
 	}
 
 	provider, credentialType, err := NormalizeProviderAndCredential(req.Provider, req.CredentialType)
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", "", "", err
 	}
 	if provider != NormalizeProvider(existing.Provider) || credentialType != existing.CredentialType {
-		return "", "", "", "", "", errors.New("token value is required when changing provider or credential type")
+		return "", "", "", "", "", "", errors.New("token value is required when changing provider or credential type")
 	}
 	region, err := NormalizeRegion(provider, credentialType, req.Region)
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", "", "", err
+	}
+	baseURL, err := NormalizeBaseURL(provider, req.BaseURL, true)
+	if err != nil {
+		return "", "", "", "", "", "", err
 	}
 
 	name := strings.TrimSpace(req.Name)
@@ -1064,14 +1081,14 @@ func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, 
 		name = existing.Name
 	}
 	if name == "" {
-		return "", "", "", "", "", errors.New("token name is required")
+		return "", "", "", "", "", "", errors.New("token name is required")
 	}
 
 	value := strings.TrimSpace(existing.TokenValue)
 	if value == "" {
-		return "", "", "", "", "", errors.New("existing token value is empty")
+		return "", "", "", "", "", "", errors.New("existing token value is empty")
 	}
-	return name, provider, credentialType, region, value, nil
+	return name, provider, credentialType, region, baseURL, value, nil
 }
 
 func NormalizeProvider(provider string) string {
@@ -1107,6 +1124,33 @@ func normalizeStoredRegion(provider string, credentialType string, region string
 		if provider == ProviderXiaomi && credentialType == CredentialTypeMimoTokenPlan {
 			return MimoRegionCN
 		}
+		return ""
+	}
+	return normalized
+}
+
+func NormalizeBaseURL(provider string, baseURL string, required bool) (string, error) {
+	provider = NormalizeProvider(provider)
+	baseURL = strings.TrimSpace(baseURL)
+	if provider != ProviderSub2API {
+		return "", nil
+	}
+	if baseURL == "" {
+		if required {
+			return "", errors.New("sub2api base url is required")
+		}
+		return "", nil
+	}
+	parsed, err := url.ParseRequestURI(baseURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("sub2api base url must be a valid URL")
+	}
+	return strings.TrimRight(baseURL, "/"), nil
+}
+
+func normalizeStoredBaseURL(provider string, baseURL string) string {
+	normalized, err := NormalizeBaseURL(provider, baseURL, false)
+	if err != nil {
 		return ""
 	}
 	return normalized
@@ -1148,7 +1192,7 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodingPlan {
 			return "", "", errors.New("zhipu supports API key or Coding Plan key only")
 		}
-	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderTokenRouter, ProviderCustom:
+	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderTokenRouter, ProviderSub2API, ProviderCustom:
 		if credentialType == "" {
 			credentialType = CredentialTypeAPIKey
 		}

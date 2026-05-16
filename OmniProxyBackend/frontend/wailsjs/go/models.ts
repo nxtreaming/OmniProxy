@@ -18,6 +18,7 @@ export namespace config {
 	    geminiBaseUrl: string;
 	    openrouterBaseUrl: string;
 	    tokenrouterBaseUrl: string;
+	    sub2apiBaseUrl: string;
 	    customGatewayBaseUrl: string;
 	    customGatewayAnthropicBaseUrl: string;
 	    xiaomiBaseUrl: string;
@@ -58,6 +59,7 @@ export namespace config {
 	        this.geminiBaseUrl = source["geminiBaseUrl"];
 	        this.openrouterBaseUrl = source["openrouterBaseUrl"];
 	        this.tokenrouterBaseUrl = source["tokenrouterBaseUrl"];
+	        this.sub2apiBaseUrl = source["sub2apiBaseUrl"];
 	        this.customGatewayBaseUrl = source["customGatewayBaseUrl"];
 	        this.customGatewayAnthropicBaseUrl = source["customGatewayAnthropicBaseUrl"];
 	        this.xiaomiBaseUrl = source["xiaomiBaseUrl"];
@@ -908,6 +910,7 @@ export namespace main {
 	    provider: string;
 	    credentialType: string;
 	    region?: string;
+	    baseUrl?: string;
 	    hasTokenValue: boolean;
 	    maskedTokenValue?: string;
 	    remaining: number;
@@ -934,6 +937,7 @@ export namespace main {
 	        this.provider = source["provider"];
 	        this.credentialType = source["credentialType"];
 	        this.region = source["region"];
+	        this.baseUrl = source["baseUrl"];
 	        this.hasTokenValue = source["hasTokenValue"];
 	        this.maskedTokenValue = source["maskedTokenValue"];
 	        this.remaining = source["remaining"];
@@ -1102,7 +1106,6 @@ export namespace main {
 	}
 
 }
-
 export namespace token {
 	
 	export class DailyTokenUsage {
@@ -1130,6 +1133,7 @@ export namespace token {
 	    provider: string;
 	    credentialType: string;
 	    region?: string;
+	    baseUrl?: string;
 	    tokenValue: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1142,6 +1146,7 @@ export namespace token {
 	        this.provider = source["provider"];
 	        this.credentialType = source["credentialType"];
 	        this.region = source["region"];
+	        this.baseUrl = source["baseUrl"];
 	        this.tokenValue = source["tokenValue"];
 	    }
 	}

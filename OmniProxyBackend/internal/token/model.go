@@ -22,6 +22,7 @@ const (
 	ProviderGemini      = "gemini"
 	ProviderOpenRouter  = "openrouter"
 	ProviderTokenRouter = "tokenrouter"
+	ProviderSub2API     = "sub2api"
 	ProviderCustom      = "custom"
 )
 
@@ -44,6 +45,7 @@ type Token struct {
 	Provider       string     `json:"provider"`
 	CredentialType string     `json:"credentialType"`
 	Region         string     `json:"region,omitempty"`
+	BaseURL        string     `json:"baseUrl,omitempty"`
 	TokenValue     string     `json:"tokenValue"`
 	Remaining      int        `json:"remaining"`
 	Usage          UsageInfo  `json:"usage"`
@@ -162,5 +164,6 @@ type UpsertRequest struct {
 	Provider       string `json:"provider"`
 	CredentialType string `json:"credentialType"`
 	Region         string `json:"region,omitempty"`
+	BaseURL        string `json:"baseUrl,omitempty"`
 	TokenValue     string `json:"tokenValue"`
 }

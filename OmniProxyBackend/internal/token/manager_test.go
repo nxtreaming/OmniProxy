@@ -346,6 +346,34 @@ func TestManagerAllowsSameNameAcrossProviders(t *testing.T) {
 	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderCustom, TokenValue: "custom-api-key-token"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderSub2API, BaseURL: "https://sub2api.example", TokenValue: "sub2api-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestManagerRequiresSub2APIBaseURL(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.Add(UpsertRequest{Name: "sub2api", Provider: ProviderSub2API, TokenValue: "sub2api-api-key-token"}); err == nil {
+		t.Fatal("expected sub2api base url to be required")
+	}
+	item, err := manager.Add(UpsertRequest{Name: "sub2api", Provider: ProviderSub2API, BaseURL: "https://sub2api.example/v1/", TokenValue: "sub2api-api-key-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.BaseURL != "https://sub2api.example/v1" {
+		t.Fatalf("expected normalized base url, got %q", item.BaseURL)
+	}
+	updated, err := manager.Update(item.ID, UpsertRequest{Name: "sub2api", Provider: ProviderSub2API, BaseURL: "https://other.example", TokenValue: ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.TokenValue != "sub2api-api-key-token" || updated.BaseURL != "https://other.example" {
+		t.Fatalf("expected base url update without replacing key, got %#v", updated)
+	}
 }
 
 func TestManagerValidatesXiaomiCredentialFormats(t *testing.T) {

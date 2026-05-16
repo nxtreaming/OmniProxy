@@ -17,6 +17,8 @@ import (
 const (
 	codexOAuthClientID       = "app_EMoamEEZ73f0CkXaXp7hrann"
 	codexOAuthTokenEndpoint  = "https://auth.openai.com/oauth/token"
+	codexOAuthRefreshScope   = "openid profile email"
+	codexOAuthUserAgent      = "codex-cli/0.91.0"
 	codexAccessRefreshMargin = 30 * time.Minute
 )
 
@@ -41,6 +43,7 @@ var httpPostForm = func(ctx context.Context, client *http.Client, endpoint strin
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", codexOAuthUserAgent)
 	return client.Do(req)
 }
 
@@ -60,6 +63,9 @@ func RefreshCodexAuthJSON(ctx context.Context, client *http.Client, raw string, 
 	refreshToken := stringMapValue(tokens, "refresh_token")
 	accessExpiredOrExpiring := codexAccessTokenExpiredOrExpiring(accessToken, now)
 	if !accessExpiredOrExpiring {
+		accessExpiredOrExpiring = codexAuthExpiredOrExpiring(tokens, now)
+	}
+	if !accessExpiredOrExpiring {
 		accessExpiredOrExpiring = codexAuthExpiredOrExpiring(auth, now)
 	}
 	if strings.TrimSpace(refreshToken) == "" {
@@ -74,8 +80,9 @@ func RefreshCodexAuthJSON(ctx context.Context, client *http.Client, raw string, 
 
 	values := url.Values{}
 	values.Set("grant_type", "refresh_token")
-	values.Set("client_id", codexOAuthClientID)
+	values.Set("client_id", codexAuthClientID(auth, tokens))
 	values.Set("refresh_token", refreshToken)
+	values.Set("scope", codexOAuthRefreshScope)
 
 	resp, err := httpPostForm(ctx, client, codexOAuthTokenEndpoint, values)
 	if err != nil {
@@ -106,8 +113,8 @@ func RefreshCodexAuthJSON(ctx context.Context, client *http.Client, raw string, 
 	if !topLevelTokens {
 		auth["tokens"] = tokens
 	}
-	if topLevelTokens && refresh.ExpiresIn > 0 {
-		auth["expired"] = now.UTC().Add(time.Duration(refresh.ExpiresIn) * time.Second).Format(time.RFC3339)
+	if refresh.ExpiresIn > 0 {
+		updateCodexAuthExpiry(auth, tokens, topLevelTokens, now, refresh.ExpiresIn)
 	}
 	auth["last_refresh"] = now.UTC().Format(time.RFC3339Nano)
 
@@ -137,6 +144,15 @@ func parseCodexAuth(raw string) (map[string]any, map[string]any, bool, error) {
 		return nil, nil, false, errors.New("codex auth.json tokens must be an object")
 	}
 	return auth, tokens, false, nil
+}
+
+func codexAuthClientID(auth map[string]any, tokens map[string]any) string {
+	for _, source := range []map[string]any{tokens, auth} {
+		if clientID := stringMapValue(source, "client_id"); clientID != "" {
+			return clientID
+		}
+	}
+	return codexOAuthClientID
 }
 
 func hasTopLevelCodexTokenFields(auth map[string]any) bool {
@@ -179,6 +195,31 @@ func codexAuthExpiresAt(auth map[string]any) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
+}
+
+func updateCodexAuthExpiry(auth map[string]any, tokens map[string]any, topLevelTokens bool, now time.Time, expiresIn int) {
+	expiresAt := now.UTC().Add(time.Duration(expiresIn) * time.Second).Format(time.RFC3339)
+	updated := false
+	if tokens != nil {
+		updated = updateExistingCodexExpiry(tokens, expiresAt) || updated
+	}
+	if auth != nil && !topLevelTokens {
+		updated = updateExistingCodexExpiry(auth, expiresAt) || updated
+	}
+	if !updated && topLevelTokens && auth != nil {
+		auth["expired"] = expiresAt
+	}
+}
+
+func updateExistingCodexExpiry(values map[string]any, expiresAt string) bool {
+	updated := false
+	for _, key := range []string{"expired", "expires_at", "expiresAt"} {
+		if _, ok := values[key]; ok {
+			values[key] = expiresAt
+			updated = true
+		}
+	}
+	return updated
 }
 
 func parseCodexExpiryValue(value any) (time.Time, bool) {

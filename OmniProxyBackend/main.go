@@ -313,6 +313,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/update/install", a.handleUpdateInstall)
 	mux.HandleFunc("/api/data-directory", a.handleDataDirectory)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
+	mux.HandleFunc("/api/codex/sub2api/configure", a.handleCodexSub2APIConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
 	mux.HandleFunc("/api/mimo/claude/configure", a.handleMimoClaudeConfigure)
 	mux.HandleFunc("/api/mimo/claude/restore", a.handleMimoClaudeRestore)
@@ -1295,6 +1296,19 @@ func (a *appServer) handleCodexConfigure(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (a *appServer) handleCodexSub2APIConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureCodexSub2API()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (a *appServer) handleCodexRestore(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -1731,6 +1745,7 @@ func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 		oldCfg.GeminiBaseURL != nextCfg.GeminiBaseURL ||
 		oldCfg.OpenRouterBaseURL != nextCfg.OpenRouterBaseURL ||
 		oldCfg.TokenRouterBaseURL != nextCfg.TokenRouterBaseURL ||
+		oldCfg.Sub2APIBaseURL != nextCfg.Sub2APIBaseURL ||
 		oldCfg.CustomGatewayBaseURL != nextCfg.CustomGatewayBaseURL ||
 		oldCfg.CustomGatewayAnthropicBaseURL != nextCfg.CustomGatewayAnthropicBaseURL ||
 		oldCfg.XiaomiBaseURL != nextCfg.XiaomiBaseURL ||

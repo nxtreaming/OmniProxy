@@ -38,6 +38,7 @@ type Config struct {
 	GeminiBaseURL                      string `json:"geminiBaseUrl"`
 	OpenRouterBaseURL                  string `json:"openrouterBaseUrl"`
 	TokenRouterBaseURL                 string `json:"tokenrouterBaseUrl"`
+	Sub2APIBaseURL                     string `json:"sub2apiBaseUrl"`
 	CustomGatewayBaseURL               string `json:"customGatewayBaseUrl"`
 	CustomGatewayAnthropicBaseURL      string `json:"customGatewayAnthropicBaseUrl"`
 	XiaomiBaseURL                      string `json:"xiaomiBaseUrl"`
@@ -75,6 +76,7 @@ func Default() Config {
 		GeminiBaseURL:                      "https://generativelanguage.googleapis.com",
 		OpenRouterBaseURL:                  "https://openrouter.ai/api/v1",
 		TokenRouterBaseURL:                 "https://api.tokenrouter.io",
+		Sub2APIBaseURL:                     "https://aiapi.aicnio.com",
 		CustomGatewayBaseURL:               "",
 		CustomGatewayAnthropicBaseURL:      "",
 		XiaomiBaseURL:                      "",
@@ -135,6 +137,7 @@ func (s *Store) Load() (Config, error) {
 		GeminiBaseURL                      *string `json:"geminiBaseUrl"`
 		OpenRouterBaseURL                  *string `json:"openrouterBaseUrl"`
 		TokenRouterBaseURL                 *string `json:"tokenrouterBaseUrl"`
+		Sub2APIBaseURL                     *string `json:"sub2apiBaseUrl"`
 		CustomGatewayBaseURL               *string `json:"customGatewayBaseUrl"`
 		CustomGatewayAnthropicBaseURL      *string `json:"customGatewayAnthropicBaseUrl"`
 		XiaomiBaseURL                      *string `json:"xiaomiBaseUrl"`
@@ -206,6 +209,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.TokenRouterBaseURL != nil && *saved.TokenRouterBaseURL != "" {
 		cfg.TokenRouterBaseURL = *saved.TokenRouterBaseURL
+	}
+	if saved.Sub2APIBaseURL != nil && *saved.Sub2APIBaseURL != "" {
+		cfg.Sub2APIBaseURL = *saved.Sub2APIBaseURL
 	}
 	if saved.CustomGatewayBaseURL != nil {
 		cfg.CustomGatewayBaseURL = *saved.CustomGatewayBaseURL
@@ -326,6 +332,9 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.TokenRouterBaseURL == "" {
 		cfg.TokenRouterBaseURL = defaults.TokenRouterBaseURL
+	}
+	if cfg.Sub2APIBaseURL == "" {
+		cfg.Sub2APIBaseURL = defaults.Sub2APIBaseURL
 	}
 	if cfg.CodexBaseURL == "" {
 		cfg.CodexBaseURL = defaults.CodexBaseURL

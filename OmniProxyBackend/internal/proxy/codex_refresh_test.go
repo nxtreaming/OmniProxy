@@ -75,6 +75,9 @@ func TestRefreshCodexAuthJSONUsesRefreshToken(t *testing.T) {
 	if form.Get("refresh_token") != "old-refresh-token" {
 		t.Fatalf("unexpected refresh_token: %q", form.Get("refresh_token"))
 	}
+	if form.Get("scope") != codexOAuthRefreshScope {
+		t.Fatalf("unexpected scope: %q", form.Get("scope"))
+	}
 
 	var saved struct {
 		Tokens struct {
@@ -186,6 +189,81 @@ func TestRefreshCodexAuthJSONSupportsFlatCLIProxyAPIFormat(t *testing.T) {
 	}
 	if saved["expired"] != now.Add(time.Hour).Format(time.RFC3339) {
 		t.Fatalf("unexpected expired timestamp: %q", saved["expired"])
+	}
+}
+
+func TestRefreshCodexAuthJSONUsesStoredClientIDAndTokenExpiry(t *testing.T) {
+	now := time.Date(2026, 4, 29, 10, 0, 0, 0, time.UTC)
+	var form url.Values
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatal(err)
+		}
+		form = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"access_token": "new-custom-access-token",
+			"id_token": "new-custom-id-token",
+			"expires_in": 7200
+		}`))
+	}))
+	defer upstream.Close()
+
+	restore := replaceHTTPPostFormForTest(func(ctx context.Context, client *http.Client, endpoint string, values url.Values) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, upstream.URL, strings.NewReader(values.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return upstream.Client().Do(req)
+	})
+	defer restore()
+
+	raw := `{
+		"tokens": {
+			"access_token": "opaque-access-token",
+			"refresh_token": "old-custom-refresh-token",
+			"client_id": "custom-client-id",
+			"expires_at": "` + now.Add(time.Minute).Format(time.RFC3339) + `"
+		}
+	}`
+	updated, refreshed, err := RefreshCodexAuthJSON(context.Background(), upstream.Client(), raw, false, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed {
+		t.Fatal("expected refresh")
+	}
+	if form.Get("client_id") != "custom-client-id" {
+		t.Fatalf("unexpected client_id: %q", form.Get("client_id"))
+	}
+	if form.Get("scope") != codexOAuthRefreshScope {
+		t.Fatalf("unexpected scope: %q", form.Get("scope"))
+	}
+
+	var saved struct {
+		Tokens struct {
+			AccessToken  string `json:"access_token"`
+			IDToken      string `json:"id_token"`
+			RefreshToken string `json:"refresh_token"`
+			ClientID     string `json:"client_id"`
+			ExpiresAt    string `json:"expires_at"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal([]byte(updated), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Tokens.AccessToken != "new-custom-access-token" || saved.Tokens.IDToken != "new-custom-id-token" {
+		t.Fatalf("unexpected refreshed tokens: %#v", saved.Tokens)
+	}
+	if saved.Tokens.RefreshToken != "old-custom-refresh-token" {
+		t.Fatalf("refresh_token should be preserved when response omits it, got %q", saved.Tokens.RefreshToken)
+	}
+	if saved.Tokens.ClientID != "custom-client-id" {
+		t.Fatalf("client_id should be preserved, got %q", saved.Tokens.ClientID)
+	}
+	if saved.Tokens.ExpiresAt != now.Add(2*time.Hour).Format(time.RFC3339) {
+		t.Fatalf("unexpected expires_at: %q", saved.Tokens.ExpiresAt)
 	}
 }
 

@@ -31,6 +31,8 @@ export function ConfigureClaudeModels(arg1:main.claudeModelsConfigureRequest):Pr
 
 export function ConfigureCodex():Promise<main.codexConfigureResult>;
 
+export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
+
 export function ConfigureDeepSeekClaude():Promise<main.mimoConfigureResult>;
 
 export function ConfigureGemini():Promise<main.clientConfigureResult>;

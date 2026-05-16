@@ -122,6 +122,30 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			protocol: "openai",
 			outPath:  "/v1/chat/completions",
 		},
+		{
+			name:     "sub2api direct",
+			path:     "/sub2api/v1/responses",
+			body:     `{"model":"gpt-5.4"}`,
+			provider: token.ProviderSub2API,
+			protocol: "openai",
+			outPath:  "/v1/responses",
+		},
+		{
+			name:     "sub2api anthropic direct",
+			path:     "/sub2api/anthropic/v1/messages",
+			body:     `{"model":"claude-sonnet-4-5"}`,
+			provider: token.ProviderSub2API,
+			protocol: "anthropic",
+			outPath:  "/v1/messages",
+		},
+		{
+			name:     "sub2api gemini direct",
+			path:     "/sub2api/gemini/v1beta/models/gemini-3-pro-preview:generateContent",
+			body:     `{}`,
+			provider: token.ProviderSub2API,
+			protocol: "gemini",
+			outPath:  "/v1beta/models/gemini-3-pro-preview:generateContent",
+		},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

@@ -18,6 +18,7 @@ const (
 	clientGemini      = "gemini"
 	clientOpenRouter  = "openrouter"
 	clientTokenRouter = "tokenrouter"
+	clientSub2API     = "sub2api"
 	clientCursor      = "cursor"
 	clientVSCode      = "vscode"
 	clientWindsurf    = "windsurf"
@@ -113,6 +114,8 @@ func pathClientInfo(path string, route routeInfo) (ClientInfo, bool) {
 		return knownClient(clientOpenRouter), true
 	case strings.HasPrefix(path, "/tokenrouter/") || path == "/tokenrouter":
 		return knownClient(clientTokenRouter), true
+	case strings.HasPrefix(path, "/sub2api/") || path == "/sub2api":
+		return knownClient(clientSub2API), true
 	case strings.HasPrefix(path, "/custom/") || path == "/custom":
 		return knownClient(clientCustom), true
 	default:
@@ -139,6 +142,8 @@ func clientInfoFromLabel(value string) ClientInfo {
 		return knownClient(clientOpenRouter)
 	case strings.Contains(normalized, "tokenrouter"):
 		return knownClient(clientTokenRouter)
+	case strings.Contains(normalized, "sub2api"):
+		return knownClient(clientSub2API)
 	case strings.Contains(normalized, "cursor"):
 		return knownClient(clientCursor)
 	case strings.Contains(normalized, "windsurf"):
@@ -173,6 +178,8 @@ func knownClient(key string) ClientInfo {
 		return ClientInfo{Key: clientOpenRouter, Name: "OpenRouter"}
 	case clientTokenRouter:
 		return ClientInfo{Key: clientTokenRouter, Name: "TokenRouter"}
+	case clientSub2API:
+		return ClientInfo{Key: clientSub2API, Name: "sub2api"}
 	case clientCursor:
 		return ClientInfo{Key: clientCursor, Name: "Cursor"}
 	case clientVSCode:

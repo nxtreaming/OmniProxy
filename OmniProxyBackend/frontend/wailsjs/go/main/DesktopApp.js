@@ -54,6 +54,10 @@ export function ConfigureCodex() {
   return window['go']['main']['DesktopApp']['ConfigureCodex']();
 }
 
+export function ConfigureCodexSub2API() {
+  return window['go']['main']['DesktopApp']['ConfigureCodexSub2API']();
+}
+
 export function ConfigureDeepSeekClaude() {
   return window['go']['main']['DesktopApp']['ConfigureDeepSeekClaude']();
 }

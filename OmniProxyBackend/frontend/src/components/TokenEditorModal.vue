@@ -37,6 +37,9 @@ function credentialValueLabel(form) {
 }
 
 function credentialHint() {
+  if (props.form.provider === 'sub2api') {
+    return 'Base URL 会跟随这个账号保存，支持同一上游的 OpenAI、Anthropic、Gemini 协议入口。'
+  }
   if (props.form.provider === 'openrouter') {
     return '保存后可在账号管理刷新 OpenRouter 模型列表，模型 ID 会按 provider/model 展示。'
   }
@@ -99,6 +102,17 @@ function autoNameText(form) {
           <option value="sgp">海外 SGP</option>
         </select>
         <small>海外账号会使用 token-plan-sgp.xiaomimimo.com。</small>
+      </label>
+      <label v-if="form.provider === 'sub2api'">
+        <span>Base URL</span>
+        <input
+          v-model="form.baseUrl"
+          type="url"
+          placeholder="https://aiapi.aicnio.com"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <small>保存到当前账号；/sub2api、/sub2api/anthropic、/sub2api/gemini 会转发到这个上游。</small>
       </label>
       <label>
         <span>{{ credentialValueLabel(form) }}</span>

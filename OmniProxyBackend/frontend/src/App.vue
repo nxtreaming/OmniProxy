@@ -21,6 +21,7 @@ import {
 } from '../wailsjs/runtime/runtime'
 import {
   configureCodex,
+  configureCodexSub2API,
   configureClaudeModels,
   configureDeepSeekClaude,
   configureGemini,
@@ -120,6 +121,7 @@ const isDark = ref(false)
 const windowMaximised = ref(false)
 const loading = ref(false)
 const codexConfiguring = ref(false)
+const codexSub2APIConfiguring = ref(false)
 const codexRestoring = ref(false)
 const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
@@ -196,6 +198,7 @@ const config = reactive({
   geminiBaseUrl: 'https://generativelanguage.googleapis.com',
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   tokenrouterBaseUrl: 'https://api.tokenrouter.io',
+  sub2apiBaseUrl: 'https://aiapi.aicnio.com',
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
   xiaomiBaseUrl: '',
@@ -279,6 +282,7 @@ const form = reactive({
   credentialType: 'api_key',
   originalCredentialType: 'api_key',
   region: 'cn',
+  baseUrl: '',
   tokenValue: '',
 })
 const enabledTokens = computed(() => tokens.value.filter((item) => !item.disabled))
@@ -822,6 +826,7 @@ function openCreateForm(provider = 'openai') {
     credentialType: 'api_key',
     originalCredentialType: 'api_key',
     region: 'cn',
+    baseUrl: provider === 'sub2api' ? config.sub2apiBaseUrl : '',
     tokenValue: '',
   })
 }
@@ -836,6 +841,7 @@ function openEditForm(token) {
     credentialType: token.credentialType || 'api_key',
     originalCredentialType: token.credentialType || 'api_key',
     region: token.region || 'cn',
+    baseUrl: token.baseUrl || '',
     tokenValue: '',
   })
 }
@@ -852,6 +858,7 @@ async function submitForm() {
   const provider = form.provider.trim() || 'openai'
   const credentialType = normalizedCredentialType(provider, form.credentialType)
   const region = provider === 'xiaomi' && credentialType === 'mimo_token_plan' ? form.region || 'cn' : ''
+  const baseUrl = provider === 'sub2api' ? form.baseUrl.trim() : ''
   const isEditing = Boolean(form.editingId)
   const replacingCredential = tokenValue !== ''
 
@@ -877,6 +884,22 @@ async function submitForm() {
   ) {
     errorMessage.value = '更改厂商或凭据类型时需要重新填写凭据'
     return
+  }
+  if (provider === 'sub2api') {
+    if (!baseUrl) {
+      errorMessage.value = 'sub2api Base URL 不能为空'
+      return
+    }
+    try {
+      const parsed = new URL(baseUrl)
+      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host) {
+        errorMessage.value = 'sub2api Base URL 格式不正确'
+        return
+      }
+    } catch {
+      errorMessage.value = 'sub2api Base URL 格式不正确'
+      return
+    }
   }
   if ((credentialType === 'codex_auth_json' || credentialType === 'claude_oauth_json') && (!isEditing || replacingCredential)) {
     try {
@@ -915,6 +938,7 @@ async function submitForm() {
     provider,
     credentialType,
     region,
+    baseUrl,
     tokenValue,
   }
 
@@ -1216,6 +1240,7 @@ async function persistConfig() {
       geminiBaseUrl: config.geminiBaseUrl.trim(),
       openrouterBaseUrl: config.openrouterBaseUrl.trim(),
       tokenrouterBaseUrl: config.tokenrouterBaseUrl.trim(),
+      sub2apiBaseUrl: config.sub2apiBaseUrl.trim(),
       customGatewayBaseUrl: config.customGatewayBaseUrl.trim(),
       customGatewayAnthropicBaseUrl: config.customGatewayAnthropicBaseUrl.trim(),
       xiaomiBaseUrl: config.xiaomiBaseUrl.trim(),
@@ -1350,6 +1375,21 @@ async function configureLocalCodex() {
     errorMessage.value = error.message
   } finally {
     codexConfiguring.value = false
+  }
+}
+
+async function configureLocalCodexSub2API() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  codexSub2APIConfiguring.value = true
+  try {
+    const result = await configureCodexSub2API()
+    await refreshAll()
+    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy sub2api'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    codexSub2APIConfiguring.value = false
   }
 }
 
@@ -1699,6 +1739,9 @@ function credentialPlaceholder() {
   if (form.provider === 'tokenrouter') {
     return '粘贴 tr_ 开头的 TokenRouter API Key'
   }
+  if (form.provider === 'sub2api') {
+    return '粘贴 sub2api API Key'
+  }
   if (form.provider === 'custom') {
     return '粘贴自定义网关 API Key'
   }
@@ -1739,6 +1782,11 @@ function normalizedCredentialType(provider, credentialType) {
 
 function onProviderChange() {
   form.credentialType = normalizedCredentialType(form.provider, form.credentialType)
+  if (form.provider === 'sub2api' && !form.baseUrl) {
+    form.baseUrl = config.sub2apiBaseUrl
+  } else if (form.provider !== 'sub2api') {
+    form.baseUrl = ''
+  }
   if (form.editingId && form.provider !== form.originalProvider) {
     form.tokenValue = ''
   }
@@ -1773,6 +1821,8 @@ const knownClientTools = [
   { key: 'pi', label: 'Pi Coding Agent' },
   { key: 'gemini', label: 'Gemini CLI' },
   { key: 'openrouter', label: 'OpenRouter' },
+  { key: 'tokenrouter', label: 'TokenRouter' },
+  { key: 'sub2api', label: 'sub2api' },
   { key: 'cursor', label: 'Cursor' },
   { key: 'vscode', label: 'VS Code' },
   { key: 'windsurf', label: 'Windsurf' },
@@ -3159,11 +3209,17 @@ async function refreshQuota(item) {
         <div class="help-grid">
           <article class="wide-help">
             <strong>Codex</strong>
-            <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>，使用账号池里的 OpenAI Codex auth.json。</p>
-            <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex</code></pre>
+            <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api 使用账号池里的 sub2api API Key。</p>
+            <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex
+sub2api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/sub2api
+sub2api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/sub2api/anthropic
+sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="configureLocalCodex">
                 {{ codexConfiguring ? '配置中' : '配置 Codex OpenAI' }}
+              </el-button>
+              <el-button type="primary" plain :icon="MagicStick" :loading="codexSub2APIConfiguring" @click="configureLocalCodexSub2API">
+                {{ codexSub2APIConfiguring ? '配置中' : '配置 Codex sub2api' }}
               </el-button>
               <el-button :icon="RefreshRight" :loading="codexRestoring" @click="restoreLocalCodex">
                 {{ codexRestoring ? '恢复中' : '恢复 Codex 配置' }}

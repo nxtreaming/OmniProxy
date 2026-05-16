@@ -70,7 +70,7 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 	if len(parts) > 0 {
 		candidate := strings.ToLower(parts[0])
 		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderCustom:
+		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderCustom:
 			provider = candidate
 			if len(parts) == 2 {
 				path = "/" + parts[1]
@@ -161,6 +161,11 @@ func (r Router) BaseURL(route routeInfo, selected token.Token) string {
 		return r.cfg.OpenRouterBaseURL
 	case token.ProviderTokenRouter:
 		return r.cfg.TokenRouterBaseURL
+	case token.ProviderSub2API:
+		if strings.TrimSpace(selected.BaseURL) != "" {
+			return selected.BaseURL
+		}
+		return r.cfg.Sub2APIBaseURL
 	case token.ProviderCustom:
 		if route.Protocol == "anthropic" && r.cfg.CustomGatewayAnthropicBaseURL != "" {
 			return r.cfg.CustomGatewayAnthropicBaseURL
@@ -199,16 +204,31 @@ func protocolForRoute(provider string, path *string) string {
 	switch provider {
 	case token.ProviderGemini:
 		protocol = "gemini"
-	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
-		if *path == "/anthropic" {
-			*path = "/"
+	case token.ProviderSub2API:
+		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
-		} else if strings.HasPrefix(*path, "/anthropic/") {
-			*path = "/" + strings.TrimPrefix(*path, "/anthropic/")
+		} else if stripProtocolPrefix(path, "/gemini") {
+			protocol = "gemini"
+		}
+	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
+		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
 		}
 	}
 	return protocol
+}
+
+func stripProtocolPrefix(path *string, prefix string) bool {
+	if *path == prefix {
+		*path = "/"
+		return true
+	}
+	withSlash := prefix + "/"
+	if strings.HasPrefix(*path, withSlash) {
+		*path = "/" + strings.TrimPrefix(*path, withSlash)
+		return true
+	}
+	return false
 }
 
 func isAnthropicRouterPath(path string) bool {

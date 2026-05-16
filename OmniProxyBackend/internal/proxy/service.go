@@ -71,6 +71,7 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 		token.ProviderGemini:              cfg.GeminiBaseURL,
 		token.ProviderOpenRouter:          cfg.OpenRouterBaseURL,
 		token.ProviderTokenRouter:         cfg.TokenRouterBaseURL,
+		token.ProviderSub2API:             cfg.Sub2APIBaseURL,
 		"custom_gateway":                  cfg.CustomGatewayBaseURL,
 		"custom_gateway_anthropic":        cfg.CustomGatewayAnthropicBaseURL,
 		"xiaomi_api":                      cfg.XiaomiAPIBaseURL,

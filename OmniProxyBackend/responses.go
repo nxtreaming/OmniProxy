@@ -15,6 +15,7 @@ type tokenResponse struct {
 	Provider         string             `json:"provider"`
 	CredentialType   string             `json:"credentialType"`
 	Region           string             `json:"region,omitempty"`
+	BaseURL          string             `json:"baseUrl,omitempty"`
 	HasTokenValue    bool               `json:"hasTokenValue"`
 	MaskedTokenValue string             `json:"maskedTokenValue,omitempty"`
 	Remaining        int                `json:"remaining"`
@@ -175,6 +176,7 @@ func tokenResponseFor(item token.Token) tokenResponse {
 		Provider:         item.Provider,
 		CredentialType:   item.CredentialType,
 		Region:           item.Region,
+		BaseURL:          item.BaseURL,
 		HasTokenValue:    item.TokenValue != "",
 		MaskedTokenValue: maskedTokenValue(item),
 		Remaining:        item.Remaining,

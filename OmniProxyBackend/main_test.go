@@ -826,6 +826,51 @@ func TestConfigureCodexReportsAlreadyImportedAuthJSON(t *testing.T) {
 	}
 }
 
+func TestConfigureCodexSkipsAPIKeyOnlyAuthJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(codexDir, "auth.json"), []byte(`{"OPENAI_API_KEY":"sk-local-placeholder"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app := &appServer{
+		cfg: config.Config{
+			ProxyPort:       3000,
+			ControlPort:     3890,
+			UpstreamBaseURL: "https://api.openai.com",
+			SwitchThreshold: 15,
+			MaxRetries:      1,
+		},
+		tokens: manager,
+		logs:   logs.NewRecorder(10),
+	}
+
+	result, err := app.configureCodex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ImportedAuth || result.AuthUpdated || result.AuthAlreadyAdded {
+		t.Fatalf("expected API-key-only auth to be skipped, got %#v", result)
+	}
+	if !strings.Contains(result.Message, "未找到可导入的 Codex auth.json") {
+		t.Fatalf("expected skipped auth message, got %q", result.Message)
+	}
+	if items := manager.List(); len(items) != 0 {
+		t.Fatalf("expected no Codex token to be imported, got %d", len(items))
+	}
+}
+
 func TestMigrateLegacyRequestHistoryAssignsIDsForZeroIDEntries(t *testing.T) {
 	dataDir := t.TempDir()
 	legacyPath := filepath.Join(dataDir, "request_history.json")
@@ -1224,6 +1269,92 @@ func TestWriteCodexOmniProxyConfig(t *testing.T) {
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
 		t.Fatalf("expected backup file: %v", err)
+	}
+}
+
+func TestWriteCodexSub2APIConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	initial := strings.Join([]string{
+		`model = "old-model"`,
+		`model_provider = "openai"`,
+		`openai_base_url = "http://old.example/v1"`,
+		`chatgpt_base_url = "http://127.0.0.1:3000/backend-api/"`,
+		``,
+		`[projects.'E:\go\OmniProxy']`,
+		`trust_level = "trusted"`,
+		``,
+		`[model_providers.OpenAI]`,
+		`base_url = "http://old.example/v1"`,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeCodexSub2APIConfig(path, "http://127.0.0.1:3000/sub2api"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`model_provider = "OpenAI"`,
+		`model = "gpt-5.4"`,
+		`review_model = "gpt-5.4"`,
+		`model_reasoning_effort = "xhigh"`,
+		`disable_response_storage = true`,
+		`network_access = "enabled"`,
+		`windows_wsl_setup_acknowledged = true`,
+		`model_context_window = 1000000`,
+		`model_auto_compact_token_limit = 900000`,
+		`[model_providers.OpenAI]`,
+		`name = "OpenAI"`,
+		`base_url = "http://127.0.0.1:3000/sub2api"`,
+		`wire_api = "responses"`,
+		`requires_openai_auth = true`,
+		`[projects.'E:\go\OmniProxy']`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
+		}
+	}
+	for _, unexpected := range []string{"old.example", "openai_base_url", "chatgpt_base_url"} {
+		if strings.Contains(text, unexpected) {
+			t.Fatalf("config still contains %q:\n%s", unexpected, text)
+		}
+	}
+}
+
+func TestEnsureCodexOpenAIAPIKeyPreservesExistingAuth(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "auth.json")
+	initial := `{"tokens":{"access_token":"keep-token"}}`
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := ensureCodexOpenAIAPIKey(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != "updated" {
+		t.Fatalf("expected updated state, got %q", state)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(content, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["OPENAI_API_KEY"] != codexSub2APILocalAPIKey {
+		t.Fatalf("expected local API key placeholder, got %#v", payload["OPENAI_API_KEY"])
+	}
+	if _, ok := payload["tokens"].(map[string]any); !ok {
+		t.Fatalf("expected existing tokens object to be preserved: %#v", payload)
 	}
 }
 
