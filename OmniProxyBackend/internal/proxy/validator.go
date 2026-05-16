@@ -254,11 +254,18 @@ func parseCodexUsage(body []byte) (token.UsageInfo, bool) {
 		Message:      "Codex usage endpoint",
 	}
 
+	freePlan := strings.EqualFold(strings.TrimSpace(payload.PlanType), "free")
 	if payload.RateLimit.PrimaryWindow != nil {
 		used := percent(payload.RateLimit.PrimaryWindow.UsedPercent)
-		usage.PrimaryUsedPercent = used
-		usage.PrimaryRemainingPercent = 100 - used
-		usage.PrimaryResetAt = payload.RateLimit.PrimaryWindow.ResetAt
+		if freePlan {
+			usage.SecondaryUsedPercent = used
+			usage.SecondaryRemainingPercent = 100 - used
+			usage.SecondaryResetAt = payload.RateLimit.PrimaryWindow.ResetAt
+		} else {
+			usage.PrimaryUsedPercent = used
+			usage.PrimaryRemainingPercent = 100 - used
+			usage.PrimaryResetAt = payload.RateLimit.PrimaryWindow.ResetAt
+		}
 		usage.SubscriptionQuotaAvailable = true
 	}
 	if payload.RateLimit.SecondaryWindow != nil {

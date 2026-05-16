@@ -2104,20 +2104,26 @@ function quotaWindowAvailable(item, windowName) {
   if (!item?.usage?.subscriptionQuotaAvailable) return false
   const prefix = windowName === 'secondary' ? 'secondary' : 'primary'
   return ['UsedPercent', 'RemainingPercent', 'ResetAt'].some((suffix) => {
-    const value = item.usage?.[`${prefix}${suffix}`]
-    return value !== undefined && value !== null
+    const value = Number(item.usage?.[`${prefix}${suffix}`])
+    return Number.isFinite(value) && value > 0
   })
+}
+
+function isCodexFreePlan(item) {
+  return isCodexToken(item) && String(item?.usage?.planType || '').trim().toLowerCase() === 'free'
 }
 
 function showPrimaryQuotaWindow(item) {
   if (!showQuotaWindows(item)) return false
   if (!item?.usage?.subscriptionQuotaAvailable) return true
+  if (isCodexFreePlan(item) && quotaWindowAvailable(item, 'secondary')) return false
   return quotaWindowAvailable(item, 'primary')
 }
 
 function showSecondaryQuotaWindow(item) {
   if (!showQuotaWindows(item)) return false
   if (!item?.usage?.subscriptionQuotaAvailable) return true
+  if (isCodexFreePlan(item) && quotaWindowAvailable(item, 'primary')) return false
   return quotaWindowAvailable(item, 'secondary')
 }
 
@@ -2127,6 +2133,7 @@ function quotaWindowCount(item) {
 
 function quotaPrimaryLabel(item) {
   if (isZhipuCodingPlan(item)) return '窗口额度'
+  if (isCodexFreePlan(item)) return '1 周额度'
   return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
 }
 
