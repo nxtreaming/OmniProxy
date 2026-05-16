@@ -2329,15 +2329,19 @@ function weeklyLimitReached(item) {
   return Number.isFinite(remaining) && remaining <= 0 && Number.isFinite(used) && used > 0
 }
 
-function tokenUsageSummary(item) {
+function tokenUsageMetrics(item) {
   const total = Number(item.stats?.totalTokens || 0)
   const input = Number(item.stats?.inputTokens || 0)
   const output = Number(item.stats?.outputTokens || 0)
   const requests = Number(item.stats?.requestCount || 0)
   if (total > 0) {
-    return `Token ${formatNumber(total)} · 入 ${formatNumber(input)} · 出 ${formatNumber(output)}`
+    return [
+      { label: 'Token', value: formatNumber(total) },
+      { label: '入', value: formatNumber(input) },
+      { label: '出', value: formatNumber(output) },
+    ]
   }
-  return requests > 0 ? 'Token 未上报' : 'Token 0'
+  return [{ label: 'Token', value: requests > 0 ? '未上报' : '0' }]
 }
 
 function aggregateDailyUsage(items) {
@@ -3119,7 +3123,16 @@ async function refreshQuota(item) {
                 <small class="health-line">{{ healthSummary(item) }}</small>
               </div>
 
-              <div :class="['quota-layout', { 'codex-layout': isCodexToken(item), 'single-window-layout': quotaWindowCount(item) === 1 }]">
+              <div
+                :class="[
+                  'quota-layout',
+                  {
+                    'codex-layout': isCodexToken(item),
+                    'single-window-layout': quotaWindowCount(item) === 1,
+                    'api-only-layout': !isCodexToken(item) && quotaWindowCount(item) === 0,
+                  },
+                ]"
+              >
                 <div v-if="showPrimaryQuotaWindow(item)" class="quota-limit">
                   <div class="quota-limit-title">
                     <span>{{ quotaPrimaryLabel(item) }}</span>
@@ -3156,16 +3169,20 @@ async function refreshQuota(item) {
                   <small v-else>{{ quotaUnavailableText(item) }}</small>
                 </div>
 
-                <div v-if="!isCodexToken(item)" class="quota-stat">
+                <div v-if="!isCodexToken(item)" class="quota-stat quota-stat-balance">
                   <span>{{ quotaStatLabel(item) }}</span>
                   <strong>{{ hasBalanceUsage(item) ? quotaDisplay(item) : `${item.usage?.apiRemaining || item.remaining}%` }}</strong>
                   <small>{{ quotaStatMeta(item) }}</small>
                 </div>
 
-                <div class="quota-stat">
+                <div class="quota-stat quota-stat-usage">
                   <span>代理请求</span>
                   <strong>{{ formatNumber(item.stats?.requestCount) }} 次</strong>
-                  <small class="quota-detail token-usage-detail">{{ tokenUsageSummary(item) }}</small>
+                  <small class="quota-detail token-usage-detail">
+                    <span v-for="metric in tokenUsageMetrics(item)" :key="metric.label">
+                      {{ metric.label }} <strong>{{ metric.value }}</strong>
+                    </span>
+                  </small>
                 </div>
               </div>
 

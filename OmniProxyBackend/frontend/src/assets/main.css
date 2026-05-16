@@ -2301,8 +2301,13 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.quota-layout.api-only-layout {
+  grid-template-columns: minmax(180px, 0.9fr) minmax(260px, 1.3fr);
+}
+
 .quota-limit,
 .quota-stat {
+  min-width: 0;
   min-height: 88px;
   display: grid;
   align-content: start;
@@ -2324,6 +2329,21 @@ button:disabled {
 .quota-stat strong {
   font-size: 20px;
   line-height: 1.15;
+}
+
+.quota-stat strong,
+.quota-stat small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quota-layout.api-only-layout .quota-stat {
+  min-height: 108px;
+  padding: 12px;
+}
+
+.quota-layout.api-only-layout .quota-stat strong {
+  font-size: clamp(20px, 1.8vw, 24px);
 }
 
 .balance-package-list {
@@ -2417,6 +2437,14 @@ button:disabled {
   font-size: 15px;
   font-weight: 750;
   letter-spacing: 0;
+}
+
+.token-usage-detail span {
+  white-space: nowrap;
+}
+
+.token-usage-detail strong {
+  font-size: inherit;
 }
 
 .shell.dark .quota-detail strong {
@@ -6451,6 +6479,7 @@ h1 {
   .quota-layout,
   .quota-layout.codex-layout,
   .quota-layout.single-window-layout,
+  .quota-layout.api-only-layout,
   .quota-row,
   .api-quota-row,
   .tool-usage-row,
