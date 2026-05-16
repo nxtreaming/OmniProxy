@@ -2100,6 +2100,31 @@ function showQuotaWindows(item) {
   return isCodexToken(item) || isMimoTokenPlan(item) || Boolean(item?.usage?.subscriptionQuotaAvailable)
 }
 
+function quotaWindowAvailable(item, windowName) {
+  if (!item?.usage?.subscriptionQuotaAvailable) return false
+  const prefix = windowName === 'secondary' ? 'secondary' : 'primary'
+  return ['UsedPercent', 'RemainingPercent', 'ResetAt'].some((suffix) => {
+    const value = item.usage?.[`${prefix}${suffix}`]
+    return value !== undefined && value !== null
+  })
+}
+
+function showPrimaryQuotaWindow(item) {
+  if (!showQuotaWindows(item)) return false
+  if (!item?.usage?.subscriptionQuotaAvailable) return true
+  return quotaWindowAvailable(item, 'primary')
+}
+
+function showSecondaryQuotaWindow(item) {
+  if (!showQuotaWindows(item)) return false
+  if (!item?.usage?.subscriptionQuotaAvailable) return true
+  return quotaWindowAvailable(item, 'secondary')
+}
+
+function quotaWindowCount(item) {
+  return Number(showPrimaryQuotaWindow(item)) + Number(showSecondaryQuotaWindow(item))
+}
+
 function quotaPrimaryLabel(item) {
   if (isZhipuCodingPlan(item)) return '窗口额度'
   return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
@@ -2918,8 +2943,8 @@ async function refreshQuota(item) {
                 <small class="health-line">{{ healthSummary(item) }}</small>
               </div>
 
-              <div :class="['quota-layout', { 'codex-layout': isCodexToken(item) }]">
-                <div v-if="showQuotaWindows(item)" class="quota-limit">
+              <div :class="['quota-layout', { 'codex-layout': isCodexToken(item), 'single-window-layout': quotaWindowCount(item) === 1 }]">
+                <div v-if="showPrimaryQuotaWindow(item)" class="quota-limit">
                   <div class="quota-limit-title">
                     <span>{{ quotaPrimaryLabel(item) }}</span>
                     <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ quotaPercentText(item, 'primaryRemainingPercent') }}</strong>
@@ -2937,7 +2962,7 @@ async function refreshQuota(item) {
                   <small v-else>{{ quotaUnavailableText(item) }}</small>
                 </div>
 
-                <div v-if="showQuotaWindows(item)" class="quota-limit">
+                <div v-if="showSecondaryQuotaWindow(item)" class="quota-limit">
                   <div class="quota-limit-title">
                     <span>{{ quotaSecondaryLabel(item) }}</span>
                     <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ quotaPercentText(item, 'secondaryRemainingPercent') }}</strong>

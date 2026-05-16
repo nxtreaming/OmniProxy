@@ -21,15 +21,23 @@ OmniProxy 面向本地 AI 开发工作流设计。它可以让 Codex、Claude Co
 - 🧠 **多账号调度**：支持队列模式和优先平衡使用模式，并避开正在请求中的账号。
 - 🎯 **账号选择调度**：同一厂商默认轮换全部可用账号；勾选一个或多个账号后，仅在已选账号内轮换。
 - 🧯 **失败自动切换**：遇到 `429`、`502`、`503`、`504` 等错误时可换账号重试。
-- 📊 **额度与用量观测**：展示剩余额度、重置时间、请求次数、输入 / 输出 / 总 Token。
+- 📊 **额度与用量观测**：展示剩余额度、重置时间、请求次数、输入 / 输出 / 总 Token；Codex Free 账号按实际周额度展示。
 - 📈 **历史统计分析**：按日期、厂商、模型和失败原因汇总请求历史，并展示模型 Token 饼图。
 - ⚡ **当前账号额度刷新**：正在使用的 Codex 和可验证账号会每 30 秒自动刷新额度状态。
-- 🧭 **客户端快速接入**：支持将 Claude Code 指向 DeepSeek、Kimi、Xiaomi MiMo，并可为 OpenCode、Pi Coding Agent 写入本地 provider 配置。
+- 🧭 **客户端快速接入**：支持将 Claude Code 指向 DeepSeek、Kimi、Xiaomi MiMo、Zhipu GLM，支持最多 4 个 Claude 模型槽位选择，并可为 OpenCode、Pi Coding Agent 写入本地 provider 配置。
 - 🧵 **Codex WebSocket 代理**：可在设置页开启或关闭，并继续记录请求用量。
 - 💬 **OpenRouter 对话与模型列表**：可刷新 OpenRouter 模型列表，并在桌面端快速试聊。
 - 🧱 **本地持久化**：配置、账号、统计数据写入本地文件，Windows 上账号凭据使用 DPAPI 加密落盘。
 - 📤 **凭据导出**：支持导出完整账号池备份，也可以把 Codex auth.json 按账号导出为独立文件。
 - 🎨 **更顺手的控制台**：页面切换动画、当前账号高亮、导航图标、桌面图标已统一。
+
+## 🆕 近期更新
+
+- **Claude Code 模型选择**：一键配置页现在可以从 DeepSeek、MiMo、Kimi、GLM 模型中选择最多 4 个模型写入 Claude Code 模型槽位，不再只能使用单一厂商预设。
+- **Pi Coding Agent 单入口路由**：Pi 配置收敛为 `/pi-router/v1`，由 OmniProxy 按模型分流到对应上游，减少本地多 provider 配置。
+- **TokenRouter 接入**：新增 TokenRouter provider、`tr_` API Key 校验、本地 `/tokenrouter/v1` 入口，并支持 Pi/OpenCode 使用 `auto:balance`、`auto:quality`、`auto:speed`、`auto:cost` 等模型。
+- **Codex Free 额度展示**：Free 账号只有周额度时，额度页只展示实际存在的周额度窗口，不再显示空的 5h 额度栏。
+- **OpenRouter 桌面体验**：支持刷新模型列表、查询余额，并在桌面端快速试聊免费或付费模型。
 
 ## 🧠 工作方式
 
@@ -161,7 +169,7 @@ Pi router:         http://127.0.0.1:3001/pi-router/v1
 TokenRouter:       http://127.0.0.1:3001/tokenrouter/v1
 ```
 
-桌面端也提供「一键配置」入口，可将本机 Codex、Claude Code、OpenCode、Pi Coding Agent 写入 OmniProxy 本地代理地址，并保留原始配置备份用于恢复。
+桌面端也提供「一键配置」入口，可将本机 Codex、Claude Code、Gemini CLI、OpenCode、Pi Coding Agent 写入 OmniProxy 本地代理地址，并保留原始配置备份用于恢复。Claude Code 支持按需选择最多 4 个模型写入模型槽位。
 
 ## 🔌 支持的账号类型
 
@@ -226,6 +234,7 @@ TokenRouter:       http://127.0.0.1:3001/tokenrouter/v1
 - `POST /api/kimi/claude/restore`
 - `POST /api/zhipu/claude/configure`
 - `POST /api/zhipu/claude/restore`
+- `POST /api/claude/models/configure`
 - `POST /api/gemini/configure`
 - `POST /api/gemini/restore`
 - `GET /api/openrouter/models`

@@ -639,6 +639,41 @@ func TestManagerRecordsBalanceUsageStatus(t *testing.T) {
 	}
 }
 
+func TestManagerRecordsSubscriptionUsageFallsBackToSecondaryWindow(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(UpsertRequest{
+		Name:           "free-codex",
+		Provider:       ProviderOpenAI,
+		CredentialType: CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForTest(t, "free@example.com"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := manager.RecordUsageInfo(item.ID, UsageInfo{
+		Source:                     "codex",
+		PlanType:                   "free",
+		SecondaryUsedPercent:       18,
+		SecondaryRemainingPercent:  82,
+		SecondaryResetAt:           1777798105,
+		SubscriptionQuotaAvailable: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Remaining != 82 || updated.Status != StatusActive {
+		t.Fatalf("expected secondary quota to keep token active, got status=%s remaining=%d usage=%#v", updated.Status, updated.Remaining, updated.Usage)
+	}
+}
+
 func TestManagerBatchesUsagePersistenceUntilFlush(t *testing.T) {
 	store := &countingTokenStore{}
 	manager, err := NewManager(store, 15)

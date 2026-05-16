@@ -127,7 +127,7 @@ func (v *Validator) Validate(ctx context.Context, selected token.Token) (Validat
 		if ok {
 			result.Usage = &usage
 			if usage.SubscriptionQuotaAvailable {
-				remaining := usage.PrimaryRemainingPercent
+				remaining := usage.EffectiveRemainingPercent()
 				result.Remaining = &remaining
 			}
 		}

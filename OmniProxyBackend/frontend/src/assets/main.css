@@ -2297,6 +2297,10 @@ button:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.quota-layout.single-window-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .quota-limit,
 .quota-stat {
   min-height: 88px;
@@ -6446,6 +6450,7 @@ h1 {
   .quota-overview-grid,
   .quota-layout,
   .quota-layout.codex-layout,
+  .quota-layout.single-window-layout,
   .quota-row,
   .api-quota-row,
   .tool-usage-row,

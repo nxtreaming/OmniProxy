@@ -82,6 +82,35 @@ type UsageInfo struct {
 	UpdatedAt                  *time.Time       `json:"updatedAt,omitempty"`
 }
 
+func (usage UsageInfo) EffectiveRemainingPercent() int {
+	switch {
+	case usage.hasPrimaryQuotaWindow():
+		return clampPercent(usage.PrimaryRemainingPercent)
+	case usage.hasSecondaryQuotaWindow():
+		return clampPercent(usage.SecondaryRemainingPercent)
+	default:
+		return clampPercent(usage.PrimaryRemainingPercent)
+	}
+}
+
+func (usage UsageInfo) hasPrimaryQuotaWindow() bool {
+	return usage.PrimaryUsedPercent != 0 || usage.PrimaryRemainingPercent != 0 || usage.PrimaryResetAt != 0
+}
+
+func (usage UsageInfo) hasSecondaryQuotaWindow() bool {
+	return usage.SecondaryUsedPercent != 0 || usage.SecondaryRemainingPercent != 0 || usage.SecondaryResetAt != 0
+}
+
+func clampPercent(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
+}
+
 type BalancePackage struct {
 	Name             string  `json:"name,omitempty"`
 	ConsumeType      string  `json:"consumeType,omitempty"`

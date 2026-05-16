@@ -498,11 +498,12 @@ func (m *Manager) RecordUsageInfo(id string, usage UsageInfo) error {
 		m.tokens[i].CooldownUntil = nil
 
 		if usage.SubscriptionQuotaAvailable {
-			m.tokens[i].Remaining = usage.PrimaryRemainingPercent
+			remaining := usage.EffectiveRemainingPercent()
+			m.tokens[i].Remaining = remaining
 			switch {
-			case usage.LimitReached || usage.PrimaryRemainingPercent <= 0:
+			case usage.LimitReached || remaining <= 0:
 				m.tokens[i].Status = StatusExhausted
-			case usage.PrimaryRemainingPercent <= m.threshold:
+			case remaining <= m.threshold:
 				m.tokens[i].Status = StatusLow
 			default:
 				m.tokens[i].Status = StatusActive
