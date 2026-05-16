@@ -1913,7 +1913,7 @@ func TestServiceRoutesSub2APIRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/sub2api/responses", stringsReader(`{"model":"gpt-5.5","input":"hi","tools":[{"type":"image_generation"},{"type":"web_search_preview"}],"tool_choice":{"type":"image_generation"}}`))
+	req := httptest.NewRequest(http.MethodPost, "/sub2api/responses", stringsReader(`{"model":"gpt-5.5","input":"hi","tools":[{"type":"image_generation"},{"type":"web_search_preview","config":{"tools":[{"type":"image_generation"}]}}],"tool_choice":{"type":"image_generation"},"include":["reasoning.encrypted_content","image_generation_call.partial_images"],"metadata":{"tool_choice":{"tool":{"type":"image_generation"}}}}`))
 	req.Header.Set("Authorization", "Bearer caller")
 	res := httptest.NewRecorder()
 	service.ServeHTTP(res, req)

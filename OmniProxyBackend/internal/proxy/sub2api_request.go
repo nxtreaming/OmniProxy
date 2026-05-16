@@ -31,35 +31,12 @@ func stripOpenAIImageGenerationTools(body []byte) ([]byte, bool) {
 
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
-	var payload map[string]any
+	var payload any
 	if err := decoder.Decode(&payload); err != nil {
 		return body, false
 	}
 
-	changed := false
-	if tools, ok := payload["tools"].([]any); ok {
-		filtered := make([]any, 0, len(tools))
-		for _, raw := range tools {
-			if openAIToolType(raw) == "image_generation" {
-				changed = true
-				continue
-			}
-			filtered = append(filtered, raw)
-		}
-		if changed {
-			if len(filtered) == 0 {
-				delete(payload, "tools")
-			} else {
-				payload["tools"] = filtered
-			}
-		}
-	}
-
-	if openAIToolChoiceType(payload["tool_choice"]) == "image_generation" {
-		delete(payload, "tool_choice")
-		changed = true
-	}
-
+	changed := sanitizeOpenAIImageGenerationFields(payload)
 	if !changed {
 		return body, false
 	}
@@ -68,6 +45,78 @@ func stripOpenAIImageGenerationTools(body []byte) ([]byte, bool) {
 		return body, false
 	}
 	return updated, true
+}
+
+func sanitizeOpenAIImageGenerationFields(value any) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		return sanitizeOpenAIImageGenerationObject(typed)
+	case []any:
+		changed := false
+		for _, item := range typed {
+			if sanitizeOpenAIImageGenerationFields(item) {
+				changed = true
+			}
+		}
+		return changed
+	default:
+		return false
+	}
+}
+
+func sanitizeOpenAIImageGenerationObject(payload map[string]any) bool {
+	changed := false
+	for key, raw := range payload {
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "tools":
+			if tools, ok := raw.([]any); ok {
+				filtered := make([]any, 0, len(tools))
+				for _, tool := range tools {
+					if openAIToolType(tool) == "image_generation" {
+						changed = true
+						continue
+					}
+					if sanitizeOpenAIImageGenerationFields(tool) {
+						changed = true
+					}
+					filtered = append(filtered, tool)
+				}
+				if len(filtered) == 0 {
+					delete(payload, key)
+				} else {
+					payload[key] = filtered
+				}
+			}
+		case "tool_choice":
+			if openAIToolChoiceType(raw) == "image_generation" {
+				delete(payload, key)
+				changed = true
+			} else if sanitizeOpenAIImageGenerationFields(raw) {
+				changed = true
+			}
+		case "include":
+			if includes, ok := raw.([]any); ok {
+				filtered := make([]any, 0, len(includes))
+				for _, include := range includes {
+					if openAIIncludeSelectsImageGeneration(include) {
+						changed = true
+						continue
+					}
+					filtered = append(filtered, include)
+				}
+				if len(filtered) == 0 {
+					delete(payload, key)
+				} else {
+					payload[key] = filtered
+				}
+			}
+		default:
+			if sanitizeOpenAIImageGenerationFields(raw) {
+				changed = true
+			}
+		}
+	}
+	return changed
 }
 
 func openAIToolType(value any) string {
@@ -101,4 +150,12 @@ func openAIToolChoiceType(value any) string {
 		}
 	}
 	return ""
+}
+
+func openAIIncludeSelectsImageGeneration(value any) bool {
+	text, ok := stringFromAny(value)
+	if !ok {
+		return false
+	}
+	return strings.Contains(strings.ToLower(text), "image_generation")
 }
