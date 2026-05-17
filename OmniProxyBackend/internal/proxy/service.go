@@ -353,6 +353,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) forward(ctx context.Context, original *http.Request, route routeInfo, body []byte, selected token.Token) (*http.Response, error) {
+	if isCodexChatCompletionsRoute(route, selected) {
+		return s.forwardCodexChatCompletions(ctx, original, route, body, selected)
+	}
+
 	targetURL, err := s.router.TargetURL(route, selected)
 	if err != nil {
 		return nil, err
