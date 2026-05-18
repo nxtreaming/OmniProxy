@@ -363,23 +363,12 @@ func (a *appServer) handleTokens(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
-		item, err := a.tokens.Add(req)
+		item, err := a.createToken(r.Context(), req)
 		if err != nil {
 			writeDomainError(w, err)
 			return
 		}
-		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token added"})
-		if isRefreshableAuthToken(item) {
-			result, err := a.validateAndRecordToken(r.Context(), item)
-			a.recordTokenMaintenanceHistory(historyEventCodexRefreshAdd, item, result, err)
-			if err != nil {
-				a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("OAuth validation failed after add: %v", err)})
-			}
-			if updated, err := a.tokens.Get(item.ID); err == nil {
-				item = updated
-			}
-		}
-		writeJSON(w, http.StatusCreated, tokenResponseFor(item))
+		writeJSON(w, http.StatusCreated, item)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -449,19 +438,17 @@ func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid JSON body")
 			return
 		}
-		item, err := a.tokens.Update(id, req)
+		item, err := a.updateToken(id, req)
 		if err != nil {
 			writeDomainError(w, err)
 			return
 		}
-		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token updated"})
-		writeJSON(w, http.StatusOK, tokenResponseFor(item))
+		writeJSON(w, http.StatusOK, item)
 	case http.MethodDelete:
-		if err := a.tokens.Delete(id); err != nil {
+		if err := a.deleteToken(id); err != nil {
 			writeDomainError(w, err)
 			return
 		}
-		a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "token deleted"})
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -487,17 +474,12 @@ func (a *appServer) handleTokenDisabled(w http.ResponseWriter, r *http.Request, 
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	item, err := a.tokens.SetDisabled(id, req.Disabled)
+	item, err := a.setTokenDisabled(id, req.Disabled)
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	message := "token enabled"
-	if item.Disabled {
-		message = "token disabled"
-	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
-	writeJSON(w, http.StatusOK, tokenResponseFor(item))
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (a *appServer) handleTokenExclusive(w http.ResponseWriter, r *http.Request, id string) {
@@ -506,25 +488,20 @@ func (a *appServer) handleTokenExclusive(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	item, err := a.tokens.Get(id)
-	if err != nil {
-		writeDomainError(w, err)
-		return
-	}
-	var items []token.Token
-	message := "token selected as only provider account"
+	var (
+		items []tokenResponse
+		err   error
+	)
 	if r.Method == http.MethodDelete {
-		items, err = a.tokens.ClearProviderSelectionForToken(id)
-		message = "provider account selection cleared"
+		items, err = a.cancelUseOnlyToken(id)
 	} else {
-		items, err = a.tokens.SelectOnly(id)
+		items, err = a.useOnlyToken(id)
 	}
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
-	writeJSON(w, http.StatusOK, tokenResponses(items))
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *appServer) handleTokenSelected(w http.ResponseWriter, r *http.Request, id string) {
@@ -538,22 +515,12 @@ func (a *appServer) handleTokenSelected(w http.ResponseWriter, r *http.Request, 
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	item, err := a.tokens.Get(id)
+	items, err := a.setTokenSelected(id, req.Selected)
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	items, err := a.tokens.SetSelected(id, req.Selected)
-	if err != nil {
-		writeDomainError(w, err)
-		return
-	}
-	message := "token removed from provider selection"
-	if req.Selected {
-		message = "token added to provider selection"
-	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
-	writeJSON(w, http.StatusOK, tokenResponses(items))
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (a *appServer) handleTokenValidate(w http.ResponseWriter, r *http.Request, id string) {
@@ -562,32 +529,12 @@ func (a *appServer) handleTokenValidate(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	selected, err := a.tokens.Get(id)
+	result, err := a.validateToken(r.Context(), id)
 	if err != nil {
-		writeDomainError(w, err)
+		writeJSON(w, http.StatusBadGateway, result)
 		return
 	}
-
-	result, err := a.validateAndRecordToken(r.Context(), selected)
-	a.recordTokenMaintenanceHistory(historyEventManualValidation, selected, result, err)
-
-	level := logs.LevelInfo
-	if err != nil || !result.OK {
-		level = logs.LevelWarn
-	}
-	a.logs.Add(logs.Entry{
-		Level:     level,
-		Status:    result.Status,
-		Duration:  result.Duration,
-		TokenName: selected.Name,
-		Message:   "token validation completed",
-	})
-
-	if err != nil {
-		writeJSON(w, http.StatusBadGateway, validationResponseFor(result))
-		return
-	}
-	writeJSON(w, http.StatusOK, validationResponseFor(result))
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (a *appServer) handleTokenRefresh(w http.ResponseWriter, r *http.Request, id string) {
@@ -596,12 +543,12 @@ func (a *appServer) handleTokenRefresh(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 
-	item, err := a.refreshStoredAuthToken(r.Context(), id)
+	item, err := a.refreshAuthTokenResponse(r.Context(), id)
 	if err != nil {
 		writeDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, tokenResponseFor(item))
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (a *appServer) validateAndRecordToken(ctx context.Context, selected token.Token) (proxy.ValidationResult, error) {
@@ -1914,33 +1861,7 @@ func (a *appServer) restartControl() error {
 }
 
 func proxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
-	return oldCfg.ProxyPort != nextCfg.ProxyPort ||
-		oldCfg.SchedulingMode != nextCfg.SchedulingMode ||
-		oldCfg.WebSocketMode != nextCfg.WebSocketMode ||
-		oldCfg.UpstreamBaseURL != nextCfg.UpstreamBaseURL ||
-		oldCfg.OpenAIBaseURL != nextCfg.OpenAIBaseURL ||
-		oldCfg.AnthropicBaseURL != nextCfg.AnthropicBaseURL ||
-		oldCfg.DeepSeekBaseURL != nextCfg.DeepSeekBaseURL ||
-		oldCfg.DeepSeekAnthropicBaseURL != nextCfg.DeepSeekAnthropicBaseURL ||
-		oldCfg.KimiBaseURL != nextCfg.KimiBaseURL ||
-		oldCfg.ZhipuBaseURL != nextCfg.ZhipuBaseURL ||
-		oldCfg.ZhipuAnthropicBaseURL != nextCfg.ZhipuAnthropicBaseURL ||
-		oldCfg.MiniMaxBaseURL != nextCfg.MiniMaxBaseURL ||
-		oldCfg.MiniMaxAnthropicBaseURL != nextCfg.MiniMaxAnthropicBaseURL ||
-		oldCfg.GeminiBaseURL != nextCfg.GeminiBaseURL ||
-		oldCfg.OpenRouterBaseURL != nextCfg.OpenRouterBaseURL ||
-		oldCfg.TokenRouterBaseURL != nextCfg.TokenRouterBaseURL ||
-		oldCfg.Sub2APIBaseURL != nextCfg.Sub2APIBaseURL ||
-		oldCfg.CustomGatewayBaseURL != nextCfg.CustomGatewayBaseURL ||
-		oldCfg.CustomGatewayAnthropicBaseURL != nextCfg.CustomGatewayAnthropicBaseURL ||
-		oldCfg.XiaomiBaseURL != nextCfg.XiaomiBaseURL ||
-		oldCfg.XiaomiAPIBaseURL != nextCfg.XiaomiAPIBaseURL ||
-		oldCfg.XiaomiAPIAnthropicBaseURL != nextCfg.XiaomiAPIAnthropicBaseURL ||
-		oldCfg.XiaomiTokenPlanBaseURL != nextCfg.XiaomiTokenPlanBaseURL ||
-		oldCfg.XiaomiTokenPlanAnthropicBaseURL != nextCfg.XiaomiTokenPlanAnthropicBaseURL ||
-		oldCfg.XiaomiCredentialPriority != nextCfg.XiaomiCredentialPriority ||
-		oldCfg.CodexBaseURL != nextCfg.CodexBaseURL ||
-		oldCfg.MaxRetries != nextCfg.MaxRetries
+	return proxy.ProxyConfigChanged(oldCfg, nextCfg)
 }
 
 func controlConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {

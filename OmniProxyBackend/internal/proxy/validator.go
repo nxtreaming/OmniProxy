@@ -41,37 +41,8 @@ var (
 
 func NewValidator(cfg config.Config) (*Validator, error) {
 	cfg = config.Normalize(cfg)
-	for name, baseURL := range map[string]string{
-		"openai":                          cfg.OpenAIBaseURL,
-		"anthropic":                       cfg.AnthropicBaseURL,
-		"deepseek":                        cfg.DeepSeekBaseURL,
-		"deepseek_anthropic":              cfg.DeepSeekAnthropicBaseURL,
-		"kimi":                            cfg.KimiBaseURL,
-		"zhipu":                           cfg.ZhipuBaseURL,
-		"zhipu_anthropic":                 cfg.ZhipuAnthropicBaseURL,
-		"minimax":                         cfg.MiniMaxBaseURL,
-		"minimax_anthropic":               cfg.MiniMaxAnthropicBaseURL,
-		"gemini":                          cfg.GeminiBaseURL,
-		"openrouter":                      cfg.OpenRouterBaseURL,
-		"tokenrouter":                     cfg.TokenRouterBaseURL,
-		"sub2api":                         cfg.Sub2APIBaseURL,
-		"custom_gateway":                  cfg.CustomGatewayBaseURL,
-		"custom_gateway_anthropic":        cfg.CustomGatewayAnthropicBaseURL,
-		"xiaomi_api":                      cfg.XiaomiAPIBaseURL,
-		"xiaomi_api_anthropic":            cfg.XiaomiAPIAnthropicBaseURL,
-		"xiaomi_token_plan":               cfg.XiaomiTokenPlanBaseURL,
-		"xiaomi_token_plan_anthropic":     cfg.XiaomiTokenPlanAnthropicBaseURL,
-		"xiaomi_token_plan_sgp":           cfg.XiaomiTokenPlanSGPBaseURL,
-		"xiaomi_token_plan_sgp_anthropic": cfg.XiaomiTokenPlanSGPAnthropicBaseURL,
-		"codex":                           cfg.CodexBaseURL,
-		"codex_usage":                     cfg.CodexUsageEndpoint,
-	} {
-		if strings.TrimSpace(baseURL) == "" {
-			continue
-		}
-		if _, err := url.ParseRequestURI(baseURL); err != nil {
-			return nil, fmt.Errorf("invalid %s url: %w", name, err)
-		}
+	if err := ValidateValidationURLs(cfg); err != nil {
+		return nil, err
 	}
 
 	return &Validator{
@@ -208,44 +179,7 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 }
 
 func (v *Validator) baseURL(selected token.Token) string {
-	switch token.NormalizeProvider(selected.Provider) {
-	case token.ProviderAnthropic:
-		return v.cfg.AnthropicBaseURL
-	case token.ProviderDeepSeek:
-		return v.cfg.DeepSeekBaseURL
-	case token.ProviderKimi:
-		return v.cfg.KimiBaseURL
-	case token.ProviderZhipu:
-		return v.cfg.ZhipuBaseURL
-	case token.ProviderMiniMax:
-		return v.cfg.MiniMaxBaseURL
-	case token.ProviderGemini:
-		return v.cfg.GeminiBaseURL
-	case token.ProviderOpenRouter:
-		return v.cfg.OpenRouterBaseURL
-	case token.ProviderTokenRouter:
-		return v.cfg.TokenRouterBaseURL
-	case token.ProviderSub2API:
-		if strings.TrimSpace(selected.BaseURL) != "" {
-			return selected.BaseURL
-		}
-		return v.cfg.Sub2APIBaseURL
-	case token.ProviderCustom:
-		return v.cfg.CustomGatewayBaseURL
-	case token.ProviderXiaomi:
-		if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
-			if selected.Region == token.MimoRegionSGP {
-				return v.cfg.XiaomiTokenPlanSGPBaseURL
-			}
-			return v.cfg.XiaomiTokenPlanBaseURL
-		}
-		return v.cfg.XiaomiAPIBaseURL
-	default:
-		if v.cfg.OpenAIBaseURL != "" {
-			return v.cfg.OpenAIBaseURL
-		}
-		return v.cfg.UpstreamBaseURL
-	}
+	return validationBaseURL(v.cfg, selected)
 }
 
 func parseCodexUsage(body []byte) (token.UsageInfo, bool) {

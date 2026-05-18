@@ -166,125 +166,39 @@ func (a *DesktopApp) Tokens() []tokenResponse {
 }
 
 func (a *DesktopApp) CreateToken(req token.UpsertRequest) (tokenResponse, error) {
-	item, err := a.server.tokens.Add(req)
-	if err != nil {
-		return tokenResponse{}, err
-	}
-	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token added"})
-	if isRefreshableAuthToken(item) {
-		result, err := a.server.validateAndRecordToken(a.callContext(), item)
-		a.server.recordTokenMaintenanceHistory(historyEventCodexRefreshAdd, item, result, err)
-		if err != nil {
-			a.server.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("OAuth validation failed after add: %v", err)})
-		}
-		if updated, err := a.server.tokens.Get(item.ID); err == nil {
-			item = updated
-		}
-	}
-	return tokenResponseFor(item), nil
+	return a.server.createToken(a.callContext(), req)
 }
 
 func (a *DesktopApp) UpdateToken(id string, req token.UpsertRequest) (tokenResponse, error) {
-	item, err := a.server.tokens.Update(id, req)
-	if err != nil {
-		return tokenResponse{}, err
-	}
-	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token updated"})
-	return tokenResponseFor(item), nil
+	return a.server.updateToken(id, req)
 }
 
 func (a *DesktopApp) DeleteToken(id string) error {
-	if err := a.server.tokens.Delete(id); err != nil {
-		return err
-	}
-	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "token deleted"})
-	return nil
+	return a.server.deleteToken(id)
 }
 
 func (a *DesktopApp) SetTokenDisabled(id string, disabled bool) (tokenResponse, error) {
-	item, err := a.server.tokens.SetDisabled(id, disabled)
-	if err != nil {
-		return tokenResponse{}, err
-	}
-	message := "token enabled"
-	if item.Disabled {
-		message = "token disabled"
-	}
-	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
-	return tokenResponseFor(item), nil
+	return a.server.setTokenDisabled(id, disabled)
 }
 
 func (a *DesktopApp) UseOnlyToken(id string) ([]tokenResponse, error) {
-	item, err := a.server.tokens.Get(id)
-	if err != nil {
-		return nil, err
-	}
-	items, err := a.server.tokens.SelectOnly(id)
-	if err != nil {
-		return nil, err
-	}
-	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token selected as only provider account"})
-	return tokenResponses(items), nil
+	return a.server.useOnlyToken(id)
 }
 
 func (a *DesktopApp) CancelUseOnlyToken(id string) ([]tokenResponse, error) {
-	item, err := a.server.tokens.Get(id)
-	if err != nil {
-		return nil, err
-	}
-	items, err := a.server.tokens.ClearProviderSelectionForToken(id)
-	if err != nil {
-		return nil, err
-	}
-	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "provider account selection cleared"})
-	return tokenResponses(items), nil
+	return a.server.cancelUseOnlyToken(id)
 }
 
 func (a *DesktopApp) SetTokenSelected(id string, selected bool) ([]tokenResponse, error) {
-	item, err := a.server.tokens.Get(id)
-	if err != nil {
-		return nil, err
-	}
-	items, err := a.server.tokens.SetSelected(id, selected)
-	if err != nil {
-		return nil, err
-	}
-	message := "token removed from provider selection"
-	if selected {
-		message = "token added to provider selection"
-	}
-	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
-	return tokenResponses(items), nil
+	return a.server.setTokenSelected(id, selected)
 }
 
 func (a *DesktopApp) ValidateToken(id string) (validationResponse, error) {
-	selected, err := a.server.tokens.Get(id)
-	if err != nil {
-		return validationResponse{}, err
-	}
-
-	result, err := a.server.validateAndRecordToken(a.callContext(), selected)
-	a.server.recordTokenMaintenanceHistory(historyEventManualValidation, selected, result, err)
-	level := logs.LevelInfo
-	if err != nil || !result.OK {
-		level = logs.LevelWarn
-	}
-	a.server.logs.Add(logs.Entry{
-		Level:     level,
-		Status:    result.Status,
-		Duration:  result.Duration,
-		TokenName: selected.Name,
-		Message:   "token validation completed",
-	})
-	return validationResponseFor(result), err
+	return a.server.validateToken(a.callContext(), id)
 }
 
 func (a *DesktopApp) RefreshTokenAuth(id string) (tokenResponse, error) {
-	item, err := a.server.refreshStoredAuthToken(a.callContext(), id)
-	if err != nil {
-		return tokenResponse{}, err
-	}
-	return tokenResponseFor(item), nil
+	return a.server.refreshAuthTokenResponse(a.callContext(), id)
 }
 
 func (a *DesktopApp) ImportAPIKeys(req apiKeyBatchImportRequest) (apiKeyBatchImportResult, error) {

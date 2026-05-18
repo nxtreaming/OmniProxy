@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Download, Refresh, View } from '@element-plus/icons-vue'
+import { buildBillingRows, entryDate } from '../billing/aggregate'
+import { buildReportBlob as buildCanvasReportBlob, createReportCanvas as createCanvasReport } from '../billing/reportCanvas'
 import { localDateKey } from '../utils/format'
 
 const props = defineProps({
@@ -161,33 +163,6 @@ function formatBillText(template, values) {
   return String(template || '').replace(/\{(\w+)\}/g, (_, key) => values?.[key] ?? '')
 }
 
-const priceRules = [
-  { pattern: /^gpt-5\.5/i, label: 'OpenAI GPT-5.5', currency: 'USD', input: 5, output: 30 },
-  { pattern: /^gpt-5\.4-mini/i, label: 'OpenAI GPT-5.4 mini', currency: 'USD', input: 0.75, output: 4.5 },
-  { pattern: /^gpt-5\.4/i, label: 'OpenAI GPT-5.4', currency: 'USD', input: 2.5, output: 15 },
-  { pattern: /^claude-(opus-4\.[5-7]|opus-4-5|opus-4-6|opus-4-7)/i, label: 'Claude Opus 4.5+', currency: 'USD', input: 5, output: 25 },
-  { pattern: /^claude-(opus|3-opus|opus-4|opus-4-1)/i, label: 'Claude Opus', currency: 'USD', input: 15, output: 75 },
-  { pattern: /^claude-(sonnet|3-7-sonnet|4-sonnet|sonnet-4)/i, label: 'Claude Sonnet', currency: 'USD', input: 3, output: 15 },
-  { pattern: /^claude-(haiku-4\.5|4-5-haiku)/i, label: 'Claude Haiku 4.5', currency: 'USD', input: 1, output: 5 },
-  { pattern: /^claude-(haiku|3-5-haiku)/i, label: 'Claude Haiku', currency: 'USD', input: 0.8, output: 4 },
-  { pattern: /^deepseek-v4-pro/i, label: 'DeepSeek V4 Pro', currency: 'USD', input: 0.435, output: 0.87 },
-  { pattern: /^deepseek-(chat|reasoner|v4-flash)/i, label: 'DeepSeek V4 Flash', currency: 'USD', input: 0.14, output: 0.28 },
-  { pattern: /^gemini-2\.5-pro/i, label: 'Gemini 2.5 Pro', currency: 'USD', input: 1.25, output: 10 },
-  { pattern: /^gemini-2\.5-flash-lite/i, label: 'Gemini 2.5 Flash-Lite', currency: 'USD', input: 0.1, output: 0.4 },
-  { pattern: /^gemini-2\.5-flash/i, label: 'Gemini 2.5 Flash', currency: 'USD', input: 0.3, output: 2.5 },
-  { pattern: /^kimi[-_]?k2\.6|moonshot[-_]?k2\.6/i, label: 'Kimi K2.6', currency: 'USD', input: 0.95, output: 4 },
-  { pattern: /^kimi[-_]?k2\.5|moonshot[-_]?k2\.5/i, label: 'Kimi K2.5', currency: 'USD', input: 0.6, output: 3 },
-  { pattern: /^kimi[-_]?k2|moonshot[-_]?k2/i, label: 'Kimi K2', currency: 'USD', input: 0.6, output: 2.5 },
-  { pattern: /^moonshot-v1-128k/i, label: 'Moonshot v1 128K', currency: 'CNY', input: 10, output: 30 },
-  { pattern: /^moonshot-v1-32k/i, label: 'Moonshot v1 32K', currency: 'CNY', input: 5, output: 20 },
-  { pattern: /^moonshot-v1-8k/i, label: 'Moonshot v1 8K', currency: 'CNY', input: 2, output: 10 },
-  { pattern: /^minimax[-_]?m2-highspeed/i, label: 'MiniMax M2 Highspeed', currency: 'USD', input: 0.6, output: 2.4 },
-  { pattern: /^minimax[-_]?m2\.(7|5|1)|^minimax[-_]?m2\b/i, label: 'MiniMax M2', currency: 'USD', input: 0.3, output: 1.2 },
-  { pattern: /^mimo[-_]?v2\.5($|-)/i, label: 'Xiaomi MiMo V2.5', currency: 'USD', input: 0.4, output: 2 },
-  { pattern: /^mimo[-_]?v2[-_]?pro/i, label: 'Xiaomi MiMo V2 Pro', currency: 'USD', input: 1, output: 3 },
-  { pattern: /^glm-(4\.7|4\.5|4)-flash/i, label: 'Zhipu GLM Flash', currency: 'CNY', input: 0, output: 0 },
-]
-
 const availableDates = computed(() => {
   const dates = new Set([localDateKey()])
   for (const date of props.availableDates || []) {
@@ -275,96 +250,6 @@ const generatedAtText = computed(() =>
   }).format(new Date()),
 )
 
-function buildBillingRows(entries, date, dailyUsage) {
-  const byModel = new Map()
-  if (Array.isArray(dailyUsage) && dailyUsage.length) {
-    for (const item of dailyUsage) {
-      if (String(item.date || '') !== date) continue
-      addUsageRow(byModel, {
-        model: item.model,
-        provider: item.provider,
-        clientName: item.clientName,
-        clientKey: item.clientKey,
-        requestCount: Number(item.requestCount || 0),
-        inputTokens: Number(item.inputTokens || 0),
-        outputTokens: Number(item.outputTokens || 0),
-        totalTokens: Number(item.totalTokens || 0),
-      })
-    }
-    return finalizeBillingRows(byModel)
-  }
-
-  for (const entry of entries || []) {
-    if (entryDate(entry) !== date) continue
-    const total = Number(entry.totalTokens || 0)
-    const output = Number(entry.outputTokens || 0)
-    const input = Number(entry.inputTokens || 0) || Math.max(0, total - output)
-    addUsageRow(byModel, {
-      model: entry.model,
-      provider: entry.provider,
-      clientName: entry.clientName,
-      clientKey: entry.clientKey,
-      requestCount: 1,
-      inputTokens: input,
-      outputTokens: output,
-      totalTokens: total || input + output,
-    })
-  }
-
-  return finalizeBillingRows(byModel)
-}
-
-function addUsageRow(byModel, item) {
-  const model = String(item.model || '').trim()
-  if (!model) return
-  const totalTokens = Number(item.totalTokens || 0)
-  if (totalTokens <= 0) return
-  const current = byModel.get(model) || {
-    model,
-    requestCount: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    providers: new Set(),
-    clients: new Set(),
-  }
-  current.requestCount += Number(item.requestCount || 0)
-  current.inputTokens += Number(item.inputTokens || 0)
-  current.outputTokens += Number(item.outputTokens || 0)
-  current.totalTokens += totalTokens
-  if (item.provider) current.providers.add(item.provider)
-  if (item.clientName || item.clientKey) current.clients.add(item.clientName || item.clientKey)
-  byModel.set(model, current)
-}
-
-function finalizeBillingRows(byModel) {
-  return [...byModel.values()]
-    .map((row) => {
-      const price = resolvePrice(row.model)
-      const cost = price
-        ? (row.inputTokens / 1_000_000) * price.input + (row.outputTokens / 1_000_000) * price.output
-        : 0
-      return {
-        ...row,
-        providers: [...row.providers],
-        clients: [...row.clients],
-        price,
-        cost,
-        currency: price?.currency || '',
-      }
-    })
-    .sort((a, b) => b.cost - a.cost || b.totalTokens - a.totalTokens)
-}
-
-function resolvePrice(model) {
-  const normalized = String(model || '').trim()
-  return priceRules.find((rule) => rule.pattern.test(normalized)) || null
-}
-
-function entryDate(entry) {
-  return String(entry?.time || '').slice(0, 10)
-}
-
 function formatMoney(value, currency) {
   const symbol = currency === 'CNY' ? '¥' : '$'
   return `${symbol}${Number(value || 0).toFixed(4)}`
@@ -414,23 +299,11 @@ async function exportReportImage() {
 }
 
 function createReportCanvas(templateKey = selectedTemplate.value) {
-  const canvas = document.createElement('canvas')
-  const width = 1200
-  const height = 2000
-  const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
-  canvas.width = width * scale
-  canvas.height = height * scale
-  canvas.style.width = `${width}px`
-  canvas.style.height = `${height}px`
-  const ctx = canvas.getContext('2d')
-  ctx.scale(scale, scale)
-  drawBillingReport(ctx, width, height, templateKey)
-  return canvas
+  return createCanvasReport(drawBillingReport, { templateKey })
 }
 
 async function buildReportBlob(templateKey = selectedTemplate.value) {
-  const canvas = createReportCanvas(templateKey)
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+  return buildCanvasReportBlob(drawBillingReport, { templateKey })
 }
 
 async function openReportPreview() {

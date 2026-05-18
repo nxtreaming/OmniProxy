@@ -134,69 +134,7 @@ func (r Router) TargetURL(route routeInfo, selected token.Token) (string, error)
 }
 
 func (r Router) BaseURL(route routeInfo, selected token.Token) string {
-	if isCodexCredential(selected) {
-		return r.cfg.CodexBaseURL
-	}
-
-	switch token.NormalizeProvider(route.Provider) {
-	case token.ProviderAnthropic:
-		return r.cfg.AnthropicBaseURL
-	case token.ProviderDeepSeek:
-		if route.Protocol == "anthropic" {
-			return r.cfg.DeepSeekAnthropicBaseURL
-		}
-		return r.cfg.DeepSeekBaseURL
-	case token.ProviderKimi:
-		return r.cfg.KimiBaseURL
-	case token.ProviderZhipu:
-		if route.Protocol == "anthropic" {
-			return r.cfg.ZhipuAnthropicBaseURL
-		}
-		return r.cfg.ZhipuBaseURL
-	case token.ProviderMiniMax:
-		if route.Protocol == "anthropic" {
-			return r.cfg.MiniMaxAnthropicBaseURL
-		}
-		return r.cfg.MiniMaxBaseURL
-	case token.ProviderGemini:
-		return r.cfg.GeminiBaseURL
-	case token.ProviderOpenRouter:
-		return r.cfg.OpenRouterBaseURL
-	case token.ProviderTokenRouter:
-		return r.cfg.TokenRouterBaseURL
-	case token.ProviderSub2API:
-		if strings.TrimSpace(selected.BaseURL) != "" {
-			return selected.BaseURL
-		}
-		return r.cfg.Sub2APIBaseURL
-	case token.ProviderCustom:
-		if route.Protocol == "anthropic" && r.cfg.CustomGatewayAnthropicBaseURL != "" {
-			return r.cfg.CustomGatewayAnthropicBaseURL
-		}
-		return r.cfg.CustomGatewayBaseURL
-	case token.ProviderXiaomi:
-		if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
-			if route.Protocol == "anthropic" {
-				if selected.Region == token.MimoRegionSGP {
-					return r.cfg.XiaomiTokenPlanSGPAnthropicBaseURL
-				}
-				return r.cfg.XiaomiTokenPlanAnthropicBaseURL
-			}
-			if selected.Region == token.MimoRegionSGP {
-				return r.cfg.XiaomiTokenPlanSGPBaseURL
-			}
-			return r.cfg.XiaomiTokenPlanBaseURL
-		}
-		if route.Protocol == "anthropic" {
-			return r.cfg.XiaomiAPIAnthropicBaseURL
-		}
-		return r.cfg.XiaomiAPIBaseURL
-	default:
-		if r.cfg.OpenAIBaseURL != "" {
-			return r.cfg.OpenAIBaseURL
-		}
-		return r.cfg.UpstreamBaseURL
-	}
+	return routeBaseURL(r.cfg, route, selected)
 }
 
 func protocolForRoute(provider string, path *string) string {

@@ -240,19 +240,17 @@ func (m *Manager) SetDisabled(id string, disabled bool) (Token, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for i := range m.tokens {
-		if m.tokens[i].ID != id {
-			continue
-		}
-		m.tokens[i].Disabled = disabled
+	item, err := m.mutateTokenLocked(id, func(item *Token) {
+		item.Disabled = disabled
 		if disabled {
-			m.tokens[i].Selected = false
+			item.Selected = false
 		}
-		m.tokens[i].UpdatedAt = time.Now()
-		return m.tokens[i], m.persistLocked()
+		item.UpdatedAt = time.Now()
+	})
+	if err != nil {
+		return Token{}, err
 	}
-
-	return Token{}, ErrTokenNotFound
+	return item, m.persistLocked()
 }
 
 func (m *Manager) EnableOnly(id string) ([]Token, error) {
@@ -595,21 +593,19 @@ func (m *Manager) MarkExhaustedUntil(id string, reason string, until *time.Time)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for i := range m.tokens {
-		if m.tokens[i].ID != id {
-			continue
-		}
-		m.tokens[i].Status = StatusExhausted
-		m.tokens[i].LastError = reason
-		m.tokens[i].CooldownUntil = until
+	_, err := m.mutateTokenLocked(id, func(item *Token) {
+		item.Status = StatusExhausted
+		item.LastError = reason
+		item.CooldownUntil = until
 		if until != nil {
-			m.tokens[i].Health.NextCheckAt = until
+			item.Health.NextCheckAt = until
 		}
-		m.tokens[i].UpdatedAt = time.Now()
-		return m.persistLocked()
+		item.UpdatedAt = time.Now()
+	})
+	if err != nil {
+		return err
 	}
-
-	return ErrTokenNotFound
+	return m.persistLocked()
 }
 
 func (m *Manager) MarkInvalid(id string, reason string) error {
@@ -624,20 +620,18 @@ func (m *Manager) setStatus(id string, status Status, reason string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for i := range m.tokens {
-		if m.tokens[i].ID != id {
-			continue
-		}
-		m.tokens[i].Status = status
-		m.tokens[i].LastError = reason
+	_, err := m.mutateTokenLocked(id, func(item *Token) {
+		item.Status = status
+		item.LastError = reason
 		if status != StatusExhausted {
-			m.tokens[i].CooldownUntil = nil
+			item.CooldownUntil = nil
 		}
-		m.tokens[i].UpdatedAt = time.Now()
-		return m.persistLocked()
+		item.UpdatedAt = time.Now()
+	})
+	if err != nil {
+		return err
 	}
-
-	return ErrTokenNotFound
+	return m.persistLocked()
 }
 
 func (m *Manager) RecordHealthCheck(id string, ok bool, status int, message string, nextCheckAt *time.Time) error {
@@ -705,6 +699,17 @@ func (m *Manager) HealthCheckCandidates(now time.Time, activeInterval time.Durat
 	return out
 }
 
+func (m *Manager) mutateTokenLocked(id string, mutate func(*Token)) (Token, error) {
+	for i := range m.tokens {
+		if m.tokens[i].ID != id {
+			continue
+		}
+		mutate(&m.tokens[i])
+		return m.tokens[i], nil
+	}
+	return Token{}, ErrTokenNotFound
+}
+
 func (m *Manager) selectedProviderTokenIDsLocked(provider string) (map[string]bool, bool) {
 	ids := map[string]bool{}
 	for _, item := range m.tokens {
@@ -722,25 +727,7 @@ func (m *Manager) firstUsableLocked(provider string, credentialType string, stat
 	var busy Token
 	hasBusy := false
 	for _, item := range m.tokens {
-		if hasSelection && !selectedIDs[item.ID] {
-			continue
-		}
-		if item.Disabled {
-			continue
-		}
-		if NormalizeProvider(item.Provider) != provider {
-			continue
-		}
-		if credentialType != "" && item.CredentialType != credentialType {
-			continue
-		}
-		if item.Status != status {
-			continue
-		}
-		if excluded != nil && excluded[item.ID] {
-			continue
-		}
-		if strings.TrimSpace(item.TokenValue) == "" {
+		if !usableTokenMatches(item, provider, credentialType, status, excluded, selectedIDs, hasSelection) {
 			continue
 		}
 		if m.inFlight[item.ID] == 0 {
@@ -758,25 +745,7 @@ func (m *Manager) firstUsablePreferredLocked(provider string, credentialType str
 	var busy Token
 	hasBusy := false
 	for _, item := range m.tokens {
-		if hasSelection && !selectedIDs[item.ID] {
-			continue
-		}
-		if item.Disabled {
-			continue
-		}
-		if NormalizeProvider(item.Provider) != provider {
-			continue
-		}
-		if credentialType != "" && item.CredentialType != credentialType {
-			continue
-		}
-		if item.Status != status {
-			continue
-		}
-		if excluded != nil && excluded[item.ID] {
-			continue
-		}
-		if strings.TrimSpace(item.TokenValue) == "" {
+		if !usableTokenMatches(item, provider, credentialType, status, excluded, selectedIDs, hasSelection) {
 			continue
 		}
 		if !preferred(item) {
@@ -791,6 +760,28 @@ func (m *Manager) firstUsablePreferredLocked(provider string, credentialType str
 		}
 	}
 	return busy, hasBusy
+}
+
+func usableTokenMatches(item Token, provider string, credentialType string, status Status, excluded map[string]bool, selectedIDs map[string]bool, hasSelection bool) bool {
+	if hasSelection && !selectedIDs[item.ID] {
+		return false
+	}
+	if item.Disabled {
+		return false
+	}
+	if NormalizeProvider(item.Provider) != provider {
+		return false
+	}
+	if credentialType != "" && item.CredentialType != credentialType {
+		return false
+	}
+	if item.Status != status {
+		return false
+	}
+	if excluded != nil && excluded[item.ID] {
+		return false
+	}
+	return strings.TrimSpace(item.TokenValue) != ""
 }
 
 func (m *Manager) reserveLocked(item Token) Token {
@@ -812,25 +803,7 @@ func (m *Manager) bestBalancedLocked(provider string, credentialType string, sta
 	var selected Token
 	found := false
 	for _, item := range m.tokens {
-		if hasSelection && !selectedIDs[item.ID] {
-			continue
-		}
-		if item.Disabled {
-			continue
-		}
-		if NormalizeProvider(item.Provider) != provider {
-			continue
-		}
-		if credentialType != "" && item.CredentialType != credentialType {
-			continue
-		}
-		if item.Status != status {
-			continue
-		}
-		if excluded != nil && excluded[item.ID] {
-			continue
-		}
-		if strings.TrimSpace(item.TokenValue) == "" {
+		if !usableTokenMatches(item, provider, credentialType, status, excluded, selectedIDs, hasSelection) {
 			continue
 		}
 		if !found || m.balancedTokenLessLocked(item, selected) {
