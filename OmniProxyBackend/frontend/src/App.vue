@@ -828,6 +828,14 @@ async function changeBillingDate(date) {
   await refreshBilling(date)
 }
 
+function openBillingView() {
+  if (activeTab.value === 'billing') {
+    refreshBilling()
+    return
+  }
+  activeTab.value = 'billing'
+}
+
 function openCreateForm(provider = 'openai') {
   Object.assign(form, {
     visible: true,
@@ -2363,7 +2371,7 @@ function aggregateDailyUsage(items) {
       byDate.set(daily.date, current)
     }
   }
-  return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30)
+  return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 365)
 }
 
 function isCooling(item) {
@@ -2684,7 +2692,7 @@ async function refreshQuota(item) {
         @toggle-proxy="toggleProxy"
         @refresh="refreshAll"
         @open-settings="activeTab = 'settings'"
-        @open-billing="activeTab = 'billing'"
+        @open-billing="openBillingView"
         @change-quota-page="changeQuotaOverviewPage"
       />
       <BillingView

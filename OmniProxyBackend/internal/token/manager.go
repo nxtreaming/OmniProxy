@@ -917,7 +917,7 @@ func recordDailyUsage(existing []DailyTokenUsage, now time.Time, consumption Tok
 }
 
 func trimDailyUsage(existing []DailyTokenUsage) []DailyTokenUsage {
-	const maxDays = 90
+	const maxDays = 365
 	if len(existing) <= maxDays {
 		return existing
 	}

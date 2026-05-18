@@ -1,4 +1,5 @@
 ﻿<script setup>
+import { computed } from 'vue'
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,7 +11,11 @@ import {
   TrendCharts,
 } from '@element-plus/icons-vue'
 
-defineProps({
+const CONTRIBUTION_WINDOW_DAYS = 180
+const CONTRIBUTION_WEEKDAY_LABELS = ['', '一', '', '三', '', '五', '']
+const CONTRIBUTION_LEVELS = [0, 1, 2, 3, 4]
+
+const props = defineProps({
   proxyStatus: { type: Object, required: true },
   proxyEndpoint: { type: String, required: true },
   dashboardSignals: { type: Array, required: true },
@@ -66,6 +71,15 @@ defineProps({
 
 const emit = defineEmits(['toggle-proxy', 'refresh', 'open-settings', 'open-billing', 'change-quota-page'])
 
+const contributionCalendar = computed(() =>
+  buildContributionCalendar(props.dailyUsageRows, CONTRIBUTION_WINDOW_DAYS),
+)
+const contributionCalendarWeeks = computed(() => contributionCalendar.value.weeks)
+const contributionCalendarSummary = computed(() => contributionCalendar.value.summary)
+const contributionGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${Math.max(1, contributionCalendarWeeks.value.length)}, 10px)`,
+}))
+
 function toggleProxy() {
   emit('toggle-proxy')
 }
@@ -84,6 +98,95 @@ function openBilling() {
 
 function changeQuotaOverviewPage(type, direction) {
   emit('change-quota-page', type, direction)
+}
+
+function buildContributionCalendar(rows, windowDays) {
+  const usageByDate = new Map((rows || []).map((row) => [row.date, row]))
+  const today = startOfLocalDay(new Date())
+  const windowStart = addDays(today, -(windowDays - 1))
+  const gridStart = addDays(windowStart, -windowStart.getDay())
+  const gridEnd = addDays(today, 6 - today.getDay())
+  const maxRequests = Math.max(
+    1,
+    ...Array.from({ length: windowDays }, (_, index) => {
+      const key = localDateKeyFromDate(addDays(windowStart, index))
+      return Number(usageByDate.get(key)?.requestCount || 0)
+    }),
+  )
+  const weeks = []
+  const summary = {
+    days: windowDays,
+    activeDays: 0,
+    requests: 0,
+    tokens: 0,
+  }
+
+  for (let cursor = new Date(gridStart); cursor <= gridEnd; cursor = addDays(cursor, 7)) {
+    const week = []
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      const day = addDays(cursor, dayIndex)
+      const date = localDateKeyFromDate(day)
+      const row = usageByDate.get(date) || {}
+      const outside = day < windowStart || day > today
+      const requests = outside ? 0 : Number(row.requestCount || 0)
+      const tokens = outside ? 0 : Number(row.totalTokens || 0)
+      if (!outside) {
+        summary.requests += requests
+        summary.tokens += tokens
+        if (requests > 0) summary.activeDays += 1
+      }
+      week.push({
+        key: `${date}-${dayIndex}`,
+        date,
+        dayOfMonth: day.getDate(),
+        level: contributionLevel(requests, maxRequests),
+        monthKey: `${day.getFullYear()}-${day.getMonth()}`,
+        monthLabel: `${day.getMonth() + 1}月`,
+        outside,
+        requests,
+        tokens,
+      })
+    }
+    weeks.push(week)
+  }
+
+  let lastMonthKey = ''
+  const monthLabels = weeks.map((week, index) => {
+    const visibleDays = week.filter((day) => !day.outside)
+    const labelDay = index === 0 ? visibleDays[0] : visibleDays.find((day) => day.dayOfMonth === 1)
+    if (!labelDay || labelDay.monthKey === lastMonthKey) return ''
+    lastMonthKey = labelDay.monthKey
+    return labelDay.monthLabel
+  })
+
+  return { monthLabels, summary, weeks }
+}
+
+function contributionLevel(value, maxValue) {
+  if (value <= 0) return 0
+  return Math.max(1, Math.min(4, Math.ceil((value / maxValue) * 4)))
+}
+
+function contributionDayTitle(day) {
+  if (day.outside) return ''
+  return `${day.date} · ${props.formatNumber(day.requests)} 次请求 · ${props.formatNumber(day.tokens)} Token`
+}
+
+function startOfLocalDay(value) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate())
+}
+
+function addDays(value, days) {
+  const next = new Date(value)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function localDateKeyFromDate(value) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 </script>
 
@@ -109,7 +212,7 @@ function changeQuotaOverviewPage(type, direction) {
               {{ proxyStatus.running ? '停止' : '启动' }}
             </el-button>
             <el-button :icon="Refresh" @click="refreshAll">刷新</el-button>
-            <el-button plain @click="activeTab = 'settings'">设置</el-button>
+            <el-button plain @click="openSettings">设置</el-button>
           </div>
         </section>
 
@@ -321,7 +424,7 @@ function changeQuotaOverviewPage(type, direction) {
             </div>
           </div>
           <div class="log-list compact">
-            <div v-for="entry in logs.slice(0, 6)" :key="entry.id" class="log-row">
+            <div v-for="entry in logs.slice(0, 2)" :key="entry.id" class="log-row">
               <span :class="['dot', entry.level]"></span>
               <p>
                 <span v-if="entry.clientName" class="log-inline-model">{{ entry.clientName }}</span>
@@ -334,13 +437,72 @@ function changeQuotaOverviewPage(type, direction) {
           </div>
         </section>
 
+        <section class="panel contribution-panel">
+          <div class="section-heading contribution-heading">
+            <div>
+              <h2>请求活跃日历</h2>
+              <p>最近 {{ contributionCalendarSummary.days }} 天代理请求活跃度</p>
+            </div>
+            <div class="contribution-total">
+              <strong>{{ formatNumber(contributionCalendarSummary.requests) }}</strong>
+              <span>次请求</span>
+            </div>
+          </div>
+
+          <div
+            class="contribution-calendar"
+            :aria-label="`最近 ${contributionCalendarSummary.days} 天代理请求活跃日历`"
+          >
+            <div class="contribution-months" :style="contributionGridStyle" aria-hidden="true">
+              <span
+                v-for="(label, index) in contributionCalendar.monthLabels"
+                :key="`contribution-month-${index}`"
+              >
+                {{ label }}
+              </span>
+            </div>
+            <div class="contribution-weekdays" aria-hidden="true">
+              <span v-for="(label, index) in CONTRIBUTION_WEEKDAY_LABELS" :key="`weekday-${index}`">
+                {{ label }}
+              </span>
+            </div>
+            <div class="contribution-grid" :style="contributionGridStyle">
+              <div
+                v-for="(week, weekIndex) in contributionCalendarWeeks"
+                :key="`contribution-week-${weekIndex}`"
+                class="contribution-week"
+              >
+                <span
+                  v-for="day in week"
+                  :key="day.key"
+                  :class="['contribution-day', `level-${day.level}`, { outside: day.outside }]"
+                  :title="contributionDayTitle(day)"
+                  :aria-label="day.outside ? undefined : contributionDayTitle(day)"
+                ></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="contribution-footer">
+            <span>
+              {{ formatNumber(contributionCalendarSummary.tokens) }} Token · 活跃
+              {{ formatNumber(contributionCalendarSummary.activeDays) }} 天
+            </span>
+            <div class="contribution-legend" aria-hidden="true">
+              <span>少</span>
+              <i v-for="level in CONTRIBUTION_LEVELS" :key="`legend-${level}`" :class="`level-${level}`"></i>
+              <span>多</span>
+            </div>
+          </div>
+        </section>
+
         <section class="panel full usage-overview-panel">
           <div class="section-heading">
             <div>
               <h2>分天用量统计</h2>
               <p>Token 数来自上游 usage；请求数按成功通过代理返回的请求统计</p>
             </div>
-            <button type="button" class="ghost-button" @click="activeTab = 'billing'">查看明细</button>
+            <button type="button" class="ghost-button" @click.stop="openBilling">查看明细</button>
           </div>
 
           <div class="dashboard-usage-summary">
@@ -426,7 +588,7 @@ function changeQuotaOverviewPage(type, direction) {
             <div v-if="!dailyUsageRows.length" class="empty">暂无代理 Token 用量</div>
             <div v-else-if="dailyUsageRows.length > dashboardDailyUsageRows.length" class="usage-table-footer">
               <span>仅显示最近 {{ dashboardDailyUsageRows.length }} 天</span>
-              <button type="button" @click="activeTab = 'billing'">查看全部</button>
+              <button type="button" @click.stop="openBilling">查看全部</button>
             </div>
           </div>
         </section>
