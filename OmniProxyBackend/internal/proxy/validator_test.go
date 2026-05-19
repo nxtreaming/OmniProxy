@@ -103,6 +103,15 @@ func TestValidatorQueriesDeepSeekBalance(t *testing.T) {
 	if result.Usage.BalanceUnit != "CNY" || result.Usage.BalanceRemaining != 12.5 {
 		t.Fatalf("unexpected balance usage: %#v", result.Usage)
 	}
+	if len(result.Usage.BalancePackages) != 2 {
+		t.Fatalf("expected all currency balances to be preserved, got %#v", result.Usage.BalancePackages)
+	}
+	if result.Usage.BalancePackages[0].Unit != "USD" || result.Usage.BalancePackages[0].BalanceRemaining != 0 {
+		t.Fatalf("unexpected USD balance package: %#v", result.Usage.BalancePackages[0])
+	}
+	if result.Usage.BalancePackages[1].Unit != "CNY" || result.Usage.BalancePackages[1].BalanceRemaining != 12.5 {
+		t.Fatalf("unexpected CNY balance package: %#v", result.Usage.BalancePackages[1])
+	}
 	if result.Remaining == nil || *result.Remaining != 100 {
 		t.Fatalf("expected positive balance to map to remaining 100, got %#v", result.Remaining)
 	}

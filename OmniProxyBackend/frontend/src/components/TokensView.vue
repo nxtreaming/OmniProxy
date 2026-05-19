@@ -19,6 +19,10 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  apiBalanceSummaries: {
+    type: Array,
+    default: () => [],
+  },
   exportingTokens: {
     type: Boolean,
     required: true,
@@ -99,6 +103,10 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  formatBalance: {
+    type: Function,
+    required: true,
+  },
   quotaDisplay: {
     type: Function,
     required: true,
@@ -166,6 +174,17 @@ function changeOpenRouterModelPage(delta) {
 function canRefreshAuthToken(item) {
   return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
 }
+
+function apiBalanceSummaryMeta(summary) {
+  const parts = [`${props.formatNumber(summary.count)} 个 API Key`]
+  if (Number(summary.total || 0) > 0) {
+    parts.push(`总额 ${props.formatBalance(summary.total)} ${summary.unit}`)
+  }
+  if (Number(summary.used || 0) > 0) {
+    parts.push(`已用 ${props.formatBalance(summary.used)} ${summary.unit}`)
+  }
+  return parts.join(' · ')
+}
 </script>
 
 <template>
@@ -194,6 +213,17 @@ function canRefreshAuthToken(item) {
       <div>
         <h3>{{ activeProviderInfo.label }}</h3>
         <p>{{ activeProviderInfo.note }} · {{ activeProviderTokens.length }} 个账号</p>
+      </div>
+      <div
+        v-if="apiBalanceSummaries.length"
+        class="provider-api-balance-summary"
+        aria-label="API Key 总额度"
+      >
+        <article v-for="summary in apiBalanceSummaries" :key="summary.unit">
+          <span>API Key 总额度 · {{ summary.unit }}</span>
+          <strong>{{ formatBalance(summary.remaining) }} {{ summary.unit }}</strong>
+          <small>{{ apiBalanceSummaryMeta(summary) }}</small>
+        </article>
       </div>
       <div class="provider-summary-actions">
         <el-button :icon="Download" :loading="exportingTokens" @click="$emit('export-token-backup')">

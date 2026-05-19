@@ -822,7 +822,8 @@ func (v *Validator) queryDeepSeekBalance(ctx context.Context, selected token.Tok
 	}
 
 	infos, _ := payload["balance_infos"].([]any)
-	balance, unit, found := deepSeekBalanceFromInfos(infos)
+	entries := deepSeekBalanceEntriesFromInfos(infos)
+	balance, unit, found := preferredDeepSeekBalance(entries)
 	if !found {
 		return token.UsageInfo{}, nil, false
 	}
@@ -837,6 +838,7 @@ func (v *Validator) queryDeepSeekBalance(ctx context.Context, selected token.Tok
 		Source:           token.ProviderDeepSeek,
 		BalanceRemaining: balance,
 		BalanceUnit:      unit,
+		BalancePackages:  deepSeekBalancePackages(entries),
 		LimitReached:     !available || balance <= 0,
 		Message:          "DeepSeek balance",
 	}, &remaining, true
@@ -848,6 +850,10 @@ type deepSeekBalanceEntry struct {
 }
 
 func deepSeekBalanceFromInfos(infos []any) (float64, string, bool) {
+	return preferredDeepSeekBalance(deepSeekBalanceEntriesFromInfos(infos))
+}
+
+func deepSeekBalanceEntriesFromInfos(infos []any) []deepSeekBalanceEntry {
 	entries := make([]deepSeekBalanceEntry, 0, len(infos))
 	for _, raw := range infos {
 		info, ok := raw.(map[string]any)
@@ -867,6 +873,10 @@ func deepSeekBalanceFromInfos(infos []any) (float64, string, bool) {
 			balance: balance,
 		})
 	}
+	return entries
+}
+
+func preferredDeepSeekBalance(entries []deepSeekBalanceEntry) (float64, string, bool) {
 	if len(entries) == 0 {
 		return 0, "", false
 	}
@@ -883,6 +893,22 @@ func deepSeekBalanceFromInfos(infos []any) (float64, string, bool) {
 		}
 	}
 	return entries[0].balance, entries[0].unit, true
+}
+
+func deepSeekBalancePackages(entries []deepSeekBalanceEntry) []token.BalancePackage {
+	if len(entries) == 0 {
+		return nil
+	}
+	packages := make([]token.BalancePackage, 0, len(entries))
+	for _, entry := range entries {
+		packages = append(packages, token.BalancePackage{
+			Name:             entry.unit,
+			ConsumeType:      "BALANCE",
+			BalanceRemaining: entry.balance,
+			Unit:             entry.unit,
+		})
+	}
+	return packages
 }
 
 func deepSeekBalanceValue(info map[string]any) (float64, bool) {

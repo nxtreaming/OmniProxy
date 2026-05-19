@@ -16,6 +16,7 @@ import TokensView from './components/TokensView.vue'
 import appIconUrl from './assets/appicon.png'
 import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
 import { formatDuration, formatNumber, formatResetTime, formatTime, localDateKey } from './utils/format'
+import { aggregateAPIBalanceSummaries } from './utils/quota'
 import {
   WindowHide,
   WindowIsMaximised,
@@ -323,6 +324,9 @@ const activeProviderInfo = computed(
 const activeProviderTokens = computed(() => providerTokens(activeProvider.value))
 const activeProviderEnabledCount = computed(
   () => activeProviderTokens.value.filter((item) => !item.disabled).length,
+)
+const activeProviderAPIBalanceSummaries = computed(() =>
+  aggregateAPIBalanceSummaries(activeProviderTokens.value),
 )
 const openRouterTokens = computed(() => providerTokens('openrouter'))
 const currentTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label || '控制台')
@@ -2307,6 +2311,17 @@ function formatBalance(value) {
   }).format(number)
 }
 
+function apiBalanceSummaryMeta(summary) {
+  const parts = [`${formatNumber(summary.count)} 个 API Key`]
+  if (Number(summary.total || 0) > 0) {
+    parts.push(`总额 ${formatBalance(summary.total)} ${summary.unit}`)
+  }
+  if (Number(summary.used || 0) > 0) {
+    parts.push(`已用 ${formatBalance(summary.used)} ${summary.unit}`)
+  }
+  return parts.join(' · ')
+}
+
 function hasBalanceUsage(item) {
   return Boolean(item.usage?.balanceUnit)
 }
@@ -2971,6 +2986,17 @@ async function refreshQuota(item) {
             <h3>{{ activeProviderInfo.label }}</h3>
             <p>{{ activeProviderEnabledCount }} 启用 / {{ activeProviderTokens.length }} 总数 · {{ activeProviderInfo.note }}</p>
           </div>
+          <div
+            v-if="activeProviderAPIBalanceSummaries.length"
+            class="provider-api-balance-summary"
+            aria-label="API Key 总额度"
+          >
+            <article v-for="summary in activeProviderAPIBalanceSummaries" :key="summary.unit">
+              <span>API Key 总额度 · {{ summary.unit }}</span>
+              <strong>{{ formatBalance(summary.remaining) }} {{ summary.unit }}</strong>
+              <small>{{ apiBalanceSummaryMeta(summary) }}</small>
+            </article>
+          </div>
         </div>
 
         <div v-if="activeProvider === 'openrouter' && activeProviderTokens.length" class="openrouter-quota-panel">
@@ -3179,6 +3205,7 @@ async function refreshQuota(item) {
         :active-provider="activeProvider"
         :active-provider-info="activeProviderInfo"
         :active-provider-tokens="activeProviderTokens"
+        :api-balance-summaries="activeProviderAPIBalanceSummaries"
         :exporting-tokens="exportingTokens"
         :exporting-codex-auth="exportingCodexAuth"
         :codex-auth-importing="codexAuthImporting"
@@ -3199,6 +3226,7 @@ async function refreshQuota(item) {
         :health-summary="healthSummary"
         :format-time="formatTime"
         :format-number="formatNumber"
+        :format-balance="formatBalance"
         :quota-display="quotaDisplay"
         @select-provider="selectProvider"
         @export-token-backup="exportTokenBackup"
