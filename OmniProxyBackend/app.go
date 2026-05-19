@@ -611,6 +611,14 @@ func (a *DesktopApp) RestoreZhipuClaude() (mimoConfigureResult, error) {
 	return a.server.restoreZhipuClaudeConfig()
 }
 
+func (a *DesktopApp) ConfigureDeepSeekTUI() (clientConfigureResult, error) {
+	return a.server.configureDeepSeekTUI()
+}
+
+func (a *DesktopApp) RestoreDeepSeekTUI() (clientConfigureResult, error) {
+	return a.server.restoreDeepSeekTUIConfig()
+}
+
 func (a *DesktopApp) ConfigureGemini() (clientConfigureResult, error) {
 	return a.server.configureGemini()
 }

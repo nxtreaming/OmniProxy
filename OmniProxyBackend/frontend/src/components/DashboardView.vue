@@ -266,7 +266,7 @@ function localDateKeyFromDate(value) {
           <div class="section-heading">
             <div>
               <h2>编程工具账号占用</h2>
-              <p>按 Codex、Claude Code、OpenCode、Gemini CLI 等工具区分正在使用的账号</p>
+              <p>按 Codex、Claude Code、Gemini CLI、OpenCode、Pi Coding Agent、DeepSeek-TUI 等工具区分正在使用的账号</p>
             </div>
           </div>
           <div v-if="toolUsageRows.length" class="tool-usage-grid">

@@ -1882,6 +1882,82 @@ func TestWriteGeminiConfigPreservesExistingSettings(t *testing.T) {
 	}
 }
 
+func TestWriteDeepSeekTUIConfigAddsOmniProxyDeepSeekProvider(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(`provider = "openai"
+default_text_model = "old-model"
+
+[memory]
+enabled = true
+
+[providers.deepseek]
+api_key = "deepseek-key"
+other = "keep"
+
+[providers.openai]
+base_url = "https://api.openai.com/v1"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeDeepSeekTUIConfig(path, "http://127.0.0.1:3000/deepseek/v1", "omniproxy-local", "deepseek-v4-pro"); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, expected := range []string{
+		`provider = "deepseek"`,
+		`default_text_model = "deepseek-v4-pro"`,
+		`[providers.deepseek]`,
+		`api_key = "omniproxy-local"`,
+		`base_url = "http://127.0.0.1:3000/deepseek/v1"`,
+		`model = "deepseek-v4-pro"`,
+		`http_headers = { "X-OmniProxy-Client" = "DeepSeek-TUI" }`,
+		`other = "keep"`,
+		`[memory]`,
+		`[providers.openai]`,
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected %q in DeepSeek-TUI config:\n%s", expected, body)
+		}
+	}
+	if strings.Count(body, `base_url = "http://127.0.0.1:3000/deepseek/v1"`) != 1 {
+		t.Fatalf("expected duplicate provider base_url to be removed:\n%s", body)
+	}
+	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
+		t.Fatalf("expected deepseek-tui backup: %v", err)
+	}
+}
+
+func TestWriteDeepSeekTUIConfigKeepsExistingProviderHeaders(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(`[providers.deepseek]
+http_headers = { "X-Existing" = "keep" }
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeDeepSeekTUIConfig(path, "http://127.0.0.1:3000/deepseek/v1", "omniproxy-local", "deepseek-v4-pro"); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, `http_headers = { "X-Existing" = "keep" }`) {
+		t.Fatalf("expected existing provider headers to be preserved:\n%s", body)
+	}
+	if strings.Contains(body, `X-OmniProxy-Client`) {
+		t.Fatalf("expected existing provider headers not to be overwritten:\n%s", body)
+	}
+}
+
 func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "opencode.json")
 	if err := os.WriteFile(path, []byte(`{"provider":{"existing":{"npm":"@ai-sdk/openai-compatible","models":{}}}}`), 0o600); err != nil {

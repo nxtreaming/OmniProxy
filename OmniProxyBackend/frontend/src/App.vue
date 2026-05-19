@@ -27,6 +27,7 @@ import {
   configureCodexSub2API,
   configureClaudeModels,
   configureDeepSeekClaude,
+  configureDeepSeekTUI,
   configureGemini,
   configureKimiClaude,
   configureMimoClaude,
@@ -70,6 +71,7 @@ import {
   updateToken,
   validateToken,
   restoreCodex,
+  restoreDeepSeekTUI,
   restoreGemini,
   restoreMimoClaude,
   restoreOpenCode,
@@ -134,10 +136,12 @@ const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
 const zhipuClaudeConfiguring = ref(false)
 const claudeModelsConfiguring = ref(false)
+const deepSeekTUIConfiguring = ref(false)
 const geminiConfiguring = ref(false)
 const opencodeConfiguring = ref(false)
 const piConfiguring = ref(false)
 const mimoClaudeRestoring = ref(false)
+const deepSeekTUIRestoring = ref(false)
 const geminiRestoring = ref(false)
 const opencodeRestoring = ref(false)
 const piRestoring = ref(false)
@@ -1784,6 +1788,34 @@ async function configureLocalGemini() {
   }
 }
 
+async function configureLocalDeepSeekTUI() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  deepSeekTUIConfiguring.value = true
+  try {
+    const result = await configureDeepSeekTUI()
+    successMessage.value = result.message || 'DeepSeek-TUI 已配置为使用 OmniProxy'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    deepSeekTUIConfiguring.value = false
+  }
+}
+
+async function restoreLocalDeepSeekTUI() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  deepSeekTUIRestoring.value = true
+  try {
+    const result = await restoreDeepSeekTUI()
+    successMessage.value = result.message || 'DeepSeek-TUI 配置已恢复'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    deepSeekTUIRestoring.value = false
+  }
+}
+
 async function restoreLocalGemini() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -2095,9 +2127,10 @@ function providerLabel(providerKey) {
 const knownClientTools = [
   { key: 'codex', label: 'Codex' },
   { key: 'claude', label: 'Claude Code' },
+  { key: 'gemini', label: 'Gemini CLI' },
   { key: 'opencode', label: 'OpenCode' },
   { key: 'pi', label: 'Pi Coding Agent' },
-  { key: 'gemini', label: 'Gemini CLI' },
+  { key: 'deepseek-tui', label: 'DeepSeek-TUI' },
   { key: 'openrouter', label: 'OpenRouter' },
   { key: 'tokenrouter', label: 'TokenRouter' },
   { key: 'sub2api', label: 'sub2api' },
@@ -3225,7 +3258,7 @@ async function refreshQuota(item) {
         <div class="section-heading">
           <div>
             <h2>一键配置</h2>
-            <p>把本机 Codex、Claude Code、Gemini CLI、OpenCode 或 Pi Coding Agent 指向 OmniProxy，本页只负责写入本地客户端配置</p>
+            <p>把本机 Codex、Claude Code、Gemini CLI、OpenCode、Pi Coding Agent 或 DeepSeek-TUI 指向 OmniProxy，本页只负责写入本地客户端配置</p>
           </div>
         </div>
 
@@ -3367,6 +3400,24 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
               </el-button>
               <el-button :icon="RefreshRight" :loading="piRestoring" @click="restoreLocalPi">
                 {{ piRestoring ? '恢复中' : '恢复 Pi 配置' }}
+              </el-button>
+            </div>
+          </article>
+
+          <article class="wide-help">
+            <strong>DeepSeek-TUI</strong>
+            <p>写入 <code>%USERPROFILE%\.deepseek\config.toml</code>，使用 DeepSeek-TUI 内置 DeepSeek provider 连接 OmniProxy 的 DeepSeek 账号池。</p>
+            <pre class="help-code"><code>provider = "deepseek"
+default_text_model = "deepseek-v4-pro"
+[providers.deepseek]
+base_url = "http://127.0.0.1:{{ config.proxyPort }}/deepseek/v1"
+api_key = "omniproxy-local"</code></pre>
+            <div class="help-actions">
+              <el-button type="primary" :icon="MagicStick" :loading="deepSeekTUIConfiguring" @click="configureLocalDeepSeekTUI">
+                {{ deepSeekTUIConfiguring ? '配置中' : '配置 DeepSeek-TUI' }}
+              </el-button>
+              <el-button :icon="RefreshRight" :loading="deepSeekTUIRestoring" @click="restoreLocalDeepSeekTUI">
+                {{ deepSeekTUIRestoring ? '恢复中' : '恢复 DeepSeek-TUI 配置' }}
               </el-button>
             </div>
           </article>

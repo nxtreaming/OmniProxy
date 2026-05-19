@@ -13,6 +13,7 @@ type ClientInfo struct {
 const (
 	clientCodex       = "codex"
 	clientClaude      = "claude"
+	clientDeepSeekTUI = "deepseek-tui"
 	clientOpenCode    = "opencode"
 	clientPi          = "pi"
 	clientGemini      = "gemini"
@@ -75,6 +76,8 @@ func userAgentClientInfo(userAgent string) (ClientInfo, bool) {
 	switch {
 	case strings.Contains(ua, "opencode"):
 		return knownClient(clientOpenCode), true
+	case strings.Contains(ua, "deepseek-tui") || strings.Contains(ua, "deepseek tui"):
+		return knownClient(clientDeepSeekTUI), true
 	case strings.Contains(ua, "pi-coding-agent") || strings.Contains(ua, "pi.dev"):
 		return knownClient(clientPi), true
 	case strings.Contains(ua, "codex"):
@@ -130,6 +133,8 @@ func clientInfoFromLabel(value string) ClientInfo {
 	switch {
 	case strings.Contains(normalized, "opencode"):
 		return knownClient(clientOpenCode)
+	case strings.Contains(normalized, "deepseek-tui"):
+		return knownClient(clientDeepSeekTUI)
 	case strings.Contains(normalized, "pi-coding-agent") || normalized == "pi":
 		return knownClient(clientPi)
 	case strings.Contains(normalized, "codex"):
@@ -168,6 +173,8 @@ func knownClient(key string) ClientInfo {
 		return ClientInfo{Key: clientCodex, Name: "Codex"}
 	case clientClaude:
 		return ClientInfo{Key: clientClaude, Name: "Claude Code"}
+	case clientDeepSeekTUI:
+		return ClientInfo{Key: clientDeepSeekTUI, Name: "DeepSeek-TUI"}
 	case clientOpenCode:
 		return ClientInfo{Key: clientOpenCode, Name: "OpenCode"}
 	case clientPi:

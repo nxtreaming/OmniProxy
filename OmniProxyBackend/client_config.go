@@ -13,6 +13,8 @@ import (
 
 const (
 	geminiDefaultModel            = "gemini-3-pro-preview"
+	deepSeekTUIDefaultModel       = "deepseek-v4-pro"
+	deepSeekTUIClientHeader       = "DeepSeek-TUI"
 	opencodeOmniProviderID        = "omniproxy"
 	opencodeGeminiProviderID      = "omniproxy-gemini"
 	opencodeOpenRouterProviderID  = "omniproxy-openrouter"
@@ -34,6 +36,57 @@ type clientConfigureResult struct {
 	Model        string `json:"model,omitempty"`
 	ProviderID   string `json:"providerId,omitempty"`
 	Message      string `json:"message"`
+}
+
+func (a *appServer) configureDeepSeekTUI() (clientConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	a.mu.Lock()
+	port := a.cfg.ProxyPort
+	a.mu.Unlock()
+
+	deepSeekDir := filepath.Join(home, ".deepseek")
+	if err := os.MkdirAll(deepSeekDir, 0o755); err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	configPath := filepath.Join(deepSeekDir, "config.toml")
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/deepseek/v1", port)
+	if err := writeDeepSeekTUIConfig(configPath, baseURL, localClientAPIKey, deepSeekTUIDefaultModel); err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "deepseek-tui configured for omniproxy"})
+	return clientConfigureResult{
+		ConfigPath: configPath,
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    baseURL,
+		Model:      deepSeekTUIDefaultModel,
+		ProviderID: "deepseek",
+		Message:    "DeepSeek-TUI 已配置为通过 OmniProxy 使用 DeepSeek 账号池",
+	}, nil
+}
+
+func (a *appServer) restoreDeepSeekTUIConfig() (clientConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	configPath := filepath.Join(home, ".deepseek", "config.toml")
+	if err := restoreBackup(configPath, configPath+".omniproxy.bak"); err != nil {
+		return clientConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "deepseek-tui config restored"})
+	return clientConfigureResult{
+		ConfigPath: configPath,
+		BackupPath: configPath + ".omniproxy.bak",
+		Message:    "DeepSeek-TUI 配置已恢复到一键配置前的原始配置",
+	}, nil
 }
 
 func (a *appServer) configureGemini() (clientConfigureResult, error) {
@@ -176,6 +229,161 @@ func writeEnvFile(path string, env map[string]string) error {
 		lines = append(lines, key+"="+env[key])
 	}
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600)
+}
+
+func writeDeepSeekTUIConfig(path string, baseURL string, apiKey string, model string) error {
+	if err := backupFile(path, path+".omniproxy.bak", []byte("\n")); err != nil {
+		return err
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	lines := splitTextLines(strings.TrimPrefix(string(raw), "\ufeff"))
+	lines = setTOMLStringValue(lines, "", "provider", "deepseek")
+	lines = setTOMLStringValue(lines, "", "default_text_model", model)
+	lines = setTOMLStringValue(lines, "providers.deepseek", "api_key", apiKey)
+	lines = setTOMLStringValue(lines, "providers.deepseek", "base_url", baseURL)
+	lines = setTOMLStringValue(lines, "providers.deepseek", "model", model)
+	lines = setTOMLRawValueIfMissing(lines, "providers.deepseek", "http_headers", fmt.Sprintf(`{ "X-OmniProxy-Client" = %s }`, tomlString(deepSeekTUIClientHeader)))
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600)
+}
+
+func splitTextLines(raw string) []string {
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	raw = strings.ReplaceAll(raw, "\r", "\n")
+	if raw == "" {
+		return nil
+	}
+	lines := strings.Split(raw, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
+func setTOMLStringValue(lines []string, section string, key string, value string) []string {
+	return setTOMLRawValue(lines, section, key, tomlString(value))
+}
+
+func setTOMLRawValue(lines []string, section string, key string, rawValue string) []string {
+	start, end, foundSection := tomlSectionBounds(lines, section)
+	if !foundSection && section != "" {
+		if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
+			lines = append(lines, "")
+		}
+		lines = append(lines, "["+section+"]")
+		start = len(lines)
+		end = len(lines)
+	}
+
+	replacement := key + " = " + rawValue
+	matched := false
+	out := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if i >= start && i < end && tomlLineKey(line) == key {
+			if !matched {
+				out = append(out, replacement)
+				matched = true
+			}
+			continue
+		}
+		out = append(out, line)
+	}
+	if matched {
+		return out
+	}
+	return insertLine(lines, end, replacement)
+}
+
+func setTOMLRawValueIfMissing(lines []string, section string, key string, rawValue string) []string {
+	start, end, foundSection := tomlSectionBounds(lines, section)
+	if foundSection {
+		for i := start; i < end; i++ {
+			if tomlLineKey(lines[i]) == key {
+				return lines
+			}
+		}
+	}
+	return setTOMLRawValue(lines, section, key, rawValue)
+}
+
+func tomlSectionBounds(lines []string, section string) (int, int, bool) {
+	if section == "" {
+		for index, line := range lines {
+			if _, ok := tomlSectionName(line); ok {
+				return 0, index, true
+			}
+		}
+		return 0, len(lines), true
+	}
+	for index, line := range lines {
+		name, ok := tomlSectionName(line)
+		if !ok || name != section {
+			continue
+		}
+		end := len(lines)
+		for next := index + 1; next < len(lines); next++ {
+			if _, ok := tomlSectionName(lines[next]); ok {
+				end = next
+				break
+			}
+		}
+		return index + 1, end, true
+	}
+	return len(lines), len(lines), false
+}
+
+func tomlSectionName(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if strings.HasPrefix(trimmed, "#") || !strings.HasPrefix(trimmed, "[") || strings.HasPrefix(trimmed, "[[") {
+		return "", false
+	}
+	end := strings.Index(trimmed, "]")
+	if end <= 1 {
+		return "", false
+	}
+	return strings.TrimSpace(trimmed[1:end]), true
+}
+
+func tomlLineKey(line string) string {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "[") {
+		return ""
+	}
+	key, _, ok := strings.Cut(trimmed, "=")
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(key)
+}
+
+func insertLine(lines []string, index int, line string) []string {
+	if index < 0 {
+		index = 0
+	}
+	if index > len(lines) {
+		index = len(lines)
+	}
+	lines = append(lines, "")
+	copy(lines[index+1:], lines[index:])
+	lines[index] = line
+	return lines
+}
+
+func tomlString(value string) string {
+	replacer := strings.NewReplacer(
+		`\`, `\\`,
+		`"`, `\"`,
+		"\n", `\n`,
+		"\r", `\r`,
+		"\t", `\t`,
+	)
+	return `"` + replacer.Replace(value) + `"`
 }
 
 func (a *appServer) configureOpenCode() (clientConfigureResult, error) {

@@ -62,6 +62,10 @@ export function ConfigureDeepSeekClaude() {
   return window['go']['main']['DesktopApp']['ConfigureDeepSeekClaude']();
 }
 
+export function ConfigureDeepSeekTUI() {
+  return window['go']['main']['DesktopApp']['ConfigureDeepSeekTUI']();
+}
+
 export function ConfigureGemini() {
   return window['go']['main']['DesktopApp']['ConfigureGemini']();
 }
@@ -160,6 +164,10 @@ export function RestoreCodex() {
 
 export function RestoreDeepSeekClaude() {
   return window['go']['main']['DesktopApp']['RestoreDeepSeekClaude']();
+}
+
+export function RestoreDeepSeekTUI() {
+  return window['go']['main']['DesktopApp']['RestoreDeepSeekTUI']();
 }
 
 export function RestoreGemini() {

@@ -531,6 +531,18 @@ export function restoreZhipuClaude() {
     : request('/zhipu/claude/restore', { method: 'POST' })
 }
 
+export function configureDeepSeekTUI() {
+  return useWailsBindings()
+    ? DesktopApp.ConfigureDeepSeekTUI()
+    : request('/deepseek-tui/configure', { method: 'POST' })
+}
+
+export function restoreDeepSeekTUI() {
+  return useWailsBindings()
+    ? DesktopApp.RestoreDeepSeekTUI()
+    : request('/deepseek-tui/restore', { method: 'POST' })
+}
+
 export function configureGemini() {
   return useWailsBindings()
     ? DesktopApp.ConfigureGemini()

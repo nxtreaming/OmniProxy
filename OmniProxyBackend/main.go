@@ -325,6 +325,8 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/zhipu/claude/configure", a.handleZhipuClaudeConfigure)
 	mux.HandleFunc("/api/zhipu/claude/restore", a.handleZhipuClaudeRestore)
 	mux.HandleFunc("/api/claude/models/configure", a.handleClaudeModelsConfigure)
+	mux.HandleFunc("/api/deepseek-tui/configure", a.handleDeepSeekTUIConfigure)
+	mux.HandleFunc("/api/deepseek-tui/restore", a.handleDeepSeekTUIRestore)
 	mux.HandleFunc("/api/gemini/configure", a.handleGeminiConfigure)
 	mux.HandleFunc("/api/gemini/restore", a.handleGeminiRestore)
 	mux.HandleFunc("/api/openrouter/models", a.handleOpenRouterModels)
@@ -1576,6 +1578,32 @@ func (a *appServer) handleClaudeModelsConfigure(w http.ResponseWriter, r *http.R
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleDeepSeekTUIConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureDeepSeekTUI()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleDeepSeekTUIRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.restoreDeepSeekTUIConfig()
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

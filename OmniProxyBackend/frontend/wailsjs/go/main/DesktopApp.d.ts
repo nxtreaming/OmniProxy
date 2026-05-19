@@ -35,6 +35,8 @@ export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
 
 export function ConfigureDeepSeekClaude():Promise<main.mimoConfigureResult>;
 
+export function ConfigureDeepSeekTUI():Promise<main.clientConfigureResult>;
+
 export function ConfigureGemini():Promise<main.clientConfigureResult>;
 
 export function ConfigureKimiClaude():Promise<main.mimoConfigureResult>;
@@ -84,6 +86,8 @@ export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyRe
 export function RestoreCodex():Promise<main.codexConfigureResult>;
 
 export function RestoreDeepSeekClaude():Promise<main.mimoConfigureResult>;
+
+export function RestoreDeepSeekTUI():Promise<main.clientConfigureResult>;
 
 export function RestoreGemini():Promise<main.clientConfigureResult>;
 
