@@ -325,6 +325,8 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/zhipu/claude/configure", a.handleZhipuClaudeConfigure)
 	mux.HandleFunc("/api/zhipu/claude/restore", a.handleZhipuClaudeRestore)
 	mux.HandleFunc("/api/claude/models/configure", a.handleClaudeModelsConfigure)
+	mux.HandleFunc("/api/claude/desktop/models/configure", a.handleClaudeDesktopModelsConfigure)
+	mux.HandleFunc("/api/claude/desktop/restore", a.handleClaudeDesktopRestore)
 	mux.HandleFunc("/api/deepseek-tui/configure", a.handleDeepSeekTUIConfigure)
 	mux.HandleFunc("/api/deepseek-tui/restore", a.handleDeepSeekTUIRestore)
 	mux.HandleFunc("/api/gemini/configure", a.handleGeminiConfigure)
@@ -1561,6 +1563,27 @@ func (a *appServer) handleZhipuClaudeRestore(w http.ResponseWriter, r *http.Requ
 }
 
 func (a *appServer) handleClaudeModelsConfigure(w http.ResponseWriter, r *http.Request) {
+	a.handleClaudeModelsConfigureWith(w, r, a.configureClaudeModels)
+}
+
+func (a *appServer) handleClaudeDesktopModelsConfigure(w http.ResponseWriter, r *http.Request) {
+	a.handleClaudeModelsConfigureWith(w, r, a.configureClaudeDesktopModels)
+}
+
+func (a *appServer) handleClaudeDesktopRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.restoreClaudeDesktopConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleClaudeModelsConfigureWith(w http.ResponseWriter, r *http.Request, configure func(claudeModelsConfigureRequest) (mimoConfigureResult, error)) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -1571,7 +1594,7 @@ func (a *appServer) handleClaudeModelsConfigure(w http.ResponseWriter, r *http.R
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	result, err := a.configureClaudeModels(req)
+	result, err := configure(req)
 	if err != nil {
 		var selectionErr *claudeModelSelectionError
 		if errors.As(err, &selectionErr) {

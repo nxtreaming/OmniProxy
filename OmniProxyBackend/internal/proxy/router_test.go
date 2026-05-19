@@ -67,6 +67,14 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			outPath:  "/v1/messages",
 		},
 		{
+			name:     "claude desktop gateway",
+			path:     "/claude-desktop/v1/messages",
+			body:     `{"model":"deepseek-v4-pro[1m]"}`,
+			provider: token.ProviderDeepSeek,
+			protocol: "anthropic",
+			outPath:  "/v1/messages",
+		},
+		{
 			name:     "opencode router defaults openai",
 			path:     "/opencode-router/v1/chat/completions",
 			body:     `{"model":"gpt-5.4"}`,

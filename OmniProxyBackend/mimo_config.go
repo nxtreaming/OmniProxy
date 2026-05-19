@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"OmniProxyBackend/internal/claudedesktop"
 	"OmniProxyBackend/internal/logs"
 )
 
@@ -112,6 +113,41 @@ func (a *appServer) configureZhipuClaude() (mimoConfigureResult, error) {
 }
 
 func (a *appServer) configureClaudeModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
+	return a.configureSelectedClaudeModels(req, "selected claude models configured", func(targets []claudeModelTarget) string {
+		return fmt.Sprintf("Claude Code 已配置 %d 个模型：%s", len(targets), strings.Join(claudeModelNames(targets), "、"))
+	})
+}
+
+func (a *appServer) configureClaudeDesktopModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
+	targets, err := normalizeClaudeModelTargets(req.Models)
+	if err != nil {
+		return mimoConfigureResult{}, err
+	}
+	a.mu.Lock()
+	baseURL := claudedesktop.GatewayBaseURL(a.cfg.ProxyPort)
+	a.mu.Unlock()
+
+	paths, err := claudedesktop.CurrentPaths()
+	if err != nil {
+		return mimoConfigureResult{}, err
+	}
+	routes := claudeDesktopRoutesForTargets(targets)
+	if err := writeClaudeDesktopProfile(paths, baseURL, routes); err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "claude desktop models configured"})
+	return mimoConfigureResult{
+		ConfigPath: paths.ProfilePath,
+		BackupPath: paths.MetaPath,
+		BaseURL:    baseURL,
+		Model:      targets[0].Model,
+		Models:     claudeModelIDs(targets),
+		Message:    fmt.Sprintf("Claude Code Desktop 已配置 %d 个模型：%s，请完全退出并重启 Claude Desktop", len(targets), strings.Join(claudeModelNames(targets), "、")),
+	}, nil
+}
+
+func (a *appServer) configureSelectedClaudeModels(req claudeModelsConfigureRequest, logMessage string, message func([]claudeModelTarget) string) (mimoConfigureResult, error) {
 	targets, err := normalizeClaudeModelTargets(req.Models)
 	if err != nil {
 		return mimoConfigureResult{}, err
@@ -120,8 +156,8 @@ func (a *appServer) configureClaudeModels(req claudeModelsConfigureRequest) (mim
 	models := claudeModelIDs(targets)
 	target := claudeModelTarget{
 		Model:      targets[0].Model,
-		LogMessage: "selected claude models configured",
-		Message:    fmt.Sprintf("Claude Code 已配置 %d 个模型：%s", len(targets), strings.Join(claudeModelNames(targets), "、")),
+		LogMessage: logMessage,
+		Message:    message(targets),
 	}
 	result, err := a.configureClaudeWithWriter(target, func(path string, baseURL string) error {
 		return writeSelectedClaudeSettings(path, baseURL, targets)
@@ -207,6 +243,35 @@ func (a *appServer) restoreKimiClaudeConfig() (mimoConfigureResult, error) {
 
 func (a *appServer) restoreZhipuClaudeConfig() (mimoConfigureResult, error) {
 	return a.restoreMimoClaudeConfig()
+}
+
+func (a *appServer) restoreClaudeDesktopConfig() (mimoConfigureResult, error) {
+	paths, err := claudedesktop.CurrentPaths()
+	if err != nil {
+		return mimoConfigureResult{}, err
+	}
+	if err := writeClaudeDesktopDeploymentMode(paths.NormalConfigPath, "1p"); err != nil {
+		return mimoConfigureResult{}, err
+	}
+	if err := writeClaudeDesktopDeploymentMode(paths.ThreePConfigPath, "1p"); err != nil {
+		return mimoConfigureResult{}, err
+	}
+	if err := removeFileIfExists(paths.ProfilePath); err != nil {
+		return mimoConfigureResult{}, err
+	}
+	if err := removeFileIfExists(paths.RoutesPath); err != nil {
+		return mimoConfigureResult{}, err
+	}
+	if err := writeClaudeDesktopMeta(paths.MetaPath, false); err != nil {
+		return mimoConfigureResult{}, err
+	}
+
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "claude desktop config restored"})
+	return mimoConfigureResult{
+		ConfigPath: paths.ProfilePath,
+		BackupPath: paths.MetaPath,
+		Message:    "Claude Desktop 配置已恢复为官方模式",
+	}, nil
 }
 
 func writeMimoClaudeSettings(path string, baseURL string) error {
@@ -456,6 +521,92 @@ func claudeModelNames(targets []claudeModelTarget) []string {
 		names = append(names, target.Name)
 	}
 	return names
+}
+
+func claudeDesktopRoutesForTargets(targets []claudeModelTarget) []claudedesktop.ModelRoute {
+	routeIDs := []string{
+		"claude-sonnet-4-6",
+		"claude-opus-4-7",
+		"claude-haiku-4-5",
+		"claude-sonnet-4-6-r2",
+	}
+	routes := make([]claudedesktop.ModelRoute, 0, len(targets))
+	for index, target := range targets {
+		if index >= len(routeIDs) {
+			break
+		}
+		label := strings.TrimSpace(target.Name)
+		if label == "" {
+			label = target.Model
+		}
+		routes = append(routes, claudedesktop.ModelRoute{
+			RouteID:       routeIDs[index],
+			UpstreamModel: target.Model,
+			LabelOverride: label,
+			Supports1M:    strings.Contains(strings.ToLower(target.Model), "[1m]"),
+		})
+	}
+	return routes
+}
+
+func writeClaudeDesktopProfile(paths claudedesktop.Paths, baseURL string, routes []claudedesktop.ModelRoute) error {
+	if err := writeClaudeDesktopDeploymentMode(paths.NormalConfigPath, "3p"); err != nil {
+		return err
+	}
+	if err := writeClaudeDesktopDeploymentMode(paths.ThreePConfigPath, "3p"); err != nil {
+		return err
+	}
+	if err := writeJSONObject(paths.ProfilePath, claudedesktop.BuildGatewayProfile(baseURL, routes)); err != nil {
+		return err
+	}
+	if err := claudedesktop.WriteRoutes(paths.RoutesPath, routes); err != nil {
+		return err
+	}
+	return writeClaudeDesktopMeta(paths.MetaPath, true)
+}
+
+func writeClaudeDesktopDeploymentMode(path string, mode string) error {
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	data["deploymentMode"] = mode
+	return writeJSONObject(path, data)
+}
+
+func writeClaudeDesktopMeta(path string, apply bool) error {
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	entries := make([]any, 0)
+	if existing, ok := data["entries"].([]any); ok {
+		for _, entry := range existing {
+			item, ok := entry.(map[string]any)
+			if ok && item["id"] == claudedesktop.ProfileID {
+				continue
+			}
+			entries = append(entries, entry)
+		}
+	}
+	if apply {
+		entries = append(entries, map[string]any{
+			"id":   claudedesktop.ProfileID,
+			"name": claudedesktop.ProfileName,
+		})
+		data["appliedId"] = claudedesktop.ProfileID
+	} else if data["appliedId"] == claudedesktop.ProfileID {
+		delete(data, "appliedId")
+	}
+	data["entries"] = entries
+	return writeJSONObject(path, data)
+}
+
+func removeFileIfExists(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func cleanClaudeEnv(data map[string]any) map[string]any {

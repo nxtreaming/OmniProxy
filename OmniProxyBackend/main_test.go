@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"OmniProxyBackend/internal/claudedesktop"
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
@@ -1734,6 +1735,7 @@ func TestWriteSelectedClaudeSettingsUsesSelectedModels(t *testing.T) {
 		`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "mimo-v2.5-pro"`,
 		`"CLAUDE_CODE_SUBAGENT_MODEL": "mimo-v2.5-pro"`,
 		`"CLAUDE_CODE_EFFORT_LEVEL": "max"`,
+		`"availableModels": [`,
 		`"OTHER": "keep"`,
 		`"custom-existing-model"`,
 	} {
@@ -1749,6 +1751,108 @@ func TestWriteSelectedClaudeSettingsUsesSelectedModels(t *testing.T) {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
 		}
+	}
+}
+
+func TestConfigureClaudeDesktopModelsUsesSelectedModels(t *testing.T) {
+	localAppData := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", localAppData)
+
+	server := &appServer{
+		cfg:  config.Config{ProxyPort: 3000},
+		logs: logs.NewRecorder(10),
+	}
+	result, err := server.configureClaudeDesktopModels(claudeModelsConfigureRequest{
+		Models: []string{"deepseek-v4-pro", "mimo-v2.5"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Model != deepSeekProModel {
+		t.Fatalf("expected primary model %q, got %q", deepSeekProModel, result.Model)
+	}
+	if !strings.Contains(result.Message, "Claude Code Desktop 已配置 2 个模型") {
+		t.Fatalf("expected desktop-specific result message, got %q", result.Message)
+	}
+
+	paths, err := claudedesktop.CurrentPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, configPath := range []string{paths.NormalConfigPath, paths.ThreePConfigPath} {
+		data, err := readJSONObject(configPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if data["deploymentMode"] != "3p" {
+			t.Fatalf("expected %s deploymentMode 3p, got %#v", configPath, data)
+		}
+	}
+
+	profile, err := readJSONObject(paths.ProfilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile["inferenceProvider"] != "gateway" ||
+		profile["inferenceGatewayBaseUrl"] != "http://127.0.0.1:3000/claude-desktop" ||
+		profile["inferenceGatewayApiKey"] != claudedesktop.GatewayToken {
+		t.Fatalf("unexpected desktop profile: %#v", profile)
+	}
+	models, ok := profile["inferenceModels"].([]any)
+	if !ok || len(models) != 2 {
+		t.Fatalf("expected 2 desktop models, got %#v", profile["inferenceModels"])
+	}
+	first := models[0].(map[string]any)
+	if first["name"] != "claude-sonnet-4-6" || first["labelOverride"] != "DeepSeek V4 Pro" || first["supports1m"] != true {
+		t.Fatalf("unexpected first desktop model: %#v", first)
+	}
+	second := models[1].(map[string]any)
+	if second["name"] != "claude-opus-4-7" || second["labelOverride"] != "MiMo-V2.5" {
+		t.Fatalf("unexpected second desktop model: %#v", second)
+	}
+
+	routes, err := claudedesktop.LoadRoutes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 2 || routes[0].RouteID != "claude-sonnet-4-6" || routes[0].UpstreamModel != deepSeekProModel || routes[1].UpstreamModel != "mimo-v2.5" {
+		t.Fatalf("unexpected desktop routes: %#v", routes)
+	}
+	meta, err := readJSONObject(paths.MetaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["appliedId"] != claudedesktop.ProfileID {
+		t.Fatalf("expected applied profile id, got %#v", meta)
+	}
+
+	if _, err := server.restoreClaudeDesktopConfig(); err != nil {
+		t.Fatal(err)
+	}
+	for _, configPath := range []string{paths.NormalConfigPath, paths.ThreePConfigPath} {
+		data, err := readJSONObject(configPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if data["deploymentMode"] != "1p" {
+			t.Fatalf("expected %s deploymentMode 1p after restore, got %#v", configPath, data)
+		}
+	}
+	if _, err := os.Stat(paths.ProfilePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected profile to be removed, got %v", err)
+	}
+	if _, err := os.Stat(paths.RoutesPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected routes to be removed, got %v", err)
+	}
+	meta, err = readJSONObject(paths.MetaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta["appliedId"] == claudedesktop.ProfileID {
+		t.Fatalf("expected applied profile id to be cleared, got %#v", meta)
 	}
 }
 

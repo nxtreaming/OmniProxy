@@ -46,6 +46,10 @@ export function Config() {
   return window['go']['main']['DesktopApp']['Config']();
 }
 
+export function ConfigureClaudeDesktopModels(arg1) {
+  return window['go']['main']['DesktopApp']['ConfigureClaudeDesktopModels'](arg1);
+}
+
 export function ConfigureClaudeModels(arg1) {
   return window['go']['main']['DesktopApp']['ConfigureClaudeModels'](arg1);
 }
@@ -156,6 +160,10 @@ export function RefreshTokenAuth(arg1) {
 
 export function RequestHistory(arg1) {
   return window['go']['main']['DesktopApp']['RequestHistory'](arg1);
+}
+
+export function RestoreClaudeDesktop() {
+  return window['go']['main']['DesktopApp']['RestoreClaudeDesktop']();
 }
 
 export function RestoreCodex() {

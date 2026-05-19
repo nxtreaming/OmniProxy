@@ -25,6 +25,7 @@ import {
 import {
   configureCodex,
   configureCodexSub2API,
+  configureClaudeDesktopModels,
   configureClaudeModels,
   configureDeepSeekClaude,
   configureDeepSeekTUI,
@@ -71,6 +72,7 @@ import {
   updateToken,
   validateToken,
   restoreCodex,
+  restoreClaudeDesktop,
   restoreDeepSeekTUI,
   restoreGemini,
   restoreMimoClaude,
@@ -136,6 +138,8 @@ const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
 const zhipuClaudeConfiguring = ref(false)
 const claudeModelsConfiguring = ref(false)
+const claudeDesktopConfiguring = ref(false)
+const claudeDesktopRestoring = ref(false)
 const deepSeekTUIConfiguring = ref(false)
 const geminiConfiguring = ref(false)
 const opencodeConfiguring = ref(false)
@@ -1751,18 +1755,24 @@ function selectedClaudeModelIds() {
   return selectedClaudeModels.value.map((model) => String(model || '').trim()).filter(Boolean)
 }
 
-async function configureLocalClaudeModels() {
-  errorMessage.value = ''
-  successMessage.value = ''
+function validateSelectedClaudeModels() {
   const models = selectedClaudeModelIds()
   if (models.length === 0) {
     errorMessage.value = '至少选择一个 Claude Code 模型'
-    return
+    return null
   }
   if (models.length > claudeModelSelectionLimit) {
     errorMessage.value = `Claude Code 最多选择 ${claudeModelSelectionLimit} 个模型`
-    return
+    return null
   }
+  return models
+}
+
+async function configureLocalClaudeModels() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  const models = validateSelectedClaudeModels()
+  if (!models) return
   claudeModelsConfiguring.value = true
   try {
     const result = await configureClaudeModels(models)
@@ -1771,6 +1781,36 @@ async function configureLocalClaudeModels() {
     errorMessage.value = error.message
   } finally {
     claudeModelsConfiguring.value = false
+  }
+}
+
+async function configureLocalClaudeDesktopModels() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  const models = validateSelectedClaudeModels()
+  if (!models) return
+  claudeDesktopConfiguring.value = true
+  try {
+    const result = await configureClaudeDesktopModels(models)
+    successMessage.value = result.message || 'Claude Code Desktop 已按选择模型完成配置，请重启 Claude Desktop'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    claudeDesktopConfiguring.value = false
+  }
+}
+
+async function restoreLocalClaudeDesktop() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  claudeDesktopRestoring.value = true
+  try {
+    const result = await restoreClaudeDesktop()
+    successMessage.value = result.message || 'Claude Desktop 配置已恢复'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    claudeDesktopRestoring.value = false
   }
 }
 
@@ -2127,6 +2167,7 @@ function providerLabel(providerKey) {
 const knownClientTools = [
   { key: 'codex', label: 'Codex' },
   { key: 'claude', label: 'Claude Code' },
+  { key: 'claude-desktop', label: 'Claude Code Desktop' },
   { key: 'gemini', label: 'Gemini CLI' },
   { key: 'opencode', label: 'OpenCode' },
   { key: 'pi', label: 'Pi Coding Agent' },
@@ -3323,6 +3364,9 @@ GLM model: glm-5.1</code></pre>
               <small class="claude-model-selection">
                 已选：{{ selectedClaudeModelLabels.length ? selectedClaudeModelLabels.join('、') : '未选择' }}
               </small>
+              <small class="claude-model-selection">
+                CLI 写入 <code>%USERPROFILE%\.claude\settings.json</code>；Desktop 写入 Claude 3P Gateway Profile，配置后请完全退出并重启 Claude Desktop。
+              </small>
             </div>
             <div class="help-actions">
               <el-button
@@ -3332,7 +3376,20 @@ GLM model: glm-5.1</code></pre>
                 :disabled="!canConfigureClaudeModels"
                 @click="configureLocalClaudeModels"
               >
-                {{ claudeModelsConfiguring ? '配置中' : '按选择接入 Claude' }}
+                {{ claudeModelsConfiguring ? '配置中' : '按选择接入 Claude CLI' }}
+              </el-button>
+              <el-button
+                type="success"
+                plain
+                :icon="Monitor"
+                :loading="claudeDesktopConfiguring"
+                :disabled="!canConfigureClaudeModels"
+                @click="configureLocalClaudeDesktopModels"
+              >
+                {{ claudeDesktopConfiguring ? '配置中' : '按选择接入 Claude Desktop' }}
+              </el-button>
+              <el-button :icon="RefreshRight" :loading="claudeDesktopRestoring" @click="restoreLocalClaudeDesktop">
+                {{ claudeDesktopRestoring ? '恢复中' : '恢复 Claude Desktop' }}
               </el-button>
               <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="configureLocalDeepSeekClaude">
                 {{ deepSeekClaudeConfiguring ? '配置中' : '接入 Claude DeepSeek' }}

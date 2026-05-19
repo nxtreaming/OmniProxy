@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"OmniProxyBackend/internal/claudedesktop"
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
@@ -138,6 +139,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveCodexWebSocket(w, r)
 		return
 	}
+	if r.URL != nil && claudedesktop.IsModelsPath(r.URL.Path) {
+		s.serveClaudeDesktopModels(w, r)
+		return
+	}
 	if isAnthropicRouterProbe(r) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
@@ -189,6 +194,38 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var lastErr error
 	var lastStatus int
+	if r.URL != nil && claudedesktop.IsMessagesPath(r.URL.Path) {
+		if err := claudedesktop.ValidateGatewayAuth(r.Header); err != nil {
+			route := routeWithClient(r, routeInfo{Provider: token.ProviderAnthropic, Protocol: "anthropic", Path: r.URL.Path})
+			s.logs.Add(logs.Entry{
+				Level:      logs.LevelWarn,
+				Method:     r.Method,
+				Path:       r.URL.RequestURI(),
+				ClientKey:  route.ClientKey,
+				ClientName: route.ClientName,
+				Status:     http.StatusUnauthorized,
+				Message:    err.Error(),
+			})
+			s.recordHistory(r, route, nil, http.StatusUnauthorized, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelWarn, err.Error())
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		routes, err := claudedesktop.LoadRoutes()
+		if err != nil {
+			route := routeWithClient(r, routeInfo{Provider: token.ProviderAnthropic, Protocol: "anthropic", Path: r.URL.Path})
+			s.recordHistory(r, route, nil, http.StatusServiceUnavailable, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelError, err.Error())
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		updatedBody, _, err := claudedesktop.RewriteRequestBody(bodyBytes, routes)
+		if err != nil {
+			route := routeWithClient(r, routeInfo{Provider: token.ProviderAnthropic, Protocol: "anthropic", Path: r.URL.Path})
+			s.recordHistory(r, route, nil, http.StatusBadRequest, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelWarn, err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		bodyBytes = updatedBody
+	}
 	route := routeWithClient(r, s.router.Route(r.URL, bodyBytes))
 	attempts := s.attemptsForRoute(route)
 	retryChain := make([]history.RetryAttempt, 0, attempts)
@@ -296,6 +333,57 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.recordHistory(r, route, nil, status, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelError, fmt.Sprintf("proxy failed: %v", lastErr), retryChain...)
 	http.Error(w, http.StatusText(status), status)
+}
+
+func (s *Service) serveClaudeDesktopModels(w http.ResponseWriter, r *http.Request) {
+	route := routeWithClient(r, routeInfo{Provider: token.ProviderAnthropic, Protocol: "anthropic", Path: r.URL.Path})
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if err := claudedesktop.ValidateGatewayAuth(r.Header); err != nil {
+		s.logs.Add(logs.Entry{
+			Level:      logs.LevelWarn,
+			Method:     r.Method,
+			Path:       r.URL.RequestURI(),
+			ClientKey:  route.ClientKey,
+			ClientName: route.ClientName,
+			Status:     http.StatusUnauthorized,
+			Message:    err.Error(),
+		})
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	routes, err := claudedesktop.LoadRoutes()
+	if err != nil {
+		s.logs.Add(logs.Entry{
+			Level:      logs.LevelError,
+			Method:     r.Method,
+			Path:       r.URL.RequestURI(),
+			ClientKey:  route.ClientKey,
+			ClientName: route.ClientName,
+			Status:     http.StatusServiceUnavailable,
+			Message:    err.Error(),
+		})
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	if r.Method == http.MethodHead {
+		return
+	}
+	if err := json.NewEncoder(w).Encode(claudedesktop.ModelListResponse(routes)); err != nil {
+		s.logs.Add(logs.Entry{
+			Level:      logs.LevelError,
+			Method:     r.Method,
+			Path:       r.URL.RequestURI(),
+			ClientKey:  route.ClientKey,
+			ClientName: route.ClientName,
+			Status:     http.StatusOK,
+			Message:    fmt.Sprintf("write Claude Desktop models response: %v", err),
+		})
+	}
 }
 
 func (s *Service) forward(ctx context.Context, original *http.Request, route routeInfo, body []byte, selected token.Token) (*http.Response, error) {

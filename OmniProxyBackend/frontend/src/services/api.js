@@ -525,6 +525,19 @@ export function configureClaudeModels(models) {
     : request('/claude/models/configure', { method: 'POST', body: JSON.stringify(payload) })
 }
 
+export function configureClaudeDesktopModels(models) {
+  const payload = { models: Array.isArray(models) ? models : [] }
+  return useWailsBindings() && DesktopApp.ConfigureClaudeDesktopModels
+    ? DesktopApp.ConfigureClaudeDesktopModels(payload)
+    : request('/claude/desktop/models/configure', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function restoreClaudeDesktop() {
+  return useWailsBindings() && DesktopApp.RestoreClaudeDesktop
+    ? DesktopApp.RestoreClaudeDesktop()
+    : request('/claude/desktop/restore', { method: 'POST' })
+}
+
 export function restoreZhipuClaude() {
   return useWailsBindings()
     ? DesktopApp.RestoreZhipuClaude()

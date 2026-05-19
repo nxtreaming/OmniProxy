@@ -607,6 +607,14 @@ func (a *DesktopApp) ConfigureClaudeModels(req claudeModelsConfigureRequest) (mi
 	return a.server.configureClaudeModels(req)
 }
 
+func (a *DesktopApp) ConfigureClaudeDesktopModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
+	return a.server.configureClaudeDesktopModels(req)
+}
+
+func (a *DesktopApp) RestoreClaudeDesktop() (mimoConfigureResult, error) {
+	return a.server.restoreClaudeDesktopConfig()
+}
+
 func (a *DesktopApp) RestoreZhipuClaude() (mimoConfigureResult, error) {
 	return a.server.restoreZhipuClaudeConfig()
 }

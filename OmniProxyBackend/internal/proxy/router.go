@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"OmniProxyBackend/internal/claudedesktop"
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/token"
 )
@@ -41,6 +42,15 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 			Protocol: "anthropic",
 			Model:    model,
 			Path:     stripPathPrefix(path, "/anthropic-router"),
+			RawQuery: incoming.RawQuery,
+		}
+	}
+	if claudedesktop.IsGatewayPath(path) {
+		return routeInfo{
+			Provider: providerForModel(model),
+			Protocol: "anthropic",
+			Model:    model,
+			Path:     claudedesktop.StripGatewayPath(path),
 			RawQuery: incoming.RawQuery,
 		}
 	}

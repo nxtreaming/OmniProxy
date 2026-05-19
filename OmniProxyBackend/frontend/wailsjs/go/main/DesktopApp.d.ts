@@ -27,6 +27,8 @@ export function ClearRequestHistory():Promise<void>;
 
 export function Config():Promise<config.Config>;
 
+export function ConfigureClaudeDesktopModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
+
 export function ConfigureClaudeModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
 
 export function ConfigureCodex():Promise<main.codexConfigureResult>;
@@ -82,6 +84,8 @@ export function ProxyStatus():Promise<Record<string, any>>;
 export function RefreshTokenAuth(arg1:string):Promise<main.tokenResponse>;
 
 export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyResponse>>;
+
+export function RestoreClaudeDesktop():Promise<main.mimoConfigureResult>;
 
 export function RestoreCodex():Promise<main.codexConfigureResult>;
 

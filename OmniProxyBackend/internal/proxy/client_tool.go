@@ -3,6 +3,8 @@ package proxy
 import (
 	"net/http"
 	"strings"
+
+	"OmniProxyBackend/internal/claudedesktop"
 )
 
 type ClientInfo struct {
@@ -11,23 +13,24 @@ type ClientInfo struct {
 }
 
 const (
-	clientCodex       = "codex"
-	clientClaude      = "claude"
-	clientDeepSeekTUI = "deepseek-tui"
-	clientOpenCode    = "opencode"
-	clientPi          = "pi"
-	clientGemini      = "gemini"
-	clientOpenRouter  = "openrouter"
-	clientTokenRouter = "tokenrouter"
-	clientSub2API     = "sub2api"
-	clientCursor      = "cursor"
-	clientVSCode      = "vscode"
-	clientWindsurf    = "windsurf"
-	clientAider       = "aider"
-	clientContinue    = "continue"
-	clientCustom      = "custom"
-	clientAPI         = "api"
-	clientUnknown     = "unknown"
+	clientCodex         = "codex"
+	clientClaude        = "claude"
+	clientClaudeDesktop = "claude-desktop"
+	clientDeepSeekTUI   = "deepseek-tui"
+	clientOpenCode      = "opencode"
+	clientPi            = "pi"
+	clientGemini        = "gemini"
+	clientOpenRouter    = "openrouter"
+	clientTokenRouter   = "tokenrouter"
+	clientSub2API       = "sub2api"
+	clientCursor        = "cursor"
+	clientVSCode        = "vscode"
+	clientWindsurf      = "windsurf"
+	clientAider         = "aider"
+	clientContinue      = "continue"
+	clientCustom        = "custom"
+	clientAPI           = "api"
+	clientUnknown       = "unknown"
 )
 
 func clientInfoForRequest(r *http.Request, route routeInfo) ClientInfo {
@@ -109,6 +112,8 @@ func pathClientInfo(path string, route routeInfo) (ClientInfo, bool) {
 		return knownClient(clientPi), true
 	case isCodexProxyPath(path) || route.CredentialType == "codex_auth_json":
 		return knownClient(clientCodex), true
+	case claudedesktop.IsGatewayPath(path):
+		return knownClient(clientClaudeDesktop), true
 	case isAnthropicRouterPath(path):
 		return knownClient(clientClaude), true
 	case strings.HasPrefix(path, "/gemini/") || path == "/gemini":
@@ -139,6 +144,8 @@ func clientInfoFromLabel(value string) ClientInfo {
 		return knownClient(clientPi)
 	case strings.Contains(normalized, "codex"):
 		return knownClient(clientCodex)
+	case strings.Contains(normalized, "claude-desktop") || strings.Contains(normalized, "claude-code-desktop"):
+		return knownClient(clientClaudeDesktop)
 	case strings.Contains(normalized, "claude"):
 		return knownClient(clientClaude)
 	case strings.Contains(normalized, "gemini"):
@@ -173,6 +180,8 @@ func knownClient(key string) ClientInfo {
 		return ClientInfo{Key: clientCodex, Name: "Codex"}
 	case clientClaude:
 		return ClientInfo{Key: clientClaude, Name: "Claude Code"}
+	case clientClaudeDesktop:
+		return ClientInfo{Key: clientClaudeDesktop, Name: "Claude Code Desktop"}
 	case clientDeepSeekTUI:
 		return ClientInfo{Key: clientDeepSeekTUI, Name: "DeepSeek-TUI"}
 	case clientOpenCode:
