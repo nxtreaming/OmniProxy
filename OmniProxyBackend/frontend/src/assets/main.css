@@ -4383,7 +4383,8 @@ tr:last-child td {
 .about-row-list small,
 .about-path-row span,
 .about-path-row small,
-.release-notes span {
+.release-notes-label,
+.release-notes-header small {
   color: var(--text-muted);
 }
 
@@ -4506,21 +4507,110 @@ tr:last-child td {
 }
 
 .release-notes {
-  margin-top: 14px;
+  margin-top: 16px;
   display: grid;
-  gap: 7px;
-  padding: 13px;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface-soft);
+  background: linear-gradient(180deg, var(--surface-raised) 0, var(--surface-soft) 100%);
+  box-shadow: var(--shadow-soft);
 }
 
-.release-notes p {
-  max-height: 170px;
-  overflow-y: auto;
+.release-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.release-notes-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.release-notes-header small {
+  font-size: 12px;
+}
+
+.release-notes-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+.release-note-heading {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.release-note-heading.level-1 {
+  font-size: 17px;
+}
+
+.release-note-heading.level-2 {
+  font-size: 16px;
+}
+
+.release-note-heading.level-3 {
+  font-size: 15px;
+}
+
+.release-note-paragraph {
+  margin: 0;
   color: var(--text);
-  line-height: 1.55;
-  white-space: pre-wrap;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.release-note-list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+
+.release-note-list li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--text);
+  line-height: 1.66;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.release-note-list li::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0.72em;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand-strong);
+}
+
+.release-note-code {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface));
+  color: var(--brand-strong);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92em;
+  line-height: 1.45;
 }
 
 .about-footer-link {
@@ -4585,6 +4675,235 @@ tr:last-child td {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-start;
+}
+
+.help-guide {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.help-readiness-grid,
+.help-flow,
+.help-credential-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.help-readiness-card,
+.help-section-block,
+.help-flow-step,
+.help-credential-grid article,
+.help-route-list article,
+.help-troubleshooting-list article {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.help-readiness-card {
+  min-height: 122px;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 11px;
+  padding: 14px;
+}
+
+.help-readiness-card.ok {
+  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--success-bg) 58%, var(--surface)) 0, var(--surface-raised) 100%);
+}
+
+.help-readiness-card.warning {
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warning-bg) 60%, var(--surface)) 0, var(--surface-raised) 100%);
+}
+
+.help-card-icon,
+.help-section-icon,
+.help-check-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--brand-strong);
+}
+
+.help-readiness-card.ok .help-card-icon {
+  color: var(--success);
+}
+
+.help-readiness-card.warning .help-card-icon {
+  color: var(--warning);
+}
+
+.help-readiness-card span,
+.help-readiness-card small,
+.help-section-title p,
+.help-flow-step p,
+.help-credential-grid p,
+.help-route-list p,
+.help-troubleshooting-list p {
+  color: var(--text-muted);
+}
+
+.help-readiness-card span,
+.help-readiness-card small {
+  display: block;
+}
+
+.help-readiness-card strong {
+  display: block;
+  margin: 7px 0 5px;
+  color: var(--text-strong);
+  font-size: 19px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.help-section-block {
+  padding: 15px;
+}
+
+.help-section-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.help-section-title strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.help-section-title p {
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+.help-flow {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.help-flow-step {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.help-step-index {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
+  border-radius: 8px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.help-flow-step strong,
+.help-credential-grid strong,
+.help-route-list strong,
+.help-troubleshooting-list strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.help-flow-step p,
+.help-troubleshooting-list p {
+  margin-top: 5px;
+  line-height: 1.6;
+}
+
+.help-step-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.help-step-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.help-credential-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.help-credential-grid article {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.help-credential-grid code,
+.help-route-list code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.help-credential-grid code {
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  line-height: 1.55;
+}
+
+.help-credential-grid p,
+.help-route-list p {
+  line-height: 1.55;
+}
+
+.help-route-list,
+.help-troubleshooting-list {
+  display: grid;
+  gap: 8px;
+}
+
+.help-route-list article {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-soft);
+}
+
+.help-route-list code {
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.help-troubleshooting-list article {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  padding: 13px 14px;
+  background: var(--surface-soft);
+}
+
+.help-check-icon {
+  color: var(--success);
 }
 
 .claude-model-config {
@@ -5289,8 +5608,7 @@ h3 {
 .update-status-box,
 .about-info-grid > div,
 .about-row-list > div,
-.about-path-row,
-.release-notes {
+.about-path-row {
   border-color: var(--line);
   background: var(--surface-raised);
   box-shadow: var(--shadow-soft);
@@ -6621,6 +6939,9 @@ h1 {
   .view-grid,
   .settings-grid,
   .help-grid,
+  .help-readiness-grid,
+  .help-flow,
+  .help-credential-grid,
   .claude-model-picker,
   .about-page,
   .about-page-column,
@@ -6688,11 +7009,25 @@ h1 {
     grid-column: span 1;
   }
 
+  .dashboard-grid > .metric-card,
+  .dashboard-grid > .tool-usage-panel,
+  .dashboard-grid > .quota-overview-panel,
+  .dashboard-grid > .recent-log-panel,
+  .dashboard-grid > .contribution-panel,
+  .dashboard-grid > .usage-overview-panel {
+    grid-column: span 1;
+  }
+
   .history-search {
     grid-column: span 1;
   }
 
   .data-directory-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .help-route-list article {
     grid-template-columns: 1fr;
     align-items: start;
   }

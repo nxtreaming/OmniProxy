@@ -139,11 +139,92 @@ const updateDownloadDetail = computed(() => {
   }
   return parts.join(' · ')
 })
-const releaseNotesPreview = computed(() => {
-  const text = String(props.updateInfo?.body || '').trim()
-  if (!text) return ''
-  return text.length > 420 ? `${text.slice(0, 420)}...` : text
-})
+const releaseNotesBlocks = computed(() => parseReleaseNotes(props.updateInfo?.body))
+
+function parseReleaseNotes(value) {
+  const lines = String(value || '').replace(/\r\n/g, '\n').trim().split('\n')
+  const blocks = []
+  let paragraphLines = []
+  let listItems = []
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return
+    blocks.push({
+      type: 'paragraph',
+      parts: tokenizeReleaseNoteText(paragraphLines.join(' ')),
+    })
+    paragraphLines = []
+  }
+  const flushList = () => {
+    if (!listItems.length) return
+    blocks.push({ type: 'list', items: listItems })
+    listItems = []
+  }
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim()
+    if (!line) {
+      flushParagraph()
+      flushList()
+      return
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/)
+    if (heading) {
+      flushParagraph()
+      flushList()
+      blocks.push({
+        type: 'heading',
+        level: Math.min(heading[1].length, 3),
+        parts: tokenizeReleaseNoteText(heading[2]),
+      })
+      return
+    }
+
+    const listItem = line.match(/^([-*+]|\d+[.)])\s+(.+)$/)
+    if (listItem) {
+      flushParagraph()
+      listItems.push({ parts: tokenizeReleaseNoteText(listItem[2]) })
+      return
+    }
+
+    flushList()
+    paragraphLines.push(line.replace(/^>\s?/, ''))
+  })
+
+  flushParagraph()
+  flushList()
+  return blocks
+}
+
+function tokenizeReleaseNoteText(value) {
+  const text = String(value || '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+  if (!text) return []
+
+  const parts = []
+  const codePattern = /`([^`]+)`/g
+  let lastIndex = 0
+  let match = codePattern.exec(text)
+  while (match) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', text: text.slice(lastIndex, match.index) })
+    }
+    parts.push({ type: 'code', text: match[1] })
+    lastIndex = match.index + match[0].length
+    match = codePattern.exec(text)
+  }
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', text: text.slice(lastIndex) })
+  }
+  return parts
+}
+
 const serviceRows = computed(() => [
   {
     label: '代理服务',
@@ -285,9 +366,38 @@ function formatBytes(value) {
           </div>
         </div>
 
-        <div v-if="releaseNotesPreview" class="release-notes">
-          <span>版本说明</span>
-          <p>{{ releaseNotesPreview }}</p>
+        <div v-if="releaseNotesBlocks.length" class="release-notes">
+          <div class="release-notes-header">
+            <span class="release-notes-label">版本说明</span>
+            <small>完整发布说明</small>
+          </div>
+          <div class="release-notes-body">
+            <template v-for="(block, blockIndex) in releaseNotesBlocks" :key="`${block.type}-${blockIndex}`">
+              <h3
+                v-if="block.type === 'heading'"
+                :class="['release-note-heading', `level-${block.level}`]"
+              >
+                <template v-for="(part, partIndex) in block.parts" :key="partIndex">
+                  <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
+                  <span v-else>{{ part.text }}</span>
+                </template>
+              </h3>
+              <ul v-else-if="block.type === 'list'" class="release-note-list">
+                <li v-for="(item, itemIndex) in block.items" :key="itemIndex">
+                  <template v-for="(part, partIndex) in item.parts" :key="partIndex">
+                    <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
+                    <span v-else>{{ part.text }}</span>
+                  </template>
+                </li>
+              </ul>
+              <p v-else class="release-note-paragraph">
+                <template v-for="(part, partIndex) in block.parts" :key="partIndex">
+                  <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
+                  <span v-else>{{ part.text }}</span>
+                </template>
+              </p>
+            </template>
+          </div>
         </div>
       </article>
 

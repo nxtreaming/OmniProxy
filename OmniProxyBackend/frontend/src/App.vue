@@ -345,6 +345,148 @@ const dashboardSignals = computed(() => [
     meta: `${formatNumber(todayProxyTokens.value)} Token`,
   },
 ])
+const helpReadinessCards = computed(() => [
+  {
+    label: '本地代理',
+    value: proxyStatus.running ? '运行中' : '未启动',
+    detail: `入口 ${proxyEndpoint.value}`,
+    state: proxyStatus.running ? 'ok' : 'warning',
+    icon: SwitchButton,
+  },
+  {
+    label: '可用账号',
+    value: `${activeTokens.value.length} / ${tokens.value.length}`,
+    detail: tokens.value.length ? `${lowTokens.value.length} 个低额度，${invalidTokens.value.length} 个无效` : '先添加至少一个上游账号',
+    state: activeTokens.value.length ? 'ok' : 'warning',
+    icon: Key,
+  },
+  {
+    label: '调度策略',
+    value: schedulingModeText(config.schedulingMode),
+    detail: `低于 ${config.switchThreshold}% 跳过，最多重试 ${config.maxRetries} 次`,
+    state: 'muted',
+    icon: TrendCharts,
+  },
+  {
+    label: '请求追踪',
+    value: `${formatNumber(todayProxyRequests.value)} 次`,
+    detail: `保留 ${config.historyRetentionDays} 天历史，当前 ${activeRequests.value.length} 个实时请求`,
+    state: activeRequests.value.length ? 'ok' : 'muted',
+    icon: Memo,
+  },
+])
+const helpLocalRoutes = computed(() => {
+  const base = `http://127.0.0.1:${proxyStatus.port || config.proxyPort}`
+  return [
+    {
+      name: 'OpenAI 兼容',
+      url: base,
+      use: '通用 OpenAI SDK、TokenRouter 和自定义兼容客户端。',
+    },
+    {
+      name: 'Codex backend',
+      url: `${base}/backend-api/codex`,
+      use: 'Codex CLI backend API，使用 OpenAI Codex auth.json 账号。',
+    },
+    {
+      name: 'Codex Chat',
+      url: `${base}/codex/v1`,
+      use: '把 Chat Completions 请求转换到 Codex Responses 后端。',
+    },
+    {
+      name: 'Claude router',
+      url: `${base}/anthropic-router`,
+      use: 'Claude Code 或 Anthropic 兼容客户端，按模型分流到 DeepSeek、MiMo、Kimi、GLM 等上游。',
+    },
+    {
+      name: 'Gemini',
+      url: `${base}/gemini`,
+      use: 'Gemini CLI 和 Gemini 原生 API 路由。',
+    },
+    {
+      name: 'sub2api',
+      url: `${base}/sub2api`,
+      use: 'sub2api OpenAI / Codex 入口，另有 /anthropic 与 /gemini 子路由。',
+    },
+    {
+      name: 'Pi router',
+      url: `${base}/pi-router/v1`,
+      use: 'Pi Coding Agent 按 provider 和模型自动分流。',
+    },
+  ]
+})
+const helpCredentialGroups = [
+  {
+    title: '订阅与 OAuth 账号',
+    summary: 'Codex auth.json、Claude OAuth JSON、MiMo Token Plan、GLM Coding Plan',
+    detail: '适合需要订阅额度窗口、自动刷新额度或客户端专用鉴权的场景。',
+  },
+  {
+    title: '按量 API Key',
+    summary: 'OpenAI、Anthropic、DeepSeek、Kimi、MiMo、Gemini、OpenRouter、TokenRouter',
+    detail: '适合 OpenAI / Anthropic 兼容接口转发，额度页会展示余额、剩余额度或最近统计。',
+  },
+  {
+    title: '网关类账号',
+    summary: 'sub2api、自定义网关',
+    detail: '适合把已有兼容网关纳入 OmniProxy 调度，并统一暴露本机 loopback 入口。',
+  },
+]
+const helpWorkflowSteps = [
+  {
+    step: '01',
+    title: '准备账号池',
+    description: '在账号管理中按厂商添加凭据。Codex auth.json 会自动解析账号名；API Key 可以批量导入，适合密集账号池。',
+    actions: [
+      { label: '账号管理', tab: 'tokens' },
+      { label: '一键配置', tab: 'quickstart' },
+    ],
+  },
+  {
+    step: '02',
+    title: '确认路由和策略',
+    description: '在全局设置确认本地端口、上游 Base URL、调度模式、低额度跳过阈值和自动重试次数。',
+    actions: [{ label: '全局设置', tab: 'settings' }],
+  },
+  {
+    step: '03',
+    title: '启动本地代理',
+    description: '客户端只连 127.0.0.1，真实上游 Token 留在本机。代理会根据账号状态、选择范围和并发占用自动挑选账号。',
+    actions: [{ label: '回到仪表盘', tab: 'dashboard' }],
+  },
+  {
+    step: '04',
+    title: '观察额度与请求',
+    description: '额度页看账号是否低额度、耗尽或无效；请求历史和实时日志用于定位失败原因、模型、Token 消耗和重试路径。',
+    actions: [
+      { label: '额度', tab: 'quotas' },
+      { label: '请求历史', tab: 'history' },
+      { label: '实时日志', tab: 'logs' },
+    ],
+  },
+]
+const helpTroubleshootingItems = [
+  {
+    problem: '客户端没有请求进入 OmniProxy',
+    action: '先确认本地代理已启动，Base URL 使用 127.0.0.1 对应端口；如果使用一键配置，重新写入并检查客户端配置文件路径。',
+  },
+  {
+    problem: '账号返回 401、鉴权失败或显示无效',
+    action: '在账号管理中验证该账号。订阅类账号优先刷新认证，API Key 类账号检查上游 Base URL 和 Key 类型是否匹配。',
+  },
+  {
+    problem: '频繁 429 或额度过低',
+    action: '到额度页查看每个账号窗口和余额。需要临时隔离时，只选择可用账号；需要自动避让时调高低额度跳过阈值。',
+  },
+  {
+    problem: 'Claude Code 模型不符合预期',
+    action: '在一键配置中重新选择最多 4 个 Claude 模型槽位，并注意 DeepSeek、MiMo、Kimi、GLM 的模型名差异。',
+  },
+  {
+    problem: '响应慢或并发被占用',
+    action: '看仪表盘实时连接和请求历史。优先平衡使用会避开并发占用更高的账号，队列模式更适合固定优先级。',
+  },
+]
 const subscriptionOverviewTokens = computed(() => tokens.value.filter((item) => showQuotaWindows(item)))
 const apiOverviewTokens = computed(() => tokens.value.filter((item) => !showQuotaWindows(item)))
 const quotaOverviewPageSize = 4
@@ -1876,6 +2018,12 @@ function credentialPlaceholder() {
   return '粘贴 API Key'
 }
 
+function schedulingModeText(value) {
+  if (value === 'balanced') return '优先平衡使用'
+  if (value === 'queue') return '队列模式'
+  return value || '-'
+}
+
 function providerTokens(provider) {
   return tokens.value.filter((item) => item.provider === provider)
 }
@@ -3219,31 +3367,111 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
         <div class="section-heading">
           <div>
             <h2>使用说明</h2>
-            <p>按厂商维护账号，启动本地代理后在客户端里使用代理地址</p>
+            <p>围绕账号池、调度策略、本地路由和诊断日志完成一次可验证的接入流程</p>
           </div>
         </div>
 
-        <div class="help-grid">
-          <article>
-            <strong>1. 添加账号</strong>
-            <p>进入账号管理，先在顶部选择厂商，再添加对应账号。OpenAI 支持 API Key 和 Codex auth.json，Codex 会自动从 id_token 解析邮箱作为账号名。</p>
-          </article>
-          <article>
-            <strong>2. 查看额度</strong>
-            <p>进入额度页面，选择厂商后查看每个账号的状态。普通 API Key 显示余额或 API 剩余额度；Codex 和 Token Plan 显示对应订阅额度窗口。</p>
-          </article>
-          <article>
-            <strong>3. 启动代理</strong>
-            <p>确认代理设置里的端口和各厂商 Base URL 后，点击右上角启动代理。客户端请求走本地代理端口，由程序按账号状态自动调度。</p>
-          </article>
-          <article>
-            <strong>4. 账号调度模式</strong>
-            <p>队列模式按账号列表顺序优先使用前面的可用账号；优先平衡使用会优先选择并发更少、剩余额度更高、最近更少使用的账号。</p>
-          </article>
-          <article>
-            <strong>5. 排查问题</strong>
-            <p>请求失败时先看实时日志，再在账号管理里验证对应账号。额度过低或账号无效时，程序会按阈值跳过不可用账号。</p>
-          </article>
+        <div class="help-guide">
+          <div class="help-readiness-grid" aria-label="当前接入状态">
+            <article
+              v-for="card in helpReadinessCards"
+              :key="card.label"
+              :class="['help-readiness-card', card.state]"
+            >
+              <component :is="card.icon" class="help-card-icon" aria-hidden="true" />
+              <div>
+                <span>{{ card.label }}</span>
+                <strong>{{ card.value }}</strong>
+                <small>{{ card.detail }}</small>
+              </div>
+            </article>
+          </div>
+
+          <div class="help-section-block">
+            <div class="help-section-title">
+              <Lightning class="help-section-icon" aria-hidden="true" />
+              <div>
+                <strong>推荐工作流</strong>
+                <p>从账号准备到请求诊断，按顺序检查更容易定位问题。</p>
+              </div>
+            </div>
+            <div class="help-flow">
+              <article v-for="item in helpWorkflowSteps" :key="item.step" class="help-flow-step">
+                <span class="help-step-index">{{ item.step }}</span>
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <p>{{ item.description }}</p>
+                  <div class="help-step-actions">
+                    <el-button
+                      v-for="action in item.actions"
+                      :key="action.label"
+                      size="small"
+                      text
+                      type="primary"
+                      @click="activeTab = action.tab"
+                    >
+                      {{ action.label }}
+                    </el-button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="help-section-block">
+            <div class="help-section-title">
+              <Key class="help-section-icon" aria-hidden="true" />
+              <div>
+                <strong>账号类型怎么选</strong>
+                <p>不同凭据会影响可用路由、额度展示和刷新方式。</p>
+              </div>
+            </div>
+            <div class="help-credential-grid">
+              <article v-for="group in helpCredentialGroups" :key="group.title">
+                <strong>{{ group.title }}</strong>
+                <code>{{ group.summary }}</code>
+                <p>{{ group.detail }}</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="help-section-block">
+            <div class="help-section-title">
+              <Monitor class="help-section-icon" aria-hidden="true" />
+              <div>
+                <strong>本地入口速查</strong>
+                <p>把客户端 Base URL 指向对应入口即可，真实上游鉴权由 OmniProxy 注入。</p>
+              </div>
+            </div>
+            <div class="help-route-list">
+              <article v-for="route in helpLocalRoutes" :key="route.name">
+                <div>
+                  <strong>{{ route.name }}</strong>
+                  <p>{{ route.use }}</p>
+                </div>
+                <code>{{ route.url }}</code>
+              </article>
+            </div>
+          </div>
+
+          <div class="help-section-block">
+            <div class="help-section-title">
+              <RefreshRight class="help-section-icon" aria-hidden="true" />
+              <div>
+                <strong>常见排查路径</strong>
+                <p>先确认请求是否进入本机代理，再判断账号、额度、模型和上游响应。</p>
+              </div>
+            </div>
+            <div class="help-troubleshooting-list">
+              <article v-for="item in helpTroubleshootingItems" :key="item.problem">
+                <CircleCheckFilled class="help-check-icon" aria-hidden="true" />
+                <div>
+                  <strong>{{ item.problem }}</strong>
+                  <p>{{ item.action }}</p>
+                </div>
+              </article>
+            </div>
+          </div>
         </div>
       </section>
       </Transition>
