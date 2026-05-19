@@ -11,6 +11,7 @@ import OpenRouterChatView from './components/OpenRouterChatView.vue'
 import SettingsView from './components/SettingsView.vue'
 import TokenBatchImportModal from './components/TokenBatchImportModal.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
+import TokenTrendView from './components/TokenTrendView.vue'
 import TokensView from './components/TokensView.vue'
 import appIconUrl from './assets/appicon.png'
 import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
@@ -104,6 +105,7 @@ const activeTab = ref('dashboard')
 const activeProvider = ref('openai')
 const tabIcons = {
   dashboard: DataBoard,
+  'usage-trends': TrendCharts,
   billing: Money,
   quotas: Coin,
   tokens: Key,
@@ -116,7 +118,7 @@ const tabIcons = {
   help: HelpFilled,
 }
 const navSections = [
-  { label: '总览', items: tabs.filter((tab) => ['dashboard', 'billing', 'quotas'].includes(tab.key)) },
+  { label: '总览', items: tabs.filter((tab) => ['dashboard', 'usage-trends', 'billing', 'quotas'].includes(tab.key)) },
   { label: '运行', items: tabs.filter((tab) => ['tokens', 'history', 'logs', 'quickstart'].includes(tab.key)) },
   { label: '体验', items: tabs.filter((tab) => ['openrouter-chat'].includes(tab.key)) },
   { label: '系统', items: tabs.filter((tab) => ['settings', 'about', 'help'].includes(tab.key)) },
@@ -2519,7 +2521,7 @@ function aggregateDailyUsage(items) {
       byDate.set(daily.date, current)
     }
   }
-  return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 365)
+  return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date))
 }
 
 function isCooling(item) {
@@ -2841,7 +2843,15 @@ async function refreshQuota(item) {
         @refresh="refreshAll"
         @open-settings="activeTab = 'settings'"
         @open-billing="openBillingView"
+        @open-trends="activeTab = 'usage-trends'"
         @change-quota-page="changeQuotaOverviewPage"
+      />
+      <TokenTrendView
+        v-else-if="activeTab === 'usage-trends'"
+        key="usage-trends"
+        :daily-usage-rows="dailyUsageRows"
+        :format-number="formatNumber"
+        @refresh="refreshAll"
       />
       <BillingView
         v-else-if="activeTab === 'billing'"

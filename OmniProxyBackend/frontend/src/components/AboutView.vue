@@ -365,40 +365,6 @@ function formatBytes(value) {
             </div>
           </div>
         </div>
-
-        <div v-if="releaseNotesBlocks.length" class="release-notes">
-          <div class="release-notes-header">
-            <span class="release-notes-label">版本说明</span>
-            <small>完整发布说明</small>
-          </div>
-          <div class="release-notes-body">
-            <template v-for="(block, blockIndex) in releaseNotesBlocks" :key="`${block.type}-${blockIndex}`">
-              <h3
-                v-if="block.type === 'heading'"
-                :class="['release-note-heading', `level-${block.level}`]"
-              >
-                <template v-for="(part, partIndex) in block.parts" :key="partIndex">
-                  <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
-                  <span v-else>{{ part.text }}</span>
-                </template>
-              </h3>
-              <ul v-else-if="block.type === 'list'" class="release-note-list">
-                <li v-for="(item, itemIndex) in block.items" :key="itemIndex">
-                  <template v-for="(part, partIndex) in item.parts" :key="partIndex">
-                    <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
-                    <span v-else>{{ part.text }}</span>
-                  </template>
-                </li>
-              </ul>
-              <p v-else class="release-note-paragraph">
-                <template v-for="(part, partIndex) in block.parts" :key="partIndex">
-                  <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
-                  <span v-else>{{ part.text }}</span>
-                </template>
-              </p>
-            </template>
-          </div>
-        </div>
       </article>
 
       <article class="panel about-info-panel">
@@ -478,5 +444,44 @@ function formatBytes(value) {
         </div>
       </article>
     </div>
+
+    <article v-if="releaseNotesBlocks.length" class="panel about-release-panel">
+      <div class="release-notes">
+        <div class="release-notes-header">
+          <div>
+            <span class="release-notes-label">版本说明</span>
+            <strong>{{ updateInfo?.latestVersion || currentVersion }}</strong>
+          </div>
+          <small>完整发布说明</small>
+        </div>
+        <div class="release-notes-body">
+          <template v-for="(block, blockIndex) in releaseNotesBlocks" :key="`${block.type}-${blockIndex}`">
+            <h3
+              v-if="block.type === 'heading'"
+              :class="['release-note-heading', `level-${block.level}`]"
+            >
+              <template v-for="(part, partIndex) in block.parts" :key="partIndex">
+                <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
+                <span v-else>{{ part.text }}</span>
+              </template>
+            </h3>
+            <ul v-else-if="block.type === 'list'" class="release-note-list">
+              <li v-for="(item, itemIndex) in block.items" :key="itemIndex">
+                <template v-for="(part, partIndex) in item.parts" :key="partIndex">
+                  <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
+                  <span v-else>{{ part.text }}</span>
+                </template>
+              </li>
+            </ul>
+            <p v-else class="release-note-paragraph">
+              <template v-for="(part, partIndex) in block.parts" :key="partIndex">
+                <code v-if="part.type === 'code'" class="release-note-code">{{ part.text }}</code>
+                <span v-else>{{ part.text }}</span>
+              </template>
+            </p>
+          </template>
+        </div>
+      </div>
+    </article>
   </section>
 </template>

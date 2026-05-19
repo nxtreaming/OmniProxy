@@ -2879,6 +2879,226 @@ tr:last-child td {
   text-align: right;
 }
 
+.token-trend-page {
+  display: grid;
+  gap: 16px;
+}
+
+.token-trend-heading {
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.token-trend-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.token-trend-summary article,
+.token-trend-chart-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.token-trend-summary article {
+  min-height: 116px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 14px;
+}
+
+.token-trend-summary-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--brand-strong);
+}
+
+.token-trend-summary span,
+.token-trend-summary small,
+.token-trend-card-note,
+.token-trend-y-axis,
+.token-trend-x-axis,
+.token-trend-peak span {
+  color: var(--text-muted);
+}
+
+.token-trend-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: clamp(20px, 1.8vw, 28px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-trend-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.token-trend-chart-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.token-trend-card-note {
+  line-height: 1.4;
+}
+
+.token-trend-chart-frame {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.token-trend-y-axis {
+  height: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 17px 0 31px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 11px;
+}
+
+.token-trend-svg-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.token-trend-svg {
+  width: 100%;
+  height: 240px;
+  display: block;
+  overflow: visible;
+}
+
+.token-trend-grid-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.token-trend-area {
+  opacity: 0.18;
+}
+
+.token-area {
+  fill: var(--brand);
+}
+
+.request-area {
+  fill: var(--accent);
+}
+
+.token-trend-line {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.token-line {
+  stroke: var(--brand-strong);
+}
+
+.request-line {
+  stroke: var(--accent);
+}
+
+.token-trend-point {
+  opacity: 0.34;
+  stroke: var(--surface-raised);
+  stroke-width: 2;
+}
+
+.token-point {
+  fill: var(--brand-strong);
+}
+
+.request-point {
+  fill: var(--accent);
+}
+
+.token-trend-point:hover {
+  opacity: 1;
+}
+
+.token-trend-x-axis {
+  position: relative;
+  height: 19px;
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+.token-trend-x-axis span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.token-trend-x-axis span:first-child {
+  transform: translateX(0);
+}
+
+.token-trend-x-axis span:last-child {
+  transform: translateX(-100%);
+}
+
+.token-trend-table-panel {
+  min-width: 0;
+}
+
+.token-trend-peak {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  text-align: right;
+}
+
+.token-trend-peak strong {
+  color: var(--text-strong);
+}
+
+.token-trend-table {
+  max-height: min(54vh, 560px);
+  overflow: auto;
+}
+
+.token-trend-table .usage-row {
+  min-width: 720px;
+}
+
+.token-trend-table .usage-row.header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.token-trend-empty {
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
 .usage-trend {
   min-width: 0;
   height: 180px;
@@ -4356,6 +4576,12 @@ tr:last-child td {
   align-items: start;
 }
 
+.about-release-panel {
+  grid-column: 1 / -1;
+  padding: 0;
+  overflow: hidden;
+}
+
 .about-page-column {
   min-width: 0;
   display: grid;
@@ -4507,15 +4733,14 @@ tr:last-child td {
 }
 
 .release-notes {
-  margin-top: 16px;
   display: grid;
   gap: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   background: linear-gradient(180deg, var(--surface-raised) 0, var(--surface-soft) 100%);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .release-notes-header {
@@ -4523,14 +4748,29 @@ tr:last-child td {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 14px 16px 10px;
+  padding: 16px 18px 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.release-notes-header > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .release-notes-label {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-strong);
+}
+
+.release-notes-header strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .release-notes-header small {
@@ -4540,10 +4780,13 @@ tr:last-child td {
 .release-notes-body {
   display: grid;
   gap: 12px;
-  padding: 14px 16px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  padding: 16px 18px 18px;
 }
 
 .release-note-heading {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--text-strong);
   font-weight: 700;
@@ -4553,10 +4796,12 @@ tr:last-child td {
 }
 
 .release-note-heading.level-1 {
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .release-note-heading.level-2 {
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   font-size: 16px;
 }
 
@@ -6939,6 +7184,8 @@ h1 {
   .view-grid,
   .settings-grid,
   .help-grid,
+  .token-trend-summary,
+  .token-trend-chart-grid,
   .help-readiness-grid,
   .help-flow,
   .help-credential-grid,
@@ -7035,6 +7282,14 @@ h1 {
   .version-hero {
     align-items: start;
     flex-direction: column;
+  }
+
+  .about-release-panel {
+    grid-column: span 1;
+  }
+
+  .release-notes-body {
+    grid-template-columns: 1fr;
   }
 
   .about-actions {

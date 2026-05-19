@@ -69,7 +69,7 @@ const props = defineProps({
   requestTrendWidth: { type: Function, required: true },
 })
 
-const emit = defineEmits(['toggle-proxy', 'refresh', 'open-settings', 'open-billing', 'change-quota-page'])
+const emit = defineEmits(['toggle-proxy', 'refresh', 'open-settings', 'open-billing', 'open-trends', 'change-quota-page'])
 
 const contributionCalendar = computed(() =>
   buildContributionCalendar(props.dailyUsageRows, CONTRIBUTION_WINDOW_DAYS),
@@ -94,6 +94,10 @@ function openSettings() {
 
 function openBilling() {
   emit('open-billing')
+}
+
+function openTrends() {
+  emit('open-trends')
 }
 
 function changeQuotaOverviewPage(type, direction) {
@@ -502,7 +506,10 @@ function localDateKeyFromDate(value) {
               <h2>分天用量统计</h2>
               <p>Token 数来自上游 usage；请求数按成功通过代理返回的请求统计</p>
             </div>
-            <button type="button" class="ghost-button" @click.stop="openBilling">查看明细</button>
+            <div class="section-actions">
+              <button type="button" class="ghost-button" @click.stop="openTrends">完整趋势</button>
+              <button type="button" class="ghost-button" @click.stop="openBilling">账单明细</button>
+            </div>
           </div>
 
           <div class="dashboard-usage-summary">
@@ -588,7 +595,7 @@ function localDateKeyFromDate(value) {
             <div v-if="!dailyUsageRows.length" class="empty">暂无代理 Token 用量</div>
             <div v-else-if="dailyUsageRows.length > dashboardDailyUsageRows.length" class="usage-table-footer">
               <span>仅显示最近 {{ dashboardDailyUsageRows.length }} 天</span>
-              <button type="button" @click.stop="openBilling">查看全部</button>
+              <button type="button" @click.stop="openTrends">查看全部趋势</button>
             </div>
           </div>
         </section>
