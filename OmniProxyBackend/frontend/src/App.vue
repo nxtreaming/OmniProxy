@@ -3368,44 +3368,54 @@ GLM model: glm-5.1</code></pre>
                 CLI 写入 <code>%USERPROFILE%\.claude\settings.json</code>；Desktop 写入 Claude 3P Gateway Profile，配置后请完全退出并重启 Claude Desktop。
               </small>
             </div>
-            <div class="help-actions">
-              <el-button
-                type="success"
-                :icon="MagicStick"
-                :loading="claudeModelsConfiguring"
-                :disabled="!canConfigureClaudeModels"
-                @click="configureLocalClaudeModels"
-              >
-                {{ claudeModelsConfiguring ? '配置中' : '按选择接入 Claude CLI' }}
-              </el-button>
-              <el-button
-                type="success"
-                plain
-                :icon="Monitor"
-                :loading="claudeDesktopConfiguring"
-                :disabled="!canConfigureClaudeModels"
-                @click="configureLocalClaudeDesktopModels"
-              >
-                {{ claudeDesktopConfiguring ? '配置中' : '按选择接入 Claude Desktop' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="claudeDesktopRestoring" @click="restoreLocalClaudeDesktop">
-                {{ claudeDesktopRestoring ? '恢复中' : '恢复 Claude Desktop' }}
-              </el-button>
-              <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="configureLocalDeepSeekClaude">
-                {{ deepSeekClaudeConfiguring ? '配置中' : '接入 Claude DeepSeek' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="mimoClaudeConfiguring" @click="configureLocalMimoClaude">
-                {{ mimoClaudeConfiguring ? '配置中' : '接入 Claude MiMo' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="kimiClaudeConfiguring" @click="configureLocalKimiClaude">
-                {{ kimiClaudeConfiguring ? '配置中' : '接入 Claude Kimi' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="zhipuClaudeConfiguring" @click="configureLocalZhipuClaude">
-                {{ zhipuClaudeConfiguring ? '配置中' : '接入 Claude GLM' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="restoreLocalMimoClaude">
-                {{ mimoClaudeRestoring ? '恢复中' : '恢复 Claude 配置' }}
-              </el-button>
+            <div class="claude-action-panel">
+              <div class="claude-action-row">
+                <span>按当前选择写入</span>
+                <div class="help-actions claude-actions">
+                  <el-button
+                    type="success"
+                    :icon="MagicStick"
+                    :loading="claudeModelsConfiguring"
+                    :disabled="!canConfigureClaudeModels"
+                    @click="configureLocalClaudeModels"
+                  >
+                    {{ claudeModelsConfiguring ? '配置中' : 'Claude CLI' }}
+                  </el-button>
+                  <el-button
+                    type="success"
+                    plain
+                    :icon="Monitor"
+                    :loading="claudeDesktopConfiguring"
+                    :disabled="!canConfigureClaudeModels"
+                    @click="configureLocalClaudeDesktopModels"
+                  >
+                    {{ claudeDesktopConfiguring ? '配置中' : 'Claude Desktop' }}
+                  </el-button>
+                  <el-button :icon="RefreshRight" :loading="claudeDesktopRestoring" @click="restoreLocalClaudeDesktop">
+                    {{ claudeDesktopRestoring ? '恢复中' : '恢复 Desktop' }}
+                  </el-button>
+                </div>
+              </div>
+              <div class="claude-action-row">
+                <span>快捷单模型</span>
+                <div class="help-actions claude-actions">
+                  <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="configureLocalDeepSeekClaude">
+                    {{ deepSeekClaudeConfiguring ? '配置中' : 'DeepSeek' }}
+                  </el-button>
+                  <el-button type="primary" plain :icon="MagicStick" :loading="mimoClaudeConfiguring" @click="configureLocalMimoClaude">
+                    {{ mimoClaudeConfiguring ? '配置中' : 'MiMo' }}
+                  </el-button>
+                  <el-button type="primary" plain :icon="MagicStick" :loading="kimiClaudeConfiguring" @click="configureLocalKimiClaude">
+                    {{ kimiClaudeConfiguring ? '配置中' : 'Kimi' }}
+                  </el-button>
+                  <el-button type="primary" plain :icon="MagicStick" :loading="zhipuClaudeConfiguring" @click="configureLocalZhipuClaude">
+                    {{ zhipuClaudeConfiguring ? '配置中' : 'GLM' }}
+                  </el-button>
+                  <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="restoreLocalMimoClaude">
+                    {{ mimoClaudeRestoring ? '恢复中' : '恢复 CLI' }}
+                  </el-button>
+                </div>
+              </div>
             </div>
           </article>
 

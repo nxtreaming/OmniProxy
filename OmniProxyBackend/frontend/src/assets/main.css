@@ -5153,8 +5153,11 @@ tr:last-child td {
 
 .claude-model-config {
   display: grid;
-  gap: 10px;
-  padding-top: 4px;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .claude-model-config-head {
@@ -5178,24 +5181,28 @@ tr:last-child td {
 
 .claude-model-picker {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 18px;
-  border-top: 1px solid var(--line);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .claude-model-choice {
-  min-height: 54px;
+  min-height: 64px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--line);
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
   cursor: pointer;
 }
 
 .claude-model-choice input {
-  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--brand);
 }
 
 .claude-model-choice span {
@@ -5212,9 +5219,40 @@ tr:last-child td {
   color: var(--brand);
 }
 
+.claude-model-choice.selected {
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface));
+}
+
 .claude-model-choice.disabled {
   cursor: not-allowed;
   opacity: 0.54;
+}
+
+.claude-action-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.claude-action-row {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.claude-action-row > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.claude-actions {
+  margin-top: 0;
 }
 
 .wide-field {
@@ -7190,6 +7228,7 @@ h1 {
   .help-flow,
   .help-credential-grid,
   .claude-model-picker,
+  .claude-action-row,
   .about-page,
   .about-page-column,
   .about-info-grid,
