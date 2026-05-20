@@ -3493,11 +3493,12 @@ GEMINI_MODEL=gemini-3-pro-preview</code></pre>
 
           <article class="wide-help">
             <strong>OpenCode</strong>
-            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini、OpenRouter、TokenRouter 和自定义网关 provider。</p>
+            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini、OpenRouter、TokenRouter、Zo Computer 和自定义网关 provider。</p>
             <pre class="help-code"><code>OpenAI-compatible Router: http://127.0.0.1:{{ config.proxyPort }}/opencode-router/v1
 Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini
 OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
 TokenRouter: http://127.0.0.1:{{ config.proxyPort }}/tokenrouter/v1
+Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo/v1
 Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="opencodeConfiguring" @click="configureLocalOpenCode">
@@ -3511,12 +3512,13 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
 
           <article class="wide-help">
             <strong>Pi Coding Agent</strong>
-            <p>写入 <code>%USERPROFILE%\.pi\agent\models.json</code>，添加 OmniProxy provider，可通过 <code>pi --provider omniproxy --model gpt-5.4</code> 使用。</p>
+            <p>写入 <code>%USERPROFILE%\.pi\agent\models.json</code>，添加 OmniProxy 和 Zo Computer provider，可通过 <code>pi --provider omniproxy --model gpt-5.4</code> 使用。</p>
             <pre class="help-code"><code>Pi Router: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1
 Anthropic Router: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
 Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini/v1beta
 OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
 TokenRouter auto: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1 + model auto:balance
+Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo/v1
 Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="piConfiguring" @click="configureLocalPi">

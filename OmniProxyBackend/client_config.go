@@ -19,11 +19,13 @@ const (
 	opencodeGeminiProviderID      = "omniproxy-gemini"
 	opencodeOpenRouterProviderID  = "omniproxy-openrouter"
 	opencodeTokenRouterProviderID = "omniproxy-tokenrouter"
+	opencodeZoProviderID          = "omniproxy-zo"
 	opencodeCustomProviderID      = "omniproxy-custom"
 	piOmniProviderID              = "omniproxy"
 	piAnthropicProviderID         = "omniproxy-anthropic"
 	piGeminiProviderID            = "omniproxy-gemini"
 	piOpenRouterProviderID        = "omniproxy-openrouter"
+	piZoProviderID                = "omniproxy-zo"
 	piCustomProviderID            = "omniproxy-custom"
 	localClientAPIKey             = "omniproxy-local"
 )
@@ -405,10 +407,11 @@ func (a *appServer) configureOpenCode() (clientConfigureResult, error) {
 	geminiBaseURL := fmt.Sprintf("http://127.0.0.1:%d/gemini", port)
 	openRouterBaseURL := fmt.Sprintf("http://127.0.0.1:%d/openrouter/v1", port)
 	tokenRouterBaseURL := fmt.Sprintf("http://127.0.0.1:%d/tokenrouter/v1", port)
+	zoBaseURL := fmt.Sprintf("http://127.0.0.1:%d/zo/v1", port)
 	customBaseURL := fmt.Sprintf("http://127.0.0.1:%d/custom/v1", port)
 	openRouterModels := a.openCodeOpenRouterModels()
 
-	if err := writeOpenCodeConfig(configPath, routerBaseURL, geminiBaseURL, openRouterBaseURL, tokenRouterBaseURL, customBaseURL, openRouterModels); err != nil {
+	if err := writeOpenCodeConfig(configPath, routerBaseURL, geminiBaseURL, openRouterBaseURL, tokenRouterBaseURL, zoBaseURL, customBaseURL, openRouterModels); err != nil {
 		return clientConfigureResult{}, err
 	}
 
@@ -418,7 +421,7 @@ func (a *appServer) configureOpenCode() (clientConfigureResult, error) {
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    routerBaseURL,
 		ProviderID: opencodeOmniProviderID,
-		Message:    "OpenCode 已添加 OmniProxy、OmniProxy Gemini、OmniProxy OpenRouter、OmniProxy TokenRouter 和 OmniProxy 自定义网关 provider",
+		Message:    "OpenCode 已添加 OmniProxy、OmniProxy Gemini、OmniProxy OpenRouter、OmniProxy TokenRouter、OmniProxy Zo Computer 和 OmniProxy 自定义网关 provider",
 	}, nil
 }
 
@@ -457,9 +460,10 @@ func (a *appServer) configurePi() (clientConfigureResult, error) {
 	}
 	configPath := filepath.Join(piDir, "models.json")
 	routerBaseURL := fmt.Sprintf("http://127.0.0.1:%d/pi-router/v1", port)
+	zoBaseURL := fmt.Sprintf("http://127.0.0.1:%d/zo/v1", port)
 	openRouterModels := a.piOpenRouterModels()
 
-	if err := writePiModelsConfig(configPath, routerBaseURL, openRouterModels); err != nil {
+	if err := writePiModelsConfig(configPath, routerBaseURL, zoBaseURL, openRouterModels); err != nil {
 		return clientConfigureResult{}, err
 	}
 
@@ -469,7 +473,7 @@ func (a *appServer) configurePi() (clientConfigureResult, error) {
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    routerBaseURL,
 		ProviderID: piOmniProviderID,
-		Message:    "Pi Coding Agent 已添加 OmniProxy provider",
+		Message:    "Pi Coding Agent 已添加 OmniProxy 和 OmniProxy Zo Computer provider",
 	}, nil
 }
 
@@ -492,7 +496,7 @@ func (a *appServer) restorePiConfig() (clientConfigureResult, error) {
 	}, nil
 }
 
-func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string, openRouterBaseURL string, tokenRouterBaseURL string, customBaseURL string, openRouterModels map[string]any) error {
+func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string, openRouterBaseURL string, tokenRouterBaseURL string, zoBaseURL string, customBaseURL string, openRouterModels map[string]any) error {
 	data, err := readJSONObject(path)
 	if err != nil {
 		return err
@@ -512,13 +516,14 @@ func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string
 	providers[opencodeGeminiProviderID] = openCodeGeminiProvider(geminiBaseURL)
 	providers[opencodeOpenRouterProviderID] = openCodeOpenRouterProvider(openRouterBaseURL, openRouterModels)
 	providers[opencodeTokenRouterProviderID] = openCodeTokenRouterProvider(tokenRouterBaseURL)
+	providers[opencodeZoProviderID] = openCodeZoProvider(zoBaseURL)
 	providers[opencodeCustomProviderID] = openCodeCustomProvider(customBaseURL)
 	data["provider"] = providers
 
 	return writeJSONObject(path, data)
 }
 
-func writePiModelsConfig(path string, routerBaseURL string, openRouterModels []map[string]any) error {
+func writePiModelsConfig(path string, routerBaseURL string, zoBaseURL string, openRouterModels []map[string]any) error {
 	data, err := readJSONObject(path)
 	if err != nil {
 		return err
@@ -531,10 +536,11 @@ func writePiModelsConfig(path string, routerBaseURL string, openRouterModels []m
 	if providers == nil {
 		providers = map[string]any{}
 	}
-	for _, id := range []string{piAnthropicProviderID, piGeminiProviderID, piOpenRouterProviderID, piCustomProviderID} {
+	for _, id := range []string{piAnthropicProviderID, piGeminiProviderID, piOpenRouterProviderID, piZoProviderID, piCustomProviderID} {
 		delete(providers, id)
 	}
 	providers[piOmniProviderID] = piOpenAIProvider("OmniProxy", routerBaseURL, piRouterModels(openRouterModels), true)
+	providers[piZoProviderID] = piOpenAIProvider("OmniProxy Zo Computer", zoBaseURL, piZoModels(), false)
 	data["providers"] = providers
 
 	return writeJSONObject(path, data)
@@ -745,6 +751,33 @@ func openCodeTokenRouterProvider(baseURL string) map[string]any {
 			"auto:speed":   map[string]any{"name": "Auto Speed"},
 			"auto:cost":    map[string]any{"name": "Auto Cost"},
 		},
+	}
+}
+
+func openCodeZoProvider(baseURL string) map[string]any {
+	return map[string]any{
+		"npm":  "@ai-sdk/openai-compatible",
+		"name": "OmniProxy Zo Computer",
+		"options": map[string]any{
+			"baseURL":     baseURL,
+			"apiKey":      localClientAPIKey,
+			"setCacheKey": true,
+		},
+		"models": map[string]any{
+			"gpt-5.5":              map[string]any{"name": "Zo GPT-5.5"},
+			"claude-sonnet-4-5":    map[string]any{"name": "Zo Claude Sonnet 4.5"},
+			"deepseek-v4-pro":      map[string]any{"name": "Zo DeepSeek V4 Pro"},
+			"gemini-3-pro-preview": map[string]any{"name": "Zo Gemini 3 Pro"},
+		},
+	}
+}
+
+func piZoModels() []map[string]any {
+	return []map[string]any{
+		{"id": "gpt-5.5", "name": "Zo GPT-5.5"},
+		{"id": "claude-sonnet-4-5", "name": "Zo Claude Sonnet 4.5"},
+		{"id": "deepseek-v4-pro", "name": "Zo DeepSeek V4 Pro"},
+		{"id": "gemini-3-pro-preview", "name": "Zo Gemini 3 Pro"},
 	}
 }
 

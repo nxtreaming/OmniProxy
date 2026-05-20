@@ -2071,7 +2071,7 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 	openRouterModels := map[string]any{
 		"openai/gpt-test": map[string]any{"name": "GPT Test"},
 	}
-	if err := writeOpenCodeConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "http://127.0.0.1:3000/gemini", "http://127.0.0.1:3000/openrouter/v1", "http://127.0.0.1:3000/tokenrouter/v1", "http://127.0.0.1:3000/custom/v1", openRouterModels); err != nil {
+	if err := writeOpenCodeConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "http://127.0.0.1:3000/gemini", "http://127.0.0.1:3000/openrouter/v1", "http://127.0.0.1:3000/tokenrouter/v1", "http://127.0.0.1:3000/zo/v1", "http://127.0.0.1:3000/custom/v1", openRouterModels); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2080,7 +2080,7 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	providers := data["provider"].(map[string]any)
-	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeTokenRouterProviderID, opencodeCustomProviderID} {
+	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeTokenRouterProviderID, opencodeZoProviderID, opencodeCustomProviderID} {
 		if providers[id] == nil {
 			t.Fatalf("expected provider %s in %#v", id, providers)
 		}
@@ -2108,6 +2108,15 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 	if tokenRouterModels["auto:balance"] == nil {
 		t.Fatalf("expected tokenrouter models in %#v", tokenRouterProvider)
 	}
+	zoProvider := providers[opencodeZoProviderID].(map[string]any)
+	zoOptions := zoProvider["options"].(map[string]any)
+	if zoOptions["baseURL"] != "http://127.0.0.1:3000/zo/v1" {
+		t.Fatalf("unexpected zo baseURL: %#v", zoOptions)
+	}
+	zoModels := zoProvider["models"].(map[string]any)
+	if zoModels["gpt-5.5"] == nil || zoModels["claude-sonnet-4-5"] == nil {
+		t.Fatalf("expected zo models in %#v", zoModels)
+	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
 		t.Fatalf("expected opencode backup: %v", err)
 	}
@@ -2125,6 +2134,7 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 	if err := writePiModelsConfig(
 		path,
 		"http://127.0.0.1:3000/pi-router/v1",
+		"http://127.0.0.1:3000/zo/v1",
 		openRouterModels,
 	); err != nil {
 		t.Fatal(err)
@@ -2135,7 +2145,7 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	providers := data["providers"].(map[string]any)
-	for _, id := range []string{"existing", piOmniProviderID} {
+	for _, id := range []string{"existing", piOmniProviderID, piZoProviderID} {
 		if providers[id] == nil {
 			t.Fatalf("expected provider %s in %#v", id, providers)
 		}
@@ -2148,6 +2158,14 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 	routerProvider := providers[piOmniProviderID].(map[string]any)
 	if routerProvider["api"] != "openai-completions" || routerProvider["baseUrl"] != "http://127.0.0.1:3000/pi-router/v1" {
 		t.Fatalf("unexpected Pi router provider: %#v", routerProvider)
+	}
+	zoProvider := providers[piZoProviderID].(map[string]any)
+	if zoProvider["api"] != "openai-completions" || zoProvider["baseUrl"] != "http://127.0.0.1:3000/zo/v1" {
+		t.Fatalf("unexpected Pi zo provider: %#v", zoProvider)
+	}
+	zoModels := zoProvider["models"].([]any)
+	if _, ok := piTestFindModel(zoModels, "gpt-5.5"); !ok {
+		t.Fatalf("expected Pi zo provider models to include gpt-5.5: %#v", zoModels)
 	}
 	routerModels := routerProvider["models"].([]any)
 	if len(routerModels) == 0 {
