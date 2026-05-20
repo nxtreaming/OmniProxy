@@ -4043,6 +4043,113 @@ tr:last-child td {
   gap: 9px;
 }
 
+.billing-side-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.billing-side-section {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 84%, transparent);
+}
+
+.billing-side-total {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 11%, transparent), transparent 70%),
+    color-mix(in srgb, var(--surface-soft) 88%, transparent);
+}
+
+.billing-side-total > span,
+.billing-side-total > small,
+.billing-side-section-head span,
+.billing-rank-bar span,
+.billing-ignored-list span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.billing-side-total > strong {
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  font-size: clamp(24px, 2vw, 32px);
+  line-height: 1.08;
+}
+
+.billing-side-section-head {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.billing-side-section-head strong,
+.billing-rank-bar strong,
+.billing-ignored-list strong {
+  min-width: 0;
+  color: var(--text-strong);
+}
+
+.billing-rank-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.billing-rank-bar {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.billing-rank-bar > div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.billing-rank-bar strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-rank-bar span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.billing-rank-bar i {
+  height: 8px;
+  min-width: 24px;
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.billing-ignored-list {
+  display: grid;
+  gap: 8px;
+}
+
+.billing-ignored-list > div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.billing-ignored-list strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .billing-row {
   min-width: 0;
   display: grid;
@@ -8632,6 +8739,34 @@ button:disabled,
 .report-preview-list > div {
   border-color: color-mix(in srgb, var(--line) 70%, transparent);
   background: color-mix(in srgb, var(--surface) 68%, transparent);
+}
+
+.billing-report-preview.template-poster .report-preview-meta > div,
+.billing-report-preview.template-poster .report-preview-metrics > div,
+.billing-report-preview.template-poster .report-preview-list > div {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.billing-report-preview.template-poster .report-preview-list > div.report-preview-list-head {
+  border-color: transparent;
+  background: #f1f5f9;
+}
+
+.billing-report-preview.template-poster .report-preview-meta span,
+.billing-report-preview.template-poster .report-preview-total span,
+.billing-report-preview.template-poster .report-preview-metrics span,
+.billing-report-preview.template-poster .report-preview-list small,
+.billing-report-preview.template-poster p {
+  color: #64748b;
+}
+
+.billing-report-preview.template-poster .report-preview-top strong,
+.billing-report-preview.template-poster .report-preview-meta strong,
+.billing-report-preview.template-poster .report-preview-total strong,
+.billing-report-preview.template-poster .report-preview-metrics strong,
+.billing-report-preview.template-poster .report-preview-list strong {
+  color: #0f172a;
 }
 
 .billing-row {

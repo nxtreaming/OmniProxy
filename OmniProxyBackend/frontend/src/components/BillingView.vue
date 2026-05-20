@@ -237,6 +237,7 @@ const billTotalCostText = computed(() => {
   return totals.value.byCurrency.map((item) => formatMoney(item.value, item.currency)).join(' + ')
 })
 const ignoredTokenTotal = computed(() => ignoredRows.value.reduce((sum, row) => sum + row.totalTokens, 0))
+const ignoredPreviewRows = computed(() => ignoredRows.value.slice(0, 3))
 const statementId = computed(() => `OP-${selectedDate.value.replaceAll('-', '')}`)
 const invoiceNumber = computed(() => `INV-${selectedDate.value}-${invoiceSuffix(selectedDate.value)}`)
 const invoiceDateText = computed(() => formatDateLong(selectedDate.value))
@@ -292,6 +293,12 @@ function priceRateText(row) {
 
 function rowCostText(row) {
   return formatMoney(row.cost, row.currency)
+}
+
+function rowCostShare(row) {
+  const maxCost = Math.max(...topRows.value.map((item) => item.cost), 0)
+  if (!maxCost) return '8%'
+  return `${Math.max(8, Math.round((row.cost / maxCost) * 100))}%`
 }
 
 async function exportReportImage() {
@@ -1413,6 +1420,51 @@ function truncateText(ctx, text, maxWidth) {
             <p>下方明细是生成模拟账单图的数据来源，未匹配价格的模型不会计入金额</p>
           </div>
         </div>
+
+        <div class="billing-side-stack">
+          <section class="billing-side-section billing-side-total">
+            <span>账单洞察</span>
+            <strong>{{ totalCostText }}</strong>
+            <small>{{ selectedDate }} · {{ formatNumber(totals.totalTokens) }} Token · {{ formatNumber(totals.requestCount) }} 次请求</small>
+          </section>
+
+          <section class="billing-side-section">
+            <div class="billing-side-section-head">
+              <strong>模型占比</strong>
+              <span>按估算费用排序</span>
+            </div>
+            <div v-if="topRows.length" class="billing-rank-bars">
+              <div v-for="row in topRows.slice(0, 4)" :key="row.model" class="billing-rank-bar">
+                <div>
+                  <strong>{{ row.model }}</strong>
+                  <span>{{ rowCostText(row) }} · {{ formatNumber(row.totalTokens) }} Token</span>
+                </div>
+                <i :style="{ width: rowCostShare(row) }"></i>
+              </div>
+            </div>
+            <div v-else class="empty compact-empty">暂无可计价模型</div>
+          </section>
+
+          <section class="billing-side-section">
+            <div class="billing-side-section-head">
+              <strong>未纳入模型</strong>
+              <span>{{ ignoredRows.length }} 个 · {{ formatNumber(ignoredTokenTotal) }} Token</span>
+            </div>
+            <div v-if="ignoredPreviewRows.length" class="billing-ignored-list">
+              <div v-for="row in ignoredPreviewRows" :key="row.model">
+                <strong>{{ row.model }}</strong>
+                <span>{{ formatNumber(row.totalTokens) }} Token</span>
+              </div>
+            </div>
+            <div v-else class="billing-ignored-list is-empty">
+              <div>
+                <strong>全部已计价</strong>
+                <span>当前日期没有被价格表跳过的模型</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
         <div class="billing-table">
           <div class="billing-row header">
             <span>模型</span>
