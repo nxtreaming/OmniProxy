@@ -1495,6 +1495,45 @@ func TestWriteCodexSub2APIConfig(t *testing.T) {
 	}
 }
 
+func TestWriteCodexZoConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	initial := strings.Join([]string{
+		`model = "old-model"`,
+		`model_provider = "openai"`,
+		`openai_base_url = "http://old.example/v1"`,
+		`[model_providers.OpenAI]`,
+		`base_url = "http://old.example/v1"`,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeCodexZoConfig(path, "http://127.0.0.1:3000/zo"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`model_provider = "OpenAI"`,
+		`model = "gpt-5.5"`,
+		`review_model = "gpt-5.5"`,
+		`base_url = "http://127.0.0.1:3000/zo"`,
+		`wire_api = "responses"`,
+		`requires_openai_auth = true`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
+		}
+	}
+	if strings.Contains(text, "old.example") {
+		t.Fatalf("config still contains old base url:\n%s", text)
+	}
+}
+
 func TestEnsureCodexOpenAIAPIKeyPreservesExistingAuth(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "auth.json")
 	initial := `{"tokens":{"access_token":"keep-token"}}`
@@ -1661,6 +1700,18 @@ func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
 			haikuModel:       "glm-5.1",
 			subagentModel:    "glm-5.1",
 			label:            "GLM-5.1",
+			unwanted:         "mimo-v2.5-pro",
+			expectCustomName: true,
+		},
+		{
+			name:             "zo",
+			write:            writeZoClaudeSettings,
+			defaultModel:     "claude-sonnet-4-6",
+			opusModel:        "claude-sonnet-4-6",
+			sonnetModel:      "claude-sonnet-4-6",
+			haikuModel:       "claude-sonnet-4-6",
+			subagentModel:    "claude-sonnet-4-6",
+			label:            "Zo Claude Sonnet 4.6",
 			unwanted:         "mimo-v2.5-pro",
 			expectCustomName: true,
 		},
@@ -2114,7 +2165,7 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatalf("unexpected zo baseURL: %#v", zoOptions)
 	}
 	zoModels := zoProvider["models"].(map[string]any)
-	if zoModels["gpt-5.5"] == nil || zoModels["claude-sonnet-4-5"] == nil {
+	if zoModels["gpt-5.5"] == nil || zoModels["claude-sonnet-4-6"] == nil || zoModels["deepseek-v4-pro"] == nil || zoModels["glm-5"] == nil {
 		t.Fatalf("expected zo models in %#v", zoModels)
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
@@ -2166,6 +2217,9 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 	zoModels := zoProvider["models"].([]any)
 	if _, ok := piTestFindModel(zoModels, "gpt-5.5"); !ok {
 		t.Fatalf("expected Pi zo provider models to include gpt-5.5: %#v", zoModels)
+	}
+	if _, ok := piTestFindModel(zoModels, "claude-sonnet-4-6"); !ok {
+		t.Fatalf("expected Pi zo provider models to include claude-sonnet-4-6: %#v", zoModels)
 	}
 	routerModels := routerProvider["models"].([]any)
 	if len(routerModels) == 0 {

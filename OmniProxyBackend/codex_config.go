@@ -172,6 +172,61 @@ func (a *appServer) configureCodexSub2API() (codexConfigureResult, error) {
 	return result, nil
 }
 
+func (a *appServer) configureCodexZo() (codexConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/zo", cfg.ProxyPort)
+	configPath := filepath.Join(codexDir, "config.toml")
+	if err := writeCodexZoConfig(configPath, baseURL); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	result := codexConfigureResult{
+		ConfigPath: configPath,
+		AuthPath:   filepath.Join(codexDir, "auth.json"),
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    baseURL,
+	}
+
+	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+	switch authState {
+	case "created":
+		result.ImportedAuth = true
+	case "updated":
+		result.AuthUpdated = true
+	case "existing":
+		result.AuthAlreadyAdded = true
+	}
+
+	parts := []string{"Codex 已切换到 OmniProxy Zo Computer 本地代理"}
+	if result.ImportedAuth {
+		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
+	} else if result.AuthUpdated {
+		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
+	} else {
+		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
+	}
+	parts = append(parts, "请在 OmniProxy 的 Zo Computer 账号中保存真实 Access Token")
+	result.Message = strings.Join(parts, "；")
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy zo"})
+	return result, nil
+}
+
 func (a *appServer) restoreCodexConfig() (codexConfigureResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -229,7 +284,15 @@ func writeCodexOmniProxyConfig(path string, baseURL string) error {
 	return os.WriteFile(path, []byte(next), 0o600)
 }
 
+func writeCodexZoConfig(path string, baseURL string) error {
+	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.5")
+}
+
 func writeCodexSub2APIConfig(path string, baseURL string) error {
+	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.4")
+}
+
+func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) error {
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -242,8 +305,8 @@ func writeCodexSub2APIConfig(path string, baseURL string) error {
 	}
 
 	lines = setRootStringKey(lines, "model_provider", "OpenAI")
-	lines = setRootStringKey(lines, "model", "gpt-5.4")
-	lines = setRootStringKey(lines, "review_model", "gpt-5.4")
+	lines = setRootStringKey(lines, "model", model)
+	lines = setRootStringKey(lines, "review_model", model)
 	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
 	lines = setRootRawKey(lines, "disable_response_storage", "true")
 	lines = setRootStringKey(lines, "network_access", "enabled")

@@ -62,6 +62,10 @@ export function ConfigureCodexSub2API() {
   return window['go']['main']['DesktopApp']['ConfigureCodexSub2API']();
 }
 
+export function ConfigureCodexZo() {
+  return window['go']['main']['DesktopApp']['ConfigureCodexZo']();
+}
+
 export function ConfigureDeepSeekClaude() {
   return window['go']['main']['DesktopApp']['ConfigureDeepSeekClaude']();
 }
@@ -92,6 +96,10 @@ export function ConfigurePi() {
 
 export function ConfigureZhipuClaude() {
   return window['go']['main']['DesktopApp']['ConfigureZhipuClaude']();
+}
+
+export function ConfigureZoClaude() {
+  return window['go']['main']['DesktopApp']['ConfigureZoClaude']();
 }
 
 export function ControlAPI() {

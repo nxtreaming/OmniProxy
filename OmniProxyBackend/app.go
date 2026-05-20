@@ -571,6 +571,10 @@ func (a *DesktopApp) ConfigureCodexSub2API() (codexConfigureResult, error) {
 	return a.server.configureCodexSub2API()
 }
 
+func (a *DesktopApp) ConfigureCodexZo() (codexConfigureResult, error) {
+	return a.server.configureCodexZo()
+}
+
 func (a *DesktopApp) RestoreCodex() (codexConfigureResult, error) {
 	return a.server.restoreCodexConfig()
 }
@@ -601,6 +605,10 @@ func (a *DesktopApp) RestoreKimiClaude() (mimoConfigureResult, error) {
 
 func (a *DesktopApp) ConfigureZhipuClaude() (mimoConfigureResult, error) {
 	return a.server.configureZhipuClaude()
+}
+
+func (a *DesktopApp) ConfigureZoClaude() (mimoConfigureResult, error) {
+	return a.server.configureZoClaude()
 }
 
 func (a *DesktopApp) ConfigureClaudeModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {

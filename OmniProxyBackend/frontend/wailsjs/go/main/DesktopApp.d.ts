@@ -35,6 +35,8 @@ export function ConfigureCodex():Promise<main.codexConfigureResult>;
 
 export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
 
+export function ConfigureCodexZo():Promise<main.codexConfigureResult>;
+
 export function ConfigureDeepSeekClaude():Promise<main.mimoConfigureResult>;
 
 export function ConfigureDeepSeekTUI():Promise<main.clientConfigureResult>;
@@ -50,6 +52,8 @@ export function ConfigureOpenCode():Promise<main.clientConfigureResult>;
 export function ConfigurePi():Promise<main.clientConfigureResult>;
 
 export function ConfigureZhipuClaude():Promise<main.mimoConfigureResult>;
+
+export function ConfigureZoClaude():Promise<main.mimoConfigureResult>;
 
 export function ControlAPI():Promise<string>;
 

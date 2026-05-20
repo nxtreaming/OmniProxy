@@ -476,6 +476,12 @@ export function configureCodexSub2API() {
     : request('/codex/sub2api/configure', { method: 'POST' })
 }
 
+export function configureCodexZo() {
+  return useWailsBindings() && DesktopApp.ConfigureCodexZo
+    ? DesktopApp.ConfigureCodexZo()
+    : request('/codex/zo/configure', { method: 'POST' })
+}
+
 export function restoreCodex() {
   return useWailsBindings() ? DesktopApp.RestoreCodex() : request('/codex/restore', { method: 'POST' })
 }
@@ -516,6 +522,12 @@ export function configureZhipuClaude() {
   return useWailsBindings()
     ? DesktopApp.ConfigureZhipuClaude()
     : request('/zhipu/claude/configure', { method: 'POST' })
+}
+
+export function configureZoClaude() {
+  return useWailsBindings() && DesktopApp.ConfigureZoClaude
+    ? DesktopApp.ConfigureZoClaude()
+    : request('/zo/claude/configure', { method: 'POST' })
 }
 
 export function configureClaudeModels(models) {

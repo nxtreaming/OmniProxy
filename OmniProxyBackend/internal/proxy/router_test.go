@@ -194,6 +194,14 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			protocol: "anthropic",
 			outPath:  "/v1/messages",
 		},
+		{
+			name:     "zo responses direct",
+			path:     "/zo/v1/responses",
+			body:     `{"model":"gpt-5.5"}`,
+			provider: token.ProviderZo,
+			protocol: "openai",
+			outPath:  "/v1/responses",
+		},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

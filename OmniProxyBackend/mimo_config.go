@@ -21,6 +21,7 @@ const (
 	deepSeekFastModel    = "deepseek-v4-flash"
 	kimiCodingModel      = "kimi-for-coding"
 	zhipuGLMModel        = "glm-5.1"
+	zoClaudeModel        = "claude-sonnet-4-6"
 	omniProxyMimoAuth    = "omniproxy"
 	maxClaudeModels      = 4
 )
@@ -78,6 +79,13 @@ var (
 		LogMessage:  "zhipu claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Zhipu GLM",
 	}
+	claudeZoTarget = claudeModelTarget{
+		Model:       zoClaudeModel,
+		Name:        "Zo Claude Sonnet 4.6",
+		Description: "Claude Sonnet 4.6 routed through OmniProxy Zo Computer",
+		LogMessage:  "zo claude configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Zo Computer",
+	}
 )
 
 type claudeModelSelectionError struct {
@@ -109,6 +117,16 @@ func (a *appServer) configureKimiClaude() (mimoConfigureResult, error) {
 func (a *appServer) configureZhipuClaude() (mimoConfigureResult, error) {
 	return a.configureClaudeWithWriter(claudeZhipuTarget, func(path string, baseURL string) error {
 		return writeZhipuClaudeSettings(path, baseURL)
+	})
+}
+
+func (a *appServer) configureZoClaude() (mimoConfigureResult, error) {
+	a.mu.Lock()
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/zo", a.cfg.ProxyPort)
+	a.mu.Unlock()
+
+	return a.configureClaudeWithBaseURL(claudeZoTarget, baseURL, func(path string, baseURL string) error {
+		return writeZoClaudeSettings(path, baseURL)
 	})
 }
 
@@ -338,6 +356,10 @@ func writeKimiClaudeSettings(path string, baseURL string) error {
 
 func writeZhipuClaudeSettings(path string, baseURL string) error {
 	return writeClaudeSingleModelSettings(path, baseURL, claudeZhipuTarget)
+}
+
+func writeZoClaudeSettings(path string, baseURL string) error {
+	return writeClaudeSingleModelSettings(path, baseURL, claudeZoTarget)
 }
 
 func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeModelTarget) error {

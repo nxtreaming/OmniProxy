@@ -26,6 +26,7 @@ import {
 import {
   configureCodex,
   configureCodexSub2API,
+  configureCodexZo,
   configureClaudeDesktopModels,
   configureClaudeModels,
   configureDeepSeekClaude,
@@ -36,6 +37,7 @@ import {
   configureOpenCode,
   configurePi,
   configureZhipuClaude,
+  configureZoClaude,
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   checkForUpdates,
@@ -133,11 +135,13 @@ const windowMaximised = ref(false)
 const loading = ref(false)
 const codexConfiguring = ref(false)
 const codexSub2APIConfiguring = ref(false)
+const codexZoConfiguring = ref(false)
 const codexRestoring = ref(false)
 const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
 const zhipuClaudeConfiguring = ref(false)
+const zoClaudeConfiguring = ref(false)
 const claudeModelsConfiguring = ref(false)
 const claudeDesktopConfiguring = ref(false)
 const claudeDesktopRestoring = ref(false)
@@ -1703,6 +1707,21 @@ async function configureLocalCodexSub2API() {
   }
 }
 
+async function configureLocalCodexZo() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  codexZoConfiguring.value = true
+  try {
+    const result = await configureCodexZo()
+    await refreshAll()
+    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy Zo Computer'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    codexZoConfiguring.value = false
+  }
+}
+
 async function restoreLocalCodex() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -1770,6 +1789,20 @@ async function configureLocalZhipuClaude() {
     errorMessage.value = error.message
   } finally {
     zhipuClaudeConfiguring.value = false
+  }
+}
+
+async function configureLocalZoClaude() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  zoClaudeConfiguring.value = true
+  try {
+    const result = await configureZoClaude()
+    successMessage.value = result.message || 'Claude Code 已配置为使用 Zo Computer'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    zoClaudeConfiguring.value = false
   }
 }
 
@@ -3367,13 +3400,17 @@ async function refreshQuota(item) {
             <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex
 sub2api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/sub2api
 sub2api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/sub2api/anthropic
-sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini</code></pre>
+sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini
+Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="configureLocalCodex">
                 {{ codexConfiguring ? '配置中' : '配置 Codex OpenAI' }}
               </el-button>
               <el-button type="primary" plain :icon="MagicStick" :loading="codexSub2APIConfiguring" @click="configureLocalCodexSub2API">
                 {{ codexSub2APIConfiguring ? '配置中' : '配置 Codex sub2api' }}
+              </el-button>
+              <el-button type="primary" plain :icon="MagicStick" :loading="codexZoConfiguring" @click="configureLocalCodexZo">
+                {{ codexZoConfiguring ? '配置中' : '配置 Codex Zo' }}
               </el-button>
               <el-button :icon="RefreshRight" :loading="codexRestoring" @click="restoreLocalCodex">
                 {{ codexRestoring ? '恢复中' : '恢复 Codex 配置' }}
@@ -3388,7 +3425,8 @@ sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini</code></p
 DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
 MiMo: MiMo-V2.5-Pro / MiMo-V2.5
 Kimi model: kimi-for-coding
-GLM model: glm-5.1</code></pre>
+GLM model: glm-5.1
+Zo model: claude-sonnet-4-6</code></pre>
             <div class="claude-model-config">
               <div class="claude-model-config-head">
                 <span>可选模型</span>
@@ -3467,6 +3505,9 @@ GLM model: glm-5.1</code></pre>
                   </el-button>
                   <el-button type="primary" plain :icon="MagicStick" :loading="zhipuClaudeConfiguring" @click="configureLocalZhipuClaude">
                     {{ zhipuClaudeConfiguring ? '配置中' : 'GLM' }}
+                  </el-button>
+                  <el-button type="primary" plain :icon="MagicStick" :loading="zoClaudeConfiguring" @click="configureLocalZoClaude">
+                    {{ zoClaudeConfiguring ? '配置中' : 'Zo' }}
                   </el-button>
                   <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="restoreLocalMimoClaude">
                     {{ mimoClaudeRestoring ? '恢复中' : '恢复 CLI' }}

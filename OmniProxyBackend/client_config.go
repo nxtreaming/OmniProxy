@@ -764,20 +764,30 @@ func openCodeZoProvider(baseURL string) map[string]any {
 			"setCacheKey": true,
 		},
 		"models": map[string]any{
-			"gpt-5.5":              map[string]any{"name": "Zo GPT-5.5"},
-			"claude-sonnet-4-5":    map[string]any{"name": "Zo Claude Sonnet 4.5"},
-			"deepseek-v4-pro":      map[string]any{"name": "Zo DeepSeek V4 Pro"},
-			"gemini-3-pro-preview": map[string]any{"name": "Zo Gemini 3 Pro"},
+			"claude-opus-4-7":   map[string]any{"name": "Zo Claude Opus 4.7"},
+			"claude-sonnet-4-6": map[string]any{"name": "Zo Claude Sonnet 4.6"},
+			"gemini-3.1-pro":    map[string]any{"name": "Zo Gemini 3.1 Pro"},
+			"glm-5":             map[string]any{"name": "Zo GLM 5"},
+			"minimax-2.7":       map[string]any{"name": "Zo MiniMax 2.7"},
+			"gpt-5.4":           map[string]any{"name": "Zo GPT-5.4"},
+			"gpt-5.4-mini":      map[string]any{"name": "Zo GPT-5.4 mini"},
+			"gpt-5.5":           map[string]any{"name": "Zo GPT-5.5"},
+			"deepseek-v4-pro":   map[string]any{"name": "Zo DeepSeek V4 Pro"},
 		},
 	}
 }
 
 func piZoModels() []map[string]any {
 	return []map[string]any{
+		{"id": "claude-opus-4-7", "name": "Zo Claude Opus 4.7"},
+		{"id": "claude-sonnet-4-6", "name": "Zo Claude Sonnet 4.6"},
+		{"id": "gemini-3.1-pro", "name": "Zo Gemini 3.1 Pro"},
+		{"id": "glm-5", "name": "Zo GLM 5"},
+		{"id": "minimax-2.7", "name": "Zo MiniMax 2.7"},
+		{"id": "gpt-5.4", "name": "Zo GPT-5.4"},
+		{"id": "gpt-5.4-mini", "name": "Zo GPT-5.4 mini"},
 		{"id": "gpt-5.5", "name": "Zo GPT-5.5"},
-		{"id": "claude-sonnet-4-5", "name": "Zo Claude Sonnet 4.5"},
 		{"id": "deepseek-v4-pro", "name": "Zo DeepSeek V4 Pro"},
-		{"id": "gemini-3-pro-preview", "name": "Zo Gemini 3 Pro"},
 	}
 }
 

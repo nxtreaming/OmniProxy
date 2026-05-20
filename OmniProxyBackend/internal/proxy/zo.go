@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"OmniProxyBackend/internal/token"
 )
@@ -60,6 +61,14 @@ type zoAnthropicRequest struct {
 	Tools    []any  `json:"tools"`
 }
 
+type zoResponsesRequest struct {
+	Model        string `json:"model"`
+	Input        any    `json:"input"`
+	Instructions string `json:"instructions"`
+	Stream       bool   `json:"stream"`
+	Tools        []any  `json:"tools"`
+}
+
 type zoParsedOutput struct {
 	Text      string
 	ToolCalls []zoToolCall
@@ -79,6 +88,8 @@ func (s *Service) forwardZo(ctx context.Context, original *http.Request, route r
 		return s.forwardZoOpenAIChat(ctx, original, route, body, selected)
 	case original.Method == http.MethodPost && path == "/v1/messages":
 		return s.forwardZoAnthropicMessages(ctx, original, route, body, selected)
+	case original.Method == http.MethodPost && path == "/v1/responses":
+		return s.forwardZoResponses(ctx, original, route, body, selected)
 	default:
 		return zoErrorResponse(original, http.StatusNotFound, fmt.Sprintf("Not found: %s %s", original.Method, route.Path), route.Protocol), nil
 	}
@@ -95,6 +106,8 @@ func normalizeZoClientPath(path string) string {
 		return "/v1/chat/completions"
 	case "/models":
 		return "/v1/models"
+	case "/responses":
+		return "/v1/responses"
 	default:
 		return path
 	}
@@ -211,6 +224,43 @@ func (s *Service) forwardZoAnthropicMessages(ctx context.Context, original *http
 		return anthropicStreamResponse(original, reqBody.Model, parsed, header), nil
 	}
 	return jsonResponse(original, http.StatusOK, anthropicResponseFromZo(reqBody.Model, parsed), forwardedZoHeaders(header)), nil
+}
+
+func (s *Service) forwardZoResponses(ctx context.Context, original *http.Request, route routeInfo, body []byte, selected token.Token) (*http.Response, error) {
+	var reqBody zoResponsesRequest
+	if err := json.Unmarshal(body, &reqBody); err != nil {
+		return zoErrorResponse(original, http.StatusBadRequest, "Invalid JSON body", "openai"), nil
+	}
+
+	models, _, _, _, _ := s.fetchZoModels(ctx, route, selected, true)
+	input := buildZoInputFromResponses(reqBody.Instructions, reqBody.Input)
+	finalInput, outputFormat := injectZoTools(input, reqBody.Tools)
+
+	zoBody := zoAskRequest{Input: finalInput, Stream: false}
+	if model := mapZoModel(reqBody.Model, models); model != "" {
+		zoBody.ModelName = model
+	}
+	if outputFormat != nil {
+		zoBody.OutputFormat = outputFormat
+	}
+
+	status, header, responseBody, err := s.postZoAsk(ctx, route, selected, zoBody, original.Header)
+	if err != nil {
+		return nil, err
+	}
+	if status != http.StatusOK {
+		return zoUpstreamErrorResponse(original, status, header, responseBody, "openai"), nil
+	}
+
+	var zoResp zoAskResponse
+	if err := json.Unmarshal(responseBody, &zoResp); err != nil {
+		return zoErrorResponse(original, http.StatusBadGateway, "Invalid Zo API response", "openai"), nil
+	}
+	parsed := normalizeZoParsedOutput(parseZoOutput(zoResp.Output), reqBody.Tools)
+	if reqBody.Stream {
+		return openAIResponsesStreamResponse(original, reqBody.Model, parsed, header), nil
+	}
+	return jsonResponse(original, http.StatusOK, openAIResponsesFromZo(reqBody.Model, parsed), forwardedZoHeaders(header)), nil
 }
 
 func (s *Service) fetchZoModels(ctx context.Context, route routeInfo, selected token.Token, allowCached bool) ([]zoModel, int, http.Header, []byte, error) {
@@ -345,6 +395,57 @@ func buildZoInputFromAnthropic(system any, messages []any) string {
 	return strings.Join(parts, "\n")
 }
 
+func buildZoInputFromResponses(instructions string, input any) string {
+	parts := []string{}
+	if text := strings.TrimSpace(instructions); text != "" {
+		parts = append(parts, "[instructions]: "+text)
+	}
+	if text := strings.TrimSpace(extractZoResponsesText(input)); text != "" {
+		parts = append(parts, text)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func extractZoResponsesText(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case []any:
+		parts := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text := extractZoResponsesText(item)
+			if strings.TrimSpace(text) != "" {
+				parts = append(parts, text)
+			}
+		}
+		return strings.Join(parts, "\n")
+	case map[string]any:
+		itemType := stringFromMap(typed, "type")
+		switch itemType {
+		case "message":
+			role := stringFromMap(typed, "role")
+			if role == "" {
+				role = "user"
+			}
+			return fmt.Sprintf("[%s]: %s", role, extractZoResponsesText(typed["content"]))
+		case "input_text", "output_text", "text":
+			return stringFromMap(typed, "text")
+		case "input_image", "image", "image_url":
+			return "[Image]"
+		case "function_call":
+			return fmt.Sprintf("[Tool Use: %s(%s)]", stringFromMap(typed, "name"), mustJSONText(typed["arguments"]))
+		case "function_call_output":
+			return fmt.Sprintf("[Tool Result: %s]", anyString(typed["output"]))
+		default:
+			return extractZoText(value)
+		}
+	case nil:
+		return ""
+	default:
+		return mustJSONText(value)
+	}
+}
+
 func extractZoText(content any) string {
 	switch typed := content.(type) {
 	case string:
@@ -435,9 +536,15 @@ func mapZoModel(clientModel string, models []zoModel) string {
 	if strings.HasPrefix(clientModel, "zo:") {
 		return clientModel
 	}
+	clientKey := normalizeZoModelKey(clientModel)
 	for _, model := range models {
-		if clientModel == model.ModelName || clientModel == model.Label {
+		if clientModel == model.ModelName || clientModel == model.Label || strings.EqualFold(clientModel, model.ModelName) || strings.EqualFold(clientModel, model.Label) {
 			return model.ModelName
+		}
+	}
+	if clientKey != "" {
+		if modelName := matchZoModelByKey(clientKey, models); modelName != "" {
+			return modelName
 		}
 	}
 	lower := strings.ToLower(clientModel)
@@ -460,11 +567,78 @@ func mapZoModel(clientModel string, models []zoModel) string {
 		return ""
 	}
 	for _, model := range models {
-		if strings.Contains(strings.ToLower(model.ModelName), vendor) {
+		if zoModelMatchesVendor(model, vendor) {
 			return model.ModelName
 		}
 	}
 	return ""
+}
+
+func matchZoModelByKey(clientKey string, models []zoModel) string {
+	for _, model := range models {
+		for _, key := range zoModelKeys(model) {
+			if clientKey == key {
+				return model.ModelName
+			}
+		}
+	}
+	bestModel := ""
+	bestScore := 0
+	for _, model := range models {
+		for _, key := range zoModelKeys(model) {
+			score := 0
+			switch {
+			case strings.Contains(key, clientKey):
+				score = len(clientKey)*2 - len(key)/1000
+			case strings.Contains(clientKey, key) && len(key) >= 5:
+				score = len(key)
+			}
+			if score > bestScore {
+				bestScore = score
+				bestModel = model.ModelName
+			}
+		}
+	}
+	return bestModel
+}
+
+func zoModelKeys(model zoModel) []string {
+	values := []string{model.ModelName, model.Label}
+	if _, suffix, ok := strings.Cut(model.ModelName, "/"); ok {
+		values = append(values, suffix)
+	}
+	keys := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		key := normalizeZoModelKey(value)
+		if key == "" || seen[key] {
+			continue
+		}
+		keys = append(keys, key)
+		seen[key] = true
+	}
+	return keys
+}
+
+func normalizeZoModelKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func zoModelMatchesVendor(model zoModel, vendor string) bool {
+	vendor = strings.ToLower(strings.TrimSpace(vendor))
+	if vendor == "" {
+		return false
+	}
+	return strings.Contains(strings.ToLower(model.ModelName), vendor) ||
+		strings.Contains(strings.ToLower(model.Label), vendor) ||
+		strings.EqualFold(strings.TrimSpace(model.Vendor), vendor)
 }
 
 func parseZoOutput(output any) zoParsedOutput {
@@ -715,6 +889,52 @@ func openAIResponseFromZo(model string, parsed zoParsedOutput) map[string]any {
 	}
 }
 
+func openAIResponsesFromZo(model string, parsed zoParsedOutput) map[string]any {
+	id := "resp_" + strings.ReplaceAll(zoUUID(), "-", "")
+	return map[string]any{
+		"id":         id,
+		"object":     "response",
+		"created_at": zoTimestamp(),
+		"status":     "completed",
+		"model":      model,
+		"output":     zoResponsesOutput(parsed),
+		"usage":      map[string]int{"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+	}
+}
+
+func zoResponsesOutput(parsed zoParsedOutput) []map[string]any {
+	output := []map[string]any{}
+	if strings.TrimSpace(parsed.Text) != "" {
+		output = append(output, map[string]any{
+			"type":   "message",
+			"role":   "assistant",
+			"status": "completed",
+			"content": []map[string]any{{
+				"type": "output_text",
+				"text": parsed.Text,
+			}},
+		})
+	}
+	for _, call := range parsed.ToolCalls {
+		output = append(output, map[string]any{
+			"type":      "function_call",
+			"call_id":   zoShortID("call_"),
+			"name":      call.Name,
+			"arguments": mustJSONText(call.Arguments),
+			"status":    "completed",
+		})
+	}
+	if len(output) == 0 {
+		output = append(output, map[string]any{
+			"type":    "message",
+			"role":    "assistant",
+			"status":  "completed",
+			"content": []map[string]any{},
+		})
+	}
+	return output
+}
+
 func anthropicResponseFromZo(model string, parsed zoParsedOutput) map[string]any {
 	content := []map[string]any{}
 	if strings.TrimSpace(parsed.Text) != "" {
@@ -785,6 +1005,38 @@ func openAIStreamResponse(req *http.Request, model string, parsed zoParsedOutput
 	writeSSEJSON(&buf, map[string]any{
 		"id": id, "object": "chat.completion.chunk", "created": created, "model": model,
 		"choices": []map[string]any{{"index": 0, "delta": map[string]any{}, "finish_reason": reason}},
+	})
+	buf.WriteString("data: [DONE]\n\n")
+	header := forwardedZoHeaders(upstreamHeader)
+	header.Set("Content-Type", "text/event-stream")
+	header.Set("Cache-Control", "no-cache")
+	return rawResponse(req, http.StatusOK, header, buf.Bytes())
+}
+
+func openAIResponsesStreamResponse(req *http.Request, model string, parsed zoParsedOutput, upstreamHeader http.Header) *http.Response {
+	response := openAIResponsesFromZo(model, parsed)
+	var buf bytes.Buffer
+	writeEventJSON(&buf, "response.created", map[string]any{
+		"type":     "response.created",
+		"response": response,
+	})
+	if strings.TrimSpace(parsed.Text) != "" {
+		writeEventJSON(&buf, "response.output_text.delta", map[string]any{
+			"type":         "response.output_text.delta",
+			"output_index": 0,
+			"delta":        parsed.Text,
+		})
+	}
+	for index, item := range response["output"].([]map[string]any) {
+		writeEventJSON(&buf, "response.output_item.done", map[string]any{
+			"type":         "response.output_item.done",
+			"output_index": index,
+			"item":         item,
+		})
+	}
+	writeEventJSON(&buf, "response.completed", map[string]any{
+		"type":     "response.completed",
+		"response": response,
 	})
 	buf.WriteString("data: [DONE]\n\n")
 	header := forwardedZoHeaders(upstreamHeader)
@@ -909,6 +1161,13 @@ func writeSSEJSON(buf *bytes.Buffer, payload any) {
 	data, _ := json.Marshal(payload)
 	buf.Write(data)
 	buf.WriteString("\n\n")
+}
+
+func writeEventJSON(buf *bytes.Buffer, event string, payload any) {
+	buf.WriteString("event: ")
+	buf.WriteString(event)
+	buf.WriteString("\n")
+	writeSSEJSON(buf, payload)
 }
 
 func writeAnthropicEvent(buf *bytes.Buffer, event string, payload any) {

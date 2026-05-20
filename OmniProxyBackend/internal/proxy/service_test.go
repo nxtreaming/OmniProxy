@@ -2291,6 +2291,36 @@ func TestServiceAdaptsZoOpenAIChat(t *testing.T) {
 	}
 }
 
+func TestMapZoModelMatchesVisibleLabels(t *testing.T) {
+	models := []zoModel{
+		{ModelName: "anthropic/claude-opus-4-7", Label: "Opus 4.7", Vendor: "anthropic"},
+		{ModelName: "anthropic/claude-sonnet-4-6", Label: "Sonnet 4.6", Vendor: "anthropic"},
+		{ModelName: "google/gemini-3.1-pro", Label: "Gemini 3.1 Pro", Vendor: "google"},
+		{ModelName: "zai/glm-5", Label: "GLM 5", Vendor: "zai"},
+		{ModelName: "minimax/minimax-2.7", Label: "MiniMax 2.7", Vendor: "minimax"},
+		{ModelName: "openai/gpt-5.4", Label: "GPT-5.4", Vendor: "openai"},
+		{ModelName: "openai/gpt-5.4-mini", Label: "GPT-5.4 mini", Vendor: "openai"},
+		{ModelName: "openai/gpt-5.5", Label: "GPT-5.5", Vendor: "openai"},
+		{ModelName: "deepseek/deepseek-v4-pro", Label: "DeepSeek V4 Pro", Vendor: "deepseek"},
+	}
+	cases := map[string]string{
+		"claude-opus-4-7":   "anthropic/claude-opus-4-7",
+		"claude-sonnet-4-6": "anthropic/claude-sonnet-4-6",
+		"gemini-3.1-pro":    "google/gemini-3.1-pro",
+		"glm-5":             "zai/glm-5",
+		"minimax-2.7":       "minimax/minimax-2.7",
+		"gpt-5.4":           "openai/gpt-5.4",
+		"gpt-5.4-mini":      "openai/gpt-5.4-mini",
+		"gpt-5.5":           "openai/gpt-5.5",
+		"deepseek-v4-pro":   "deepseek/deepseek-v4-pro",
+	}
+	for clientModel, expected := range cases {
+		if got := mapZoModel(clientModel, models); got != expected {
+			t.Fatalf("mapZoModel(%q) = %q, want %q", clientModel, got, expected)
+		}
+	}
+}
+
 func TestServiceAdaptsZoAnthropicToolUse(t *testing.T) {
 	var askBody map[string]any
 
@@ -2378,6 +2408,76 @@ func TestServiceAdaptsZoAnthropicToolUse(t *testing.T) {
 	}
 	if _, ok := payload.Content[1].Input["reason"]; ok {
 		t.Fatalf("tool noise argument should have been stripped: %#v", payload.Content[1].Input)
+	}
+}
+
+func TestServiceAdaptsZoResponsesStream(t *testing.T) {
+	var askBody map[string]any
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer zo_sk_test_token" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		switch r.URL.Path {
+		case "/models/available":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"models":[{"model_name":"openai/gpt-5.5","label":"gpt-5.5","vendor":"openai"}]}`))
+		case "/zo/ask":
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &askBody); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"output":"hello codex"}`))
+		default:
+			t.Fatalf("unexpected zo path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "zo", Provider: token.ProviderZo, TokenValue: "zo_sk_test_token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZoBaseURL:       upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/zo/v1/responses", stringsReader(`{
+		"model":"gpt-5.5",
+		"instructions":"be concise",
+		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}],
+		"stream":true
+	}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if askBody["model_name"] != "openai/gpt-5.5" {
+		t.Fatalf("expected zo model mapping, got body=%#v", askBody)
+	}
+	input, _ := askBody["input"].(string)
+	if !strings.Contains(input, "[instructions]: be concise") || !strings.Contains(input, "[user]: hi") {
+		t.Fatalf("expected responses input to be folded into zo input, got %q", input)
+	}
+	body := res.Body.String()
+	if !strings.Contains(res.Header().Get("Content-Type"), "text/event-stream") ||
+		!strings.Contains(body, "response.output_text.delta") ||
+		!strings.Contains(body, "hello codex") ||
+		!strings.Contains(body, "response.completed") {
+		t.Fatalf("unexpected responses stream body headers=%v body=%s", res.Header(), body)
 	}
 }
 
