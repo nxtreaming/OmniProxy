@@ -64,9 +64,9 @@ type zoAnthropicRequest struct {
 type zoResponsesRequest struct {
 	Model        string `json:"model"`
 	Input        any    `json:"input"`
-	Instructions string `json:"instructions"`
-	Stream       bool   `json:"stream"`
-	Tools        []any  `json:"tools"`
+	Instructions any    `json:"instructions"`
+	Stream       any    `json:"stream"`
+	Tools        any    `json:"tools"`
 }
 
 type zoParsedOutput struct {
@@ -234,7 +234,8 @@ func (s *Service) forwardZoResponses(ctx context.Context, original *http.Request
 
 	models, _, _, _, _ := s.fetchZoModels(ctx, route, selected, true)
 	input := buildZoInputFromResponses(reqBody.Instructions, reqBody.Input)
-	finalInput, outputFormat := injectZoTools(input, reqBody.Tools)
+	tools := zoToolsList(reqBody.Tools)
+	finalInput, outputFormat := injectZoTools(input, tools)
 
 	zoBody := zoAskRequest{Input: finalInput, Stream: false}
 	if model := mapZoModel(reqBody.Model, models); model != "" {
@@ -256,8 +257,8 @@ func (s *Service) forwardZoResponses(ctx context.Context, original *http.Request
 	if err := json.Unmarshal(responseBody, &zoResp); err != nil {
 		return zoErrorResponse(original, http.StatusBadGateway, "Invalid Zo API response", "openai"), nil
 	}
-	parsed := normalizeZoParsedOutput(parseZoOutput(zoResp.Output), reqBody.Tools)
-	if reqBody.Stream {
+	parsed := normalizeZoParsedOutput(parseZoOutput(zoResp.Output), tools)
+	if truthyZoBool(reqBody.Stream) {
 		return openAIResponsesStreamResponse(original, reqBody.Model, parsed, header), nil
 	}
 	return jsonResponse(original, http.StatusOK, openAIResponsesFromZo(reqBody.Model, parsed), forwardedZoHeaders(header)), nil
@@ -395,9 +396,9 @@ func buildZoInputFromAnthropic(system any, messages []any) string {
 	return strings.Join(parts, "\n")
 }
 
-func buildZoInputFromResponses(instructions string, input any) string {
+func buildZoInputFromResponses(instructions any, input any) string {
 	parts := []string{}
-	if text := strings.TrimSpace(instructions); text != "" {
+	if text := strings.TrimSpace(extractZoResponsesText(instructions)); text != "" {
 		parts = append(parts, "[instructions]: "+text)
 	}
 	if text := strings.TrimSpace(extractZoResponsesText(input)); text != "" {
@@ -443,6 +444,40 @@ func extractZoResponsesText(value any) string {
 		return ""
 	default:
 		return mustJSONText(value)
+	}
+}
+
+func zoToolsList(value any) []any {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case []any:
+		return typed
+	case map[string]any:
+		if tools, ok := typed["tools"].([]any); ok {
+			return tools
+		}
+		return []any{typed}
+	default:
+		return nil
+	}
+}
+
+func truthyZoBool(value any) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		switch strings.ToLower(strings.TrimSpace(typed)) {
+		case "1", "true", "yes", "on":
+			return true
+		default:
+			return false
+		}
+	case float64:
+		return typed != 0
+	default:
+		return false
 	}
 }
 

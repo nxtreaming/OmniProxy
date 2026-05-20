@@ -2455,9 +2455,10 @@ func TestServiceAdaptsZoResponsesStream(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/zo/v1/responses", stringsReader(`{
 		"model":"gpt-5.5",
-		"instructions":"be concise",
+		"instructions":[{"type":"input_text","text":"be concise"}],
 		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}],
-		"stream":true
+		"stream":"true",
+		"tools":{"tools":[{"type":"function","name":"Shell","description":"Run a shell command","parameters":{"type":"object","properties":{"cmd":{"type":"string"}}}}]}
 	}`))
 	res := httptest.NewRecorder()
 	service.ServeHTTP(res, req)
@@ -2471,6 +2472,9 @@ func TestServiceAdaptsZoResponsesStream(t *testing.T) {
 	input, _ := askBody["input"].(string)
 	if !strings.Contains(input, "[instructions]: be concise") || !strings.Contains(input, "[user]: hi") {
 		t.Fatalf("expected responses input to be folded into zo input, got %q", input)
+	}
+	if askBody["output_format"] == nil {
+		t.Fatalf("expected responses tools object to be adapted, got body=%#v", askBody)
 	}
 	body := res.Body.String()
 	if !strings.Contains(res.Header().Get("Content-Type"), "text/event-stream") ||
