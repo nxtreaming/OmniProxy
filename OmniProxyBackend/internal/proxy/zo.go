@@ -941,6 +941,7 @@ func zoResponsesOutput(parsed zoParsedOutput) []map[string]any {
 	output := []map[string]any{}
 	if strings.TrimSpace(parsed.Text) != "" {
 		output = append(output, map[string]any{
+			"id":     zoShortID("msg_"),
 			"type":   "message",
 			"role":   "assistant",
 			"status": "completed",
@@ -952,6 +953,7 @@ func zoResponsesOutput(parsed zoParsedOutput) []map[string]any {
 	}
 	for _, call := range parsed.ToolCalls {
 		output = append(output, map[string]any{
+			"id":        zoShortID("fc_"),
 			"type":      "function_call",
 			"call_id":   zoShortID("call_"),
 			"name":      call.Name,
@@ -961,6 +963,7 @@ func zoResponsesOutput(parsed zoParsedOutput) []map[string]any {
 	}
 	if len(output) == 0 {
 		output = append(output, map[string]any{
+			"id":      zoShortID("msg_"),
 			"type":    "message",
 			"role":    "assistant",
 			"status":  "completed",
@@ -1055,14 +1058,47 @@ func openAIResponsesStreamResponse(req *http.Request, model string, parsed zoPar
 		"type":     "response.created",
 		"response": response,
 	})
-	if strings.TrimSpace(parsed.Text) != "" {
-		writeEventJSON(&buf, "response.output_text.delta", map[string]any{
-			"type":         "response.output_text.delta",
-			"output_index": 0,
-			"delta":        parsed.Text,
-		})
-	}
 	for index, item := range response["output"].([]map[string]any) {
+		writeEventJSON(&buf, "response.output_item.added", map[string]any{
+			"type":         "response.output_item.added",
+			"output_index": index,
+			"item":         item,
+		})
+		if item["type"] == "message" {
+			if content, ok := item["content"].([]map[string]any); ok && len(content) > 0 {
+				part := content[0]
+				writeEventJSON(&buf, "response.content_part.added", map[string]any{
+					"type":          "response.content_part.added",
+					"item_id":       item["id"],
+					"output_index":  index,
+					"content_index": 0,
+					"part":          part,
+				})
+				if text, ok := part["text"].(string); ok && strings.TrimSpace(text) != "" {
+					writeEventJSON(&buf, "response.output_text.delta", map[string]any{
+						"type":          "response.output_text.delta",
+						"item_id":       item["id"],
+						"output_index":  index,
+						"content_index": 0,
+						"delta":         text,
+					})
+					writeEventJSON(&buf, "response.output_text.done", map[string]any{
+						"type":          "response.output_text.done",
+						"item_id":       item["id"],
+						"output_index":  index,
+						"content_index": 0,
+						"text":          text,
+					})
+				}
+				writeEventJSON(&buf, "response.content_part.done", map[string]any{
+					"type":          "response.content_part.done",
+					"item_id":       item["id"],
+					"output_index":  index,
+					"content_index": 0,
+					"part":          part,
+				})
+			}
+		}
 		writeEventJSON(&buf, "response.output_item.done", map[string]any{
 			"type":         "response.output_item.done",
 			"output_index": index,

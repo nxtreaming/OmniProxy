@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/gorilla/websocket v1.5.3
+	github.com/klauspost/compress v1.18.2
 	github.com/wailsapp/wails/v2 v2.12.0
 	golang.org/x/sys v0.42.0
 	modernc.org/sqlite v1.50.0

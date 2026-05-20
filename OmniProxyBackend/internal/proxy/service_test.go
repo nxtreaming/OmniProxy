@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"OmniProxyBackend/internal/storage"
 	"OmniProxyBackend/internal/token"
 	"github.com/gorilla/websocket"
+	"github.com/klauspost/compress/zstd"
 )
 
 func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
@@ -2548,6 +2550,32 @@ func TestParseTokenConsumptionFromSSE(t *testing.T) {
 
 func stringsReader(value string) io.Reader {
 	return strings.NewReader(value)
+}
+
+func TestReadProxyRequestBodyDecodesZstd(t *testing.T) {
+	var compressed bytes.Buffer
+	encoder, err := zstd.NewWriter(&compressed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := []byte(`{"model":"gpt-5.5","input":"hi"}`)
+	if _, err := encoder.Write(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoder.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	body, decoded, err := readProxyRequestBody(io.NopCloser(bytes.NewReader(compressed.Bytes())), "zstd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !decoded {
+		t.Fatal("expected zstd request body to be decoded")
+	}
+	if !bytes.Equal(body, raw) {
+		t.Fatalf("unexpected decoded body: %q", string(body))
+	}
 }
 
 type repeatingReader struct{}

@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"bytes"
+	"compress/gzip"
+	"compress/zlib"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +23,7 @@ import (
 	"OmniProxyBackend/internal/logs"
 	"OmniProxyBackend/internal/token"
 	"github.com/gorilla/websocket"
+	"github.com/klauspost/compress/zstd"
 )
 
 type Service struct {
@@ -179,7 +182,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-	bodyBytes, err := readProxyRequestBody(r.Body)
+	bodyBytes, decodedBody, err := readProxyRequestBody(r.Body, r.Header.Get("Content-Encoding"))
 	if err != nil {
 		route := routeWithClient(r, routeInfo{Provider: token.ProviderOpenAI, Path: r.URL.Path, RawQuery: r.URL.RawQuery})
 		if errors.Is(err, errRequestBodyTooLarge) {
@@ -190,6 +193,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.recordHistory(r, route, nil, http.StatusBadRequest, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelWarn, "failed to read request body")
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
 		return
+	}
+	if decodedBody {
+		r.Header.Del("Content-Encoding")
+		r.Header.Del("Content-Length")
 	}
 
 	excluded := map[string]bool{}
@@ -1155,21 +1162,65 @@ func responseHeaders(resp *http.Response) http.Header {
 	return resp.Header
 }
 
-func readProxyRequestBody(body io.ReadCloser) ([]byte, error) {
+func readProxyRequestBody(body io.ReadCloser, contentEncoding string) ([]byte, bool, error) {
 	if body == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 	defer closeBody(body)
 
-	limited := io.LimitReader(body, maxProxyRequestBodyBytes+1)
+	reader, decoded, err := decodedRequestBodyReader(body, contentEncoding)
+	if err != nil {
+		return nil, false, err
+	}
+	if decodedCloser, ok := reader.(io.Closer); ok {
+		defer closeBody(decodedCloser)
+	}
+
+	limited := io.LimitReader(reader, maxProxyRequestBodyBytes+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
-		return nil, err
+		return nil, decoded, err
 	}
 	if len(data) > maxProxyRequestBodyBytes {
-		return nil, errRequestBodyTooLarge
+		return nil, decoded, errRequestBodyTooLarge
 	}
-	return data, nil
+	return data, decoded, nil
+}
+
+func decodedRequestBodyReader(body io.Reader, contentEncoding string) (io.Reader, bool, error) {
+	encoding := strings.ToLower(strings.TrimSpace(contentEncoding))
+	if encoding == "" || encoding == "identity" {
+		return body, false, nil
+	}
+	parts := strings.Split(encoding, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	if len(parts) != 1 {
+		return body, false, nil
+	}
+	switch parts[0] {
+	case "zstd":
+		reader, err := zstd.NewReader(body)
+		if err != nil {
+			return nil, false, err
+		}
+		return reader.IOReadCloser(), true, nil
+	case "gzip":
+		reader, err := gzip.NewReader(body)
+		if err != nil {
+			return nil, false, err
+		}
+		return reader, true, nil
+	case "deflate":
+		reader, err := zlib.NewReader(body)
+		if err != nil {
+			return nil, false, err
+		}
+		return reader, true, nil
+	default:
+		return body, false, nil
+	}
 }
 
 func closeBody(body io.Closer) {
