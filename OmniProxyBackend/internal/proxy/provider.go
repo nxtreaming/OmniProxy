@@ -32,6 +32,7 @@ func proxyBaseURLFields(cfg config.Config) []providerURLField {
 		{Name: token.ProviderOpenRouter, Value: cfg.OpenRouterBaseURL},
 		{Name: token.ProviderTokenRouter, Value: cfg.TokenRouterBaseURL},
 		{Name: token.ProviderSub2API, Value: cfg.Sub2APIBaseURL},
+		{Name: token.ProviderZo, Value: cfg.ZoBaseURL},
 		{Name: "custom_gateway", Value: cfg.CustomGatewayBaseURL},
 		{Name: "custom_gateway_anthropic", Value: cfg.CustomGatewayAnthropicBaseURL},
 		{Name: "xiaomi_api", Value: cfg.XiaomiAPIBaseURL},
@@ -108,6 +109,8 @@ func routeBaseURL(cfg config.Config, route routeInfo, selected token.Token) stri
 			return selected.BaseURL
 		}
 		return cfg.Sub2APIBaseURL
+	case token.ProviderZo:
+		return cfg.ZoBaseURL
 	case token.ProviderCustom:
 		if route.Protocol == "anthropic" && cfg.CustomGatewayAnthropicBaseURL != "" {
 			return cfg.CustomGatewayAnthropicBaseURL
@@ -147,6 +150,8 @@ func validationBaseURL(cfg config.Config, selected token.Token) string {
 			return selected.BaseURL
 		}
 		return cfg.Sub2APIBaseURL
+	case token.ProviderZo:
+		return cfg.ZoBaseURL
 	case token.ProviderCustom:
 		return cfg.CustomGatewayBaseURL
 	case token.ProviderXiaomi:

@@ -217,6 +217,7 @@ const config = reactive({
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   tokenrouterBaseUrl: 'https://api.tokenrouter.io',
   sub2apiBaseUrl: 'https://aiapi.aicnio.com',
+  zoBaseUrl: 'https://api.zo.computer',
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
   xiaomiBaseUrl: '',
@@ -425,6 +426,11 @@ const helpLocalRoutes = computed(() => {
       use: 'sub2api OpenAI / Codex 入口，另有 /anthropic 与 /gemini 子路由。',
     },
     {
+      name: 'Zo Computer',
+      url: `${base}/zo`,
+      use: 'Zo Access Token 本地入口，支持 OpenAI Chat 与 Anthropic Messages 兼容路径。',
+    },
+    {
       name: 'Pi router',
       url: `${base}/pi-router/v1`,
       use: 'Pi Coding Agent 按 provider 和模型自动分流。',
@@ -439,7 +445,7 @@ const helpCredentialGroups = [
   },
   {
     title: '按量 API Key',
-    summary: 'OpenAI、Anthropic、DeepSeek、Kimi、MiMo、Gemini、OpenRouter、TokenRouter',
+    summary: 'OpenAI、Anthropic、DeepSeek、Kimi、MiMo、Gemini、OpenRouter、TokenRouter、Zo Computer',
     detail: '适合 OpenAI / Anthropic 兼容接口转发，额度页会展示余额、剩余额度或最近统计。',
   },
   {
@@ -1171,6 +1177,12 @@ function onBatchImportProviderChange() {
 }
 
 function batchImportPlaceholder() {
+  if (batchImportForm.provider === 'zo') {
+    return [
+      'zo_sk_xxxxxxxxxxxxxxxxxxxxxxxx',
+      'zo_sk_yyyyyyyyyyyyyyyyyyyyyyyy',
+    ].join('\n')
+  }
   return [
     'sk-aa0aeaf480484648a8a93d672d76334d  # balance: 10.14 CNY',
     'sk-460d28e38c7e4b05a13fa2bebd27159c  # balance: 0.24 USD',
@@ -1538,6 +1550,7 @@ async function persistConfig() {
       openrouterBaseUrl: config.openrouterBaseUrl.trim(),
       tokenrouterBaseUrl: config.tokenrouterBaseUrl.trim(),
       sub2apiBaseUrl: config.sub2apiBaseUrl.trim(),
+      zoBaseUrl: config.zoBaseUrl.trim(),
       customGatewayBaseUrl: config.customGatewayBaseUrl.trim(),
       customGatewayAnthropicBaseUrl: config.customGatewayAnthropicBaseUrl.trim(),
       xiaomiBaseUrl: config.xiaomiBaseUrl.trim(),
@@ -2102,6 +2115,9 @@ function credentialPlaceholder() {
   }
   if (form.provider === 'sub2api') {
     return '粘贴 sub2api API Key'
+  }
+  if (form.provider === 'zo') {
+    return '粘贴 zo_sk_ 开头的 Zo Access Token'
   }
   if (form.provider === 'custom') {
     return '粘贴自定义网关 API Key'

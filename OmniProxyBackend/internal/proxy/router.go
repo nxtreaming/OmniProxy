@@ -80,7 +80,7 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 	if len(parts) > 0 {
 		candidate := strings.ToLower(parts[0])
 		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderCustom:
+		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderZo, token.ProviderCustom:
 			provider = candidate
 			if len(parts) == 2 {
 				path = "/" + parts[1]
@@ -161,12 +161,20 @@ func protocolForRoute(provider string, path *string) string {
 		} else if stripProtocolPrefix(path, "/gemini") {
 			protocol = "gemini"
 		}
-	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:
+	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderZo, token.ProviderCustom:
 		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
 		}
 	}
+	if provider == token.ProviderZo && isAnthropicMessagePath(*path) {
+		protocol = "anthropic"
+	}
 	return protocol
+}
+
+func isAnthropicMessagePath(path string) bool {
+	path = strings.TrimSpace(path)
+	return path == "/messages" || path == "/v1/messages" || path == "/v1/v1/messages"
 }
 
 func stripProtocolPrefix(path *string, prefix string) bool {

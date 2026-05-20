@@ -39,6 +39,7 @@ type Config struct {
 	OpenRouterBaseURL                  string `json:"openrouterBaseUrl"`
 	TokenRouterBaseURL                 string `json:"tokenrouterBaseUrl"`
 	Sub2APIBaseURL                     string `json:"sub2apiBaseUrl"`
+	ZoBaseURL                          string `json:"zoBaseUrl"`
 	CustomGatewayBaseURL               string `json:"customGatewayBaseUrl"`
 	CustomGatewayAnthropicBaseURL      string `json:"customGatewayAnthropicBaseUrl"`
 	XiaomiBaseURL                      string `json:"xiaomiBaseUrl"`
@@ -77,6 +78,7 @@ func Default() Config {
 		OpenRouterBaseURL:                  "https://openrouter.ai/api/v1",
 		TokenRouterBaseURL:                 "https://api.tokenrouter.io",
 		Sub2APIBaseURL:                     "https://aiapi.aicnio.com",
+		ZoBaseURL:                          "https://api.zo.computer",
 		CustomGatewayBaseURL:               "",
 		CustomGatewayAnthropicBaseURL:      "",
 		XiaomiBaseURL:                      "",
@@ -138,6 +140,7 @@ func (s *Store) Load() (Config, error) {
 		OpenRouterBaseURL                  *string `json:"openrouterBaseUrl"`
 		TokenRouterBaseURL                 *string `json:"tokenrouterBaseUrl"`
 		Sub2APIBaseURL                     *string `json:"sub2apiBaseUrl"`
+		ZoBaseURL                          *string `json:"zoBaseUrl"`
 		CustomGatewayBaseURL               *string `json:"customGatewayBaseUrl"`
 		CustomGatewayAnthropicBaseURL      *string `json:"customGatewayAnthropicBaseUrl"`
 		XiaomiBaseURL                      *string `json:"xiaomiBaseUrl"`
@@ -212,6 +215,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.Sub2APIBaseURL != nil && *saved.Sub2APIBaseURL != "" {
 		cfg.Sub2APIBaseURL = *saved.Sub2APIBaseURL
+	}
+	if saved.ZoBaseURL != nil && *saved.ZoBaseURL != "" {
+		cfg.ZoBaseURL = *saved.ZoBaseURL
 	}
 	if saved.CustomGatewayBaseURL != nil {
 		cfg.CustomGatewayBaseURL = *saved.CustomGatewayBaseURL
@@ -335,6 +341,9 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.Sub2APIBaseURL == "" {
 		cfg.Sub2APIBaseURL = defaults.Sub2APIBaseURL
+	}
+	if cfg.ZoBaseURL == "" {
+		cfg.ZoBaseURL = defaults.ZoBaseURL
 	}
 	if cfg.CodexBaseURL == "" {
 		cfg.CodexBaseURL = defaults.CodexBaseURL

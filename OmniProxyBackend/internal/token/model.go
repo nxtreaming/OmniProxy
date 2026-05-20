@@ -23,6 +23,7 @@ const (
 	ProviderOpenRouter  = "openrouter"
 	ProviderTokenRouter = "tokenrouter"
 	ProviderSub2API     = "sub2api"
+	ProviderZo          = "zo"
 	ProviderCustom      = "custom"
 )
 

@@ -707,6 +707,39 @@ func TestValidatorUsesTokenRouterRoutingRules(t *testing.T) {
 	}
 }
 
+func TestValidatorUsesZoModelsAvailable(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models/available" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer zo_sk_test_token" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"models":[]}`))
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		ZoBaseURL: upstream.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(context.Background(), token.Token{
+		Provider:       token.ProviderZo,
+		CredentialType: token.CredentialTypeAPIKey,
+		TokenValue:     "zo_sk_test_token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK {
+		t.Fatalf("expected zo validation to pass: %#v", result)
+	}
+}
+
 func TestValidatorUsesSub2APIUsageEndpoint(t *testing.T) {
 	tests := []struct {
 		name    string

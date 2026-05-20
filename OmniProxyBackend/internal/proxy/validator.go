@@ -166,6 +166,8 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 		} else {
 			path = "/v1/usage"
 		}
+	case token.ProviderZo:
+		path = "/models/available"
 	case token.ProviderXiaomi:
 		path = "/models"
 	case token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom:

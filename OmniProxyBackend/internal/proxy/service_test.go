@@ -2212,6 +2212,175 @@ func TestServiceRoutesSub2APIGeminiRequests(t *testing.T) {
 	}
 }
 
+func TestServiceAdaptsZoOpenAIChat(t *testing.T) {
+	var askBody map[string]any
+	var modelFetches int
+	var askCalls int
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer zo_sk_test_token" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		switch r.URL.Path {
+		case "/models/available":
+			modelFetches++
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"models":[{"model_name":"openai/gpt-5.5","label":"gpt-5.5","vendor":"openai"}]}`))
+		case "/zo/ask":
+			askCalls++
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &askBody); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"output":"hello from zo"}`))
+		default:
+			t.Fatalf("unexpected zo path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "zo", Provider: token.ProviderZo, TokenValue: "zo_sk_test_token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZoBaseURL:       upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/zo/v1/chat/completions", stringsReader(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}]}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if modelFetches != 1 || askCalls != 1 {
+		t.Fatalf("expected one model fetch and one ask call, got models=%d asks=%d", modelFetches, askCalls)
+	}
+	if askBody["model_name"] != "openai/gpt-5.5" {
+		t.Fatalf("expected zo model mapping, got body=%#v", askBody)
+	}
+	input, _ := askBody["input"].(string)
+	if !strings.Contains(input, "[user]: hi") {
+		t.Fatalf("expected OpenAI messages to be folded into input, got %q", input)
+	}
+
+	var payload struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Choices) != 1 || payload.Choices[0].Message.Content != "hello from zo" {
+		t.Fatalf("unexpected OpenAI response: %s", res.Body.String())
+	}
+}
+
+func TestServiceAdaptsZoAnthropicToolUse(t *testing.T) {
+	var askBody map[string]any
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer zo_sk_test_token" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		switch r.URL.Path {
+		case "/models/available":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"models":[{"model_name":"anthropic/claude-sonnet-4-5","label":"claude-sonnet-4-5","vendor":"anthropic"}]}`))
+		case "/zo/ask":
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &askBody); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"output":{"text":"checking","tool_name":"Read","tool_args":"{\"file_path\":\"README.md\",\"reason\":\"noise\"}"}}`))
+		default:
+			t.Fatalf("unexpected zo path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "zo", Provider: token.ProviderZo, TokenValue: "zo_sk_test_token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZoBaseURL:       upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/zo/v1/messages", stringsReader(`{
+		"model":"claude-sonnet-4-5",
+		"messages":[{"role":"user","content":"read readme"}],
+		"tools":[{"name":"Read","description":"Read a file","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}}}}]
+	}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if askBody["model_name"] != "anthropic/claude-sonnet-4-5" {
+		t.Fatalf("expected zo anthropic model mapping, got body=%#v", askBody)
+	}
+	if askBody["output_format"] == nil {
+		t.Fatalf("expected tool output_format to be sent, got body=%#v", askBody)
+	}
+	input, _ := askBody["input"].(string)
+	if !strings.Contains(input, "Read") || !strings.Contains(input, "[user]: read readme") {
+		t.Fatalf("expected tool instructions and user input, got %q", input)
+	}
+
+	var payload struct {
+		Content []struct {
+			Type  string         `json:"type"`
+			Text  string         `json:"text"`
+			Name  string         `json:"name"`
+			Input map[string]any `json:"input"`
+		} `json:"content"`
+		StopReason string `json:"stop_reason"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.StopReason != "tool_use" || len(payload.Content) != 2 {
+		t.Fatalf("unexpected Anthropic response: %s", res.Body.String())
+	}
+	if payload.Content[0].Type != "text" || payload.Content[0].Text != "checking" {
+		t.Fatalf("unexpected text block: %#v", payload.Content[0])
+	}
+	if payload.Content[1].Type != "tool_use" || payload.Content[1].Name != "Read" || payload.Content[1].Input["file_path"] != "README.md" {
+		t.Fatalf("unexpected tool block: %#v", payload.Content[1])
+	}
+	if _, ok := payload.Content[1].Input["reason"]; ok {
+		t.Fatalf("tool noise argument should have been stripped: %#v", payload.Content[1].Input)
+	}
+}
+
 func TestServiceRoutesOpenCodeRouterToZhipu(t *testing.T) {
 	var upstreamPath string
 	var authorization string

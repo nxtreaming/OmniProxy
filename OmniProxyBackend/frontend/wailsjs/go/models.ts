@@ -19,6 +19,7 @@ export namespace config {
 	    openrouterBaseUrl: string;
 	    tokenrouterBaseUrl: string;
 	    sub2apiBaseUrl: string;
+	    zoBaseUrl: string;
 	    customGatewayBaseUrl: string;
 	    customGatewayAnthropicBaseUrl: string;
 	    xiaomiBaseUrl: string;
@@ -60,6 +61,7 @@ export namespace config {
 	        this.openrouterBaseUrl = source["openrouterBaseUrl"];
 	        this.tokenrouterBaseUrl = source["tokenrouterBaseUrl"];
 	        this.sub2apiBaseUrl = source["sub2apiBaseUrl"];
+	        this.zoBaseUrl = source["zoBaseUrl"];
 	        this.customGatewayBaseUrl = source["customGatewayBaseUrl"];
 	        this.customGatewayAnthropicBaseUrl = source["customGatewayAnthropicBaseUrl"];
 	        this.xiaomiBaseUrl = source["xiaomiBaseUrl"];
@@ -1220,4 +1222,3 @@ export namespace token {
 	}
 
 }
-

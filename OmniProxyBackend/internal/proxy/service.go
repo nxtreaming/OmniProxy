@@ -32,6 +32,8 @@ type Service struct {
 	retry          RetryPolicy
 	client         *http.Client
 	tokenRefresher TokenRefresher
+	zoModelsMu     sync.Mutex
+	zoModelsCache  map[string]zoModelCacheEntry
 	activeMu       sync.RWMutex
 	activeSeq      int64
 	activeRequests map[int64]ActiveRequest
@@ -389,6 +391,9 @@ func (s *Service) serveClaudeDesktopModels(w http.ResponseWriter, r *http.Reques
 func (s *Service) forward(ctx context.Context, original *http.Request, route routeInfo, body []byte, selected token.Token) (*http.Response, error) {
 	if isCodexChatCompletionsRoute(route, selected) {
 		return s.forwardCodexChatCompletions(ctx, original, route, body, selected)
+	}
+	if token.NormalizeProvider(route.Provider) == token.ProviderZo {
+		return s.forwardZo(ctx, original, route, body, selected)
 	}
 
 	targetURL, err := s.router.TargetURL(route, selected)

@@ -248,7 +248,7 @@ defineEmits([
         <div class="settings-section-head">
           <div>
             <h3>第三方路由</h3>
-            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、Xiaomi MiMo 和自定义网关入口。</p>
+            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、Zo Computer、Xiaomi MiMo 和自定义网关入口。</p>
           </div>
           <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
             {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
@@ -299,6 +299,11 @@ defineEmits([
             <span>sub2api 默认 Base URL</span>
             <input v-model="config.sub2apiBaseUrl" type="url" />
             <small>仅作为新增 sub2api 账号的默认填充值，以及旧账号未保存 Base URL 时的回退地址；协议由本地路径决定。</small>
+          </label>
+          <label class="wide-field">
+            <span>Zo Computer Base URL</span>
+            <input v-model="config.zoBaseUrl" type="url" />
+            <small>Zo 使用 /models/available 与 /zo/ask，上游协议由 OmniProxy 适配为 OpenAI / Anthropic。</small>
           </label>
           <label class="wide-field">
             <span>自定义网关 OpenAI Base URL</span>
