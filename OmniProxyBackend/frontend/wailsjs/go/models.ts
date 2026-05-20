@@ -247,11 +247,11 @@ export namespace main {
 	    region?: string;
 	    baseUrl?: string;
 	    tokenText: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new apiKeyBatchImportRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.provider = source["provider"];
@@ -264,11 +264,11 @@ export namespace main {
 	export class apiKeyBatchImportSkipped {
 	    line: number;
 	    reason: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new apiKeyBatchImportSkipped(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.line = source["line"];
@@ -278,17 +278,17 @@ export namespace main {
 	export class apiKeyBatchImportResult {
 	    createdCount: number;
 	    skipped: apiKeyBatchImportSkipped[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new apiKeyBatchImportResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.createdCount = source["createdCount"];
 	        this.skipped = this.convertValues(source["skipped"], apiKeyBatchImportSkipped);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -307,7 +307,7 @@ export namespace main {
 		    return a;
 		}
 	}
-
+	
 	export class appInfo {
 	    name: string;
 	    version: string;
@@ -364,11 +364,11 @@ export namespace main {
 	}
 	export class claudeModelsConfigureRequest {
 	    models: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new claudeModelsConfigureRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.models = source["models"];
@@ -1173,6 +1173,7 @@ export namespace main {
 	}
 
 }
+
 export namespace token {
 	
 	export class DailyTokenUsage {
@@ -1219,3 +1220,4 @@ export namespace token {
 	}
 
 }
+

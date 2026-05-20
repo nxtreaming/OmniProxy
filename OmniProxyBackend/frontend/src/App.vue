@@ -172,6 +172,7 @@ const deleteCandidate = ref(null)
 const deleteBusy = ref(false)
 const toastAutoCloseMs = 4000
 const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
+const appThemeStorageKey = 'omniproxy.appTheme'
 let toastTimer = null
 let realtimeTimer = null
 let updateCheckTimer = null
@@ -331,6 +332,7 @@ const activeProviderAPIBalanceSummaries = computed(() =>
 const openRouterTokens = computed(() => providerTokens('openrouter'))
 const currentTabLabel = computed(() => tabs.find((tab) => tab.key === activeTab.value)?.label || '控制台')
 const proxyEndpoint = computed(() => `127.0.0.1:${proxyStatus.port || config.proxyPort}`)
+const appThemeLabel = computed(() => (isDark.value ? '浅色模式' : '深色模式'))
 const selectedClaudeModelLabels = computed(() =>
   selectedClaudeModels.value.map((model) => claudeModelLabel(model)).filter(Boolean),
 )
@@ -597,8 +599,15 @@ function closeWindow() {
   }
 }
 
+function toggleAppTheme() {
+  isDark.value = !isDark.value
+}
+
 onMounted(async () => {
-  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+  const savedAppTheme = window.localStorage?.getItem(appThemeStorageKey)
+  if (savedAppTheme === 'dark' || savedAppTheme === 'light') {
+    isDark.value = savedAppTheme === 'dark'
+  } else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     isDark.value = true
   }
   await refreshWindowState()
@@ -639,6 +648,10 @@ watch([errorMessage, successMessage], ([error, success]) => {
     successMessage.value = ''
     toastTimer = null
   }, toastAutoCloseMs)
+})
+
+watch(isDark, (value) => {
+  window.localStorage?.setItem(appThemeStorageKey, value ? 'dark' : 'light')
 })
 
 watch(activeTab, (tab) => {
@@ -2830,9 +2843,9 @@ async function refreshQuota(item) {
       </nav>
 
       <div class="sidebar-tools">
-        <button type="button" class="ghost-button" @click="isDark = !isDark">
+        <button type="button" class="ghost-button" @click="toggleAppTheme">
           <component :is="isDark ? Sunny : Moon" class="button-icon" aria-hidden="true" />
-          <span>{{ isDark ? '浅色模式' : '深色模式' }}</span>
+          <span>{{ appThemeLabel }}</span>
         </button>
       </div>
     </aside>
