@@ -1704,16 +1704,15 @@ func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
 			expectCustomName: true,
 		},
 		{
-			name:             "zo",
-			write:            writeZoClaudeSettings,
-			defaultModel:     "claude-sonnet-4-6",
-			opusModel:        "claude-sonnet-4-6",
-			sonnetModel:      "claude-sonnet-4-6",
-			haikuModel:       "claude-sonnet-4-6",
-			subagentModel:    "claude-sonnet-4-6",
-			label:            "Zo Claude Sonnet 4.6",
-			unwanted:         "mimo-v2.5-pro",
-			expectCustomName: true,
+			name:          "zo",
+			write:         writeZoClaudeSettings,
+			defaultModel:  "claude-opus-4-7",
+			opusModel:     "claude-opus-4-7",
+			sonnetModel:   "claude-sonnet-4-6",
+			haikuModel:    "claude-sonnet-4-6",
+			subagentModel: "claude-sonnet-4-6",
+			label:         "Zo Claude Sonnet 4.6",
+			unwanted:      "mimo-v2.5-pro",
 		},
 	}
 
@@ -1798,6 +1797,48 @@ func TestWriteSelectedClaudeSettingsUsesSelectedModels(t *testing.T) {
 		`"ANTHROPIC_CUSTOM_MODEL_OPTION"`,
 		`"claude-opus-4-7"`,
 		`"mimo-v2.5-pro[1m]"`,
+	} {
+		if strings.Contains(text, unwanted) {
+			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
+		}
+	}
+}
+
+func TestWriteZoClaudeSettingsUsesOpusAndSonnet(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	initial := `{"env":{"ANTHROPIC_MODEL":"claude-sonnet-4-6","ANTHROPIC_DEFAULT_OPUS_MODEL":"claude-sonnet-4-6","ANTHROPIC_DEFAULT_OPUS_MODEL_NAME":"Old Zo","OTHER":"keep"},"availableModels":["custom-existing-model","claude-opus-4-7"],"modelOverrides":{"claude-opus-4-7":"mimo-v2.5-pro"}}` + "\n"
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeZoClaudeSettings(path, "http://127.0.0.1:3000/zo"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/zo"`,
+		`"ANTHROPIC_MODEL": "claude-opus-4-7"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-7"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Zo Claude Opus 4.7"`,
+		`"ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6"`,
+		`"ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Zo Claude Sonnet 4.6"`,
+		`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-sonnet-4-6"`,
+		`"CLAUDE_CODE_SUBAGENT_MODEL": "claude-sonnet-4-6"`,
+		`"OTHER": "keep"`,
+		`"custom-existing-model"`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
+		}
+	}
+	for _, unwanted := range []string{
+		`"Old Zo"`,
+		`"claude-opus-4-7": "mimo-v2.5-pro"`,
 	} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)

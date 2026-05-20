@@ -21,7 +21,8 @@ const (
 	deepSeekFastModel    = "deepseek-v4-flash"
 	kimiCodingModel      = "kimi-for-coding"
 	zhipuGLMModel        = "glm-5.1"
-	zoClaudeModel        = "claude-sonnet-4-6"
+	zoClaudeModel        = "claude-opus-4-7"
+	zoClaudeSonnetModel  = "claude-sonnet-4-6"
 	omniProxyMimoAuth    = "omniproxy"
 	maxClaudeModels      = 4
 )
@@ -81,10 +82,15 @@ var (
 	}
 	claudeZoTarget = claudeModelTarget{
 		Model:       zoClaudeModel,
-		Name:        "Zo Claude Sonnet 4.6",
-		Description: "Claude Sonnet 4.6 routed through OmniProxy Zo Computer",
+		Name:        "Zo Claude Opus 4.7",
+		Description: "Claude Opus 4.7 routed through OmniProxy Zo Computer",
 		LogMessage:  "zo claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Zo Computer",
+	}
+	claudeZoSonnetTarget = claudeModelTarget{
+		Model:       zoClaudeSonnetModel,
+		Name:        "Zo Claude Sonnet 4.6",
+		Description: "Claude Sonnet 4.6 routed through OmniProxy Zo Computer",
 	}
 )
 
@@ -359,7 +365,24 @@ func writeZhipuClaudeSettings(path string, baseURL string) error {
 }
 
 func writeZoClaudeSettings(path string, baseURL string) error {
-	return writeClaudeSingleModelSettings(path, baseURL, claudeZoTarget)
+	data, err := readJSONObject(path)
+	if err != nil {
+		return err
+	}
+	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+		return err
+	}
+
+	env := cleanClaudeEnv(data)
+	env["ANTHROPIC_BASE_URL"] = baseURL
+	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
+	env["ANTHROPIC_MODEL"] = claudeZoTarget.Model
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeZoTarget)
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeZoSonnetTarget)
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeZoSonnetTarget)
+	env["CLAUDE_CODE_SUBAGENT_MODEL"] = claudeZoSonnetTarget.Model
+	data["env"] = env
+	return writeJSONObject(path, data)
 }
 
 func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeModelTarget) error {

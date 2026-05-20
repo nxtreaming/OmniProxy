@@ -3426,7 +3426,7 @@ DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
 MiMo: MiMo-V2.5-Pro / MiMo-V2.5
 Kimi model: kimi-for-coding
 GLM model: glm-5.1
-Zo model: claude-sonnet-4-6</code></pre>
+Zo models: claude-opus-4-7 / claude-sonnet-4-6</code></pre>
             <div class="claude-model-config">
               <div class="claude-model-config-head">
                 <span>可选模型</span>
