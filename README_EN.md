@@ -1,96 +1,132 @@
-# 🚀 OmniProxy
+# OmniProxy
 
-> A local AI API token scheduler, quota monitor, and transparent proxy gateway. Manage multiple accounts, multiple providers, and multiple AI coding clients from one desktop app.
+<div align="center">
 
-English · [中文](README.md)
+**A local-first AI API gateway, account scheduler, and quota observability console**
 
-OmniProxy is built for local AI development workflows. Codex, Claude Code, Claude Desktop, OpenCode, Pi Coding Agent, DeepSeek-TUI, Gemini CLI, and OpenAI / Anthropic-compatible clients can connect to a local proxy, while OmniProxy chooses an available account, injects credentials, records usage, refreshes quotas, retries transient failures, and switches accounts when needed.
+Connect Codex, Claude Code, Claude Desktop, OpenCode, Pi Coding Agent, DeepSeek-TUI, Gemini CLI, and OpenAI / Anthropic-compatible clients to one local proxy. OmniProxy handles account selection, auth injection, failover retries, quota refresh, usage accounting, and local client configuration.
 
-OmniProxy is useful when you run into problems like:
+[中文](README.md) · [Release Notes](docs/releases) · [Releases](https://github.com/mibgb65-cloud/OmniProxy/releases)
 
-- 🪫 One account runs out of quota and the client fails immediately.
-- 🔁 You keep switching accounts by editing local config files.
-- 🧩 OpenAI, Anthropic, DeepSeek, Kimi, Xiaomi MiMo, Zhipu GLM, Zo Computer, and custom gateways all use different endpoints and auth styles.
-- 🕵️ You cannot tell which account handled a request, how many tokens were used, or where a failure happened.
-- 🛠️ You want Codex / Claude Code / Claude Desktop / OpenCode / Pi Coding Agent / DeepSeek-TUI config to be written locally and restored safely.
+![Release](https://img.shields.io/github/v/release/mibgb65-cloud/OmniProxy?include_prereleases&label=release)
+![Platform](https://img.shields.io/badge/platform-Windows-0078D4)
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8)
+![Vue](https://img.shields.io/badge/Vue-3-42B883)
+![Wails](https://img.shields.io/badge/Wails-v2-DF0000)
 
-## ✨ Highlights
+</div>
 
-- 🖥️ **Desktop control loop**: Wails + Go + Vue 3 for account, proxy, quota, logs, and settings management.
-- 🔐 **Local transparent proxy**: clients talk to `127.0.0.1`; real upstream credentials are injected by OmniProxy.
-- 🧠 **Multi-account scheduling**: queue mode and balanced mode, with in-flight account avoidance.
-- 🎯 **Account selection scheduling**: providers rotate all usable accounts by default; once one or more accounts are selected, scheduling is limited to that selected set.
-- 🧯 **Automatic failover**: retry with another usable account on `429`, `502`, `503`, and `504`.
-- 📊 **Quota and usage visibility**: remaining quota, reset time, request counts, input / output / total tokens, and API-key balances grouped by currency.
-- 📈 **History analytics**: summarize request history by date, provider, model, and failure reason, including billing insights, model share bars, and a model token pie chart.
-- ⚡ **Active account quota refresh**: Codex and verifiable active accounts refresh quota state automatically every 30 seconds.
-- 🧭 **Client routing**: route Claude Code and Claude Desktop locally to DeepSeek, Kimi, Xiaomi MiMo, Zhipu GLM, or Zo Computer, and write local provider configs for OpenCode, Pi Coding Agent, and DeepSeek-TUI.
-- 🧪 **Codex compatibility**: expose `/codex/v1/chat/completions`, convert Codex Responses to Chat Completions responses, and decode zstd / gzip request bodies.
-- 🔌 **Zo Computer gateway**: expose OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and compatible model-list endpoints through local `/zo` and `/zo/v1` routes.
-- 🧵 **Codex WebSocket proxy**: optional Codex WebSocket proxying with usage logging.
-- 💬 **OpenRouter chat and models**: refresh OpenRouter model lists and run quick desktop chat checks.
-- 🧱 **Local persistence**: config, accounts, and usage stats are stored locally; on Windows, account credentials are encrypted at rest with DPAPI.
-- 📤 **Credential export**: export a full account-pool backup or export Codex auth.json values as separate files.
-- 🎨 **Polished desktop UX**: page transitions, highlighted active account, navigation icons, and a custom app icon.
+## Why OmniProxy
 
-## 🆕 Latest Changes
+Local AI development tools keep multiplying, while accounts, Base URLs, models, and quota states are scattered across different config files. OmniProxy pulls those scattered states into one local desktop console:
 
-- **Zo Computer Provider**: added a Go-native Zo gateway with OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and compatible model-list endpoints.
-- **Zo one-click setup**: Codex, Claude Code, OpenCode, and Pi Coding Agent can now be configured for Zo Computer, with presets for GPT-5.5, GPT-5.4, GLM 5, Gemini 3.1 Pro, MiniMax 2.7, DeepSeek V4 Pro, Claude Opus 4.7, and Claude Sonnet 4.6.
-- **Claude Desktop and DeepSeek-TUI**: added local config write / restore support for Claude Desktop 3P Gateway Profile and DeepSeek-TUI.
-- **API balance summaries**: provider quota and account pages now group API-key balances by currency while preserving package details such as GLM resource packages.
-- **Billing detail polish**: the billing detail sidebar now includes cost insights, model share bars, ignored-model summaries, and a cleaner dark-mode poster preview.
-- **Codex Chat Completions compatibility**: `/codex/v1/chat/completions` lets OpenAI Chat Completions clients use Codex `auth.json` accounts through the local gateway.
+- Stop switching accounts manually; the scheduler picks accounts by status, selection scope, and in-flight usage.
+- Clients only connect to `127.0.0.1`; real upstream tokens stay local and are injected by the proxy per provider.
+- Codex, Claude Code, Claude Desktop, OpenCode, Pi Coding Agent, DeepSeek-TUI, and other tools can be configured with one click, with backups kept for restore.
+- Request history, model tokens, failure reasons, quota reset times, API key balances, and local billing stats are visible in one place.
 
-## 🧠 How It Works
+OmniProxy is not a cloud relay service. It is built for personal local development, binds to loopback by default, and stores credentials in the local data directory.
 
-```text
-Codex / Claude Code / Claude Desktop / OpenCode / Pi / DeepSeek-TUI / API Client
-              |
-              v
-     http://127.0.0.1:3000
-              |
-              v
-        OmniProxy Gateway
-   Token Pool + Scheduler + Logs
-              |
-              v
-OpenAI / Anthropic / DeepSeek / Kimi / Xiaomi MiMo
-Zhipu GLM / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / Zo / Custom Gateway
+## Core Capabilities
+
+| Capability | Description |
+| --- | --- |
+| Local transparent proxy | Exposes local OpenAI, Anthropic, Codex, Pi, TokenRouter, Zo Computer, and other entrypoints, then injects upstream auth automatically. |
+| Multi-account scheduling | Supports queue mode, balanced priority, account selection scopes, low-quota skipping, and in-flight account avoidance. |
+| Automatic failover | Retries with another usable account when upstream returns retryable errors such as `429`, `502`, `503`, or `504`. |
+| Quota observability | Shows API balances, subscription quotas, reset times, Codex Free weekly quota, Coding Plan usage, OpenRouter balance, and API key balance totals grouped by currency. |
+| Usage accounting | Records request history, client source, model, input / output / total tokens, failure reasons, daily billing snapshots, and billing detail insights. |
+| Client configuration | One-click setup for Codex, Claude Code, Claude Desktop, Gemini CLI, OpenCode, Pi Coding Agent, and DeepSeek-TUI, with restore support. |
+| Claude model slots | Writes up to 4 selected DeepSeek, MiMo, Kimi, GLM, or Zo Computer model slots into Claude Code / Claude Desktop. |
+| Zo Computer gateway | Adapts OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and model lists through local `/zo` and `/zo/v1` entrypoints. |
+| Local secure storage | On Windows, account credentials are encrypted with the current user's DPAPI profile; exported backups remain explicit and user-controlled. |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Clients["Local Clients"]
+    Codex["Codex"]
+    Claude["Claude Code"]
+    ClaudeDesktop["Claude Desktop"]
+    OpenCode["OpenCode"]
+    Pi["Pi Coding Agent"]
+    DeepSeekTUI["DeepSeek-TUI"]
+    API["OpenAI / Anthropic Client"]
+  end
+
+  subgraph OmniProxy["OmniProxy Desktop"]
+    Console["Vue Console"]
+    Proxy["Local Gateway :3000"]
+    Scheduler["Token Pool + Scheduler"]
+    Logs["History / Billing / Quota"]
+  end
+
+  subgraph Providers["Upstream Services"]
+    OpenAI["OpenAI / Codex"]
+    Anthropic["Anthropic"]
+    DeepSeek["DeepSeek"]
+    Kimi["Kimi"]
+    Mimo["Xiaomi MiMo"]
+    More["Zhipu / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / Zo / Custom"]
+  end
+
+  Clients --> Proxy
+  Console --> Scheduler
+  Proxy --> Scheduler
+  Scheduler --> Logs
+  Scheduler --> OpenAI
+  Scheduler --> Anthropic
+  Scheduler --> DeepSeek
+  Scheduler --> Kimi
+  Scheduler --> Mimo
+  Scheduler --> More
 ```
 
-OmniProxy does not require clients to know which real account is being used. Point your client to the local proxy, and OmniProxy handles account selection, auth header injection, retries, quota updates, and logs.
+## Latest Changes
 
-## 📦 Project Structure
+- **Zo Computer gateway**: Added a Go-native Zo Computer adapter for `/zo/v1/chat/completions`, `/zo/v1/responses`, `/zo/v1/messages`, and compatible model-list endpoints.
+- **Zo one-click setup**: Codex, Claude Code, OpenCode, and Pi Coding Agent can write Zo Computer local entrypoints, with presets for GPT-5.5, GPT-5.4, GLM 5, Gemini 3.1 Pro, MiniMax 2.7, DeepSeek V4 Pro, Claude Opus 4.7, and Claude Sonnet 4.6.
+- **Claude Desktop and DeepSeek-TUI**: Added local write / restore support for Claude Desktop 3P Gateway Profile and DeepSeek-TUI configuration.
+- **API Key balance summaries**: Provider quota and account pages group API key balances by currency, while preserving package details such as GLM resource packages.
+- **Billing detail polish**: The billing detail sidebar now includes cost insights, model share bars, ignored-model summaries, and improved dark-mode poster previews.
+- **Codex Chat Completions compatibility**: Added `/codex/v1/chat/completions`, allowing OpenAI Chat Completions clients to use OpenAI `auth.json` accounts through automatic conversion to the Codex Responses backend.
+- **Codex streaming conversion**: Codex Responses SSE events are converted to `chat.completion.chunk`, and non-streaming requests are aggregated into `chat.completion` responses.
+- **Codex model and parameter adaptation**: Supports Codex CLI model aliases such as `gpt-5.4-high`, while preserving common parameters such as `max_completion_tokens`, `reasoning_effort`, tools, and function calling.
+- **Codex request body compatibility**: Decodes zstd / gzip-compressed Codex request bodies sent to local Responses entrypoints.
 
-```text
-.
-├── OmniProxyBackend/              # Wails desktop app and Go backend
-│   ├── internal/config/           # Local config, data directory, defaults
-│   ├── internal/logs/             # In-memory log recorder
-│   ├── internal/proxy/            # Proxy, routes, auth, usage parsing, WebSocket
-│   ├── internal/storage/          # JSON / SQLite local storage
-│   ├── internal/token/            # Token pool, scheduling, status, stats
-│   └── frontend/                  # Vue 3 + Vite + Element Plus frontend
-├── scripts/dev.ps1                # Wails desktop development script
-├── scripts/build-dev.ps1          # Build a Dev exe that can coexist with production
-├── docs/releases/                 # Release notes
-├── README.md                      # Chinese README
-└── README_EN.md                   # English README
+## Quick Start
+
+### Download and Use
+
+1. Download the Windows installer from [GitHub Releases](https://github.com/mibgb65-cloud/OmniProxy/releases).
+2. Start OmniProxy and add at least one upstream account in **Account Management**.
+3. Confirm proxy port and provider Base URLs in **Global Settings**.
+4. Start the local proxy.
+5. Point your client Base URL to `http://127.0.0.1:3000`, or use **One-click Setup** to write local client configuration.
+
+### Run from Source
+
+Dependencies:
+
+- Go
+- Node.js
+- Wails v2 CLI
+
+```powershell
+cd .\OmniProxyBackend
+C:\Users\mimanchi\go\bin\wails.exe dev
 ```
 
-Default ports and data location:
+Or use the repository helper script:
 
-| Item | Production | Dev |
-| --- | --- | --- |
-| 🧩 Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
-| 🚪 Proxy server | `http://127.0.0.1:3000` | `http://127.0.0.1:3001` |
-| 💾 Local data | `%USERPROFILE%\.omniproxy` | `%USERPROFILE%\.omniproxy-dev` |
-| 🧭 Bootstrap file | `%USERPROFILE%\.omniproxy-bootstrap.json` | `%USERPROFILE%\.omniproxy-dev-bootstrap.json` |
+```powershell
+.\scripts\dev.ps1
+```
 
-Common local endpoints:
+## Local Entrypoints
 
-| Protocol / Client | Production | Dev |
+| Protocol / Client | Production URL | Dev URL |
 | --- | --- | --- |
 | OpenAI compatible | `http://127.0.0.1:3000` | `http://127.0.0.1:3001` |
 | Codex backend | `http://127.0.0.1:3000/backend-api/codex` | `http://127.0.0.1:3001/backend-api/codex` |
@@ -99,246 +135,150 @@ Common local endpoints:
 | Pi router | `http://127.0.0.1:3000/pi-router/v1` | `http://127.0.0.1:3001/pi-router/v1` |
 | TokenRouter | `http://127.0.0.1:3000/tokenrouter/v1` | `http://127.0.0.1:3001/tokenrouter/v1` |
 | Zo Computer | `http://127.0.0.1:3000/zo/v1` | `http://127.0.0.1:3001/zo/v1` |
+| Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
 
-## ⚡ Quick Start
+Default data directories:
 
-### 1. Requirements
-
-- Go
-- Node.js
-- Wails v2 CLI
-
-### 2. Run in Development
-
-```powershell
-cd .\OmniProxyBackend
-C:\Users\mimanchi\go\bin\wails.exe dev
-```
-
-Or use the helper script:
-
-```powershell
-.\scripts\dev.ps1
-```
-
-### 3. Build the Production Desktop App
-
-```powershell
-cd .\OmniProxyBackend
-C:\Users\mimanchi\go\bin\wails.exe build
-```
-
-Build output:
-
-```powershell
-.\OmniProxyBackend\build\bin\OmniProxy.exe
-```
-
-### 4. Build a Coexisting Dev exe
-
-The Dev build uses the `omniproxy_dev` build tag. It shows as `OmniProxy Dev` and uses a separate single-instance ID, data directory, and default ports. This is the preferred build when you want to test new functionality while a production install is still present.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Clean
-```
-
-Build output:
-
-```powershell
-.\OmniProxyBackend\build\bin\OmniProxy-Dev.exe
-```
-
-You can also set the displayed version:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Version dev-issue-4
-```
-
-## 🧭 Usage
-
-1. 🚀 Start OmniProxy.
-2. 🔑 Add OpenAI, Anthropic, DeepSeek, Kimi, Xiaomi MiMo, Zhipu, MiniMax, Gemini, OpenRouter, TokenRouter, sub2api, Zo Computer, or custom gateway accounts in **Account Management**.
-3. ⚙️ Confirm proxy port and provider Base URLs in **Global Settings**.
-4. 🟢 Start the local proxy.
-5. 🧩 Point Codex, Claude Code, Claude Desktop, OpenCode, Pi Coding Agent, DeepSeek-TUI, Gemini CLI, or your API client to the local proxy.
-6. 🎯 To limit routing, click **Select** on quota cards. With no selected accounts, the provider rotates all usable accounts; with one or more selected accounts, it rotates only within that selected set. Enable / disable accounts from **Account Management**.
-7. 📊 Use the dashboard, quota, request history, and billing pages to inspect the active account, reset time, token usage, and live logs.
-
-The desktop app also includes one-click setup actions with restore support for previous config files:
-
-| Client | What OmniProxy writes |
-| --- | --- |
-| Codex | Local Codex backend proxy, plus optional sub2api or Zo Computer local profiles. |
-| Claude Code | Anthropic router settings with selectable DeepSeek / MiMo / Kimi / GLM / Zo Computer model slots. |
-| Claude Desktop | 3P Gateway Profile settings based on the selected Claude model slots; restart Claude Desktop after configuring. |
-| Gemini CLI | Local Gemini proxy settings. |
-| OpenCode | Local providers for OmniProxy, Gemini, OpenRouter, TokenRouter, Zo Computer, and custom gateways. |
-| Pi Coding Agent | OmniProxy and Zo Computer providers through `/pi-router/v1` and `/zo/v1`. |
-| DeepSeek-TUI | DeepSeek-TUI config pointing its built-in DeepSeek provider at the OmniProxy DeepSeek account pool. |
-
-## 🔌 Supported Credentials
-
-| Provider | Credential | Notes |
+| Version | Data Directory | Bootstrap File |
 | --- | --- | --- |
-| OpenAI | API Key | Uses `Authorization: Bearer` |
-| OpenAI / Codex | `auth.json` | Parses email, access token, account id, refreshes Codex quota, and supports Codex Responses / Chat Completions conversion |
-| Anthropic | API Key | Uses `x-api-key` |
-| Anthropic / Claude | OAuth JSON | Supports Claude OAuth JSON with `access_token` / `refresh_token` |
-| DeepSeek | API Key | Supports OpenAI-compatible and Anthropic routing |
-| Kimi | API Key | Supports Kimi Code routing |
-| Xiaomi MiMo | API Key | Pay-as-you-go key, usually starts with `sk-` |
-| Xiaomi MiMo | Token Plan | Token Plan key, usually starts with `tp-` |
-| Zhipu GLM | API Key | Supports OpenAI-compatible and Anthropic routing |
-| Zhipu GLM | Coding Plan | Refreshes Coding Plan usage from the subscription quota endpoint |
-| MiniMax | API Key | Supports OpenAI-compatible and Anthropic routing |
-| Gemini | API Key | Supports Gemini API routing |
-| OpenRouter | API Key | Supports model refresh, balance checks, and desktop chat |
-| TokenRouter | API Key | Supports OpenAI-compatible routing, usually starts with `tr_` |
-| sub2api | API Key | Supports OpenAI / Anthropic / Gemini-compatible gateway routing and Codex local setup |
-| Zo Computer | Access Token | Supports OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, model lists, and client model presets |
-| Custom Gateway | API Key | Supports OpenAI / Anthropic-compatible gateways |
+| Production | `%USERPROFILE%\.omniproxy` | `%USERPROFILE%\.omniproxy-bootstrap.json` |
+| Dev | `%USERPROFILE%\.omniproxy-dev` | `%USERPROFILE%\.omniproxy-dev-bootstrap.json` |
 
-## 🧰 Control API
+## Support Matrix
 
-The desktop frontend prefers Wails bindings. The local HTTP control API is still available for debugging, scripts, and compatibility with older development flows:
+| Provider | Credential Type | Main Capabilities |
+| --- | --- | --- |
+| OpenAI | API Key | OpenAI-compatible requests and rate-limit header balance recording. |
+| OpenAI / Codex | `auth.json` | Parses email, access token, account id, refreshes Codex subscription quota, and supports Codex Responses / Chat Completions conversion. |
+| Anthropic | API Key | Anthropic-native requests and Claude Code routing. |
+| Anthropic / Claude | OAuth JSON | Supports Claude OAuth JSON with `access_token` / `refresh_token`. |
+| DeepSeek | API Key | OpenAI-compatible entrypoint and Anthropic router. |
+| Kimi | API Key | Kimi Code routing and subscription usage refresh. |
+| Xiaomi MiMo | API Key | Pay-as-you-go API key, usually starts with `sk-`. |
+| Xiaomi MiMo | Token Plan | Token Plan key, usually starts with `tp-`, with subscription quota display. |
+| Zhipu GLM | API Key / Coding Plan | OpenAI-compatible routing, Anthropic router, and Coding Plan usage refresh. |
+| MiniMax | API Key | OpenAI-compatible entrypoint and Anthropic router. |
+| Gemini | API Key | Gemini API routing and Gemini CLI one-click setup. |
+| OpenRouter | API Key | Model list, balance check, and desktop chat. |
+| TokenRouter | API Key | OpenAI-compatible routing; API keys usually start with `tr_`. |
+| sub2api | API Key | OpenAI / Anthropic / Gemini-compatible gateway with Codex local setup support. |
+| Zo Computer | Access Token | OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, model lists, and client model presets. |
+| Custom Gateway | API Key | OpenAI / Anthropic-compatible gateways. |
 
-- `GET /api/control-token`
-- `GET /api/tokens`
-- `POST /api/tokens`
-- `POST /api/tokens/import-api-keys`
-- `PUT /api/tokens/{id}`
-- `DELETE /api/tokens/{id}`
-- `PUT /api/tokens/{id}/disabled`
-- `PUT /api/tokens/{id}/selected`
-- `PUT /api/tokens/{id}/exclusive`
-- `DELETE /api/tokens/{id}/exclusive`
-- `POST /api/tokens/{id}/validate`
-- `GET /api/config`
-- `PUT /api/config`
-- `GET /api/logs`
-- `GET /api/history`
-- `POST /api/history/clear`
-- `GET /api/billing/usage`
-- `GET /api/billing/dates`
-- `POST /api/billing/clear`
-- `GET /api/proxy/status`
-- `GET /api/proxy/active-requests`
-- `POST /api/proxy/start`
-- `POST /api/proxy/stop`
-- `GET /api/app/info`
-- `POST /api/update/check`
-- `POST /api/update/download`
-- `GET /api/update/download/status`
-- `POST /api/update/install`
-- `GET /api/data-directory`
-- `PUT /api/data-directory`
-- `POST /api/codex/configure`
-- `POST /api/codex/sub2api/configure`
-- `POST /api/codex/zo/configure`
-- `POST /api/codex/restore`
-- `POST /api/mimo/claude/configure`
-- `POST /api/mimo/claude/restore`
-- `POST /api/deepseek/claude/configure`
-- `POST /api/deepseek/claude/restore`
-- `POST /api/kimi/claude/configure`
-- `POST /api/kimi/claude/restore`
-- `POST /api/zhipu/claude/configure`
-- `POST /api/zhipu/claude/restore`
-- `POST /api/zo/claude/configure`
-- `POST /api/gemini/configure`
-- `POST /api/gemini/restore`
-- `POST /api/claude/models/configure`
-- `POST /api/claude/desktop/models/configure`
-- `POST /api/claude/desktop/restore`
-- `POST /api/deepseek-tui/configure`
-- `POST /api/deepseek-tui/restore`
-- `GET /api/openrouter/models`
-- `POST /api/openrouter/chat`
-- `POST /api/opencode/configure`
-- `POST /api/opencode/restore`
-- `POST /api/pi/configure`
-- `POST /api/pi/restore`
+## One-click Client Setup
 
-`/selected` adds or removes an account from its provider's scheduling selection set. If a provider has no selected accounts, it rotates all usable accounts by default. `/exclusive` remains for compatibility and means clearing the provider selection set before selecting only the current account.
+| Client | Supported Setup |
+| --- | --- |
+| Codex | Writes the local Codex backend proxy address, or switches to sub2api / Zo Computer local entrypoints, with backup restore support. |
+| Claude Code | Writes the Anthropic router and selected DeepSeek / MiMo / Kimi / GLM / Zo Computer model slots. |
+| Claude Desktop | Writes a 3P Gateway Profile and reuses selected Claude model slots; restart Claude Desktop after configuration. |
+| Gemini CLI | Writes Gemini local proxy configuration. |
+| OpenCode | Writes local provider configuration for Gemini, OpenRouter, TokenRouter, Zo Computer, and custom gateway providers. |
+| Pi Coding Agent | Writes OmniProxy and Zo Computer providers, routing by model through `/pi-router/v1` or `/zo/v1`. |
+| DeepSeek-TUI | Writes DeepSeek-TUI configuration so its built-in DeepSeek provider connects to OmniProxy's DeepSeek account pool. |
 
-When using the HTTP control API, every endpoint except `GET /api/control-token` requires the `X-OmniProxy-Control-Token` header. `Authorization: Bearer <token>` is also accepted.
+## Control API
 
-## ✅ Verification
+The desktop frontend prefers Wails bindings. The HTTP control API remains available for local scripts and debugging tools. Except for `GET /api/control-token`, endpoints require `X-OmniProxy-Control-Token`; `Authorization: Bearer <token>` is also accepted.
 
-Backend tests:
+Common endpoints:
+
+| Type | Endpoints |
+| --- | --- |
+| Accounts | `GET /api/tokens`, `POST /api/tokens`, `POST /api/tokens/import-api-keys`, `PUT /api/tokens/{id}`, `DELETE /api/tokens/{id}` |
+| Scheduling | `PUT /api/tokens/{id}/selected`, `PUT /api/tokens/{id}/exclusive`, `DELETE /api/tokens/{id}/exclusive` |
+| Validation | `POST /api/tokens/{id}/validate` |
+| Proxy | `GET /api/proxy/status`, `POST /api/proxy/start`, `POST /api/proxy/stop`, `GET /api/proxy/active-requests` |
+| Config | `GET /api/config`, `PUT /api/config`, `GET /api/data-directory`, `PUT /api/data-directory` |
+| History | `GET /api/logs`, `GET /api/history`, `POST /api/history/clear` |
+| Billing | `GET /api/billing/usage`, `GET /api/billing/dates`, `POST /api/billing/clear` |
+| Client setup | `POST /api/codex/configure`, `POST /api/codex/sub2api/configure`, `POST /api/codex/zo/configure`, `POST /api/claude/models/configure`, `POST /api/claude/desktop/models/configure`, `POST /api/zo/claude/configure`, `POST /api/deepseek-tui/configure`, `POST /api/opencode/configure`, `POST /api/pi/configure` |
+| Updates | `POST /api/update/check`, `POST /api/update/download`, `GET /api/update/download/status`, `POST /api/update/install` |
+
+`/selected` adds or removes an account from its provider's scheduling selection set. When a provider has no selected accounts, the scheduler rotates all usable accounts for that provider; once selected accounts exist, rotation is limited to the selected set.
+
+## Development and Verification
 
 ```powershell
 cd .\OmniProxyBackend
 go test ./...
 ```
 
-Frontend tests:
-
 ```powershell
 cd .\OmniProxyBackend\frontend
 npm test
-```
-
-Frontend build:
-
-```powershell
-cd .\OmniProxyBackend\frontend
 npm run build
 ```
 
-Desktop package:
+Production build:
 
 ```powershell
 cd .\OmniProxyBackend
 C:\Users\mimanchi\go\bin\wails.exe build
 ```
 
-Coexisting Dev exe:
+Coexisting Dev build:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Clean
 ```
 
-## 🛡️ Security Notes
+The Dev build uses the `omniproxy_dev` build tag. App title, single-instance ID, data directory, and default ports are isolated from the production build, so it is suitable for parallel validation on machines with the production app installed.
 
-OmniProxy is designed for personal local development and binds to `127.0.0.1` by default. Credentials are stored in the local data directory you choose and are not uploaded by OmniProxy. On Windows, real credential values in `tokens.json` are encrypted with the current user's DPAPI profile; use the desktop export feature before moving credentials to another machine or user.
+## Project Structure
 
-Recommendations:
+```text
+.
+├── OmniProxyBackend/              # Wails desktop app and Go backend
+│   ├── internal/config/           # Local config, data directory, defaults
+│   ├── internal/logs/             # Request and diagnostic logs
+│   ├── internal/proxy/            # Proxy, routing, auth, usage parsing, WebSocket
+│   ├── internal/storage/          # JSON / SQLite local persistence
+│   ├── internal/token/            # Account model, token pool, scheduling, quota state
+│   └── frontend/                  # Vue 3 + Vite + Element Plus frontend
+├── docs/releases/                 # Curated release notes
+├── scripts/dev.ps1                # Desktop development launcher
+├── scripts/build-dev.ps1          # Coexisting Dev exe build script
+├── README.md                      # Chinese README
+└── README_EN.md                   # English README
+```
 
-- 🚫 Do not commit `auth.json`, `.env`, `tokens.json`, or real credentials.
-- 🔒 Do not expose the control API to public networks or LAN environments.
-- 🧪 Check that the local proxy port is not already used by another process.
-- 📤 Exported account-pool backups and Codex auth.json files contain real credentials. Store them only in trusted directories.
-- 🧹 Before sharing logs or screenshots, check for account names, paths, or sensitive config.
+## Release Channels
 
-## 🗺️ Roadmap
+| Channel | Tag Example | GitHub Release Behavior |
+| --- | --- | --- |
+| Stable | `v1.1.3` | Stable release for daily use. |
+| Beta | `v1.1.4-beta.1` | Pre-release for validating new features and regression fixes. |
+| Dev | `dev-*` | Local build version, not published as a public release. |
 
-- 📈 Add quota trend charts, request history charts, and deeper usage analytics.
-- 🔐 Tighten the local control API security boundary.
-- 🧩 Add more providers and protocol adapters.
-- 🧪 Expand end-to-end coverage for SSE, WebSocket, concurrent scheduling, and recovery.
-- 🧱 Continue splitting frontend state and page components.
-- 📦 Improve desktop packaging and release workflow.
+Release notes live in `docs/releases/`. Beta versions are marked as GitHub Pre-release, while stable versions are reserved for regular public releases.
 
-## 🤝 Contributing
+## Security Model
 
-Issues and pull requests are welcome.
+- Binds only to `127.0.0.1` by default and does not expose itself to public networks or LANs.
+- The control API is protected by a local control token that the desktop app fetches and sends automatically.
+- On Windows, account credentials are encrypted with the current user's DPAPI profile before being written to the local data directory.
+- Exported account-pool backups, Codex `auth.json`, and client configuration backups may contain real credentials; store them only in trusted directories.
+- Before sharing logs, screenshots, or Issues, check for account names, paths, request IDs, Base URLs, and provider metadata.
 
-When opening an Issue, please include:
+## Roadmap
 
-- 🖥️ Operating system and run mode.
-- 🧰 Client tool, such as Codex, Claude Code, OpenCode, Pi Coding Agent, or a custom API client.
-- 🔌 Provider, route path, and relevant error logs.
-- 🎯 Expected behavior and actual behavior.
+- Finer-grained quota trend charts and cross-provider comparison views.
+- More complete SSE, WebSocket, concurrent scheduling, and recovery tests.
+- More providers, more client tools, and more protocol adapters.
+- A stricter local access boundary for the control API.
+- Clearer frontend component boundaries and a more maintainable design system.
 
-Good first contribution areas:
+## Contributing
 
-- ✨ New provider or protocol adapters.
-- 🧠 Proxy reliability, scheduling, and retry strategy improvements.
-- 🎨 Frontend interaction, visualization, and configuration UX.
-- ✅ Tests, documentation examples, and reproduction cases.
+Issues and pull requests are welcome. A high-quality issue report usually includes:
 
-Before submitting a PR, please run:
+- Operating system, OmniProxy version, and run mode.
+- Client tool, such as Codex, Claude Code, OpenCode, Pi Coding Agent, or a custom API client.
+- Related provider, route path, model name, and error logs.
+- Expected behavior, actual behavior, and minimal reproduction steps.
+
+Before submitting a PR, it is recommended to run at least:
 
 ```powershell
 cd .\OmniProxyBackend
@@ -348,15 +288,9 @@ go test ./...
 ```powershell
 cd .\OmniProxyBackend\frontend
 npm test
-```
-
-```powershell
-cd .\OmniProxyBackend\frontend
 npm run build
 ```
 
-## ⭐ Support
+## Star
 
-If OmniProxy helps your local AI development workflow, please consider giving it a Star. ⭐
-
-Stars help more people with the same workflow pain discover the project, and real-world Issues / PRs help guide the roadmap better than any guesswork.
+If OmniProxy improves your local AI development workflow, a Star is welcome. Real-world issue reports, configuration examples, and regression cases are more valuable than a generic roadmap.
