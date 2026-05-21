@@ -7,6 +7,7 @@ export namespace config {
 	    websocketMode: string;
 	    outboundProxyEnabled: boolean;
 	    outboundProxyUrl: string;
+	    outboundProxyProviders: string[];
 	    outboundProxyModels: string[];
 	    upstreamBaseUrl: string;
 	    openaiBaseUrl: string;
@@ -51,6 +52,7 @@ export namespace config {
 	        this.websocketMode = source["websocketMode"];
 	        this.outboundProxyEnabled = source["outboundProxyEnabled"];
 	        this.outboundProxyUrl = source["outboundProxyUrl"];
+	        this.outboundProxyProviders = source["outboundProxyProviders"];
 	        this.outboundProxyModels = source["outboundProxyModels"];
 	        this.upstreamBaseUrl = source["upstreamBaseUrl"];
 	        this.openaiBaseUrl = source["openaiBaseUrl"];
@@ -128,8 +130,8 @@ export namespace config {
 	        this.source = source["source"];
 	    }
 	}
-
 }
+
 export namespace history {
 	
 	export class DailyUsage {

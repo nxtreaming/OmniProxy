@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"OmniProxyBackend/internal/config"
@@ -51,6 +52,62 @@ func TestValidatorUsesAnthropicAPIKey(t *testing.T) {
 	}
 	if result.Remaining == nil || *result.Remaining != 42 {
 		t.Fatalf("expected remaining 42, got %#v", result.Remaining)
+	}
+}
+
+func TestValidatorRoutesCodexUsageThroughOutboundProxy(t *testing.T) {
+	upstreamHits := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHits++
+		_, _ = w.Write([]byte("direct"))
+	}))
+	defer upstream.Close()
+
+	proxyHits := 0
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHits++
+		gotURL := ""
+		if r.URL != nil {
+			gotURL = r.URL.String()
+		}
+		if r.URL == nil || r.URL.Scheme != "http" || r.URL.Host != strings.TrimPrefix(upstream.URL, "http://") || r.URL.Path != "/backend-api/wham/usage" {
+			t.Fatalf("expected Codex usage absolute upstream URL through proxy, got %q", gotURL)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer codex-access-token" {
+			t.Fatalf("unexpected Authorization header: %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":25,"reset_at":1893456000}}}`))
+	}))
+	defer proxyServer.Close()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:              3000,
+		ControlPort:            3890,
+		CodexUsageEndpoint:     upstream.URL + "/backend-api/wham/usage",
+		OutboundProxyEnabled:   true,
+		OutboundProxyURL:       proxyServer.URL,
+		OutboundProxyProviders: []string{token.ProviderOpenAI},
+		SwitchThreshold:        15,
+		MaxRetries:             1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     `{"access_token":"codex-access-token","account_id":"account-123"}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK || result.Remaining == nil || *result.Remaining != 75 {
+		t.Fatalf("expected proxied Codex usage result with remaining 75, got %#v", result)
+	}
+	if proxyHits != 1 || upstreamHits != 0 {
+		t.Fatalf("expected only proxy hit for Codex usage refresh, proxy=%d upstream=%d", proxyHits, upstreamHits)
 	}
 }
 

@@ -819,10 +819,15 @@ func (a *appServer) refreshAuthTokenIfNeeded(ctx context.Context, selected token
 		selected = latest
 	}
 
-	client := &http.Client{Timeout: healthRequestTimeout}
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+	client, err := proxy.NewTokenHTTPClient(cfg, selected, healthRequestTimeout)
+	if err != nil {
+		return selected, false, err
+	}
 	var updatedValue string
 	var refreshed bool
-	var err error
 	switch {
 	case isCodexToken(selected):
 		updatedValue, refreshed, err = proxy.RefreshCodexAuthJSON(ctx, client, selected.TokenValue, force, time.Now())

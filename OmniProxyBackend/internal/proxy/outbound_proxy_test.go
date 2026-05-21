@@ -1,19 +1,45 @@
 package proxy
 
-import "testing"
+import (
+	"testing"
 
-func TestOutboundProxyMatchesModelPatterns(t *testing.T) {
-	patterns := []string{"gpt-5.4", "claude-*", "*/*"}
+	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/token"
+)
 
-	for _, model := range []string{"gpt-5.4", "CLAUDE-SONNET-4-6", "openai/gpt-5.5", "anthropic/claude-test"} {
-		if !outboundProxyMatchesModel(model, patterns) {
-			t.Fatalf("expected %q to match %#v", model, patterns)
+func TestOutboundProxyMatchesRouteProviders(t *testing.T) {
+	cfg := config.Config{OutboundProxyProviders: []string{"openai", "anthropic", "gemini", "openrouter", "zo"}}
+
+	for _, route := range []routeInfo{
+		{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Path: "/backend-api/codex/models"},
+		{Provider: token.ProviderOpenAI, Path: "/v1/models"},
+		{Provider: token.ProviderAnthropic, Path: "/v1/models"},
+		{Provider: token.ProviderGemini, Path: "/v1beta/models"},
+		{Provider: token.ProviderOpenRouter, Path: "/models"},
+		{Provider: token.ProviderZo, Path: "/models/available"},
+	} {
+		if !outboundProxyMatchesRoute(route, cfg) {
+			t.Fatalf("expected route %#v to match proxy providers", route)
 		}
 	}
 
-	for _, model := range []string{"gpt-4.1", "gemini-3-pro-preview", ""} {
-		if outboundProxyMatchesModel(model, patterns) {
-			t.Fatalf("expected %q not to match %#v", model, patterns)
+	for _, route := range []routeInfo{
+		{Provider: token.ProviderDeepSeek, Path: "/models"},
+		{Provider: token.ProviderKimi, Path: "/models"},
+		{Provider: token.ProviderCustom, Path: "/models"},
+	} {
+		if outboundProxyMatchesRoute(route, cfg) {
+			t.Fatalf("expected route %#v to bypass proxy providers", route)
 		}
+	}
+}
+
+func TestOutboundProxyProviderSelectionIsIndependentFromModelName(t *testing.T) {
+	route := routeInfo{Provider: token.ProviderOpenAI, Model: "deepseek-v4-pro", Path: "/v1/chat/completions"}
+	if !outboundProxyMatchesRoute(route, config.Config{OutboundProxyProviders: []string{"openai"}}) {
+		t.Fatalf("expected selected provider to use proxy even when model name has another prefix")
+	}
+	if outboundProxyMatchesRoute(route, config.Config{OutboundProxyProviders: []string{"deepseek"}}) {
+		t.Fatalf("expected unselected route provider to bypass proxy")
 	}
 }

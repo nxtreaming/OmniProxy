@@ -28,6 +28,14 @@ var defaultOutboundProxyModels = []string{
 	"*/*",
 }
 
+var defaultOutboundProxyProviders = []string{
+	"openai",
+	"anthropic",
+	"gemini",
+	"openrouter",
+	"zo",
+}
+
 type Config struct {
 	ProxyPort                          int      `json:"proxyPort"`
 	ControlPort                        int      `json:"controlPort"`
@@ -35,6 +43,7 @@ type Config struct {
 	WebSocketMode                      string   `json:"websocketMode"`
 	OutboundProxyEnabled               bool     `json:"outboundProxyEnabled"`
 	OutboundProxyURL                   string   `json:"outboundProxyUrl"`
+	OutboundProxyProviders             []string `json:"outboundProxyProviders"`
 	OutboundProxyModels                []string `json:"outboundProxyModels"`
 	UpstreamBaseURL                    string   `json:"upstreamBaseUrl"`
 	OpenAIBaseURL                      string   `json:"openaiBaseUrl"`
@@ -76,6 +85,7 @@ func Default() Config {
 		WebSocketMode:                      WebSocketModeEnabled,
 		OutboundProxyEnabled:               false,
 		OutboundProxyURL:                   "http://127.0.0.1:10808",
+		OutboundProxyProviders:             append([]string(nil), defaultOutboundProxyProviders...),
 		OutboundProxyModels:                append([]string(nil), defaultOutboundProxyModels...),
 		UpstreamBaseURL:                    "https://api.openai.com",
 		OpenAIBaseURL:                      "https://api.openai.com",
@@ -140,6 +150,7 @@ func (s *Store) Load() (Config, error) {
 		WebSocketMode                      *string   `json:"websocketMode"`
 		OutboundProxyEnabled               *bool     `json:"outboundProxyEnabled"`
 		OutboundProxyURL                   *string   `json:"outboundProxyUrl"`
+		OutboundProxyProviders             *[]string `json:"outboundProxyProviders"`
 		OutboundProxyModels                *[]string `json:"outboundProxyModels"`
 		UpstreamBaseURL                    *string   `json:"upstreamBaseUrl"`
 		OpenAIBaseURL                      *string   `json:"openaiBaseUrl"`
@@ -193,6 +204,11 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.OutboundProxyURL != nil {
 		cfg.OutboundProxyURL = *saved.OutboundProxyURL
+	}
+	if saved.OutboundProxyProviders != nil {
+		cfg.OutboundProxyProviders = append([]string(nil), (*saved.OutboundProxyProviders)...)
+	} else if saved.OutboundProxyModels != nil {
+		cfg.OutboundProxyProviders = providersFromOutboundProxyModels(*saved.OutboundProxyModels)
 	}
 	if saved.OutboundProxyModels != nil {
 		cfg.OutboundProxyModels = append([]string(nil), (*saved.OutboundProxyModels)...)
@@ -323,6 +339,11 @@ func Normalize(cfg Config) Config {
 	cfg.OutboundProxyURL = normalizeOutboundProxyURL(cfg.OutboundProxyURL)
 	if cfg.OutboundProxyURL == "" {
 		cfg.OutboundProxyURL = defaults.OutboundProxyURL
+	}
+	if cfg.OutboundProxyProviders == nil {
+		cfg.OutboundProxyProviders = append([]string(nil), defaults.OutboundProxyProviders...)
+	} else {
+		cfg.OutboundProxyProviders = normalizeOutboundProxyProviders(cfg.OutboundProxyProviders)
 	}
 	if cfg.OutboundProxyModels == nil {
 		cfg.OutboundProxyModels = append([]string(nil), defaults.OutboundProxyModels...)
@@ -471,6 +492,108 @@ func normalizeOutboundProxyModels(models []string) []string {
 		out = append(out, model)
 	}
 	return out
+}
+
+func normalizeOutboundProxyProviders(providers []string) []string {
+	if len(providers) == 0 {
+		return []string{}
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(providers))
+	for _, item := range providers {
+		value := normalizeOutboundProxyProvider(item)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func normalizeOutboundProxyProvider(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "openai", "codex":
+		return "openai"
+	case "anthropic", "claude":
+		return "anthropic"
+	case "deepseek":
+		return "deepseek"
+	case "kimi":
+		return "kimi"
+	case "xiaomi", "mimo":
+		return "xiaomi"
+	case "zhipu", "glm":
+		return "zhipu"
+	case "minimax":
+		return "minimax"
+	case "gemini", "google":
+		return "gemini"
+	case "openrouter":
+		return "openrouter"
+	case "tokenrouter":
+		return "tokenrouter"
+	case "sub2api":
+		return "sub2api"
+	case "zo", "zocomputer", "zo-computer":
+		return "zo"
+	case "custom":
+		return "custom"
+	default:
+		return ""
+	}
+}
+
+func providersFromOutboundProxyModels(models []string) []string {
+	normalizedModels := normalizeOutboundProxyModels(models)
+	if sameStringSet(normalizedModels, defaultOutboundProxyModels) {
+		return append([]string(nil), defaultOutboundProxyProviders...)
+	}
+	providers := make([]string, 0)
+	for _, raw := range normalizedModels {
+		model := strings.ToLower(strings.TrimSpace(raw))
+		switch {
+		case model == "gpt-*" || strings.HasPrefix(model, "gpt-"):
+			providers = append(providers, "openai")
+		case model == "claude-*" || strings.HasPrefix(model, "claude-"):
+			providers = append(providers, "anthropic")
+		case model == "gemini-*" || strings.HasPrefix(model, "gemini-"):
+			providers = append(providers, "gemini")
+		case model == "*/*" || strings.Contains(model, "/"):
+			providers = append(providers, "openrouter")
+		case strings.HasPrefix(model, "deepseek-"):
+			providers = append(providers, "deepseek")
+		case strings.HasPrefix(model, "kimi-"):
+			providers = append(providers, "kimi")
+		case strings.HasPrefix(model, "glm-") || strings.HasPrefix(model, "zhipu-"):
+			providers = append(providers, "zhipu")
+		case strings.HasPrefix(model, "minimax-"):
+			providers = append(providers, "minimax")
+		case strings.HasPrefix(model, "mimo-"):
+			providers = append(providers, "xiaomi")
+		case strings.HasPrefix(model, "auto:") || strings.HasPrefix(model, "tokenrouter:") || strings.HasPrefix(model, "tokenrouter/"):
+			providers = append(providers, "tokenrouter")
+		case strings.HasPrefix(model, "custom-"):
+			providers = append(providers, "custom")
+		}
+	}
+	return normalizeOutboundProxyProviders(providers)
+}
+
+func sameStringSet(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, item := range left {
+		seen[strings.ToLower(strings.TrimSpace(item))] = true
+	}
+	for _, item := range right {
+		if !seen[strings.ToLower(strings.TrimSpace(item))] {
+			return false
+		}
+	}
+	return true
 }
 
 func isPort(value string) bool {

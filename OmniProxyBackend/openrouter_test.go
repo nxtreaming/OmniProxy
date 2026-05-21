@@ -109,6 +109,65 @@ func TestOpenRouterChatUsesSavedKeyAndRecordsUsage(t *testing.T) {
 	}
 }
 
+func TestOpenRouterModelsUsesOutboundProxy(t *testing.T) {
+	upstreamHits := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHits++
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer upstream.Close()
+
+	proxyHits := 0
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHits++
+		gotURL := ""
+		if r.URL != nil {
+			gotURL = r.URL.String()
+		}
+		if r.URL == nil || r.URL.Scheme != "http" || r.URL.Host != strings.TrimPrefix(upstream.URL, "http://") || r.URL.Path != "/api/v1/models" {
+			t.Fatalf("expected OpenRouter models absolute upstream URL through proxy, got %q", gotURL)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-or-v1-test-token" {
+			t.Fatalf("unexpected Authorization header: %q", got)
+		}
+		_, _ = w.Write([]byte(`{"data":[{"id":"openai/gpt-5.5","name":"GPT 5.5"}]}`))
+	}))
+	defer proxyServer.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{
+		Name:       "openrouter",
+		Provider:   token.ProviderOpenRouter,
+		TokenValue: "sk-or-v1-test-token",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	app := &appServer{
+		cfg: config.Config{
+			OpenRouterBaseURL:      upstream.URL + "/api/v1",
+			OutboundProxyEnabled:   true,
+			OutboundProxyURL:       proxyServer.URL,
+			OutboundProxyProviders: []string{token.ProviderOpenRouter},
+		},
+		tokens: manager,
+	}
+
+	result, err := app.openRouterModels(context.Background(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Models) != 1 || result.Models[0].ID != "openai/gpt-5.5" {
+		t.Fatalf("unexpected OpenRouter models response: %#v", result)
+	}
+	if proxyHits != 1 || upstreamHits != 0 {
+		t.Fatalf("expected only proxy hit for OpenRouter models, proxy=%d upstream=%d", proxyHits, upstreamHits)
+	}
+}
+
 func TestOpenRouterChatRejectsEmptyModel(t *testing.T) {
 	_, _, err := normalizeOpenRouterChatRequest(openRouterChatRequest{
 		Messages: []openRouterChatMessage{{Role: "user", Content: "hello"}},

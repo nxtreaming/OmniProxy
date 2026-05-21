@@ -440,14 +440,14 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 }
 
 func (s *Service) clientForRoute(route routeInfo) *http.Client {
-	if s.proxyClient != nil && outboundProxyMatchesModel(route.Model, s.cfg.OutboundProxyModels) {
+	if s.proxyClient != nil && outboundProxyMatchesRoute(route, s.cfg) {
 		return s.proxyClient
 	}
 	return s.client
 }
 
 func (s *Service) proxyForRoute(route routeInfo) func(*http.Request) (*url.URL, error) {
-	if s.proxyURL != nil && outboundProxyMatchesModel(route.Model, s.cfg.OutboundProxyModels) {
+	if s.proxyURL != nil && outboundProxyMatchesRoute(route, s.cfg) {
 		return http.ProxyURL(s.proxyURL)
 	}
 	return http.ProxyFromEnvironment

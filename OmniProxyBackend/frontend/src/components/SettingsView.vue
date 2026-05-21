@@ -48,93 +48,106 @@ const outboundProxyPresets = [
   { label: '7890 mixed', url: 'http://127.0.0.1:7890' },
   { label: 'SOCKS5 10808', url: 'socks5://127.0.0.1:10808' },
 ]
-const recommendedOutboundProxyModels = ['gpt-*', 'claude-*', 'gemini-*', '*/*']
-const outboundProxyModelGroups = [
+const recommendedOutboundProxyProviders = ['openai', 'anthropic', 'gemini', 'openrouter', 'zo']
+const outboundProxyProviderGroups = [
   {
     title: '国内网络建议出站',
-    note: '这些模型或聚合模型 ID 通常依赖海外 API 入口，默认选中。',
+    note: '这些接入厂商通常依赖海外入口，模型列表、额度刷新和对话请求都会走出站代理。',
     items: [
       {
         key: 'openai-codex',
         label: 'OpenAI / Codex',
-        patterns: ['gpt-*'],
-        description: 'gpt-5.5、gpt-5.4、gpt-5.4-high 等 OpenAI/Codex 模型',
+        providers: ['openai'],
+        description: 'OpenAI API、Codex auth.json、chatgpt.com Codex 接口',
         recommended: true,
       },
       {
         key: 'anthropic-claude',
         label: 'Anthropic Claude',
-        patterns: ['claude-*'],
-        description: 'claude-opus、claude-sonnet，以及 Claude 兼容模型名',
+        providers: ['anthropic'],
+        description: 'Anthropic API、Claude OAuth 和 Claude 兼容路由',
         recommended: true,
       },
       {
         key: 'google-gemini',
         label: 'Google Gemini',
-        patterns: ['gemini-*'],
-        description: 'gemini-3-pro-preview、gemini-3-flash-preview 等',
+        providers: ['gemini'],
+        description: 'Google Gemini 原生接口和模型列表',
         recommended: true,
       },
       {
-        key: 'provider-model-id',
-        label: 'OpenRouter / 聚合模型 ID',
-        patterns: ['*/*'],
-        description: 'openai/gpt、anthropic/claude、google/gemini、meta-llama/* 等带 provider/ 前缀的模型',
+        key: 'openrouter',
+        label: 'OpenRouter',
+        providers: ['openrouter'],
+        description: 'OpenRouter 模型列表、测试对话、余额和代理转发',
+        recommended: true,
+      },
+      {
+        key: 'zo',
+        label: 'Zo Computer',
+        providers: ['zo'],
+        description: 'Zo Computer 模型映射、模型列表和对话请求',
         recommended: true,
       },
     ],
   },
   {
     title: '国内通常可直连',
-    note: '这些是当前内置国内厂商模型，默认不走出站代理。',
+    note: '这些是当前内置国内厂商，默认不走出站代理。',
     items: [
       {
         key: 'deepseek',
         label: 'DeepSeek',
-        patterns: ['deepseek-*'],
-        description: 'deepseek-v4-pro、deepseek-v4-flash',
+        providers: ['deepseek'],
+        description: 'DeepSeek API 和 DeepSeek 兼容路由',
       },
       {
         key: 'kimi',
         label: 'Kimi Code',
-        patterns: ['kimi-*'],
+        providers: ['kimi'],
         description: 'kimi-for-coding',
       },
       {
         key: 'zhipu',
         label: 'Zhipu GLM',
-        patterns: ['glm-*', 'zhipu-*'],
-        description: 'glm-5.1、zhipu-*',
+        providers: ['zhipu'],
+        description: '智谱 GLM API、Coding Plan 和兼容接口',
       },
       {
         key: 'minimax',
         label: 'MiniMax',
-        patterns: ['minimax-*'],
-        description: 'MiniMax-M2.7 等',
+        providers: ['minimax'],
+        description: 'MiniMax API 和 Coding Plan',
       },
       {
         key: 'mimo',
         label: 'Xiaomi MiMo',
-        patterns: ['mimo-*'],
-        description: 'mimo-v2.5-pro、mimo-v2.5',
+        providers: ['xiaomi'],
+        description: 'Xiaomi MiMo API Key 和 Token Plan',
       },
     ],
   },
   {
     title: '取决于你的上游',
-    note: '自定义网关、sub2api、TokenRouter 是否需要出站，取决于你配置的实际服务地址。',
+    note: '自定义网关、Sub2API、TokenRouter 是否需要出站，取决于你配置的实际服务地址。',
     items: [
       {
         key: 'tokenrouter',
-        label: 'TokenRouter 自动路由',
-        patterns: ['auto:*', 'tokenrouter:*', 'tokenrouter/*'],
-        description: 'auto:balance、auto:quality、tokenrouter/*',
+        label: 'TokenRouter',
+        providers: ['tokenrouter'],
+        description: 'TokenRouter 账号、模型和路由规则接口',
+      },
+      {
+        key: 'sub2api',
+        label: 'Sub2API',
+        providers: ['sub2api'],
+        description: 'Sub2API OpenAI / Anthropic / Gemini 兼容接口',
       },
       {
         key: 'custom',
-        label: '自定义网关模型',
-        patterns: ['custom-*'],
-        description: 'custom-model 或自定义兼容网关模型',
+        label: '自定义网关',
+        providers: ['custom'],
+        description: '自定义 OpenAI / Anthropic 兼容网关',
       },
     ],
   },
@@ -145,62 +158,62 @@ function setOutboundProxyUrl(url) {
   props.config.outboundProxyEnabled = true
 }
 
-function resetOutboundProxyModels() {
-  props.config.outboundProxyModels = [...recommendedOutboundProxyModels]
+function resetOutboundProxyProviders() {
+  props.config.outboundProxyProviders = [...recommendedOutboundProxyProviders]
 }
 
-function toggleOutboundProxyModel(item) {
-  if (isOutboundProxyModelSelected(item)) {
-    removeOutboundProxyPatterns(item.patterns)
+function toggleOutboundProxyProvider(item) {
+  if (isOutboundProxyProviderSelected(item)) {
+    removeOutboundProxyProviders(item.providers)
   } else {
-    addOutboundProxyPatterns(item.patterns)
+    addOutboundProxyProviders(item.providers)
   }
 }
 
-function addOutboundProxyPatterns(patterns) {
-  props.config.outboundProxyModels = normalizeOutboundProxyModels([
-    ...(Array.isArray(props.config.outboundProxyModels) ? props.config.outboundProxyModels : []),
-    ...patterns,
+function addOutboundProxyProviders(providers) {
+  props.config.outboundProxyProviders = normalizeOutboundProxyProviders([
+    ...(Array.isArray(props.config.outboundProxyProviders) ? props.config.outboundProxyProviders : []),
+    ...providers,
   ])
 }
 
-function removeOutboundProxyPatterns(patterns) {
-  const keys = new Set(patterns.map((pattern) => String(pattern || '').trim().toLowerCase()).filter(Boolean))
-  props.config.outboundProxyModels = (Array.isArray(props.config.outboundProxyModels)
-    ? props.config.outboundProxyModels
+function removeOutboundProxyProviders(providers) {
+  const keys = new Set(providers.map((provider) => String(provider || '').trim().toLowerCase()).filter(Boolean))
+  props.config.outboundProxyProviders = (Array.isArray(props.config.outboundProxyProviders)
+    ? props.config.outboundProxyProviders
     : []
   ).filter((item) => !keys.has(String(item || '').trim().toLowerCase()))
 }
 
-function isOutboundProxyModelSelected(item) {
-  return item.patterns.every((pattern) => hasOutboundProxyPattern(pattern))
+function isOutboundProxyProviderSelected(item) {
+  return item.providers.every((provider) => hasOutboundProxyProvider(provider))
 }
 
-function hasOutboundProxyPattern(pattern) {
-  const key = String(pattern || '').trim().toLowerCase()
-  return selectedOutboundProxyModels().some((item) => String(item || '').trim().toLowerCase() === key)
+function hasOutboundProxyProvider(provider) {
+  const key = String(provider || '').trim().toLowerCase()
+  return selectedOutboundProxyProviders().some((item) => String(item || '').trim().toLowerCase() === key)
 }
 
-function selectedOutboundProxyModels() {
-  return Array.isArray(props.config.outboundProxyModels) ? props.config.outboundProxyModels : []
+function selectedOutboundProxyProviders() {
+  return Array.isArray(props.config.outboundProxyProviders) ? props.config.outboundProxyProviders : []
 }
 
-function selectedOutboundProxyRuleCount() {
-  return selectedOutboundProxyModels().length
+function selectedOutboundProxyProviderCount() {
+  return selectedOutboundProxyProviders().length
 }
 
-function customOutboundProxyModels() {
+function customOutboundProxyProviders() {
   const known = new Set(
-    outboundProxyModelGroups.flatMap((group) => group.items).flatMap((item) => item.patterns.map((pattern) => pattern.toLowerCase())),
+    outboundProxyProviderGroups.flatMap((group) => group.items).flatMap((item) => item.providers.map((provider) => provider.toLowerCase())),
   )
-  return selectedOutboundProxyModels().filter((model) => !known.has(String(model || '').trim().toLowerCase()))
+  return selectedOutboundProxyProviders().filter((provider) => !known.has(String(provider || '').trim().toLowerCase()))
 }
 
-function normalizeOutboundProxyModels(models) {
+function normalizeOutboundProxyProviders(providers) {
   const seen = new Set()
   const next = []
-  for (const model of models) {
-    const value = String(model || '').trim()
+  for (const provider of providers) {
+    const value = String(provider || '').trim().toLowerCase()
     const key = value.toLowerCase()
     if (!value || seen.has(key)) continue
     seen.add(key)
@@ -334,12 +347,12 @@ function normalizeOutboundProxyModels(models) {
         <div class="settings-section-head">
           <div>
             <h3>出站代理</h3>
-            <p>只让指定模型请求走 Clash、v2rayN 等本机代理端口，未匹配模型继续直连。</p>
+            <p>按接入厂商决定是否走 Clash、v2rayN 等本机代理端口，未选中的厂商继续直连。</p>
           </div>
         </div>
         <div class="settings-grid">
           <label class="toggle-field">
-            <span>启用模型出站代理</span>
+            <span>启用厂商出站代理</span>
             <input v-model="config.outboundProxyEnabled" class="toggle-input" type="checkbox" />
             <span class="toggle-switch" aria-hidden="true">
               <span class="toggle-thumb"></span>
@@ -368,15 +381,15 @@ function normalizeOutboundProxyModels(models) {
           <div class="wide-field outbound-model-selector">
             <div class="outbound-model-selector-head">
               <div>
-                <span>走出站代理的模型</span>
-                <small>已选择 {{ selectedOutboundProxyRuleCount() }} 条匹配规则</small>
+                <span>走出站代理的接入厂商</span>
+                <small>已选择 {{ selectedOutboundProxyProviderCount() }} 个厂商</small>
               </div>
-              <button type="button" class="ghost-button compact-button" @click="resetOutboundProxyModels">
+              <button type="button" class="ghost-button compact-button" @click="resetOutboundProxyProviders">
                 恢复国内推荐
               </button>
             </div>
             <div
-              v-for="group in outboundProxyModelGroups"
+              v-for="group in outboundProxyProviderGroups"
               :key="group.title"
               class="outbound-model-group"
             >
@@ -390,32 +403,32 @@ function normalizeOutboundProxyModels(models) {
                   :key="item.key"
                   type="button"
                   class="outbound-model-option"
-                  :class="{ active: isOutboundProxyModelSelected(item), recommended: item.recommended }"
-                  @click="toggleOutboundProxyModel(item)"
+                  :class="{ active: isOutboundProxyProviderSelected(item), recommended: item.recommended }"
+                  @click="toggleOutboundProxyProvider(item)"
                 >
                   <span class="outbound-model-option-title">
                     <strong>{{ item.label }}</strong>
-                    <em>{{ isOutboundProxyModelSelected(item) ? '走出站' : '直连' }}</em>
+                    <em>{{ isOutboundProxyProviderSelected(item) ? '走出站' : '直连' }}</em>
                   </span>
                   <small>{{ item.description }}</small>
-                  <code>{{ item.patterns.join(' / ') }}</code>
+                  <code>{{ item.providers.join(' / ') }}</code>
                 </button>
               </div>
             </div>
-            <div v-if="customOutboundProxyModels().length" class="settings-chip-field">
-              <span>未归类规则</span>
+            <div v-if="customOutboundProxyProviders().length" class="settings-chip-field">
+              <span>未归类厂商</span>
               <div class="settings-chip-list">
                 <button
-                  v-for="model in customOutboundProxyModels()"
-                  :key="model"
+                  v-for="provider in customOutboundProxyProviders()"
+                  :key="provider"
                   type="button"
                   class="settings-chip-button active"
-                  @click="removeOutboundProxyPatterns([model])"
+                  @click="removeOutboundProxyProviders([provider])"
                 >
-                  {{ model }}
+                  {{ provider }}
                 </button>
               </div>
-              <small>这些规则来自旧配置；点击可移除。</small>
+              <small>这些厂商来自旧配置；点击可移除。</small>
             </div>
           </div>
         </div>

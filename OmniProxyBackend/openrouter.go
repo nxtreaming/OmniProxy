@@ -16,6 +16,7 @@ import (
 
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/logs"
+	"OmniProxyBackend/internal/proxy"
 	"OmniProxyBackend/internal/token"
 )
 
@@ -106,7 +107,11 @@ func (a *appServer) openRouterModels(ctx context.Context, refresh bool) (openRou
 		}
 	}
 
-	models, err := fetchOpenRouterModels(ctx, cfg.OpenRouterBaseURL, selected.TokenValue)
+	client, err := proxy.NewTokenHTTPClient(cfg, selected, 0)
+	if err != nil {
+		return openRouterModelsResponse{Source: "openrouter"}, err
+	}
+	models, err := fetchOpenRouterModels(ctx, client, cfg.OpenRouterBaseURL, selected.TokenValue)
 	if err != nil {
 		if cached, ok := a.cachedOpenRouterModels(cfg.OpenRouterBaseURL, selected.ID, false); ok {
 			return cached, nil
@@ -223,6 +228,10 @@ func (a *appServer) openRouterChat(ctx context.Context, req openRouterChatReques
 
 	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
+	client, err := proxy.NewTokenHTTPClient(cfg, selected, 0)
+	if err != nil {
+		return openRouterChatResponse{}, err
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(encoded))
 	if err != nil {
@@ -233,7 +242,7 @@ func (a *appServer) openRouterChat(ctx context.Context, req openRouterChatReques
 	httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(selected.TokenValue))
 
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		a.recordOpenRouterChatAttempt(selected, model, 0, start, token.TokenConsumption{}, logs.LevelWarn, "OpenRouter 对话请求失败")
 		_ = a.tokens.RecordProxyUsage(selected.ID, token.TokenConsumption{})
@@ -431,10 +440,13 @@ func (a *appServer) recordOpenRouterChatAttempt(selected token.Token, model stri
 	})
 }
 
-func fetchOpenRouterModels(ctx context.Context, baseURL string, apiKey string) ([]openRouterModelResponse, error) {
+func fetchOpenRouterModels(ctx context.Context, client *http.Client, baseURL string, apiKey string) ([]openRouterModelResponse, error) {
 	target, err := joinExternalURLPath(baseURL, "/models")
 	if err != nil {
 		return nil, err
+	}
+	if client == nil {
+		client = http.DefaultClient
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -449,7 +461,7 @@ func fetchOpenRouterModels(ctx context.Context, baseURL string, apiKey string) (
 		req.Header.Set("Authorization", "Bearer "+secret)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

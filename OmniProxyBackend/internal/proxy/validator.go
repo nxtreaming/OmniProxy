@@ -28,8 +28,9 @@ type ValidationResult struct {
 }
 
 type Validator struct {
-	cfg    config.Config
-	client *http.Client
+	cfg         config.Config
+	client      *http.Client
+	proxyClient *http.Client
 }
 
 var (
@@ -42,10 +43,20 @@ func NewValidator(cfg config.Config) (*Validator, error) {
 	if err := ValidateValidationURLs(cfg); err != nil {
 		return nil, err
 	}
+	outboundProxy, err := outboundProxyURL(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	var proxyClient *http.Client
+	if outboundProxy != nil {
+		proxyClient = newHTTPClient(12*time.Second, outboundProxy)
+	}
 
 	return &Validator{
-		cfg:    cfg,
-		client: &http.Client{Timeout: 12 * time.Second},
+		cfg:         cfg,
+		client:      newHTTPClient(12*time.Second, nil),
+		proxyClient: proxyClient,
 	}, nil
 }
 
@@ -65,7 +76,7 @@ func (v *Validator) Validate(ctx context.Context, selected token.Token) (Validat
 		return ValidationResult{}, err
 	}
 
-	resp, err := v.client.Do(req)
+	resp, err := v.clientForToken(selected).Do(req)
 	if err != nil {
 		return ValidationResult{
 			OK:          false,
@@ -180,6 +191,13 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 
 func (v *Validator) baseURL(selected token.Token) string {
 	return validationBaseURL(v.cfg, selected)
+}
+
+func (v *Validator) clientForToken(selected token.Token) *http.Client {
+	if v.proxyClient != nil && outboundProxyMatchesToken(selected, v.cfg) {
+		return v.proxyClient
+	}
+	return v.client
 }
 
 func parseCodexUsage(body []byte) (token.UsageInfo, bool) {
@@ -833,7 +851,7 @@ func (v *Validator) queryZhipuAPIBalance(ctx context.Context, selected token.Tok
 	}
 	req.Header.Set("Authorization", "Bearer "+secret)
 
-	resp, err := v.client.Do(req)
+	resp, err := v.clientForToken(selected).Do(req)
 	if err != nil {
 		return token.UsageInfo{}, nil, false
 	}
@@ -969,7 +987,7 @@ func (v *Validator) queryZhipuCodingUsage(ctx context.Context, selected token.To
 	}
 	req.Header.Set("Authorization", secret)
 
-	resp, err := v.client.Do(req)
+	resp, err := v.clientForToken(selected).Do(req)
 	if err != nil {
 		return token.UsageInfo{}, nil, false
 	}
@@ -1176,7 +1194,7 @@ func (v *Validator) queryJSON(ctx context.Context, selected token.Token, target 
 		return nil, false
 	}
 
-	resp, err := v.client.Do(req)
+	resp, err := v.clientForToken(selected).Do(req)
 	if err != nil {
 		return nil, false
 	}

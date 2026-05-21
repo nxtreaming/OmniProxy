@@ -140,7 +140,7 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	}
 }
 
-func TestServiceRoutesConfiguredModelsThroughOutboundProxy(t *testing.T) {
+func TestServiceRoutesConfiguredProvidersThroughOutboundProxy(t *testing.T) {
 	upstreamHits := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamHits++
@@ -169,16 +169,20 @@ func TestServiceRoutesConfiguredModelsThroughOutboundProxy(t *testing.T) {
 	if _, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "deepseek", Provider: token.ProviderDeepSeek, TokenValue: "sk-deepseek-token"}); err != nil {
+		t.Fatal(err)
+	}
 
 	service, err := NewService(config.Config{
-		ProxyPort:            3000,
-		ControlPort:          3890,
-		OpenAIBaseURL:        upstream.URL,
-		OutboundProxyEnabled: true,
-		OutboundProxyURL:     proxyServer.URL,
-		OutboundProxyModels:  []string{"gpt-5.4"},
-		SwitchThreshold:      15,
-		MaxRetries:           0,
+		ProxyPort:              3000,
+		ControlPort:            3890,
+		OpenAIBaseURL:          upstream.URL,
+		DeepSeekBaseURL:        upstream.URL,
+		OutboundProxyEnabled:   true,
+		OutboundProxyURL:       proxyServer.URL,
+		OutboundProxyProviders: []string{token.ProviderOpenAI},
+		SwitchThreshold:        15,
+		MaxRetries:             0,
 	}, manager, logs.NewRecorder(10))
 	if err != nil {
 		t.Fatal(err)
@@ -194,14 +198,78 @@ func TestServiceRoutesConfiguredModelsThroughOutboundProxy(t *testing.T) {
 		t.Fatalf("expected only proxy hit for matched model, proxy=%d upstream=%d", proxyHits, upstreamHits)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", stringsReader(`{"model":"gpt-4.1","messages":[]}`))
+	req = httptest.NewRequest(http.MethodPost, "/deepseek/v1/chat/completions", stringsReader(`{"model":"deepseek-v4-pro","messages":[]}`))
 	res = httptest.NewRecorder()
 	service.ServeHTTP(res, req)
 	if res.Code != http.StatusOK || res.Body.String() != "direct" {
 		t.Fatalf("expected direct response, status=%d body=%q", res.Code, res.Body.String())
 	}
 	if proxyHits != 1 || upstreamHits != 1 {
-		t.Fatalf("expected unmatched model to bypass proxy, proxy=%d upstream=%d", proxyHits, upstreamHits)
+		t.Fatalf("expected unselected provider to bypass proxy, proxy=%d upstream=%d", proxyHits, upstreamHits)
+	}
+}
+
+func TestServiceRoutesCodexModelListThroughOutboundProxy(t *testing.T) {
+	upstreamHits := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHits++
+		_, _ = w.Write([]byte("direct-models"))
+	}))
+	defer upstream.Close()
+
+	proxyHits := 0
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHits++
+		gotURL := ""
+		if r.URL != nil {
+			gotURL = r.URL.String()
+		}
+		if r.URL == nil || r.URL.Scheme != "http" || r.URL.Host != strings.TrimPrefix(upstream.URL, "http://") || r.URL.Path != "/backend-api/codex/models" {
+			t.Fatalf("expected Codex models absolute upstream URL through proxy, got %q", gotURL)
+		}
+		if got := r.URL.Query().Get("client_version"); got != "0.132.0" {
+			t.Fatalf("expected client_version query to be preserved, got %q", got)
+		}
+		_, _ = w.Write([]byte("proxied-models"))
+	}))
+	defer proxyServer.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{
+		Name:           "coder@example.com",
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTest(t, "coder@example.com"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:              3000,
+		ControlPort:            3890,
+		CodexBaseURL:           upstream.URL + "/backend-api/codex",
+		OutboundProxyEnabled:   true,
+		OutboundProxyURL:       proxyServer.URL,
+		OutboundProxyProviders: []string{token.ProviderOpenAI},
+		SwitchThreshold:        15,
+		MaxRetries:             0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/backend-api/codex/models?client_version=0.132.0", nil)
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK || res.Body.String() != "proxied-models" {
+		t.Fatalf("expected proxied model-list response, status=%d body=%q", res.Code, res.Body.String())
+	}
+	if proxyHits != 1 || upstreamHits != 0 {
+		t.Fatalf("expected only proxy hit for Codex model list, proxy=%d upstream=%d", proxyHits, upstreamHits)
 	}
 }
 
@@ -2356,6 +2424,65 @@ func TestServiceAdaptsZoOpenAIChat(t *testing.T) {
 	}
 	if len(payload.Choices) != 1 || payload.Choices[0].Message.Content != "hello from zo" {
 		t.Fatalf("unexpected OpenAI response: %s", res.Body.String())
+	}
+}
+
+func TestServiceRoutesZoModelsThroughOutboundProxy(t *testing.T) {
+	upstreamHits := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHits++
+		_, _ = w.Write([]byte("direct"))
+	}))
+	defer upstream.Close()
+
+	proxyHits := 0
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHits++
+		gotURL := ""
+		if r.URL != nil {
+			gotURL = r.URL.String()
+		}
+		if r.URL == nil || r.URL.Scheme != "http" || r.URL.Host != strings.TrimPrefix(upstream.URL, "http://") || r.URL.Path != "/models/available" {
+			t.Fatalf("expected Zo models absolute upstream URL through proxy, got %q", gotURL)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer zo_sk_test_token" {
+			t.Fatalf("unexpected Authorization header: %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"models":[{"model_name":"openai/gpt-5.5","label":"gpt-5.5","vendor":"openai"}]}`))
+	}))
+	defer proxyServer.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "zo", Provider: token.ProviderZo, TokenValue: "zo_sk_test_token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:              3000,
+		ControlPort:            3890,
+		ZoBaseURL:              upstream.URL,
+		OutboundProxyEnabled:   true,
+		OutboundProxyURL:       proxyServer.URL,
+		OutboundProxyProviders: []string{token.ProviderZo},
+		SwitchThreshold:        15,
+		MaxRetries:             0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/zo/v1/models", nil)
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if proxyHits != 1 || upstreamHits != 0 {
+		t.Fatalf("expected only proxy hit for Zo models, proxy=%d upstream=%d", proxyHits, upstreamHits)
 	}
 }
 

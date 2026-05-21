@@ -19,6 +19,9 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if len(cfg.OutboundProxyModels) != len(defaultOutboundProxyModels) {
 		t.Fatalf("expected default outbound proxy models, got %#v", cfg.OutboundProxyModels)
 	}
+	if len(cfg.OutboundProxyProviders) != len(defaultOutboundProxyProviders) {
+		t.Fatalf("expected default outbound proxy providers, got %#v", cfg.OutboundProxyProviders)
+	}
 	if cfg.XiaomiCredentialPriority != MimoCredentialPriorityTokenPlan {
 		t.Fatalf("expected default MiMo token plan priority, got %q", cfg.XiaomiCredentialPriority)
 	}
@@ -31,6 +34,7 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 		WebSocketMode:            "DISABLED",
 		OutboundProxyEnabled:     true,
 		OutboundProxyURL:         "mixed:10808",
+		OutboundProxyProviders:   []string{"codex", " ", "OPENROUTER", "zo-computer", "codex"},
 		OutboundProxyModels:      []string{"gpt-5.4", " ", "GPT-5.4", "claude-*"},
 		XiaomiCredentialPriority: "api",
 	})
@@ -48,5 +52,8 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	}
 	if len(cfg.OutboundProxyModels) != 2 || cfg.OutboundProxyModels[0] != "gpt-5.4" || cfg.OutboundProxyModels[1] != "claude-*" {
 		t.Fatalf("expected normalized outbound proxy models, got %#v", cfg.OutboundProxyModels)
+	}
+	if len(cfg.OutboundProxyProviders) != 3 || cfg.OutboundProxyProviders[0] != "openai" || cfg.OutboundProxyProviders[1] != "openrouter" || cfg.OutboundProxyProviders[2] != "zo" {
+		t.Fatalf("expected normalized outbound proxy providers, got %#v", cfg.OutboundProxyProviders)
 	}
 }

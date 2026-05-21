@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"OmniProxyBackend/internal/config"
+	"OmniProxyBackend/internal/token"
 )
 
 func outboundProxyURL(cfg config.Config) (*url.URL, error) {
@@ -35,9 +36,20 @@ func outboundProxyURL(cfg config.Config) (*url.URL, error) {
 }
 
 func newHTTPClient(timeout time.Duration, proxyURL *url.URL) *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if proxyURL != nil {
-		transport.Proxy = http.ProxyURL(proxyURL)
+	var transport http.RoundTripper
+	if base, ok := http.DefaultTransport.(*http.Transport); ok {
+		cloned := base.Clone()
+		if proxyURL != nil {
+			cloned.Proxy = http.ProxyURL(proxyURL)
+		}
+		transport = cloned
+	} else if proxyURL != nil {
+		transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+	} else {
+		transport = http.DefaultTransport
+	}
+	if transport == nil {
+		transport = &http.Transport{}
 	}
 	return &http.Client{
 		Timeout:   timeout,
@@ -45,51 +57,72 @@ func newHTTPClient(timeout time.Duration, proxyURL *url.URL) *http.Client {
 	}
 }
 
-func outboundProxyMatchesModel(model string, patterns []string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	if model == "" {
+func NewTokenHTTPClient(cfg config.Config, selected token.Token, timeout time.Duration) (*http.Client, error) {
+	cfg = config.Normalize(cfg)
+	outboundProxy, err := outboundProxyURL(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if outboundProxy != nil && outboundProxyMatchesToken(selected, cfg) {
+		return newHTTPClient(timeout, outboundProxy), nil
+	}
+	return newHTTPClient(timeout, nil), nil
+}
+
+func outboundProxyMatchesRoute(route routeInfo, cfg config.Config) bool {
+	cfg = config.Normalize(cfg)
+	return outboundProxyMatchesProvider(route.Provider, cfg.OutboundProxyProviders)
+}
+
+func outboundProxyMatchesToken(selected token.Token, cfg config.Config) bool {
+	return outboundProxyMatchesRoute(routeInfo{
+		Provider:       selected.Provider,
+		CredentialType: selected.CredentialType,
+	}, cfg)
+}
+
+func outboundProxyMatchesProvider(provider string, providers []string) bool {
+	provider = normalizeOutboundProxyProvider(provider)
+	if provider == "" {
 		return false
 	}
-	for _, pattern := range patterns {
-		pattern = strings.ToLower(strings.TrimSpace(pattern))
-		if pattern == "" {
-			continue
-		}
-		if pattern == "*" || pattern == "all" {
-			return true
-		}
-		if wildcardMatch(pattern, model) {
+	for _, item := range providers {
+		if normalizeOutboundProxyProvider(item) == provider {
 			return true
 		}
 	}
 	return false
 }
 
-func wildcardMatch(pattern string, value string) bool {
-	if !strings.Contains(pattern, "*") {
-		return pattern == value
+func normalizeOutboundProxyProvider(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case token.ProviderOpenAI, "codex":
+		return token.ProviderOpenAI
+	case token.ProviderAnthropic, "claude":
+		return token.ProviderAnthropic
+	case token.ProviderDeepSeek:
+		return token.ProviderDeepSeek
+	case token.ProviderKimi:
+		return token.ProviderKimi
+	case token.ProviderXiaomi, "mimo":
+		return token.ProviderXiaomi
+	case token.ProviderZhipu, "glm":
+		return token.ProviderZhipu
+	case token.ProviderMiniMax:
+		return token.ProviderMiniMax
+	case token.ProviderGemini, "google":
+		return token.ProviderGemini
+	case token.ProviderOpenRouter:
+		return token.ProviderOpenRouter
+	case token.ProviderTokenRouter:
+		return token.ProviderTokenRouter
+	case token.ProviderSub2API:
+		return token.ProviderSub2API
+	case token.ProviderZo, "zocomputer", "zo-computer":
+		return token.ProviderZo
+	case token.ProviderCustom:
+		return token.ProviderCustom
+	default:
+		return ""
 	}
-	anchoredStart := !strings.HasPrefix(pattern, "*")
-	anchoredEnd := !strings.HasSuffix(pattern, "*")
-	parts := strings.Split(pattern, "*")
-	offset := 0
-	lastMatched := ""
-	for index, part := range parts {
-		if part == "" {
-			continue
-		}
-		found := strings.Index(value[offset:], part)
-		if found < 0 {
-			return false
-		}
-		if index == 0 && anchoredStart && found != 0 {
-			return false
-		}
-		offset += found + len(part)
-		lastMatched = part
-	}
-	if anchoredEnd && lastMatched != "" && !strings.HasSuffix(value, lastMatched) {
-		return false
-	}
-	return true
 }
