@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"OmniProxyBackend/internal/claudedesktop"
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
@@ -2320,6 +2321,79 @@ func TestMapZoModelMatchesVisibleLabels(t *testing.T) {
 		if got := mapZoModel(clientModel, models); got != expected {
 			t.Fatalf("mapZoModel(%q) = %q, want %q", clientModel, got, expected)
 		}
+	}
+}
+
+func TestServiceRoutesClaudeDesktopZoModelThroughZoGateway(t *testing.T) {
+	localAppData := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", localAppData)
+
+	paths, err := claudedesktop.CurrentPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := claudedesktop.WriteRoutes(paths.RoutesPath, []claudedesktop.ModelRoute{
+		{RouteID: "claude-sonnet-4-6", UpstreamModel: "claude-opus-4-7", LabelOverride: "Zo Claude Opus 4.7"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var askBody map[string]any
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer zo_sk_test_token" {
+			t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+		}
+		switch r.URL.Path {
+		case "/models/available":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"models":[{"model_name":"anthropic/claude-opus-4-7","label":"Opus 4.7","vendor":"anthropic"}]}`))
+		case "/zo/ask":
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &askBody); err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"output":"hello from desktop zo"}`))
+		default:
+			t.Fatalf("unexpected zo path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "zo", Provider: token.ProviderZo, TokenValue: "zo_sk_test_token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ZoBaseURL:       upstream.URL,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/claude-desktop/v1/messages", stringsReader(`{
+		"model":"claude-sonnet-4-6",
+		"messages":[{"role":"user","content":"hi"}]
+	}`))
+	req.Header.Set("Authorization", "Bearer "+claudedesktop.GatewayToken)
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if askBody["model_name"] != "anthropic/claude-opus-4-7" {
+		t.Fatalf("expected Claude Desktop route to use Zo Claude model, got body=%#v", askBody)
 	}
 }
 

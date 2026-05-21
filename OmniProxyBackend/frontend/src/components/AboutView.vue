@@ -323,6 +323,7 @@ function formatBytes(value) {
           </div>
           <div class="about-actions">
             <el-button
+              class="about-check-update-button"
               type="primary"
               :icon="RefreshRight"
               :disabled="isDevelopmentBuild"

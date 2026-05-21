@@ -1948,18 +1948,70 @@ func TestConfigureClaudeDesktopModelsUsesSelectedModels(t *testing.T) {
 	}
 }
 
+func TestConfigureClaudeDesktopModelsSupportsZoModels(t *testing.T) {
+	localAppData := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", localAppData)
+
+	server := &appServer{
+		cfg:  config.Config{ProxyPort: 3000},
+		logs: logs.NewRecorder(10),
+	}
+	result, err := server.configureClaudeDesktopModels(claudeModelsConfigureRequest{
+		Models: []string{"claude-opus-4-7", "claude-sonnet-4-6"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Model != zoClaudeModel {
+		t.Fatalf("expected primary Zo model %q, got %q", zoClaudeModel, result.Model)
+	}
+
+	paths, err := claudedesktop.CurrentPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := readJSONObject(paths.ProfilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	models, ok := profile["inferenceModels"].([]any)
+	if !ok || len(models) != 2 {
+		t.Fatalf("expected 2 desktop models, got %#v", profile["inferenceModels"])
+	}
+	first := models[0].(map[string]any)
+	if first["name"] != "claude-sonnet-4-6" || first["labelOverride"] != "Zo Claude Opus 4.7" {
+		t.Fatalf("unexpected first Zo desktop model: %#v", first)
+	}
+	second := models[1].(map[string]any)
+	if second["name"] != "claude-opus-4-7" || second["labelOverride"] != "Zo Claude Sonnet 4.6" {
+		t.Fatalf("unexpected second Zo desktop model: %#v", second)
+	}
+
+	routes, err := claudedesktop.LoadRoutes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 2 || routes[0].UpstreamModel != zoClaudeModel || routes[1].UpstreamModel != zoClaudeSonnetModel {
+		t.Fatalf("unexpected Zo desktop routes: %#v", routes)
+	}
+}
+
 func TestNormalizeClaudeModelTargetsValidatesSelection(t *testing.T) {
 	targets, err := normalizeClaudeModelTargets([]string{
 		"deepseek-4-pro",
 		"deepseek-v4-pro[1m]",
 		"mimo-2.5-pro",
 		"kimi-for-coding",
+		"claude-opus-4-7",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	models := claudeModelIDs(targets)
-	expected := []string{deepSeekProModel, mimoModel, kimiCodingModel}
+	expected := []string{deepSeekProModel, mimoModel, kimiCodingModel, zoClaudeModel}
 	if !reflect.DeepEqual(models, expected) {
 		t.Fatalf("expected normalized models %#v, got %#v", expected, models)
 	}

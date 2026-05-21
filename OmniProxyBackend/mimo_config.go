@@ -549,6 +549,8 @@ func claudeSelectableTargets() []claudeModelTarget {
 		},
 		claudeKimiTarget,
 		claudeZhipuTarget,
+		claudeZoTarget,
+		claudeZoSonnetTarget,
 	}
 }
 
@@ -802,7 +804,9 @@ func isKnownRouterDefaultModel(value string) bool {
 		strings.EqualFold(model, deepSeekProModel) ||
 		strings.EqualFold(model, deepSeekFastModel) ||
 		strings.EqualFold(model, kimiCodingModel) ||
-		strings.EqualFold(model, zhipuGLMModel)
+		strings.EqualFold(model, zhipuGLMModel) ||
+		strings.EqualFold(model, zoClaudeModel) ||
+		strings.EqualFold(model, zoClaudeSonnetModel)
 }
 
 func writeMimoClaudeOnboarding(path string) error {

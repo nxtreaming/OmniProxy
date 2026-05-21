@@ -293,6 +293,9 @@ func providerForModel(model string) string {
 	if strings.HasPrefix(model, "minimax-") {
 		return token.ProviderMiniMax
 	}
+	if model == "claude-opus-4-7" || model == "claude-sonnet-4-6" {
+		return token.ProviderZo
+	}
 	return token.ProviderAnthropic
 }
 

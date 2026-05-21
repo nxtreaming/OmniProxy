@@ -4792,6 +4792,24 @@ tr:last-child td {
   gap: 8px;
 }
 
+.about-check-update-button.el-button {
+  --el-button-text-color: #ffffff;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-text-color: #ffffff;
+}
+
+.about-check-update-button.el-button.is-disabled,
+.about-check-update-button.el-button.is-disabled:hover,
+.about-check-update-button.el-button.is-disabled:focus {
+  --el-button-disabled-text-color: color-mix(in srgb, #ffffff 76%, var(--brand));
+  --el-button-disabled-bg-color: color-mix(in srgb, var(--brand) 28%, var(--surface));
+  --el-button-disabled-border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  color: var(--el-button-disabled-text-color);
+  background-color: var(--el-button-disabled-bg-color);
+  border-color: var(--el-button-disabled-border-color);
+  box-shadow: none;
+}
+
 .update-status-box {
   margin-top: 18px;
   display: grid;
@@ -5086,8 +5104,165 @@ tr:last-child td {
   justify-content: flex-start;
 }
 
+.first-run-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 12, 20, 0.56);
+}
+
+.first-run-dialog {
+  width: min(720px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.3);
+}
+
+.first-run-head,
+.first-run-actions,
+.first-run-actions > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.first-run-head,
+.first-run-actions {
+  justify-content: space-between;
+}
+
+.first-run-head h2 {
+  color: var(--text-strong);
+  font-size: 20px;
+}
+
+.first-run-head p,
+.first-run-body p,
+.first-run-endpoint span {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.first-run-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.first-run-progress button {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.first-run-progress span,
+.first-run-step {
+  color: var(--brand-strong);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.first-run-progress strong {
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.first-run-progress button.active {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface));
+}
+
+.first-run-progress button.done {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--line));
+}
+
+.first-run-body {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.first-run-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  border-radius: 8px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.first-run-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.first-run-body h3 {
+  margin: 3px 0 6px;
+  color: var(--text-strong);
+  font-size: 18px;
+}
+
+.first-run-endpoint {
+  width: fit-content;
+  margin-top: 12px;
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.first-run-endpoint code {
+  color: var(--text-strong);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  overflow-wrap: anywhere;
+}
+
+.first-run-actions {
+  align-items: center;
+  padding-top: 2px;
+}
+
+.help-page {
+  display: grid;
+  gap: 14px;
+}
+
+.help-intro-panel {
+  padding: 16px 18px;
+}
+
+.help-intro-panel .section-heading {
+  margin-bottom: 0;
+}
+
 .help-guide {
-  margin-top: 18px;
   display: grid;
   gap: 14px;
 }
@@ -5284,6 +5459,114 @@ tr:last-child td {
 .help-troubleshooting-list {
   display: grid;
   gap: 8px;
+}
+
+.endpoint-reference {
+  display: grid;
+  gap: 12px;
+}
+
+.endpoint-reference-note,
+.endpoint-group,
+.endpoint-row {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.endpoint-reference-note {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+}
+
+.endpoint-reference-note strong,
+.endpoint-group-head strong,
+.endpoint-main strong {
+  color: var(--text-strong);
+}
+
+.endpoint-reference-note p,
+.endpoint-group-head p,
+.endpoint-main p {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.endpoint-reference code,
+.endpoint-fields code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.endpoint-group {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+}
+
+.endpoint-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.endpoint-group-head strong {
+  display: block;
+  font-size: 15px;
+}
+
+.endpoint-table {
+  display: grid;
+  gap: 8px;
+}
+
+.endpoint-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.66fr) minmax(0, 1.34fr);
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.endpoint-main {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.endpoint-fields {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.endpoint-fields > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.endpoint-fields span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.endpoint-fields code,
+.endpoint-reference-note code {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  font-size: 12px;
 }
 
 .help-route-list article {
@@ -7430,6 +7713,10 @@ h1 {
   .help-readiness-grid,
   .help-flow,
   .help-credential-grid,
+  .first-run-progress,
+  .first-run-body,
+  .endpoint-row,
+  .endpoint-fields > div,
   .claude-model-picker,
   .claude-action-row,
   .about-page,
@@ -7519,6 +7806,12 @@ h1 {
   .help-route-list article {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .first-run-head,
+  .first-run-actions,
+  .first-run-actions > div {
+    flex-direction: column;
   }
 
   .version-hero {
@@ -8787,6 +9080,7 @@ button:disabled,
 .report-preview-modal,
 .modal,
 .diagnostic-drawer,
+.first-run-dialog,
 .danger-confirm {
   border-color: color-mix(in srgb, var(--line) 72%, transparent);
   background:
@@ -8797,6 +9091,7 @@ button:disabled,
 .shell.dark .report-preview-modal,
 .shell.dark .modal,
 .shell.dark .diagnostic-drawer,
+.shell.dark .first-run-dialog,
 .shell.dark .danger-confirm {
   box-shadow: 0 26px 68px rgba(0, 0, 0, 0.44);
 }
@@ -8862,6 +9157,13 @@ button:disabled,
 }
 
 .help-panel,
+.first-run-body,
+.first-run-progress button,
+.first-run-endpoint,
+.endpoint-reference-note,
+.endpoint-group,
+.endpoint-row,
+.endpoint-fields code,
 .help-grid article,
 .help-readiness-card,
 .help-section-block,
@@ -8878,6 +9180,8 @@ button:disabled,
 }
 
 .help-grid article,
+.first-run-progress button,
+.endpoint-row,
 .help-readiness-card,
 .help-flow-step,
 .help-credential-grid article,
@@ -8892,6 +9196,8 @@ button:disabled,
 }
 
 .help-grid article:hover,
+.first-run-progress button:hover,
+.endpoint-row:hover,
 .help-readiness-card:hover,
 .help-flow-step:hover,
 .help-credential-grid article:hover,
@@ -8905,6 +9211,8 @@ button:disabled,
 
 .help-code,
 .help-grid code,
+.endpoint-reference-note code,
+.endpoint-fields code,
 .help-credential-grid code,
 .help-route-list code,
 .release-note-code {
@@ -9070,6 +9378,8 @@ button:disabled,
   .log-row:hover,
   .danger-button:hover:not(:disabled),
   .help-grid article:hover,
+  .first-run-progress button:hover,
+  .endpoint-row:hover,
   .help-readiness-card:hover,
   .help-flow-step:hover,
   .help-credential-grid article:hover,

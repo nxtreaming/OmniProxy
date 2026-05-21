@@ -177,6 +177,7 @@ const deleteBusy = ref(false)
 const toastAutoCloseMs = 4000
 const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
 const appThemeStorageKey = 'omniproxy.appTheme'
+const firstUseGuideStorageKey = 'omniproxy.firstRunGuideModalDismissed'
 let toastTimer = null
 let realtimeTimer = null
 let updateCheckTimer = null
@@ -199,6 +200,8 @@ const openRouterModelsLoading = ref(false)
 const openRouterModelsError = ref('')
 const selectedOpenRouterChatModel = ref('')
 const selectedHistoryEntry = ref(null)
+const firstUseGuideVisible = ref(window.localStorage?.getItem(firstUseGuideStorageKey) !== '1')
+const firstUseGuideStepIndex = ref(0)
 const subscriptionQuotaPage = ref(0)
 const apiQuotaPage = ref(0)
 const proxyStatus = reactive({ running: false, port: 3000 })
@@ -284,6 +287,16 @@ const claudeModelOptions = [
     label: 'GLM-5.1',
     description: 'glm-5.1',
   },
+  {
+    id: 'claude-opus-4-7',
+    label: 'Zo Claude Opus 4.7',
+    description: 'claude-opus-4-7',
+  },
+  {
+    id: 'claude-sonnet-4-6',
+    label: 'Zo Claude Sonnet 4.6',
+    description: 'claude-sonnet-4-6',
+  },
 ]
 const selectedClaudeModels = ref([])
 const appInfo = reactive({
@@ -344,6 +357,33 @@ const selectedClaudeModelLabels = computed(() =>
 const canConfigureClaudeModels = computed(
   () => selectedClaudeModels.value.length > 0 && selectedClaudeModels.value.length <= claudeModelSelectionLimit,
 )
+const firstUseGuideSteps = [
+  {
+    step: '01',
+    title: '添加上游账号',
+    description: '先在账号管理里添加至少一个可用凭据。Codex auth.json、Claude OAuth JSON、API Key、Zo Access Token 都从这里进入。',
+    actionLabel: '打开账号管理',
+    actionKey: 'tokens',
+    icon: Key,
+  },
+  {
+    step: '02',
+    title: '启动本地代理',
+    description: '代理启动后，客户端只需要连接本机 loopback 地址；真实凭据由 OmniProxy 在请求转发时注入。',
+    actionLabel: '启动代理',
+    actionKey: 'proxy',
+    icon: SwitchButton,
+  },
+  {
+    step: '03',
+    title: '写入客户端配置',
+    description: '用一键配置把 Codex、Claude Code、Claude Desktop、OpenCode、Pi、Gemini 等客户端指向 OmniProxy。',
+    actionLabel: '打开一键配置',
+    actionKey: 'quickstart',
+    icon: MagicStick,
+  },
+]
+const currentFirstUseGuideStep = computed(() => firstUseGuideSteps[firstUseGuideStepIndex.value] || firstUseGuideSteps[0])
 const dashboardSignals = computed(() => [
   {
     label: '代理端口',
@@ -396,48 +436,216 @@ const helpReadinessCards = computed(() => [
     icon: Memo,
   },
 ])
-const helpLocalRoutes = computed(() => {
+const thirdPartyEndpointGroups = computed(() => {
   const base = `http://127.0.0.1:${proxyStatus.port || config.proxyPort}`
   return [
     {
-      name: 'OpenAI 兼容',
-      url: base,
-      use: '通用 OpenAI SDK、TokenRouter 和自定义兼容客户端。',
+      title: 'OpenAI 兼容客户端',
+      note: 'Cherry Studio、Open WebUI、Continue、Chatbox 等支持 OpenAI-compatible 的客户端优先看这里。',
+      endpoints: [
+        {
+          name: 'OmniProxy OpenAI',
+          protocol: 'OpenAI Chat / Responses',
+          baseUrl: `${base}/v1`,
+          apiKey: 'omniproxy-local',
+          models: '使用 OpenAI 账号池里的模型名，例如 gpt-5.4',
+          use: '通用 OpenAI 兼容入口，适合自定义客户端直接接入。',
+        },
+        {
+          name: 'Codex Chat',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/codex/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'gpt-5.5 / gpt-5.4',
+          use: '用 Codex auth.json 账号承接 Chat Completions 请求。',
+        },
+        {
+          name: 'Zo Computer',
+          protocol: 'OpenAI Chat / Responses',
+          baseUrl: `${base}/zo/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'gpt-5.5 / gpt-5.4 / claude-opus-4-7 / gemini-3.1-pro / glm-5',
+          use: '适合把 Zo Token 暴露给 Cherry Studio 这类 OpenAI-compatible 客户端。',
+        },
+        {
+          name: 'OpenRouter',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/openrouter/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'openrouter/auto 或 OpenRouter 模型 ID',
+          use: '使用 OpenRouter API Key 账号池。',
+        },
+        {
+          name: 'TokenRouter',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/tokenrouter/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'auto:balance / auto:quality / auto:speed / auto:cost',
+          use: '使用 TokenRouter API Key 账号池和自动路由模型。',
+        },
+        {
+          name: 'sub2api',
+          protocol: 'OpenAI Chat / Responses',
+          baseUrl: `${base}/sub2api/v1`,
+          apiKey: 'omniproxy-local',
+          models: '由 sub2api 上游决定',
+          use: '转发到 sub2api OpenAI 兼容网关。',
+        },
+        {
+          name: '自定义网关',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/custom/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'custom-model 或上游支持的模型名',
+          use: '转发到设置页填写的自定义 OpenAI 兼容网关。',
+        },
+      ],
     },
     {
-      name: 'Codex backend',
-      url: `${base}/backend-api/codex`,
-      use: 'Codex CLI backend API，使用 OpenAI Codex auth.json 账号。',
+      title: 'Anthropic / Claude 兼容客户端',
+      note: '适合支持 Anthropic Messages API 的客户端。Claude Desktop 建议用一键配置写入 3P Gateway Profile。',
+      endpoints: [
+        {
+          name: 'Claude Router',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/anthropic-router`,
+          apiKey: 'omniproxy',
+          models: 'deepseek-v4-pro[1m] / kimi-for-coding / glm-5.1 / claude-opus-4-7',
+          use: '按模型分流到 DeepSeek、MiMo、Kimi、GLM、Zo 或 Anthropic。',
+        },
+        {
+          name: 'Anthropic 官方账号池',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/anthropic/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'Claude 模型名',
+          use: '使用 Anthropic API Key 或 Claude OAuth JSON 账号池。',
+        },
+        {
+          name: 'Zo Anthropic',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/zo/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'claude-opus-4-7 / claude-sonnet-4-6',
+          use: '用 Zo Token 适配 Anthropic Messages 请求。',
+        },
+        {
+          name: 'sub2api Anthropic',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/sub2api/anthropic/v1`,
+          apiKey: 'omniproxy-local',
+          models: '由 sub2api 上游决定',
+          use: '转发到 sub2api Anthropic 兼容入口。',
+        },
+        {
+          name: '自定义 Anthropic 网关',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/custom/anthropic/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'custom-model 或上游支持的模型名',
+          use: '转发到设置页填写的自定义 Anthropic 兼容网关。',
+        },
+      ],
     },
     {
-      name: 'Codex Chat',
-      url: `${base}/codex/v1`,
-      use: '把 Chat Completions 请求转换到 Codex Responses 后端。',
+      title: '厂商直连与原生协议',
+      note: '当客户端明确支持某个厂商协议，或你想固定走某个账号池时使用。',
+      endpoints: [
+        {
+          name: 'DeepSeek',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/deepseek/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'deepseek-v4-pro / deepseek-v4-flash',
+          use: '固定使用 DeepSeek API Key 账号池。',
+        },
+        {
+          name: 'Kimi',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/kimi/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'kimi-for-coding',
+          use: '固定使用 Kimi API Key 账号池。',
+        },
+        {
+          name: 'Xiaomi MiMo',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/xiaomi/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'mimo-v2.5-pro / mimo-v2.5',
+          use: '固定使用 MiMo API Key 或 Token Plan 账号池。',
+        },
+        {
+          name: 'Zhipu GLM',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/zhipu/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'glm-5.1',
+          use: '固定使用 Zhipu GLM 账号池。',
+        },
+        {
+          name: 'MiniMax',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/minimax/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'MiniMax-M2.7',
+          use: '固定使用 MiniMax API Key 账号池。',
+        },
+        {
+          name: 'Gemini Native',
+          protocol: 'Gemini API',
+          baseUrl: `${base}/gemini`,
+          apiKey: 'omniproxy-local',
+          models: 'gemini-3-pro-preview / gemini-3-flash-preview',
+          use: '用于支持 Gemini 原生 API 的客户端。',
+        },
+        {
+          name: 'sub2api Gemini',
+          protocol: 'Gemini API',
+          baseUrl: `${base}/sub2api/gemini`,
+          apiKey: 'omniproxy-local',
+          models: '由 sub2api 上游决定',
+          use: '转发到 sub2api Gemini 兼容入口。',
+        },
+      ],
     },
     {
-      name: 'Claude router',
-      url: `${base}/anthropic-router`,
-      use: 'Claude Code 或 Anthropic 兼容客户端，按模型分流到 DeepSeek、MiMo、Kimi、GLM 等上游。',
-    },
-    {
-      name: 'Gemini',
-      url: `${base}/gemini`,
-      use: 'Gemini CLI 和 Gemini 原生 API 路由。',
-    },
-    {
-      name: 'sub2api',
-      url: `${base}/sub2api`,
-      use: 'sub2api OpenAI / Codex 入口，另有 /anthropic 与 /gemini 子路由。',
-    },
-    {
-      name: 'Zo Computer',
-      url: `${base}/zo`,
-      use: 'Zo Access Token 本地入口，支持 OpenAI Chat 与 Anthropic Messages 兼容路径。',
-    },
-    {
-      name: 'Pi router',
-      url: `${base}/pi-router/v1`,
-      use: 'Pi Coding Agent 按 provider 和模型自动分流。',
+      title: '编程工具路由',
+      note: '这些入口也可手动配置，但通常优先使用“一键配置”。',
+      endpoints: [
+        {
+          name: 'Codex backend',
+          protocol: 'Codex backend',
+          baseUrl: `${base}/backend-api/codex`,
+          apiKey: 'omniproxy-local',
+          models: 'gpt-5.5 / gpt-5.4',
+          use: 'Codex CLI backend API，使用 OpenAI Codex auth.json 账号。',
+        },
+        {
+          name: 'OpenCode Router',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/opencode-router/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'gpt-5.4 / deepseek-v4-pro / glm-5.1 / mimo-v2.5-pro',
+          use: 'OpenCode 按模型自动分流。',
+        },
+        {
+          name: 'Pi Router',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/pi-router/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'gpt-5.4 / auto:balance / openrouter/auto / custom-model',
+          use: 'Pi Coding Agent 按 provider 和模型自动分流。',
+        },
+        {
+          name: 'Claude Desktop Gateway',
+          protocol: 'Claude Desktop 3P Gateway',
+          baseUrl: `${base}/claude-desktop`,
+          apiKey: 'omniproxy-claude-desktop',
+          models: '由 Claude Desktop Profile 映射决定',
+          use: '仅用于 Claude Desktop 3P Gateway；建议通过一键配置写入。',
+        },
+      ],
     },
   ]
 })
@@ -1013,6 +1221,65 @@ function openBillingView() {
     return
   }
   activeTab.value = 'billing'
+}
+
+function openFirstTokenForm() {
+  activeTab.value = 'tokens'
+  openCreateForm('openai')
+}
+
+function closeFirstUseGuide() {
+  firstUseGuideVisible.value = false
+  window.localStorage?.setItem(firstUseGuideStorageKey, '1')
+}
+
+function previousFirstUseGuideStep() {
+  firstUseGuideStepIndex.value = Math.max(0, firstUseGuideStepIndex.value - 1)
+}
+
+function nextFirstUseGuideStep() {
+  if (firstUseGuideStepIndex.value >= firstUseGuideSteps.length - 1) {
+    closeFirstUseGuide()
+    return
+  }
+  firstUseGuideStepIndex.value += 1
+}
+
+function runFirstUseGuideAction() {
+  const step = currentFirstUseGuideStep.value
+  closeFirstUseGuide()
+  if (step.actionKey === 'tokens') {
+    openFirstTokenForm()
+  } else if (step.actionKey === 'proxy') {
+    if (!proxyStatus.running) {
+      toggleProxy()
+    }
+  } else if (step.actionKey === 'quickstart') {
+    activeTab.value = 'quickstart'
+  }
+}
+
+async function copyEndpointValue(value, label) {
+  const text = String(value || '').trim()
+  if (!text) return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.setAttribute('readonly', '')
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    successMessage.value = `${label || '内容'}已复制`
+  } catch (error) {
+    errorMessage.value = `复制失败：${error.message}`
+  }
 }
 
 function openCreateForm(provider = 'openai') {
@@ -3591,11 +3858,13 @@ api_key = "omniproxy-local"</code></pre>
         </div>
       </section>
 
-      <section v-else-if="activeTab === 'help'" key="help" class="panel help-panel">
-        <div class="section-heading">
-          <div>
-            <h2>使用说明</h2>
-            <p>围绕账号池、调度策略、本地路由和诊断日志完成一次可验证的接入流程</p>
+      <section v-else-if="activeTab === 'help'" key="help" class="help-page">
+        <div class="panel help-intro-panel">
+          <div class="section-heading">
+            <div>
+              <h2>使用说明</h2>
+              <p>围绕账号池、调度策略、本地路由和诊断日志完成一次可验证的接入流程</p>
+            </div>
           </div>
         </div>
 
@@ -3667,18 +3936,55 @@ api_key = "omniproxy-local"</code></pre>
             <div class="help-section-title">
               <Monitor class="help-section-icon" aria-hidden="true" />
               <div>
-                <strong>本地入口速查</strong>
-                <p>把客户端 Base URL 指向对应入口即可，真实上游鉴权由 OmniProxy 注入。</p>
+                <strong>第三方客户端接口</strong>
+                <p>Cherry Studio 这类客户端一般选择 OpenAI-compatible provider，填写 Base URL、任意非空 API Key 和模型名即可。</p>
               </div>
             </div>
-            <div class="help-route-list">
-              <article v-for="route in helpLocalRoutes" :key="route.name">
-                <div>
-                  <strong>{{ route.name }}</strong>
-                  <p>{{ route.use }}</p>
+            <div class="endpoint-reference">
+              <div class="endpoint-reference-note">
+                <strong>Cherry Studio 推荐</strong>
+                <p>OpenAI 兼容：Base URL 填 <code>http://127.0.0.1:{{ proxyStatus.port || config.proxyPort }}/v1</code>；Zo Computer 填 <code>http://127.0.0.1:{{ proxyStatus.port || config.proxyPort }}/zo/v1</code>；API Key 填 <code>omniproxy-local</code>。</p>
+              </div>
+              <section v-for="group in thirdPartyEndpointGroups" :key="group.title" class="endpoint-group">
+                <div class="endpoint-group-head">
+                  <div>
+                    <strong>{{ group.title }}</strong>
+                    <p>{{ group.note }}</p>
+                  </div>
                 </div>
-                <code>{{ route.url }}</code>
-              </article>
+                <div class="endpoint-table">
+                  <article v-for="endpoint in group.endpoints" :key="`${group.title}-${endpoint.name}`" class="endpoint-row">
+                    <div class="endpoint-main">
+                      <span class="tag muted">{{ endpoint.protocol }}</span>
+                      <strong>{{ endpoint.name }}</strong>
+                      <p>{{ endpoint.use }}</p>
+                    </div>
+                    <div class="endpoint-fields">
+                      <div>
+                        <span>Base URL</span>
+                        <code>{{ endpoint.baseUrl }}</code>
+                        <button type="button" class="ghost-button compact-button" @click="copyEndpointValue(endpoint.baseUrl, 'Base URL')">
+                          复制
+                        </button>
+                      </div>
+                      <div>
+                        <span>API Key</span>
+                        <code>{{ endpoint.apiKey }}</code>
+                        <button type="button" class="ghost-button compact-button" @click="copyEndpointValue(endpoint.apiKey, 'API Key')">
+                          复制
+                        </button>
+                      </div>
+                      <div>
+                        <span>模型</span>
+                        <code>{{ endpoint.models }}</code>
+                        <button type="button" class="ghost-button compact-button" @click="copyEndpointValue(endpoint.models, '模型')">
+                          复制
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -3711,6 +4017,69 @@ api_key = "omniproxy-local"</code></pre>
         :provider-label="providerLabel"
         @close="closeHistoryDiagnosis"
       />
+
+      <Transition name="modal-pop" appear>
+        <div v-if="firstUseGuideVisible" class="first-run-backdrop" @click.self="closeFirstUseGuide">
+          <section class="first-run-dialog" role="dialog" aria-modal="true" aria-labelledby="first-run-title">
+            <div class="first-run-head">
+              <div>
+                <span class="section-kicker">首次使用</span>
+                <h2 id="first-run-title">3 步完成 OmniProxy 接入</h2>
+                <p>这个向导只会自动显示一次；后续可以在“使用说明”和“一键配置”里查看同样的入口。</p>
+              </div>
+              <button type="button" class="ghost-button" @click="closeFirstUseGuide">跳过</button>
+            </div>
+
+            <div class="first-run-progress" aria-label="引导进度">
+              <button
+                v-for="(step, index) in firstUseGuideSteps"
+                :key="step.step"
+                type="button"
+                :class="{ active: index === firstUseGuideStepIndex, done: index < firstUseGuideStepIndex }"
+                @click="firstUseGuideStepIndex = index"
+              >
+                <span>{{ step.step }}</span>
+                <strong>{{ step.title }}</strong>
+              </button>
+            </div>
+
+            <div class="first-run-body">
+              <div class="first-run-icon">
+                <component :is="currentFirstUseGuideStep.icon" aria-hidden="true" />
+              </div>
+              <div>
+                <span class="first-run-step">{{ currentFirstUseGuideStep.step }} / 03</span>
+                <h3>{{ currentFirstUseGuideStep.title }}</h3>
+                <p>{{ currentFirstUseGuideStep.description }}</p>
+                <div class="first-run-endpoint">
+                  <span>当前本地入口</span>
+                  <code>{{ proxyEndpoint }}</code>
+                </div>
+              </div>
+            </div>
+
+            <div class="first-run-actions">
+              <button type="button" class="ghost-button" @click="closeFirstUseGuide">跳过向导</button>
+              <div>
+                <button
+                  type="button"
+                  class="ghost-button"
+                  :disabled="firstUseGuideStepIndex === 0"
+                  @click="previousFirstUseGuideStep"
+                >
+                  上一步
+                </button>
+                <button type="button" class="ghost-button" @click="runFirstUseGuideAction">
+                  {{ currentFirstUseGuideStep.actionLabel }}
+                </button>
+                <button type="button" class="primary-button" @click="nextFirstUseGuideStep">
+                  {{ firstUseGuideStepIndex >= firstUseGuideSteps.length - 1 ? '完成' : '下一步' }}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </Transition>
 
       <Transition name="modal-pop" appear>
         <TokenEditorModal
