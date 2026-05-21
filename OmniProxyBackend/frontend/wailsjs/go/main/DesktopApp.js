@@ -138,10 +138,6 @@ export function ImportAPIKeys(arg1) {
   return window['go']['main']['DesktopApp']['ImportAPIKeys'](arg1);
 }
 
-export function ImportMimoCookieFromHAR() {
-  return window['go']['main']['DesktopApp']['ImportMimoCookieFromHAR']();
-}
-
 export function InstallDownloadedUpdate() {
   return window['go']['main']['DesktopApp']['InstallDownloadedUpdate']();
 }

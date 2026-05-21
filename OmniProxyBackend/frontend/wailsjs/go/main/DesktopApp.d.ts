@@ -73,8 +73,6 @@ export function ExportTokens():Promise<main.tokenExportResult>;
 
 export function ImportAPIKeys(arg1:main.apiKeyBatchImportRequest):Promise<main.apiKeyBatchImportResult>;
 
-export function ImportMimoCookieFromHAR():Promise<main.mimoCookieImportResult>;
-
 export function InstallDownloadedUpdate():Promise<main.updateDownloadStatus>;
 
 export function Logs():Promise<Array<main.logResponse>>;

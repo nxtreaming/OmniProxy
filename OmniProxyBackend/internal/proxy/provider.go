@@ -189,8 +189,13 @@ func ProxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 	if oldCfg.ProxyPort != nextCfg.ProxyPort ||
 		oldCfg.SchedulingMode != nextCfg.SchedulingMode ||
 		oldCfg.WebSocketMode != nextCfg.WebSocketMode ||
+		oldCfg.OutboundProxyEnabled != nextCfg.OutboundProxyEnabled ||
+		oldCfg.OutboundProxyURL != nextCfg.OutboundProxyURL ||
 		oldCfg.XiaomiCredentialPriority != nextCfg.XiaomiCredentialPriority ||
 		oldCfg.MaxRetries != nextCfg.MaxRetries {
+		return true
+	}
+	if !reflect.DeepEqual(oldCfg.OutboundProxyModels, nextCfg.OutboundProxyModels) {
 		return true
 	}
 	return !reflect.DeepEqual(proxyBaseURLFields(oldCfg), proxyBaseURLFields(nextCfg))

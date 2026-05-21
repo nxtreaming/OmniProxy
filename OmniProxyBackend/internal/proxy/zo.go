@@ -338,7 +338,7 @@ func (s *Service) zoFetch(ctx context.Context, method string, route routeInfo, s
 		}
 	}
 
-	resp, err := s.client.Do(req)
+	resp, err := s.clientForRoute(route).Do(req)
 	if err != nil {
 		return 0, nil, nil, err
 	}

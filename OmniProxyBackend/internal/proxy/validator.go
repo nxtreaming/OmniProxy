@@ -33,10 +33,8 @@ type Validator struct {
 }
 
 var (
-	mimoPlatformAPIBaseURL       = "https://platform.xiaomimimo.com/api/v1"
-	mimoTokenPlanPlatformBaseURL = "https://platform.xiaomimimo.com/api/v1/tokenPlan"
-	zhipuCodingPlanUsageURL      = "https://api.z.ai/api/monitor/usage/quota/limit"
-	zhipuAPIBalanceURL           = "https://bigmodel.cn/api/biz/tokenAccounts/list/my"
+	zhipuCodingPlanUsageURL = "https://api.z.ai/api/monitor/usage/quota/limit"
+	zhipuAPIBalanceURL      = "https://bigmodel.cn/api/biz/tokenAccounts/list/my"
 )
 
 func NewValidator(cfg config.Config) (*Validator, error) {
@@ -619,9 +617,6 @@ func percent(value float64) int {
 }
 
 func (v *Validator) queryProviderQuota(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
-	if token.NormalizeProvider(selected.Provider) == token.ProviderXiaomi && selected.CredentialType == token.CredentialTypeMimoTokenPlan {
-		return v.queryMimoTokenPlanUsage(ctx, selected)
-	}
 	if token.NormalizeProvider(selected.Provider) == token.ProviderZhipu && selected.CredentialType == token.CredentialTypeCodingPlan {
 		return v.queryZhipuCodingUsage(ctx, selected)
 	}
@@ -639,173 +634,9 @@ func (v *Validator) queryProviderQuota(ctx context.Context, selected token.Token
 		return v.queryZhipuAPIBalance(ctx, selected)
 	case token.ProviderMiniMax:
 		return v.queryMiniMaxCodingUsage(ctx, selected)
-	case token.ProviderXiaomi:
-		return v.queryMimoBalance(ctx, selected)
 	default:
 		return token.UsageInfo{}, nil, false
 	}
-}
-
-func (v *Validator) queryMimoTokenPlanUsage(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
-	if strings.TrimSpace(v.cfg.XiaomiPlatformCookie) == "" {
-		return token.UsageInfo{}, nil, false
-	}
-
-	target, err := joinURLPath(mimoTokenPlanPlatformBaseURL, "/usage")
-	if err != nil {
-		return token.UsageInfo{}, nil, false
-	}
-	body, ok := v.queryMimoPlatformJSON(ctx, selected, target, "https://platform.xiaomimimo.com/console/plan-manage")
-	if !ok {
-		return token.UsageInfo{}, nil, false
-	}
-
-	payload, err := decodeObject(body)
-	if err != nil {
-		return token.UsageInfo{}, nil, false
-	}
-	data, ok := responseDataObject(payload)
-	if !ok {
-		return token.UsageInfo{}, nil, false
-	}
-
-	usage := token.UsageInfo{
-		Source:   token.ProviderXiaomi,
-		PlanType: "MiMo Token Plan",
-		Message:  "MiMo Token Plan usage",
-	}
-	primaryAvailable := false
-	secondaryAvailable := false
-
-	if used, remaining, ok := mimoUsageWindowFromMetric(data["monthUsage"]); ok {
-		usage.PrimaryUsedPercent = used
-		usage.PrimaryRemainingPercent = remaining
-		usage.SubscriptionQuotaAvailable = true
-		primaryAvailable = true
-	}
-	if used, remaining, ok := mimoUsageWindowFromMetric(data["usage"]); ok {
-		usage.SecondaryUsedPercent = used
-		usage.SecondaryRemainingPercent = remaining
-		usage.SubscriptionQuotaAvailable = true
-		secondaryAvailable = true
-	}
-	if !usage.SubscriptionQuotaAvailable {
-		return token.UsageInfo{}, nil, false
-	}
-
-	if detail, ok := v.queryMimoTokenPlanDetail(ctx, selected); ok {
-		if planName, ok := stringFromAny(detail["planName"]); ok {
-			usage.PlanType = "MiMo " + planName
-		}
-		if resetAt := unixSecondsFromAny(detail["currentPeriodEnd"]); resetAt > 0 {
-			usage.PrimaryResetAt = resetAt
-			usage.SecondaryResetAt = resetAt
-		}
-		if boolFromAny(detail["expired"], false) {
-			usage.LimitReached = true
-		}
-	}
-
-	remaining := usage.PrimaryRemainingPercent
-	if !primaryAvailable && secondaryAvailable {
-		remaining = usage.SecondaryRemainingPercent
-	}
-	if usage.LimitReached {
-		remaining = 0
-	} else {
-		usage.LimitReached = remaining <= 0
-	}
-	return usage, &remaining, true
-}
-
-func (v *Validator) queryMimoTokenPlanDetail(ctx context.Context, selected token.Token) (map[string]any, bool) {
-	target, err := joinURLPath(mimoTokenPlanPlatformBaseURL, "/detail")
-	if err != nil {
-		return nil, false
-	}
-	body, ok := v.queryMimoPlatformJSON(ctx, selected, target, "https://platform.xiaomimimo.com/console/plan-manage")
-	if !ok {
-		return nil, false
-	}
-	payload, err := decodeObject(body)
-	if err != nil {
-		return nil, false
-	}
-	return responseDataObject(payload)
-}
-
-func (v *Validator) queryMimoBalance(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
-	if strings.TrimSpace(v.cfg.XiaomiPlatformCookie) == "" {
-		return token.UsageInfo{}, nil, false
-	}
-
-	target, err := joinURLPath(mimoPlatformAPIBaseURL, "/balance")
-	if err != nil {
-		return token.UsageInfo{}, nil, false
-	}
-	body, ok := v.queryMimoPlatformJSON(ctx, selected, target, "https://platform.xiaomimimo.com/console/balance")
-	if !ok {
-		return token.UsageInfo{}, nil, false
-	}
-
-	payload, err := decodeObject(body)
-	if err != nil {
-		return token.UsageInfo{}, nil, false
-	}
-	data, ok := responseDataObject(payload)
-	if !ok {
-		return token.UsageInfo{}, nil, false
-	}
-
-	balance, ok := floatFromAny(data["balance"])
-	if !ok {
-		return token.UsageInfo{}, nil, false
-	}
-	unit := "CNY"
-	if currency, ok := stringFromAny(data["currency"]); ok {
-		unit = currency
-	}
-	remaining := 100
-	if balance <= 0 {
-		remaining = 0
-	}
-
-	return token.UsageInfo{
-		Source:           token.ProviderXiaomi,
-		BalanceRemaining: balance,
-		BalanceUnit:      unit,
-		LimitReached:     balance <= 0,
-		Message:          "MiMo account balance",
-	}, &remaining, true
-}
-
-func (v *Validator) queryMimoPlatformJSON(ctx context.Context, selected token.Token, target string, referer string) ([]byte, bool) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	if err != nil {
-		return nil, false
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Timezone", "Asia/Shanghai")
-	req.Header.Set("Referer", referer)
-	req.Header.Set("Cookie", strings.TrimSpace(v.cfg.XiaomiPlatformCookie))
-	if err := applyAuth(req.Header, selected); err != nil {
-		return nil, false
-	}
-
-	resp, err := v.client.Do(req)
-	if err != nil {
-		return nil, false
-	}
-	defer closeBody(resp.Body)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, false
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
-	if err != nil {
-		return nil, false
-	}
-	return body, true
 }
 
 func (v *Validator) queryDeepSeekBalance(ctx context.Context, selected token.Token) (token.UsageInfo, *int, bool) {
@@ -1358,67 +1189,6 @@ func (v *Validator) queryJSON(ctx context.Context, selected token.Token, target 
 		return nil, false
 	}
 	return body, true
-}
-
-func responseDataObject(payload map[string]any) (map[string]any, bool) {
-	if code, ok := floatFromAny(payload["code"]); ok && code != 0 {
-		return nil, false
-	}
-	data, ok := payload["data"].(map[string]any)
-	return data, ok
-}
-
-func mimoUsageWindowFromMetric(value any) (int, int, bool) {
-	metric, ok := value.(map[string]any)
-	if !ok {
-		return 0, 0, false
-	}
-
-	if used, ok := mimoUsagePercentFromItems(metric["items"]); ok {
-		return used, 100 - used, true
-	}
-	if used, ok := percentFromUsageRatio(metric["percent"]); ok {
-		return used, 100 - used, true
-	}
-	return 0, 0, false
-}
-
-func mimoUsagePercentFromItems(value any) (int, bool) {
-	items, ok := value.([]any)
-	if !ok {
-		return 0, false
-	}
-
-	var usedTokens float64
-	var limitTokens float64
-	for _, raw := range items {
-		item, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		limit, limitOK := floatFromAny(item["limit"])
-		used, usedOK := floatFromAny(item["used"])
-		if !limitOK || !usedOK || limit <= 0 {
-			continue
-		}
-		usedTokens += used
-		limitTokens += limit
-	}
-	if limitTokens <= 0 {
-		return 0, false
-	}
-	return percent((usedTokens / limitTokens) * 100), true
-}
-
-func percentFromUsageRatio(value any) (int, bool) {
-	ratio, ok := floatFromAny(value)
-	if !ok {
-		return 0, false
-	}
-	if ratio <= 1 {
-		ratio *= 100
-	}
-	return percent(ratio), true
 }
 
 func usageWindowFromLimit(value map[string]any) (int, int, int64, bool) {

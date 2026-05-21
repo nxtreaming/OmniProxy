@@ -4,7 +4,7 @@ import { ref } from 'vue'
 const coreUrlsExpanded = ref(false)
 const thirdPartyUrlsExpanded = ref(false)
 
-defineProps({
+const props = defineProps({
   config: {
     type: Object,
     required: true,
@@ -25,10 +25,6 @@ defineProps({
     type: Boolean,
     required: true,
   },
-  mimoCookieImporting: {
-    type: Boolean,
-    required: true,
-  },
   clearingBillingUsage: {
     type: Boolean,
     required: true,
@@ -43,10 +39,175 @@ defineEmits([
   'persist-config',
   'choose-data-directory',
   'toggle-auto-start',
-  'import-mimo-cookie',
   'clear-billing-usage',
   'clear-request-history',
 ])
+
+const outboundProxyPresets = [
+  { label: '10808 mixed', url: 'http://127.0.0.1:10808' },
+  { label: '7890 mixed', url: 'http://127.0.0.1:7890' },
+  { label: 'SOCKS5 10808', url: 'socks5://127.0.0.1:10808' },
+]
+const recommendedOutboundProxyModels = ['gpt-*', 'claude-*', 'gemini-*', '*/*']
+const outboundProxyModelGroups = [
+  {
+    title: '国内网络建议出站',
+    note: '这些模型或聚合模型 ID 通常依赖海外 API 入口，默认选中。',
+    items: [
+      {
+        key: 'openai-codex',
+        label: 'OpenAI / Codex',
+        patterns: ['gpt-*'],
+        description: 'gpt-5.5、gpt-5.4、gpt-5.4-high 等 OpenAI/Codex 模型',
+        recommended: true,
+      },
+      {
+        key: 'anthropic-claude',
+        label: 'Anthropic Claude',
+        patterns: ['claude-*'],
+        description: 'claude-opus、claude-sonnet，以及 Claude 兼容模型名',
+        recommended: true,
+      },
+      {
+        key: 'google-gemini',
+        label: 'Google Gemini',
+        patterns: ['gemini-*'],
+        description: 'gemini-3-pro-preview、gemini-3-flash-preview 等',
+        recommended: true,
+      },
+      {
+        key: 'provider-model-id',
+        label: 'OpenRouter / 聚合模型 ID',
+        patterns: ['*/*'],
+        description: 'openai/gpt、anthropic/claude、google/gemini、meta-llama/* 等带 provider/ 前缀的模型',
+        recommended: true,
+      },
+    ],
+  },
+  {
+    title: '国内通常可直连',
+    note: '这些是当前内置国内厂商模型，默认不走出站代理。',
+    items: [
+      {
+        key: 'deepseek',
+        label: 'DeepSeek',
+        patterns: ['deepseek-*'],
+        description: 'deepseek-v4-pro、deepseek-v4-flash',
+      },
+      {
+        key: 'kimi',
+        label: 'Kimi Code',
+        patterns: ['kimi-*'],
+        description: 'kimi-for-coding',
+      },
+      {
+        key: 'zhipu',
+        label: 'Zhipu GLM',
+        patterns: ['glm-*', 'zhipu-*'],
+        description: 'glm-5.1、zhipu-*',
+      },
+      {
+        key: 'minimax',
+        label: 'MiniMax',
+        patterns: ['minimax-*'],
+        description: 'MiniMax-M2.7 等',
+      },
+      {
+        key: 'mimo',
+        label: 'Xiaomi MiMo',
+        patterns: ['mimo-*'],
+        description: 'mimo-v2.5-pro、mimo-v2.5',
+      },
+    ],
+  },
+  {
+    title: '取决于你的上游',
+    note: '自定义网关、sub2api、TokenRouter 是否需要出站，取决于你配置的实际服务地址。',
+    items: [
+      {
+        key: 'tokenrouter',
+        label: 'TokenRouter 自动路由',
+        patterns: ['auto:*', 'tokenrouter:*', 'tokenrouter/*'],
+        description: 'auto:balance、auto:quality、tokenrouter/*',
+      },
+      {
+        key: 'custom',
+        label: '自定义网关模型',
+        patterns: ['custom-*'],
+        description: 'custom-model 或自定义兼容网关模型',
+      },
+    ],
+  },
+]
+
+function setOutboundProxyUrl(url) {
+  props.config.outboundProxyUrl = url
+  props.config.outboundProxyEnabled = true
+}
+
+function resetOutboundProxyModels() {
+  props.config.outboundProxyModels = [...recommendedOutboundProxyModels]
+}
+
+function toggleOutboundProxyModel(item) {
+  if (isOutboundProxyModelSelected(item)) {
+    removeOutboundProxyPatterns(item.patterns)
+  } else {
+    addOutboundProxyPatterns(item.patterns)
+  }
+}
+
+function addOutboundProxyPatterns(patterns) {
+  props.config.outboundProxyModels = normalizeOutboundProxyModels([
+    ...(Array.isArray(props.config.outboundProxyModels) ? props.config.outboundProxyModels : []),
+    ...patterns,
+  ])
+}
+
+function removeOutboundProxyPatterns(patterns) {
+  const keys = new Set(patterns.map((pattern) => String(pattern || '').trim().toLowerCase()).filter(Boolean))
+  props.config.outboundProxyModels = (Array.isArray(props.config.outboundProxyModels)
+    ? props.config.outboundProxyModels
+    : []
+  ).filter((item) => !keys.has(String(item || '').trim().toLowerCase()))
+}
+
+function isOutboundProxyModelSelected(item) {
+  return item.patterns.every((pattern) => hasOutboundProxyPattern(pattern))
+}
+
+function hasOutboundProxyPattern(pattern) {
+  const key = String(pattern || '').trim().toLowerCase()
+  return selectedOutboundProxyModels().some((item) => String(item || '').trim().toLowerCase() === key)
+}
+
+function selectedOutboundProxyModels() {
+  return Array.isArray(props.config.outboundProxyModels) ? props.config.outboundProxyModels : []
+}
+
+function selectedOutboundProxyRuleCount() {
+  return selectedOutboundProxyModels().length
+}
+
+function customOutboundProxyModels() {
+  const known = new Set(
+    outboundProxyModelGroups.flatMap((group) => group.items).flatMap((item) => item.patterns.map((pattern) => pattern.toLowerCase())),
+  )
+  return selectedOutboundProxyModels().filter((model) => !known.has(String(model || '').trim().toLowerCase()))
+}
+
+function normalizeOutboundProxyModels(models) {
+  const seen = new Set()
+  const next = []
+  for (const model of models) {
+    const value = String(model || '').trim()
+    const key = value.toLowerCase()
+    if (!value || seen.has(key)) continue
+    seen.add(key)
+    next.push(value)
+  }
+  return next
+}
 </script>
 
 <template>
@@ -157,11 +318,106 @@ defineEmits([
             <span>启用 Codex WebSocket</span>
             <input
               v-model="config.websocketMode"
+              class="toggle-input"
               type="checkbox"
               true-value="enabled"
               false-value="disabled"
             />
+            <span class="toggle-switch" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </span>
           </label>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div>
+            <h3>出站代理</h3>
+            <p>只让指定模型请求走 Clash、v2rayN 等本机代理端口，未匹配模型继续直连。</p>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <label class="toggle-field">
+            <span>启用模型出站代理</span>
+            <input v-model="config.outboundProxyEnabled" class="toggle-input" type="checkbox" />
+            <span class="toggle-switch" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+          <label>
+            <span>本机代理地址</span>
+            <input v-model="config.outboundProxyUrl" type="text" placeholder="10808 或 http://127.0.0.1:10808" />
+          </label>
+          <div class="wide-field settings-chip-field">
+            <span>常用端口</span>
+            <div class="settings-chip-list">
+              <button
+                v-for="preset in outboundProxyPresets"
+                :key="preset.url"
+                type="button"
+                class="settings-chip-button"
+                :class="{ active: config.outboundProxyUrl === preset.url }"
+                @click="setOutboundProxyUrl(preset.url)"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+            <small>Clash mixed-port 和 v2rayN mixed/http 入站可直接用 HTTP 地址；SOCKS 入站使用 socks5://。</small>
+          </div>
+          <div class="wide-field outbound-model-selector">
+            <div class="outbound-model-selector-head">
+              <div>
+                <span>走出站代理的模型</span>
+                <small>已选择 {{ selectedOutboundProxyRuleCount() }} 条匹配规则</small>
+              </div>
+              <button type="button" class="ghost-button compact-button" @click="resetOutboundProxyModels">
+                恢复国内推荐
+              </button>
+            </div>
+            <div
+              v-for="group in outboundProxyModelGroups"
+              :key="group.title"
+              class="outbound-model-group"
+            >
+              <div class="outbound-model-group-head">
+                <strong>{{ group.title }}</strong>
+                <small>{{ group.note }}</small>
+              </div>
+              <div class="outbound-model-options">
+                <button
+                  v-for="item in group.items"
+                  :key="item.key"
+                  type="button"
+                  class="outbound-model-option"
+                  :class="{ active: isOutboundProxyModelSelected(item), recommended: item.recommended }"
+                  @click="toggleOutboundProxyModel(item)"
+                >
+                  <span class="outbound-model-option-title">
+                    <strong>{{ item.label }}</strong>
+                    <em>{{ isOutboundProxyModelSelected(item) ? '走出站' : '直连' }}</em>
+                  </span>
+                  <small>{{ item.description }}</small>
+                  <code>{{ item.patterns.join(' / ') }}</code>
+                </button>
+              </div>
+            </div>
+            <div v-if="customOutboundProxyModels().length" class="settings-chip-field">
+              <span>未归类规则</span>
+              <div class="settings-chip-list">
+                <button
+                  v-for="model in customOutboundProxyModels()"
+                  :key="model"
+                  type="button"
+                  class="settings-chip-button active"
+                  @click="removeOutboundProxyPatterns([model])"
+                >
+                  {{ model }}
+                </button>
+              </div>
+              <small>这些规则来自旧配置；点击可移除。</small>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -336,25 +592,6 @@ defineEmits([
           <label class="wide-field">
             <span>Xiaomi MiMo Token Plan Anthropic Base URL（海外 SGP）</span>
             <input v-model="config.xiaomiTokenPlanSgpAnthropicBaseUrl" type="url" />
-          </label>
-          <label class="wide-field">
-            <span>Xiaomi MiMo 控制台 Cookie</span>
-            <textarea
-              v-model="config.xiaomiPlatformCookie"
-              rows="3"
-              placeholder="从 platform.xiaomimimo.com 登录态请求复制 Cookie，用于 Token Plan 额度查询"
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <small>用于读取 /api/v1/balance 和 /api/v1/tokenPlan/usage；也可以从 HAR 自动导入。</small>
-            <button
-              type="button"
-              class="ghost-button compact-button"
-              :disabled="mimoCookieImporting"
-              @click="$emit('import-mimo-cookie')"
-            >
-              {{ mimoCookieImporting ? '导入中' : '从 HAR 导入 Cookie' }}
-            </button>
           </label>
         </div>
       </section>

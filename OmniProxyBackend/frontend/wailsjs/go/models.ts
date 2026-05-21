@@ -5,6 +5,9 @@ export namespace config {
 	    controlPort: number;
 	    schedulingMode: string;
 	    websocketMode: string;
+	    outboundProxyEnabled: boolean;
+	    outboundProxyUrl: string;
+	    outboundProxyModels: string[];
 	    upstreamBaseUrl: string;
 	    openaiBaseUrl: string;
 	    anthropicBaseUrl: string;
@@ -29,7 +32,6 @@ export namespace config {
 	    xiaomiTokenPlanAnthropicBaseUrl: string;
 	    xiaomiTokenPlanSgpBaseUrl: string;
 	    xiaomiTokenPlanSgpAnthropicBaseUrl: string;
-	    xiaomiPlatformCookie?: string;
 	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
 	    switchThreshold: number;
@@ -47,6 +49,9 @@ export namespace config {
 	        this.controlPort = source["controlPort"];
 	        this.schedulingMode = source["schedulingMode"];
 	        this.websocketMode = source["websocketMode"];
+	        this.outboundProxyEnabled = source["outboundProxyEnabled"];
+	        this.outboundProxyUrl = source["outboundProxyUrl"];
+	        this.outboundProxyModels = source["outboundProxyModels"];
 	        this.upstreamBaseUrl = source["upstreamBaseUrl"];
 	        this.openaiBaseUrl = source["openaiBaseUrl"];
 	        this.anthropicBaseUrl = source["anthropicBaseUrl"];
@@ -71,7 +76,6 @@ export namespace config {
 	        this.xiaomiTokenPlanAnthropicBaseUrl = source["xiaomiTokenPlanAnthropicBaseUrl"];
 	        this.xiaomiTokenPlanSgpBaseUrl = source["xiaomiTokenPlanSgpBaseUrl"];
 	        this.xiaomiTokenPlanSgpAnthropicBaseUrl = source["xiaomiTokenPlanSgpAnthropicBaseUrl"];
-	        this.xiaomiPlatformCookie = source["xiaomiPlatformCookie"];
 	        this.xiaomiCredentialPriority = source["xiaomiCredentialPriority"];
 	        this.codexBaseUrl = source["codexBaseUrl"];
 	        this.switchThreshold = source["switchThreshold"];
@@ -126,7 +130,6 @@ export namespace config {
 	}
 
 }
-
 export namespace history {
 	
 	export class DailyUsage {
@@ -621,24 +624,6 @@ export namespace main {
 	        this.model = source["model"];
 	        this.models = source["models"];
 	        this.envConfigured = source["envConfigured"];
-	        this.message = source["message"];
-	    }
-	}
-	export class mimoCookieImportResult {
-	    path: string;
-	    matchedUrl: string;
-	    length: number;
-	    message: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new mimoCookieImportResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.path = source["path"];
-	        this.matchedUrl = source["matchedUrl"];
-	        this.length = source["length"];
 	        this.message = source["message"];
 	    }
 	}

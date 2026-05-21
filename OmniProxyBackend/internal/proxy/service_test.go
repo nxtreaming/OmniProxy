@@ -140,6 +140,71 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	}
 }
 
+func TestServiceRoutesConfiguredModelsThroughOutboundProxy(t *testing.T) {
+	upstreamHits := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHits++
+		_, _ = w.Write([]byte("direct"))
+	}))
+	defer upstream.Close()
+
+	proxyHits := 0
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHits++
+		gotURL := ""
+		if r.URL != nil {
+			gotURL = r.URL.String()
+		}
+		if r.URL == nil || r.URL.Scheme != "http" || r.URL.Host != strings.TrimPrefix(upstream.URL, "http://") {
+			t.Fatalf("expected absolute upstream URL through proxy, got %q", gotURL)
+		}
+		_, _ = w.Write([]byte("proxied"))
+	}))
+	defer proxyServer.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: "openai", TokenValue: "sk-primary-token"}); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:            3000,
+		ControlPort:          3890,
+		OpenAIBaseURL:        upstream.URL,
+		OutboundProxyEnabled: true,
+		OutboundProxyURL:     proxyServer.URL,
+		OutboundProxyModels:  []string{"gpt-5.4"},
+		SwitchThreshold:      15,
+		MaxRetries:           0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", stringsReader(`{"model":"gpt-5.4","messages":[]}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+	if res.Code != http.StatusOK || res.Body.String() != "proxied" {
+		t.Fatalf("expected proxied response, status=%d body=%q", res.Code, res.Body.String())
+	}
+	if proxyHits != 1 || upstreamHits != 0 {
+		t.Fatalf("expected only proxy hit for matched model, proxy=%d upstream=%d", proxyHits, upstreamHits)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", stringsReader(`{"model":"gpt-4.1","messages":[]}`))
+	res = httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+	if res.Code != http.StatusOK || res.Body.String() != "direct" {
+		t.Fatalf("expected direct response, status=%d body=%q", res.Code, res.Body.String())
+	}
+	if proxyHits != 1 || upstreamHits != 1 {
+		t.Fatalf("expected unmatched model to bypass proxy, proxy=%d upstream=%d", proxyHits, upstreamHits)
+	}
+}
+
 func TestServiceRetries500AndShortCoolsTransientToken(t *testing.T) {
 	attempts := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

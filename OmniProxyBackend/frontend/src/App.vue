@@ -61,7 +61,6 @@ import {
   getProxyStatus,
   getTokens,
   getUpdateDownloadStatus,
-  importMimoCookieFromHAR,
   installDownloadedUpdate,
   importAPIKeys,
   openExternalURL,
@@ -154,7 +153,6 @@ const deepSeekTUIRestoring = ref(false)
 const geminiRestoring = ref(false)
 const opencodeRestoring = ref(false)
 const piRestoring = ref(false)
-const mimoCookieImporting = ref(false)
 const refreshingProvider = ref(false)
 const dataDirChanging = ref(false)
 const autoStartChanging = ref(false)
@@ -210,6 +208,9 @@ const config = reactive({
   controlPort: 3890,
   schedulingMode: 'queue',
   websocketMode: 'enabled',
+  outboundProxyEnabled: false,
+  outboundProxyUrl: 'http://127.0.0.1:10808',
+  outboundProxyModels: ['gpt-*', 'claude-*', 'gemini-*', '*/*'],
   upstreamBaseUrl: 'https://api.openai.com',
   openaiBaseUrl: 'https://api.openai.com',
   anthropicBaseUrl: 'https://api.anthropic.com',
@@ -234,7 +235,6 @@ const config = reactive({
   xiaomiTokenPlanAnthropicBaseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
   xiaomiTokenPlanSgpBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1',
   xiaomiTokenPlanSgpAnthropicBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/anthropic',
-  xiaomiPlatformCookie: '',
   xiaomiCredentialPriority: 'mimo_token_plan',
   codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
   codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
@@ -1807,6 +1807,9 @@ async function persistConfig() {
       controlPort: Number(config.controlPort),
       schedulingMode: config.schedulingMode,
       websocketMode: config.websocketMode,
+      outboundProxyEnabled: Boolean(config.outboundProxyEnabled),
+      outboundProxyUrl: config.outboundProxyUrl.trim(),
+      outboundProxyModels: Array.isArray(config.outboundProxyModels) ? config.outboundProxyModels : [],
       upstreamBaseUrl: config.upstreamBaseUrl.trim(),
       openaiBaseUrl: config.openaiBaseUrl.trim(),
       anthropicBaseUrl: config.anthropicBaseUrl.trim(),
@@ -1831,7 +1834,6 @@ async function persistConfig() {
       xiaomiTokenPlanAnthropicBaseUrl: config.xiaomiTokenPlanAnthropicBaseUrl.trim(),
       xiaomiTokenPlanSgpBaseUrl: config.xiaomiTokenPlanSgpBaseUrl.trim(),
       xiaomiTokenPlanSgpAnthropicBaseUrl: config.xiaomiTokenPlanSgpAnthropicBaseUrl.trim(),
-      xiaomiPlatformCookie: config.xiaomiPlatformCookie.trim(),
       xiaomiCredentialPriority: config.xiaomiCredentialPriority,
       codexBaseUrl: config.codexBaseUrl.trim(),
       codexUsageEndpoint: config.codexUsageEndpoint.trim(),
@@ -1896,22 +1898,6 @@ async function clearRequestHistoryData() {
     }
   } finally {
     clearingRequestHistory.value = false
-  }
-}
-
-async function importMimoCookie() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  mimoCookieImporting.value = true
-  try {
-    const result = await importMimoCookieFromHAR()
-    const loadedConfig = await getConfig()
-    Object.assign(config, loadedConfig)
-    successMessage.value = `${result.message || 'MiMo Cookie 已导入'}，长度 ${result.length || 0}`
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    mimoCookieImporting.value = false
   }
 }
 
@@ -3622,13 +3608,11 @@ async function refreshQuota(item) {
         :data-dir-changing="dataDirChanging"
         :auto-start-changing="autoStartChanging"
         :auto-start-enabled="autoStartEnabled"
-        :mimo-cookie-importing="mimoCookieImporting"
         :clearing-billing-usage="clearingBillingUsage"
         :clearing-request-history="clearingRequestHistory"
         @persist-config="persistConfig"
         @choose-data-directory="chooseDataDirectory"
         @toggle-auto-start="toggleAutoStart"
-        @import-mimo-cookie="importMimoCookie"
         @clear-billing-usage="clearBillingUsageData"
         @clear-request-history="clearRequestHistoryData"
       />

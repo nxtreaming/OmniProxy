@@ -34,6 +34,8 @@ type Service struct {
 	router         Router
 	retry          RetryPolicy
 	client         *http.Client
+	proxyClient    *http.Client
+	proxyURL       *url.URL
 	tokenRefresher TokenRefresher
 	zoModelsMu     sync.Mutex
 	zoModelsCache  map[string]zoModelCacheEntry
@@ -75,20 +77,31 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 	if err := ValidateProxyBaseURLs(cfg); err != nil {
 		return nil, err
 	}
+	outboundProxy, err := outboundProxyURL(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	var requestHistory *history.Recorder
 	if len(historyRecorders) > 0 {
 		requestHistory = historyRecorders[0]
 	}
 
+	var proxyClient *http.Client
+	if outboundProxy != nil {
+		proxyClient = newHTTPClient(0, outboundProxy)
+	}
+
 	return &Service{
-		cfg:     cfg,
-		tokens:  tokens,
-		logs:    recorder,
-		history: requestHistory,
-		router:  NewRouter(cfg),
-		retry:   NewRetryPolicy(cfg),
-		client:  &http.Client{Timeout: 0},
+		cfg:         cfg,
+		tokens:      tokens,
+		logs:        recorder,
+		history:     requestHistory,
+		router:      NewRouter(cfg),
+		retry:       NewRetryPolicy(cfg),
+		client:      newHTTPClient(0, nil),
+		proxyClient: proxyClient,
+		proxyURL:    outboundProxy,
 	}, nil
 }
 
@@ -423,7 +436,21 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 	}
 	req.Host = req.URL.Host
 
-	return s.client.Do(req)
+	return s.clientForRoute(route).Do(req)
+}
+
+func (s *Service) clientForRoute(route routeInfo) *http.Client {
+	if s.proxyClient != nil && outboundProxyMatchesModel(route.Model, s.cfg.OutboundProxyModels) {
+		return s.proxyClient
+	}
+	return s.client
+}
+
+func (s *Service) proxyForRoute(route routeInfo) func(*http.Request) (*url.URL, error) {
+	if s.proxyURL != nil && outboundProxyMatchesModel(route.Model, s.cfg.OutboundProxyModels) {
+		return http.ProxyURL(s.proxyURL)
+	}
+	return http.ProxyFromEnvironment
 }
 
 func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -475,7 +502,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		finishActive = s.beginActiveRequest(r, route, selected)
 		dialer := websocket.Dialer{
 			HandshakeTimeout:  45 * time.Second,
-			Proxy:             http.ProxyFromEnvironment,
+			Proxy:             s.proxyForRoute(route),
 			Subprotocols:      websocket.Subprotocols(r),
 			EnableCompression: true,
 		}

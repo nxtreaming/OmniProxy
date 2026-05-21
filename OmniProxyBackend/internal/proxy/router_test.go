@@ -24,6 +24,14 @@ func TestRouterReadsQueryModel(t *testing.T) {
 	}
 }
 
+func TestRouterReadsModelFromGeminiPath(t *testing.T) {
+	route := NewRouter(config.Config{}).Route(mustRouterTestURL(t, "/gemini/v1beta/models/gemini-3-pro-preview:generateContent"), []byte(`{}`))
+
+	if route.Model != "gemini-3-pro-preview" {
+		t.Fatalf("expected path model, got %#v", route)
+	}
+}
+
 func TestPiRouterOpenAIModelsRequireAPIKeyCredential(t *testing.T) {
 	route := NewRouter(config.Config{}).Route(mustRouterTestURL(t, "/pi-router/v1/chat/completions"), []byte(`{"model":"gpt-5.4"}`))
 

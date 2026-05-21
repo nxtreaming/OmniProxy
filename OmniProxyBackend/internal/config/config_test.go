@@ -10,6 +10,15 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if cfg.WebSocketMode != WebSocketModeEnabled {
 		t.Fatalf("expected websocket enabled by default, got %q", cfg.WebSocketMode)
 	}
+	if cfg.OutboundProxyEnabled {
+		t.Fatal("expected outbound proxy disabled by default")
+	}
+	if cfg.OutboundProxyURL != "http://127.0.0.1:10808" {
+		t.Fatalf("expected default outbound proxy URL, got %q", cfg.OutboundProxyURL)
+	}
+	if len(cfg.OutboundProxyModels) != len(defaultOutboundProxyModels) {
+		t.Fatalf("expected default outbound proxy models, got %#v", cfg.OutboundProxyModels)
+	}
 	if cfg.XiaomiCredentialPriority != MimoCredentialPriorityTokenPlan {
 		t.Fatalf("expected default MiMo token plan priority, got %q", cfg.XiaomiCredentialPriority)
 	}
@@ -20,6 +29,9 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	cfg = Normalize(Config{
 		SchedulingMode:           "BALANCED",
 		WebSocketMode:            "DISABLED",
+		OutboundProxyEnabled:     true,
+		OutboundProxyURL:         "mixed:10808",
+		OutboundProxyModels:      []string{"gpt-5.4", " ", "GPT-5.4", "claude-*"},
 		XiaomiCredentialPriority: "api",
 	})
 	if cfg.SchedulingMode != SchedulingModeBalanced {
@@ -30,5 +42,11 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	}
 	if cfg.XiaomiCredentialPriority != MimoCredentialPriorityAPIKey {
 		t.Fatalf("expected MiMo API priority, got %q", cfg.XiaomiCredentialPriority)
+	}
+	if !cfg.OutboundProxyEnabled || cfg.OutboundProxyURL != "http://127.0.0.1:10808" {
+		t.Fatalf("expected normalized outbound proxy, enabled=%v url=%q", cfg.OutboundProxyEnabled, cfg.OutboundProxyURL)
+	}
+	if len(cfg.OutboundProxyModels) != 2 || cfg.OutboundProxyModels[0] != "gpt-5.4" || cfg.OutboundProxyModels[1] != "claude-*" {
+		t.Fatalf("expected normalized outbound proxy models, got %#v", cfg.OutboundProxyModels)
 	}
 }

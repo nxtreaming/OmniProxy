@@ -4688,6 +4688,171 @@ tr:last-child td {
   background: #21365f;
 }
 
+.settings-chip-field {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.settings-chip-field > span {
+  color: var(--text-muted);
+}
+
+.settings-chip-field small {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.settings-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-chip-button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.settings-chip-button:hover {
+  border-color: #bad0ff;
+  color: var(--brand-strong);
+}
+
+.settings-chip-button.active {
+  border-color: #bad0ff;
+  background: #e8f0ff;
+  color: var(--brand-strong);
+}
+
+.dark .settings-chip-button.active {
+  border-color: #385a9c;
+  background: #21365f;
+}
+
+.outbound-model-selector {
+  display: grid;
+  gap: 14px;
+}
+
+.outbound-model-selector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.outbound-model-selector-head > div,
+.outbound-model-group-head {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.outbound-model-selector-head span,
+.outbound-model-group-head strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.outbound-model-selector-head small,
+.outbound-model-group-head small {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.outbound-model-group {
+  display: grid;
+  gap: 10px;
+}
+
+.outbound-model-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.outbound-model-option {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 88%, transparent), transparent),
+    var(--surface-soft);
+  color: var(--text);
+  padding: 12px;
+}
+
+.outbound-model-option:hover {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: color-mix(in srgb, var(--brand-soft) 36%, var(--surface));
+}
+
+.outbound-model-option.active {
+  border-color: color-mix(in srgb, var(--brand) 48%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 72%, transparent), transparent),
+    var(--surface);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+.outbound-model-option-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.outbound-model-option-title strong {
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.outbound-model-option-title em {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 760;
+}
+
+.outbound-model-option.active .outbound-model-option-title em {
+  border-color: color-mix(in srgb, var(--brand) 42%, transparent);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.outbound-model-option small,
+.outbound-model-option code {
+  min-width: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.outbound-model-option code {
+  display: block;
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 72%, var(--line));
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
 .data-directory-row {
   margin-top: 18px;
   display: grid;
@@ -5713,13 +5878,78 @@ tr:last-child td {
   min-height: 44px;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  cursor: pointer;
+  user-select: none;
 }
 
-.toggle-field input[type='checkbox'] {
+.toggle-field .toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, var(--text-muted));
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, white), var(--surface-soft));
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.1);
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
   width: 18px;
   height: 18px;
-  padding: 0;
-  accent-color: var(--brand);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.22),
+    0 0 0 1px rgba(15, 23, 42, 0.05);
+  transition:
+    transform 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease);
+}
+
+.toggle-input:checked + .toggle-switch {
+  border-color: color-mix(in srgb, var(--brand) 72%, #ffffff);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 92%, #ffffff), var(--brand));
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.28),
+    0 8px 18px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.toggle-input:checked + .toggle-switch .toggle-thumb {
+  transform: translateX(20px);
+}
+
+.toggle-input:focus-visible + .toggle-switch {
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.18),
+    inset 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+.dark .toggle-switch {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 82%, #1f2937), var(--surface-soft));
+}
+
+.dark .toggle-thumb {
+  background: color-mix(in srgb, var(--surface) 72%, #ffffff);
 }
 
 input,
@@ -7755,7 +7985,8 @@ h1 {
   .openrouter-chat-quota-strip,
   .openrouter-quota-panel-head,
   .openrouter-quota-summary-row,
-  .openrouter-model-list {
+  .openrouter-model-list,
+  .outbound-model-options {
     grid-template-columns: 1fr;
   }
 
@@ -9114,6 +9345,7 @@ button:disabled,
 .settings-section .settings-grid,
 .settings-segmented,
 .settings-segmented-field,
+.settings-chip-field,
 .maintenance-row,
 .inline-number-field,
 .toggle-field {

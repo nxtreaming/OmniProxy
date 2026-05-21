@@ -231,13 +231,6 @@ export function saveConfig(payload) {
   })
 }
 
-export function importMimoCookieFromHAR() {
-  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
-  return useWailsBindings() && desktopApp?.ImportMimoCookieFromHAR
-    ? desktopApp.ImportMimoCookieFromHAR()
-    : Promise.reject(new Error('导入 MiMo Cookie 需要在桌面客户端中操作'))
-}
-
 export function getLogs() {
   return useWailsBindings() ? DesktopApp.Logs() : request('/logs')
 }

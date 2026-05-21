@@ -186,7 +186,7 @@ func (s *Service) forwardCodexChatCompletions(ctx context.Context, original *htt
 	}
 	req.Host = req.URL.Host
 
-	resp, err := s.client.Do(req)
+	resp, err := s.clientForRoute(route).Do(req)
 	if err != nil {
 		return nil, err
 	}

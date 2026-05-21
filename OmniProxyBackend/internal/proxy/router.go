@@ -269,7 +269,30 @@ func requestModel(incoming *url.URL, body []byte) string {
 	if incoming == nil {
 		return ""
 	}
-	return strings.TrimSpace(incoming.Query().Get("model"))
+	if model := strings.TrimSpace(incoming.Query().Get("model")); model != "" {
+		return model
+	}
+	return requestModelFromPath(incoming.Path)
+}
+
+func requestModelFromPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	const marker = "/models/"
+	index := strings.Index(path, marker)
+	if index < 0 {
+		return ""
+	}
+	model := path[index+len(marker):]
+	if slash := strings.Index(model, "/"); slash >= 0 {
+		model = model[:slash]
+	}
+	if colon := strings.Index(model, ":"); colon >= 0 {
+		model = model[:colon]
+	}
+	return strings.TrimSpace(model)
 }
 
 func providerForModel(model string) string {
