@@ -4368,7 +4368,10 @@ tr:last-child td {
 
 .drawer-backdrop {
   position: fixed;
-  inset: 0;
+  top: 36px;
+  right: 0;
+  bottom: 0;
+  left: 236px;
   z-index: 20;
   display: flex;
   justify-content: flex-end;
@@ -5769,6 +5772,8 @@ textarea:focus {
 
 .modal-pop-enter-active .modal,
 .modal-pop-leave-active .modal,
+.modal-pop-enter-active .report-preview-modal,
+.modal-pop-leave-active .report-preview-modal,
 .modal-pop-enter-active .danger-confirm,
 .modal-pop-leave-active .danger-confirm {
   transition:
@@ -5783,6 +5788,8 @@ textarea:focus {
 
 .modal-pop-enter-from .modal,
 .modal-pop-leave-to .modal,
+.modal-pop-enter-from .report-preview-modal,
+.modal-pop-leave-to .report-preview-modal,
 .modal-pop-enter-from .danger-confirm,
 .modal-pop-leave-to .danger-confirm {
   opacity: 0;
@@ -9025,13 +9032,6 @@ button:disabled,
 
 .shell.dark .billing-report-preview {
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.32);
-}
-
-.report-preview-meta > div,
-.report-preview-metrics > div,
-.report-preview-list > div {
-  border-color: color-mix(in srgb, var(--line) 70%, transparent);
-  background: color-mix(in srgb, var(--surface) 68%, transparent);
 }
 
 .billing-report-preview.template-poster .report-preview-meta > div,

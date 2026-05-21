@@ -1494,25 +1494,27 @@ function truncateText(ctx, text, maxWidth) {
       </article>
     </div>
 
-    <div v-if="previewVisible" class="report-preview-modal-backdrop" @click.self="closeReportPreview">
-      <section class="report-preview-modal" role="dialog" aria-modal="true" aria-label="账单预览">
-        <header class="report-preview-modal-head">
-          <div>
-            <strong>模拟账单预览</strong>
-            <span>{{ activeTemplate.label }} · {{ selectedDate }} · 内容{{ selectedLanguage === 'en' ? '英文' : '中文' }}</span>
+    <Transition name="modal-pop" appear>
+      <div v-if="previewVisible" class="report-preview-modal-backdrop" @click.self="closeReportPreview">
+        <section class="report-preview-modal" role="dialog" aria-modal="true" aria-label="账单预览">
+          <header class="report-preview-modal-head">
+            <div>
+              <strong>模拟账单预览</strong>
+              <span>{{ activeTemplate.label }} · {{ selectedDate }} · 内容{{ selectedLanguage === 'en' ? '英文' : '中文' }}</span>
+            </div>
+            <button type="button" aria-label="关闭预览" @click="closeReportPreview">×</button>
+          </header>
+          <div class="report-preview-image-frame">
+            <img v-if="reportPreviewUrl" :src="reportPreviewUrl" alt="模拟账单预览图" />
           </div>
-          <button type="button" aria-label="关闭预览" @click="closeReportPreview">×</button>
-        </header>
-        <div class="report-preview-image-frame">
-          <img v-if="reportPreviewUrl" :src="reportPreviewUrl" alt="模拟账单预览图" />
-        </div>
-        <footer class="report-preview-modal-actions">
-          <el-button @click="closeReportPreview">返回修改</el-button>
-          <el-button type="primary" :icon="Download" @click="savePreviewImage">
-            保存 PNG
-          </el-button>
-        </footer>
-      </section>
-    </div>
+          <footer class="report-preview-modal-actions">
+            <el-button @click="closeReportPreview">返回修改</el-button>
+            <el-button type="primary" :icon="Download" @click="savePreviewImage">
+              保存 PNG
+            </el-button>
+          </footer>
+        </section>
+      </div>
+    </Transition>
   </section>
 </template>
