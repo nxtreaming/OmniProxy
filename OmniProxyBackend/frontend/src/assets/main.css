@@ -11179,6 +11179,49 @@ label span {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.tool-usage-panel .tool-usage-grid {
+  align-self: start;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
+.tool-usage-grid.single-tool .tool-usage-row {
+  min-height: 132px;
+  padding: 18px 20px;
+}
+
+.tool-usage-grid.single-tool .tool-account-cell {
+  margin-top: 4px;
+}
+
+.quota-overview-panel .quota-overview-grid {
+  height: 100%;
+  align-items: stretch;
+}
+
+.quota-overview-panel .quota-overview-block {
+  min-height: 244px;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-soft) 52%, var(--surface));
+}
+
+.quota-overview-panel .compact-quota-list {
+  min-height: 0;
+  height: 100%;
+  align-content: start;
+}
+
+.quota-overview-panel .compact-quota-list .empty {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+}
+
 .tool-usage-panel .empty {
   min-height: 0;
   height: 100%;

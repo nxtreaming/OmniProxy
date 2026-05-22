@@ -245,7 +245,7 @@ function localDateKeyFromDate(value) {
               <p>按 Codex、Claude Code、Gemini CLI、OpenCode、Pi Coding Agent、DeepSeek-TUI 等工具区分正在使用的账号</p>
             </div>
           </div>
-          <div v-if="toolUsageRows.length" class="tool-usage-grid">
+          <div v-if="toolUsageRows.length" :class="['tool-usage-grid', { 'single-tool': toolUsageRows.length === 1 }]">
             <div
               v-for="row in toolUsageRows"
               :key="row.clientKey"
