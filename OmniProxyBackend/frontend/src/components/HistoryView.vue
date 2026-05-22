@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Download, Refresh, View } from '@element-plus/icons-vue'
 import GeminiSelect from './GeminiSelect.vue'
 
@@ -47,13 +47,17 @@ const filters = reactive({
 })
 const historyPage = ref(1)
 const historyPageSize = 200
+const historyTrendWindowDays = 14
 const modelPieColors = ['#2563eb', '#159a5b', '#e0a11a', '#c43b3b', '#7c3aed', '#0891b2']
 
 const filteredHistory = computed(() => filterHistory(props.entries, filters))
 const historySummary = computed(() => summarizeHistory(filteredHistory.value))
-const historyDailyRows = computed(() => aggregateHistoryByDay(filteredHistory.value).slice(-14))
+const historyDailyRows = computed(() =>
+  buildHistoryDailyWindow(aggregateHistoryByDay(filteredHistory.value), historyTrendWindowDays),
+)
 const historyTrendMax = computed(() => Math.max(1, ...historyDailyRows.value.map((row) => row.totalTokens)))
 const historyTrendColumns = computed(() => `repeat(${Math.max(1, historyDailyRows.value.length)}, minmax(0, 1fr))`)
+const activeHistoryTrendTooltip = ref(null)
 const providerRanks = computed(() =>
   rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5),
 )
@@ -95,6 +99,7 @@ const modelPieSegments = computed(() => buildModelPieSegments(allModelRanks.valu
 const modelPieTotal = computed(() =>
   modelPieSegments.value.reduce((sum, item) => sum + Number(item.totalTokens || 0), 0),
 )
+const modelPieTotalLabel = computed(() => compactMetricNumber(modelPieTotal.value))
 const modelPieGradient = computed(() => {
   const total = modelPieTotal.value
   if (total <= 0 || !modelPieSegments.value.length) return ''
@@ -205,6 +210,38 @@ function aggregateHistoryByDay(items) {
   return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
+function buildHistoryDailyWindow(rows, days) {
+  if (!rows.length) return []
+
+  const byDay = new Map(rows.map((row) => [row.date, row]))
+  const endDate = parseDateKey(rows[rows.length - 1]?.date) || new Date()
+  const startDate = addDays(endDate, -(days - 1))
+
+  return Array.from({ length: days }, (_, index) => {
+    const date = formatDateKey(addDays(startDate, index))
+    return byDay.get(date) || { date, requestCount: 0, failedCount: 0, totalTokens: 0 }
+  })
+}
+
+function parseDateKey(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+function addDays(date, amount) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return next
+}
+
+function formatDateKey(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function rankHistory(items, labelFn, mode) {
   const groups = new Map()
   for (const entry of items) {
@@ -264,6 +301,13 @@ function buildModelPieSegments(rows) {
   }))
 }
 
+function compactMetricNumber(value) {
+  const number = Number(value || 0)
+  if (number >= 100000000) return `${(number / 100000000).toFixed(number >= 1000000000 ? 1 : 2)}亿`
+  if (number >= 10000) return `${(number / 10000).toFixed(number >= 1000000 ? 1 : 2)}万`
+  return props.formatNumber(Math.round(number))
+}
+
 function failureReasonLabel(entry) {
   const status = entry.status ? `${entry.status}` : '无状态码'
   const message = String(entry.message || '').trim()
@@ -276,6 +320,69 @@ function historyTrendHeight(row) {
   if (value <= 0) return '4%'
   return `${Math.max(8, Math.round((value / historyTrendMax.value) * 100))}%`
 }
+
+function historyTrendTooltipPosition(event) {
+  const target = event?.currentTarget
+  const rect = target?.getBoundingClientRect?.()
+  const rawX = rect ? rect.left + rect.width / 2 : event?.clientX || 0
+  const rawY = rect ? rect.top + rect.height / 2 : event?.clientY || 0
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
+  const tooltipWidth = 260
+  const margin = 16
+  const x = Math.min(
+    Math.max(rawX, tooltipWidth / 2 + margin),
+    Math.max(tooltipWidth / 2 + margin, viewportWidth - tooltipWidth / 2 - margin),
+  )
+
+  return {
+    x,
+    y: rawY,
+    placement: rawY < 180 ? 'below' : 'above',
+  }
+}
+
+function historyTrendTooltipData(row) {
+  const requestCount = Number(row.requestCount || 0)
+  const failedCount = Number(row.failedCount || 0)
+  return {
+    key: row.date,
+    date: row.date,
+    title: '每日用量',
+    value: Number(row.totalTokens || 0),
+    valueUnit: 'Token',
+    requestCount,
+    failedCount,
+    successCount: Math.max(0, requestCount - failedCount),
+    statusText: requestCount ? '当天有请求记录' : '当天暂无请求',
+  }
+}
+
+function showHistoryTrendTooltip(row, event) {
+  activeHistoryTrendTooltip.value = {
+    ...historyTrendTooltipData(row),
+    ...historyTrendTooltipPosition(event),
+  }
+}
+
+function moveHistoryTrendTooltip(row, event) {
+  if (!activeHistoryTrendTooltip.value || activeHistoryTrendTooltip.value.key !== row.date) return
+  activeHistoryTrendTooltip.value = {
+    ...activeHistoryTrendTooltip.value,
+    ...historyTrendTooltipPosition(event),
+  }
+}
+
+function hideHistoryTrendTooltip() {
+  activeHistoryTrendTooltip.value = null
+}
+
+function isHistoryTrendTooltipActive(row) {
+  return activeHistoryTrendTooltip.value?.key === row.date
+}
+
+onBeforeUnmount(() => {
+  hideHistoryTrendTooltip()
+})
 
 function historyDate(value) {
   if (!value) return '-'
@@ -418,23 +525,61 @@ function isFailedHistory(entry) {
     <div class="history-insights">
       <div class="history-insight-panel history-trend-panel">
         <div class="history-insight-head">
-          <span>每日用量</span>
+          <span>每日用量 · 近 {{ historyTrendWindowDays }} 天</span>
           <strong>{{ formatNumber(historySummary.totalTokens) }}</strong>
         </div>
         <div v-if="historyDailyRows.length" class="usage-trend compact-history-trend" :style="{ gridTemplateColumns: historyTrendColumns }">
           <div
             v-for="row in historyDailyRows"
             :key="row.date"
-            class="trend-column"
-            :title="`${row.date} · ${formatNumber(row.totalTokens)} Token · ${formatNumber(row.requestCount)} 次请求`"
+            :class="['trend-column', { active: isHistoryTrendTooltipActive(row) }]"
+            role="img"
+            tabindex="0"
+            :aria-label="`${row.date} · ${formatNumber(row.totalTokens)} Token · ${formatNumber(row.requestCount)} 次请求`"
+            :aria-describedby="isHistoryTrendTooltipActive(row) ? 'history-trend-tooltip' : undefined"
+            @mouseenter="showHistoryTrendTooltip(row, $event)"
+            @mousemove="moveHistoryTrendTooltip(row, $event)"
+            @mouseleave="hideHistoryTrendTooltip"
+            @focus="showHistoryTrendTooltip(row, $event)"
+            @blur="hideHistoryTrendTooltip"
           >
             <div class="trend-bar">
-              <span :style="{ height: historyTrendHeight(row) }"></span>
+              <span
+                :class="{ empty: Number(row.totalTokens || 0) <= 0 }"
+                :style="{ height: historyTrendHeight(row) }"
+              ></span>
             </div>
             <small>{{ row.date.slice(5) }}</small>
           </div>
         </div>
         <div v-else class="empty compact-empty">暂无趋势数据</div>
+        <Teleport to="body">
+          <Transition name="trend-tooltip-fade">
+            <div
+              v-if="activeHistoryTrendTooltip"
+              id="history-trend-tooltip"
+              class="trend-tooltip history-trend-tooltip"
+              :class="{ below: activeHistoryTrendTooltip.placement === 'below' }"
+              :style="{ left: `${activeHistoryTrendTooltip.x}px`, top: `${activeHistoryTrendTooltip.y}px` }"
+              role="tooltip"
+            >
+              <div class="trend-tooltip-head">
+                <span>{{ activeHistoryTrendTooltip.date }}</span>
+                <strong>{{ activeHistoryTrendTooltip.title }}</strong>
+              </div>
+              <div class="trend-tooltip-primary">
+                <strong>{{ formatNumber(activeHistoryTrendTooltip.value) }}</strong>
+                <span>{{ activeHistoryTrendTooltip.valueUnit }}</span>
+              </div>
+              <div class="trend-tooltip-grid">
+                <span>请求 <strong>{{ formatNumber(activeHistoryTrendTooltip.requestCount) }}</strong></span>
+                <span>成功 <strong>{{ formatNumber(activeHistoryTrendTooltip.successCount) }}</strong></span>
+                <span>失败 <strong>{{ formatNumber(activeHistoryTrendTooltip.failedCount) }}</strong></span>
+              </div>
+              <p>{{ activeHistoryTrendTooltip.statusText }}</p>
+            </div>
+          </Transition>
+        </Teleport>
       </div>
 
       <div class="history-insight-panel model-insight-panel">
@@ -450,7 +595,7 @@ function isFailedHistory(entry) {
             :aria-label="`模型 Token 消耗占比，共 ${formatNumber(modelPieTotal)} Token`"
           >
             <div>
-              <span>{{ formatNumber(modelPieTotal) }}</span>
+              <span :title="`${formatNumber(modelPieTotal)} Token`">{{ modelPieTotalLabel }}</span>
               <small>Token</small>
             </div>
           </div>

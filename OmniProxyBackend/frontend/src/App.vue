@@ -130,6 +130,7 @@ const navSections = [
   { label: '体验', items: tabs.filter((tab) => ['openrouter-chat'].includes(tab.key)) },
   { label: '系统', items: tabs.filter((tab) => ['settings', 'about', 'help'].includes(tab.key)) },
 ]
+const tabKeys = new Set(tabs.map((tab) => tab.key))
 const isDark = ref(false)
 const windowMaximised = ref(false)
 const loading = ref(false)
@@ -181,6 +182,7 @@ const appThemeStorageKey = 'omniproxy.appTheme'
 const firstUseGuideStorageKey = 'omniproxy.firstRunGuideModalDismissed'
 let toastTimer = null
 let workspaceScrollbarTimer = null
+let workspaceScrollSavePaused = false
 let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
@@ -828,7 +830,11 @@ function toggleAppTheme() {
 }
 
 function selectTab(tabKey) {
-  activeTab.value = tabKey
+  if (!tabKeys.has(tabKey)) return
+  if (activeTab.value !== tabKey) {
+    saveWorkspaceScrollPosition(activeTab.value)
+    activeTab.value = tabKey
+  }
   mobileSidebarOpen.value = false
 }
 
@@ -853,8 +859,22 @@ function restoreActiveWorkspaceScroll() {
 }
 
 function handleWorkspaceScroll(event) {
+  if (workspaceScrollSavePaused) return
   if (event?.currentTarget !== workspaceRef.value) return
   saveWorkspaceScrollPosition(activeTab.value)
+}
+
+function pauseWorkspaceScrollSaving() {
+  workspaceScrollSavePaused = true
+}
+
+function resumeWorkspaceScrollSaving() {
+  workspaceScrollSavePaused = false
+}
+
+function afterPageEnter() {
+  restoreActiveWorkspaceScroll()
+  resumeWorkspaceScrollSaving()
 }
 
 function clearWorkspaceScrollbarTimer() {
@@ -957,6 +977,7 @@ watch(isDark, (value) => {
 
 watch(activeTab, (tab, previousTab) => {
   saveWorkspaceScrollPosition(previousTab)
+  pauseWorkspaceScrollSaving()
   hideWorkspaceScrollbar()
   if (tab === 'history') {
     refreshHistory()
@@ -1286,7 +1307,7 @@ function openOpenRouterChat(model) {
   if (modelId) {
     selectedOpenRouterChatModel.value = modelId
   }
-  activeTab.value = 'openrouter-chat'
+  selectTab('openrouter-chat')
   if (!openRouterModels.value.length && !openRouterModelsLoading.value) {
     refreshOpenRouterModels()
   }
@@ -1305,11 +1326,11 @@ function openBillingView() {
     refreshBilling()
     return
   }
-  activeTab.value = 'billing'
+  selectTab('billing')
 }
 
 function openFirstTokenForm() {
-  activeTab.value = 'tokens'
+  selectTab('tokens')
   openCreateForm('openai')
 }
 
@@ -1340,7 +1361,7 @@ function runFirstUseGuideAction() {
       toggleProxy()
     }
   } else if (step.actionKey === 'quickstart') {
-    activeTab.value = 'quickstart'
+    selectTab('quickstart')
   }
 }
 
@@ -3314,7 +3335,7 @@ async function refreshQuota(item) {
         mode="out-in"
         appear
         @before-enter="restoreActiveWorkspaceScroll"
-        @after-enter="restoreActiveWorkspaceScroll"
+        @after-enter="afterPageEnter"
       >
       <DashboardView
         v-if="activeTab === 'dashboard'"
@@ -3372,9 +3393,9 @@ async function refreshQuota(item) {
         :request-trend-width="requestTrendWidth"
         @toggle-proxy="toggleProxy"
         @refresh="refreshAll"
-        @open-settings="activeTab = 'settings'"
+        @open-settings="selectTab('settings')"
         @open-billing="openBillingView"
-        @open-trends="activeTab = 'usage-trends'"
+        @open-trends="selectTab('usage-trends')"
         @change-quota-page="changeQuotaOverviewPage"
       />
       <TokenTrendView
@@ -3962,7 +3983,7 @@ api_key = "omniproxy-local"</code></pre>
                       size="small"
                       text
                       type="primary"
-                      @click="activeTab = action.tab"
+                      @click="selectTab(action.tab)"
                     >
                       {{ action.label }}
                     </el-button>

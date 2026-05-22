@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import {
   ArrowLeft,
   ArrowRight,
@@ -79,6 +79,7 @@ const contributionCalendarSummary = computed(() => contributionCalendar.value.su
 const contributionGridStyle = computed(() => ({
   gridTemplateColumns: `repeat(${Math.max(1, contributionCalendarWeeks.value.length)}, var(--contribution-cell))`,
 }))
+const activeContributionTooltip = ref(null)
 
 function toggleProxy() {
   emit('toggle-proxy')
@@ -175,6 +176,54 @@ function contributionDayTitle(day) {
   if (day.outside) return ''
   return `${day.date} · ${props.formatNumber(day.requests)} 次请求 · ${props.formatNumber(day.tokens)} Token`
 }
+
+function contributionTooltipPosition(event) {
+  const target = event?.currentTarget
+  const rect = target?.getBoundingClientRect?.()
+  const rawX = rect ? rect.left + rect.width / 2 : event?.clientX || 0
+  const rawY = rect ? rect.top + rect.height / 2 : event?.clientY || 0
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
+  const tooltipWidth = 230
+  const margin = 16
+  const x = Math.min(
+    Math.max(rawX, tooltipWidth / 2 + margin),
+    Math.max(tooltipWidth / 2 + margin, viewportWidth - tooltipWidth / 2 - margin),
+  )
+
+  return {
+    x,
+    y: rawY,
+    placement: rawY < 140 ? 'below' : 'above',
+  }
+}
+
+function showContributionTooltip(day, event) {
+  if (day.outside) return
+  activeContributionTooltip.value = {
+    ...day,
+    ...contributionTooltipPosition(event),
+  }
+}
+
+function moveContributionTooltip(day, event) {
+  if (!activeContributionTooltip.value || activeContributionTooltip.value.key !== day.key) return
+  activeContributionTooltip.value = {
+    ...activeContributionTooltip.value,
+    ...contributionTooltipPosition(event),
+  }
+}
+
+function hideContributionTooltip() {
+  activeContributionTooltip.value = null
+}
+
+function isContributionTooltipActive(day) {
+  return activeContributionTooltip.value?.key === day.key
+}
+
+onBeforeUnmount(() => {
+  hideContributionTooltip()
+})
 
 function startOfLocalDay(value) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate())
@@ -456,12 +505,48 @@ function localDateKeyFromDate(value) {
                   v-for="day in week"
                   :key="day.key"
                   :class="['contribution-day', `level-${day.level}`, { outside: day.outside }]"
-                  :title="contributionDayTitle(day)"
                   :aria-label="day.outside ? undefined : contributionDayTitle(day)"
+                  :aria-describedby="isContributionTooltipActive(day) ? 'contribution-tooltip' : undefined"
+                  :tabindex="day.outside ? undefined : 0"
+                  :role="day.outside ? undefined : 'img'"
+                  @mouseenter="showContributionTooltip(day, $event)"
+                  @mousemove="moveContributionTooltip(day, $event)"
+                  @mouseleave="hideContributionTooltip"
+                  @focus="showContributionTooltip(day, $event)"
+                  @blur="hideContributionTooltip"
                 ></span>
               </div>
             </div>
           </div>
+
+          <Teleport to="body">
+            <Transition name="contribution-tooltip-fade">
+              <div
+                v-if="activeContributionTooltip"
+                id="contribution-tooltip"
+                class="contribution-tooltip"
+                :class="{ below: activeContributionTooltip.placement === 'below' }"
+                :style="{
+                  left: `${activeContributionTooltip.x}px`,
+                  top: `${activeContributionTooltip.y}px`,
+                }"
+                role="tooltip"
+              >
+                <div class="contribution-tooltip-date">{{ activeContributionTooltip.date }}</div>
+                <div class="contribution-tooltip-metrics">
+                  <span>
+                    <strong>{{ formatNumber(activeContributionTooltip.requests) }}</strong>
+                    次请求
+                  </span>
+                  <span>
+                    <strong>{{ formatNumber(activeContributionTooltip.tokens) }}</strong>
+                    Token
+                  </span>
+                </div>
+                <p>{{ activeContributionTooltip.requests > 0 ? '当天有代理活动' : '当天暂无请求' }}</p>
+              </div>
+            </Transition>
+          </Teleport>
 
           <div class="contribution-footer">
             <span>

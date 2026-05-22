@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Lightning, Memo, Refresh, TrendCharts } from '@element-plus/icons-vue'
 
 const CHART_WIDTH = 1000
@@ -47,6 +47,8 @@ const requestAreaPath = computed(() => areaPath(requestSeries.value))
 const tokenTicks = computed(() => axisTicks(tokenMax.value))
 const requestTicks = computed(() => axisTicks(requestMax.value))
 const xAxisLabels = computed(() => buildXAxisLabels(trendRows.value))
+const activeTrendTooltip = ref(null)
+const activeDailyDetail = ref(null)
 const recentRows = computed(() => trendRows.value.slice(-7))
 const recentTokens = computed(() => sumField(recentRows.value, 'totalTokens'))
 const recentRequests = computed(() => sumField(recentRows.value, 'requestCount'))
@@ -170,10 +172,130 @@ function deltaText(current, previous, unit) {
 function pointTitle(point, label, unit) {
   return `${point.row.date} · ${props.formatNumber(point.value)} ${unit} · 输入 ${props.formatNumber(point.row.inputTokens || 0)} · 输出 ${props.formatNumber(point.row.outputTokens || 0)}`
 }
+
+function trendTooltipPosition(event) {
+  const target = event?.currentTarget
+  const rect = target?.getBoundingClientRect?.()
+  const rawX = event?.clientX || (rect ? rect.left + rect.width / 2 : 0)
+  const rawY = event?.clientY || (rect ? rect.top + rect.height / 2 : 0)
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
+  const tooltipWidth = 260
+  const margin = 16
+  const x = Math.min(
+    Math.max(rawX, tooltipWidth / 2 + margin),
+    Math.max(tooltipWidth / 2 + margin, viewportWidth - tooltipWidth / 2 - margin),
+  )
+
+  return {
+    x,
+    y: rawY,
+    placement: rawY < 170 ? 'below' : 'above',
+  }
+}
+
+function trendTooltipData(point, type) {
+  const isToken = type === 'token'
+  return {
+    key: `${type}-${point.row.date}`,
+    type,
+    date: point.row.date,
+    title: isToken ? 'Token 用量' : '请求次数',
+    value: point.value,
+    pointX: point.x,
+    pointY: point.y,
+    valueUnit: isToken ? 'Token' : '次请求',
+    secondaryValue: isToken ? point.row.requestCount || 0 : point.row.totalTokens || 0,
+    secondaryUnit: isToken ? '次请求' : 'Token',
+    inputTokens: point.row.inputTokens || 0,
+    outputTokens: point.row.outputTokens || 0,
+    statusText: Number(point.value || 0) > 0 ? '当天有代理活动' : '当天暂无请求',
+  }
+}
+
+function showTrendTooltip(point, type, event) {
+  activeTrendTooltip.value = {
+    ...trendTooltipData(point, type),
+    ...trendTooltipPosition(event),
+  }
+}
+
+function moveTrendTooltip(point, type, event) {
+  if (!activeTrendTooltip.value || activeTrendTooltip.value.key !== `${type}-${point.row.date}`) return
+  activeTrendTooltip.value = {
+    ...activeTrendTooltip.value,
+    ...trendTooltipPosition(event),
+  }
+}
+
+function hideTrendTooltip() {
+  activeTrendTooltip.value = null
+}
+
+function isTrendTooltipActive(point, type) {
+  return activeTrendTooltip.value?.key === `${type}-${point.row.date}`
+}
+
+function dailyDetailPosition(event) {
+  const target = event?.currentTarget
+  const rect = target?.getBoundingClientRect?.()
+  const rawX = rect ? rect.left + rect.width / 2 : event?.clientX || 0
+  const rawY = rect ? rect.top + rect.height / 2 : event?.clientY || 0
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
+  const viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight
+  const tooltipWidth = 292
+  const tooltipHeight = 248
+  const offset = 14
+  const margin = 16
+  const canOpenAbove = rawY - tooltipHeight - offset >= margin
+  const canOpenBelow = rawY + tooltipHeight + offset <= viewportHeight - margin
+  const placement = canOpenAbove || !canOpenBelow ? 'above' : 'below'
+  const x = Math.min(
+    Math.max(rawX, tooltipWidth / 2 + margin),
+    Math.max(tooltipWidth / 2 + margin, viewportWidth - tooltipWidth / 2 - margin),
+  )
+  const minY = placement === 'above' ? tooltipHeight + offset + margin : margin - offset
+  const maxY = placement === 'above' ? viewportHeight - margin : viewportHeight - tooltipHeight - offset - margin
+  const y = Math.min(Math.max(rawY, minY), Math.max(minY, maxY))
+
+  return {
+    x,
+    y,
+    placement,
+  }
+}
+
+function showDailyDetail(row, event) {
+  const requestCount = Number(row.requestCount || 0)
+  const totalTokens = Number(row.totalTokens || 0)
+  const inputTokens = Number(row.inputTokens || 0)
+  const outputTokens = Number(row.outputTokens || 0)
+  const avgTokens = requestCount ? Math.round(totalTokens / requestCount) : 0
+
+  activeDailyDetail.value = {
+    key: row.date,
+    date: row.date,
+    totalTokens,
+    inputTokens,
+    outputTokens,
+    requestCount,
+    avgTokens,
+    inputPercent: totalTokens ? Math.round((inputTokens / totalTokens) * 100) : 0,
+    outputPercent: totalTokens ? Math.round((outputTokens / totalTokens) * 100) : 0,
+    ...dailyDetailPosition(event),
+  }
+}
+
+function hideDailyDetail() {
+  activeDailyDetail.value = null
+}
+
+function isDailyDetailActive(row) {
+  return activeDailyDetail.value?.key === row.date
+}
 </script>
 
 <template>
-  <section class="token-trend-page">
+  <section class="token-trend-page" @click="hideDailyDetail">
     <div class="token-trend-toolbar">
       <p>展示全部已记录天数的 Token 与请求次数变化</p>
       <el-button :icon="Refresh" @click="refresh">刷新</el-button>
@@ -212,17 +334,64 @@ function pointTitle(point, label, unit) {
               />
               <path class="token-trend-area token-area" :d="tokenAreaPath" />
               <polyline class="token-trend-line token-line" :points="tokenLinePoints" />
+              <line
+                v-if="activeTrendTooltip?.type === 'token'"
+                class="token-trend-hover-line"
+                :x1="activeTrendTooltip.pointX"
+                :x2="activeTrendTooltip.pointX"
+                :y1="CHART_TOP"
+                :y2="CHART_BOTTOM"
+              />
               <circle
                 v-for="point in tokenSeries"
                 :key="`token-point-${point.row.date}`"
-                class="token-trend-point token-point"
+                :class="['token-trend-point', 'token-point', { active: isTrendTooltipActive(point, 'token') }]"
                 :cx="point.x"
                 :cy="point.y"
                 r="3"
-              >
-                <title>{{ pointTitle(point, 'Token', 'Token') }}</title>
-              </circle>
+              />
+              <circle
+                v-for="point in tokenSeries"
+                :key="`token-hit-${point.row.date}`"
+                class="token-trend-hit-area"
+                :cx="point.x"
+                :cy="point.y"
+                r="16"
+                tabindex="0"
+                focusable="true"
+                role="img"
+                :aria-label="pointTitle(point, 'Token', 'Token')"
+                @mouseenter="showTrendTooltip(point, 'token', $event)"
+                @mousemove="moveTrendTooltip(point, 'token', $event)"
+                @mouseleave="hideTrendTooltip"
+                @focus="showTrendTooltip(point, 'token', $event)"
+                @blur="hideTrendTooltip"
+              />
             </svg>
+            <Transition name="trend-tooltip-fade">
+              <div
+                v-if="activeTrendTooltip?.type === 'token'"
+                class="trend-tooltip token-tooltip"
+                :class="{ below: activeTrendTooltip.placement === 'below' }"
+                :style="{ left: `${activeTrendTooltip.x}px`, top: `${activeTrendTooltip.y}px` }"
+                role="tooltip"
+              >
+                <div class="trend-tooltip-head">
+                  <span>{{ activeTrendTooltip.date }}</span>
+                  <strong>{{ activeTrendTooltip.title }}</strong>
+                </div>
+                <div class="trend-tooltip-primary">
+                  <strong>{{ formatNumber(activeTrendTooltip.value) }}</strong>
+                  <span>{{ activeTrendTooltip.valueUnit }}</span>
+                </div>
+                <div class="trend-tooltip-grid">
+                  <span>输入 <strong>{{ formatNumber(activeTrendTooltip.inputTokens) }}</strong></span>
+                  <span>输出 <strong>{{ formatNumber(activeTrendTooltip.outputTokens) }}</strong></span>
+                  <span>请求 <strong>{{ formatNumber(activeTrendTooltip.secondaryValue) }}</strong></span>
+                </div>
+                <p>{{ activeTrendTooltip.statusText }}</p>
+              </div>
+            </Transition>
             <div class="token-trend-x-axis">
               <span v-for="label in xAxisLabels" :key="`token-x-${label.key}`" :style="{ left: label.left }">
                 {{ label.label }}
@@ -255,17 +424,64 @@ function pointTitle(point, label, unit) {
               />
               <path class="token-trend-area request-area" :d="requestAreaPath" />
               <polyline class="token-trend-line request-line" :points="requestLinePoints" />
+              <line
+                v-if="activeTrendTooltip?.type === 'request'"
+                class="token-trend-hover-line"
+                :x1="activeTrendTooltip.pointX"
+                :x2="activeTrendTooltip.pointX"
+                :y1="CHART_TOP"
+                :y2="CHART_BOTTOM"
+              />
               <circle
                 v-for="point in requestSeries"
                 :key="`request-point-${point.row.date}`"
-                class="token-trend-point request-point"
+                :class="['token-trend-point', 'request-point', { active: isTrendTooltipActive(point, 'request') }]"
                 :cx="point.x"
                 :cy="point.y"
                 r="3"
-              >
-                <title>{{ point.row.date }} · {{ formatNumber(point.value) }} 次请求 · {{ formatNumber(point.row.totalTokens || 0) }} Token</title>
-              </circle>
+              />
+              <circle
+                v-for="point in requestSeries"
+                :key="`request-hit-${point.row.date}`"
+                class="token-trend-hit-area"
+                :cx="point.x"
+                :cy="point.y"
+                r="16"
+                tabindex="0"
+                focusable="true"
+                role="img"
+                :aria-label="`${point.row.date} · ${formatNumber(point.value)} 次请求 · ${formatNumber(point.row.totalTokens || 0)} Token`"
+                @mouseenter="showTrendTooltip(point, 'request', $event)"
+                @mousemove="moveTrendTooltip(point, 'request', $event)"
+                @mouseleave="hideTrendTooltip"
+                @focus="showTrendTooltip(point, 'request', $event)"
+                @blur="hideTrendTooltip"
+              />
             </svg>
+            <Transition name="trend-tooltip-fade">
+              <div
+                v-if="activeTrendTooltip?.type === 'request'"
+                class="trend-tooltip request-tooltip"
+                :class="{ below: activeTrendTooltip.placement === 'below' }"
+                :style="{ left: `${activeTrendTooltip.x}px`, top: `${activeTrendTooltip.y}px` }"
+                role="tooltip"
+              >
+                <div class="trend-tooltip-head">
+                  <span>{{ activeTrendTooltip.date }}</span>
+                  <strong>{{ activeTrendTooltip.title }}</strong>
+                </div>
+                <div class="trend-tooltip-primary">
+                  <strong>{{ formatNumber(activeTrendTooltip.value) }}</strong>
+                  <span>{{ activeTrendTooltip.valueUnit }}</span>
+                </div>
+                <div class="trend-tooltip-grid">
+                  <span>Token <strong>{{ formatNumber(activeTrendTooltip.secondaryValue) }}</strong></span>
+                  <span>输入 <strong>{{ formatNumber(activeTrendTooltip.inputTokens) }}</strong></span>
+                  <span>输出 <strong>{{ formatNumber(activeTrendTooltip.outputTokens) }}</strong></span>
+                </div>
+                <p>{{ activeTrendTooltip.statusText }}</p>
+              </div>
+            </Transition>
             <div class="token-trend-x-axis">
               <span v-for="label in xAxisLabels" :key="`request-x-${label.key}`" :style="{ left: label.left }">
                 {{ label.label }}
@@ -296,7 +512,17 @@ function pointTitle(point, label, unit) {
           <span>输出</span>
           <span>请求</span>
         </div>
-        <div v-for="row in tableRows" :key="row.date" class="usage-row">
+        <div
+          v-for="row in tableRows"
+          :key="row.date"
+          :class="['usage-row', 'clickable-daily-row', { active: isDailyDetailActive(row) }]"
+          role="button"
+          tabindex="0"
+          :aria-label="`${row.date} 用量详情`"
+          @click.stop="showDailyDetail(row, $event)"
+          @keydown.enter.prevent.stop="showDailyDetail(row, $event)"
+          @keydown.space.prevent.stop="showDailyDetail(row, $event)"
+        >
           <span>{{ row.date }}</span>
           <strong>{{ formatNumber(row.totalTokens) }}</strong>
           <span>{{ formatNumber(row.inputTokens) }}</span>
@@ -305,6 +531,53 @@ function pointTitle(point, label, unit) {
         </div>
         <div v-if="!tableRows.length" class="empty">暂无代理 Token 用量</div>
       </div>
+      <Teleport to="body">
+        <Transition name="daily-detail-popover-fade">
+          <div
+            v-if="activeDailyDetail"
+            class="daily-detail-popover"
+            :class="{ below: activeDailyDetail.placement === 'below' }"
+            :style="{ left: `${activeDailyDetail.x}px`, top: `${activeDailyDetail.y}px` }"
+            role="dialog"
+            aria-label="每日用量详情"
+            @click.stop
+          >
+            <div class="daily-detail-popover-head">
+              <div>
+                <span>每日用量</span>
+                <strong>{{ activeDailyDetail.date }}</strong>
+              </div>
+              <button type="button" aria-label="关闭每日用量详情" @click="hideDailyDetail">×</button>
+            </div>
+            <div class="daily-detail-popover-total">
+              <strong>{{ formatNumber(activeDailyDetail.totalTokens) }}</strong>
+              <span>Token</span>
+            </div>
+            <div class="daily-detail-popover-grid">
+              <span>
+                输入
+                <strong>{{ formatNumber(activeDailyDetail.inputTokens) }}</strong>
+                <small>{{ activeDailyDetail.inputPercent }}%</small>
+              </span>
+              <span>
+                输出
+                <strong>{{ formatNumber(activeDailyDetail.outputTokens) }}</strong>
+                <small>{{ activeDailyDetail.outputPercent }}%</small>
+              </span>
+              <span>
+                请求
+                <strong>{{ formatNumber(activeDailyDetail.requestCount) }}</strong>
+                <small>次</small>
+              </span>
+              <span>
+                日均
+                <strong>{{ formatNumber(activeDailyDetail.avgTokens) }}</strong>
+                <small>Token / 请求</small>
+              </span>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
     </section>
   </section>
 </template>
