@@ -83,3 +83,31 @@ test('HTTP API fallback imports API keys through the control API', async () => {
   )
   delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
 })
+
+test('HTTP API fallback fetches history summary with filters', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'summary-control-token'
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    const parsed = new URL(String(url))
+    if (parsed.pathname.endsWith('/history/summary')) {
+      assert.equal(options.headers['X-OmniProxy-Control-Token'], 'summary-control-token')
+      assert.equal(parsed.searchParams.get('provider'), 'openai')
+      assert.equal(parsed.searchParams.get('model'), 'gpt-5.5')
+      assert.equal(parsed.searchParams.get('days'), '14')
+      return jsonResponse(200, { total: 42, dailyRows: [] })
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const { getHistorySummary } = await import(`./api.js?history-summary-test=${Date.now()}`)
+  assert.deepEqual(await getHistorySummary({ provider: 'openai', model: 'gpt-5.5' }, 14), {
+    total: 42,
+    dailyRows: [],
+  })
+  assert.deepEqual(
+    calls.map((call) => new URL(call.url).pathname),
+    ['/api/history/summary'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})

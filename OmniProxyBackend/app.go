@@ -229,6 +229,13 @@ func (a *DesktopApp) RequestHistory(filter history.Filter) []historyResponse {
 	return historyResponses(a.server.history.List(filter))
 }
 
+func (a *DesktopApp) RequestHistorySummary(filter history.Filter, days int) history.Summary {
+	if a.server.history == nil {
+		return history.Summary{}
+	}
+	return a.server.history.Summary(filter, days)
+}
+
 func (a *DesktopApp) BillingUsage(date string) []history.DailyUsage {
 	if a.server.history == nil {
 		return []history.DailyUsage{}

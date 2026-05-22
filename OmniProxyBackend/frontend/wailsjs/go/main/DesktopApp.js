@@ -166,6 +166,10 @@ export function RequestHistory(arg1) {
   return window['go']['main']['DesktopApp']['RequestHistory'](arg1);
 }
 
+export function RequestHistorySummary(arg1, arg2) {
+  return window['go']['main']['DesktopApp']['RequestHistorySummary'](arg1, arg2);
+}
+
 export function RestoreClaudeDesktop() {
   return window['go']['main']['DesktopApp']['RestoreClaudeDesktop']();
 }

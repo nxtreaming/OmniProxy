@@ -242,6 +242,16 @@ export function getHistory(filters = {}) {
   return request(`/history?${historyQuery(filters)}`)
 }
 
+export function getHistorySummary(filters = {}, days = 14) {
+  const normalizedDays = Number(days || 14)
+  if (useWailsBindings() && DesktopApp.RequestHistorySummary) {
+    return DesktopApp.RequestHistorySummary(historyFilter(filters), normalizedDays)
+  }
+  const params = new URLSearchParams(historyQuery(filters))
+  params.set('days', String(normalizedDays))
+  return request(`/history/summary?${params.toString()}`)
+}
+
 export function getBillingUsage(date) {
   const value = String(date || '').trim()
   if (useWailsBindings() && DesktopApp.BillingUsage) {

@@ -35,6 +35,10 @@ type UsageStore interface {
 	ClearRequestHistory() error
 }
 
+type SummaryStore interface {
+	Summary(Filter, int) (Summary, error)
+}
+
 type Entry struct {
 	ID                int64          `json:"id"`
 	Time              time.Time      `json:"time"`
@@ -94,6 +98,34 @@ type DailyUsage struct {
 	OutputTokens int       `json:"outputTokens"`
 	TotalTokens  int       `json:"totalTokens"`
 	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+type DailySummary struct {
+	Date         string `json:"date"`
+	RequestCount int    `json:"requestCount"`
+	FailedCount  int    `json:"failedCount"`
+	TotalTokens  int64  `json:"totalTokens"`
+}
+
+type Rank struct {
+	Label       string `json:"label"`
+	Count       int    `json:"count"`
+	TotalTokens int64  `json:"totalTokens"`
+	FailedCount int    `json:"failedCount"`
+}
+
+type Summary struct {
+	Total              int            `json:"total"`
+	Failed             int            `json:"failed"`
+	FailureRate        int            `json:"failureRate"`
+	TotalTokens        int64          `json:"totalTokens"`
+	AverageDuration    int64          `json:"averageDuration"`
+	DailyRows          []DailySummary `json:"dailyRows"`
+	ProviderRanks      []Rank         `json:"providerRanks"`
+	ClientRanks        []Rank         `json:"clientRanks"`
+	ModelRanks         []Rank         `json:"modelRanks"`
+	TokenFailureRanks  []Rank         `json:"tokenFailureRanks"`
+	FailureReasonRanks []Rank         `json:"failureReasonRanks"`
 }
 
 type Recorder struct {
@@ -234,6 +266,50 @@ func (r *Recorder) DailyUsageDates(limit int) []string {
 	return out
 }
 
+func (r *Recorder) Summary(filter Filter, days int) Summary {
+	days = normalizeSummaryDays(days)
+	if store, ok := r.store.(SummaryStore); ok {
+		if out, err := store.Summary(filter, days); err == nil {
+			return out
+		}
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	out := Summary{DailyRows: []DailySummary{}, ProviderRanks: []Rank{}, ClientRanks: []Rank{}, ModelRanks: []Rank{}, TokenFailureRanks: []Rank{}, FailureReasonRanks: []Rank{}}
+	daily := map[string]*DailySummary{}
+	var durationSum int64
+	for _, entry := range r.entries {
+		if !matches(entry, filter) {
+			continue
+		}
+		out.Total++
+		if failedEntry(entry) {
+			out.Failed++
+		}
+		out.TotalTokens += int64(maxInt(entry.TotalTokens, 0))
+		durationSum += maxInt64(entry.Duration, 0)
+		day := entry.Time.Local().Format("2006-01-02")
+		current := daily[day]
+		if current == nil {
+			current = &DailySummary{Date: day}
+			daily[day] = current
+		}
+		current.RequestCount++
+		if failedEntry(entry) {
+			current.FailedCount++
+		}
+		current.TotalTokens += int64(maxInt(entry.TotalTokens, 0))
+	}
+	if out.Total > 0 {
+		out.FailureRate = int((int64(out.Failed)*100 + int64(out.Total)/2) / int64(out.Total))
+		out.AverageDuration = (durationSum + int64(out.Total)/2) / int64(out.Total)
+	}
+	out.DailyRows = dailySummaryWindow(daily, days)
+	return out
+}
+
 func (r *Recorder) SetRetentionDays(days int) error {
 	r.mu.Lock()
 	r.retentionDays = days
@@ -363,6 +439,50 @@ func retentionCutoffDate(now time.Time, days int) string {
 		return ""
 	}
 	return now.Local().AddDate(0, 0, -days+1).Format("2006-01-02")
+}
+
+func normalizeSummaryDays(days int) int {
+	if days <= 0 || days > 366 {
+		return 14
+	}
+	return days
+}
+
+func dailySummaryWindow(rows map[string]*DailySummary, days int) []DailySummary {
+	if len(rows) == 0 {
+		return []DailySummary{}
+	}
+	keys := make([]string, 0, len(rows))
+	for key := range rows {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	endDate, err := time.ParseInLocation("2006-01-02", keys[len(keys)-1], time.Local)
+	if err != nil {
+		return []DailySummary{}
+	}
+	startDate := endDate.AddDate(0, 0, -days+1)
+	out := make([]DailySummary, 0, days)
+	for i := 0; i < days; i++ {
+		date := startDate.AddDate(0, 0, i).Format("2006-01-02")
+		if row := rows[date]; row != nil {
+			out = append(out, *row)
+			continue
+		}
+		out = append(out, DailySummary{Date: date})
+	}
+	return out
+}
+
+func failedEntry(entry Entry) bool {
+	return strings.EqualFold(entry.Level, "error") || strings.EqualFold(entry.Level, "warn") || entry.Status >= 400
+}
+
+func maxInt64(value int64, minimum int64) int64 {
+	if value < minimum {
+		return minimum
+	}
+	return value
 }
 
 func matches(entry Entry, filter Filter) bool {

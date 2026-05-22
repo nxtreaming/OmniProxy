@@ -87,6 +87,8 @@ export function RefreshTokenAuth(arg1:string):Promise<main.tokenResponse>;
 
 export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyResponse>>;
 
+export function RequestHistorySummary(arg1:history.Filter,arg2:number):Promise<history.Summary>;
+
 export function RestoreClaudeDesktop():Promise<main.mimoConfigureResult>;
 
 export function RestoreCodex():Promise<main.codexConfigureResult>;

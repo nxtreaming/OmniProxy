@@ -8,6 +8,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  summary: {
+    type: Object,
+    default: null,
+  },
   providers: {
     type: Array,
     default: () => [],
@@ -49,18 +53,25 @@ const historyPage = ref(1)
 const historyPageSize = 200
 const historyTrendWindowDays = 14
 const modelPieColors = ['#2563eb', '#159a5b', '#e0a11a', '#c43b3b', '#7c3aed', '#0891b2']
+let filterRefreshTimer = null
 
 const filteredHistory = computed(() => filterHistory(props.entries, filters))
-const historySummary = computed(() => summarizeHistory(filteredHistory.value))
-const historyDailyRows = computed(() =>
-  buildHistoryDailyWindow(aggregateHistoryByDay(filteredHistory.value), historyTrendWindowDays),
-)
+const localHistorySummary = computed(() => summarizeHistory(filteredHistory.value))
+const historySummary = computed(() => normalizeHistorySummary(props.summary) || localHistorySummary.value)
+const historyDailyRows = computed(() => {
+  if (props.summary) return normalizeDailyRows(props.summary.dailyRows)
+  return buildHistoryDailyWindow(aggregateHistoryByDay(filteredHistory.value), historyTrendWindowDays)
+})
 const historyTrendMax = computed(() => Math.max(1, ...historyDailyRows.value.map((row) => row.totalTokens)))
 const historyTrendColumns = computed(() => `repeat(${Math.max(1, historyDailyRows.value.length)}, minmax(0, 1fr))`)
 const activeHistoryTrendTooltip = ref(null)
-const providerRanks = computed(() =>
-  rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5),
-)
+const providerRanks = computed(() => {
+  if (props.summary) return normalizeRanks(props.summary.providerRanks, '-').map((item) => ({
+    ...item,
+    label: item.label ? props.providerLabel(item.label) : '-',
+  })).slice(0, 5)
+  return rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5)
+})
 const clientOptions = computed(() => historyClientOptions(props.entries))
 const providerFilterOptions = computed(() => [
   { value: 'all', label: '全部厂商' },
@@ -86,12 +97,14 @@ const statusFilterOptions = [
   { value: '503', label: '503' },
   { value: '504', label: '504' },
 ]
-const clientRanks = computed(() =>
-  rankHistory(filteredHistory.value, (entry) => clientLabel(entry), 'count').slice(0, 5),
-)
-const allModelRanks = computed(() =>
-  rankHistory(filteredHistory.value, (entry) => entry.model || entry.protocol || '未记录模型', 'totalTokens'),
-)
+const clientRanks = computed(() => {
+  if (props.summary) return normalizeRanks(props.summary.clientRanks, '未记录工具', normalizeClientRankLabel).slice(0, 5)
+  return rankHistory(filteredHistory.value, (entry) => clientLabel(entry), 'count').slice(0, 5)
+})
+const allModelRanks = computed(() => {
+  if (props.summary) return normalizeRanks(props.summary.modelRanks, '未记录模型')
+  return rankHistory(filteredHistory.value, (entry) => entry.model || entry.protocol || '未记录模型', 'totalTokens')
+})
 const modelRanks = computed(() =>
   allModelRanks.value.slice(0, 5),
 )
@@ -115,20 +128,22 @@ const modelPieGradient = computed(() => {
   })
   return `conic-gradient(${parts.join(', ')})`
 })
-const tokenFailureRanks = computed(() =>
-  rankHistory(
+const tokenFailureRanks = computed(() => {
+  if (props.summary) return normalizeRanks(props.summary.tokenFailureRanks, '未记录账号').slice(0, 5)
+  return rankHistory(
     filteredHistory.value.filter(isFailedHistory),
     (entry) => entry.tokenName || '未记录账号',
     'count',
-  ).slice(0, 5),
-)
-const failureReasonRanks = computed(() =>
-  rankHistory(
+  ).slice(0, 5)
+})
+const failureReasonRanks = computed(() => {
+  if (props.summary) return normalizeRanks(props.summary.failureReasonRanks, '无状态码', normalizeFailureReasonLabel).slice(0, 5)
+  return rankHistory(
     filteredHistory.value.filter(isFailedHistory),
     (entry) => failureReasonLabel(entry),
     'count',
-  ).slice(0, 5),
-)
+  ).slice(0, 5)
+})
 const historyTotalPages = computed(() => Math.max(1, Math.ceil(filteredHistory.value.length / historyPageSize)))
 const pagedHistory = computed(() => {
   const page = Math.min(historyPage.value, historyTotalPages.value)
@@ -136,8 +151,19 @@ const pagedHistory = computed(() => {
   return filteredHistory.value.slice(start, start + historyPageSize)
 })
 
-watch([() => props.entries, filters], () => {
+watch(() => props.entries, () => {
   historyPage.value = 1
+})
+
+watch(filters, () => {
+  historyPage.value = 1
+  if (filterRefreshTimer) {
+    window.clearTimeout(filterRefreshTimer)
+  }
+  filterRefreshTimer = window.setTimeout(() => {
+    filterRefreshTimer = null
+    emit('refresh', { ...filters })
+  }, 250)
 }, { deep: true })
 
 function exportRequestHistory(format) {
@@ -150,6 +176,52 @@ function exportRequestHistory(format) {
 
 function openHistoryDiagnosis(entry) {
   emit('diagnose', entry)
+}
+
+function normalizeHistorySummary(summary) {
+  if (!summary) return null
+  const total = Number(summary.total || 0)
+  const failed = Number(summary.failed || 0)
+  const totalTokens = Number(summary.totalTokens || 0)
+  const averageDuration = Number(summary.averageDuration || 0)
+  return {
+    total,
+    failed,
+    failureRate: total ? Math.round((failed / total) * 100) : 0,
+    totalTokens,
+    averageDuration,
+  }
+}
+
+function normalizeDailyRows(rows) {
+  return [...(rows || [])].map((row) => ({
+    date: row.date,
+    requestCount: Number(row.requestCount || 0),
+    failedCount: Number(row.failedCount || 0),
+    totalTokens: Number(row.totalTokens || 0),
+  }))
+}
+
+function normalizeRanks(rows, fallbackLabel, labelFn = (value) => value) {
+  return [...(rows || [])].map((row) => {
+    const rawLabel = String(row.label || '').trim()
+    return {
+      label: labelFn(rawLabel || fallbackLabel),
+      count: Number(row.count || 0),
+      totalTokens: Number(row.totalTokens || 0),
+      failedCount: Number(row.failedCount || 0),
+    }
+  })
+}
+
+function normalizeClientRankLabel(label) {
+  return label === '__status_check__' ? '状态检查' : label
+}
+
+function normalizeFailureReasonLabel(label) {
+  return label
+    .replaceAll('__no_status__', '无状态码')
+    .replaceAll('__reason_sep__', ' · ')
 }
 
 function filterHistory(items, currentFilters) {
@@ -381,6 +453,10 @@ function isHistoryTrendTooltipActive(row) {
 }
 
 onBeforeUnmount(() => {
+  if (filterRefreshTimer) {
+    window.clearTimeout(filterRefreshTimer)
+    filterRefreshTimer = null
+  }
   hideHistoryTrendTooltip()
 })
 

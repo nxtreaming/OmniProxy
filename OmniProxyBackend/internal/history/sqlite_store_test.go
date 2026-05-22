@@ -228,6 +228,106 @@ func TestSQLiteStoreDailyUsageSummarizesBillableEntries(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreSummaryAggregatesAllMatchingHistory(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	recorder, err := NewRecorder(store, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstDay := time.Date(2026, 5, 1, 10, 30, 0, 0, time.Local)
+	secondDay := firstDay.AddDate(0, 0, 1)
+	recorder.Add(Entry{
+		Time:        firstDay,
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		ClientKey:   "codex",
+		ClientName:  "Codex",
+		Model:       "gpt-5.5",
+		Status:      200,
+		Duration:    10,
+		TokenName:   "primary",
+		TotalTokens: 100,
+		Message:     "request proxied",
+	})
+	recorder.Add(Entry{
+		Time:        secondDay,
+		Level:       "warn",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "deepseek",
+		ClientKey:   "opencode",
+		ClientName:  "OpenCode",
+		Model:       "deepseek-v4-pro",
+		Status:      429,
+		Duration:    20,
+		TokenName:   "backup",
+		TotalTokens: 25,
+		Message:     "rate limited",
+	})
+	recorder.Add(Entry{
+		Time:        secondDay.Add(time.Minute),
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		ClientKey:   "codex",
+		ClientName:  "Codex",
+		Model:       "gpt-5.5",
+		Status:      200,
+		Duration:    30,
+		TokenName:   "primary",
+		TotalTokens: 50,
+		Message:     "request proxied",
+	})
+
+	filtered, err := store.Summary(Filter{Provider: "openai", Limit: 1}, 14)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered.Total != 2 || filtered.Failed != 0 || filtered.TotalTokens != 150 || filtered.AverageDuration != 20 {
+		t.Fatalf("unexpected filtered summary: %#v", filtered)
+	}
+	if row := dailySummaryForDate(filtered.DailyRows, "2026-05-01"); row.RequestCount != 1 || row.TotalTokens != 100 {
+		t.Fatalf("unexpected first daily row: %#v", row)
+	}
+	if row := dailySummaryForDate(filtered.DailyRows, "2026-05-02"); row.RequestCount != 1 || row.TotalTokens != 50 {
+		t.Fatalf("unexpected second daily row: %#v", row)
+	}
+	if len(filtered.ModelRanks) != 1 || filtered.ModelRanks[0].Label != "gpt-5.5" || filtered.ModelRanks[0].TotalTokens != 150 {
+		t.Fatalf("unexpected model ranks: %#v", filtered.ModelRanks)
+	}
+
+	all, err := store.Summary(Filter{}, 14)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Total != 3 || all.Failed != 1 || all.TotalTokens != 175 || all.FailureRate != 33 {
+		t.Fatalf("unexpected full summary: %#v", all)
+	}
+	if len(all.TokenFailureRanks) != 1 || all.TokenFailureRanks[0].Label != "backup" || all.TokenFailureRanks[0].Count != 1 {
+		t.Fatalf("unexpected token failure ranks: %#v", all.TokenFailureRanks)
+	}
+	if len(all.FailureReasonRanks) != 1 || all.FailureReasonRanks[0].Label != "429__reason_sep__rate limited" {
+		t.Fatalf("unexpected failure reason ranks: %#v", all.FailureReasonRanks)
+	}
+}
+
+func dailySummaryForDate(rows []DailySummary, date string) DailySummary {
+	for _, row := range rows {
+		if row.Date == date {
+			return row
+		}
+	}
+	return DailySummary{}
+}
+
 func TestRecorderRetentionPrunesHistoryAndDailyUsageByDate(t *testing.T) {
 	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
 	if err != nil {

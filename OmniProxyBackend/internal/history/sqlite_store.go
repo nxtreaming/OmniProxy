@@ -179,6 +179,131 @@ LIMIT ?`, limit)
 	return dates, rows.Err()
 }
 
+func (s *SQLiteStore) Summary(filter Filter, days int) (Summary, error) {
+	days = normalizeSummaryDays(days)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	where, args := historyWhere(filter)
+	whereSQL := historyWhereSQL(where)
+	out := Summary{
+		DailyRows:          []DailySummary{},
+		ProviderRanks:      []Rank{},
+		ClientRanks:        []Rank{},
+		ModelRanks:         []Rank{},
+		TokenFailureRanks:  []Rank{},
+		FailureReasonRanks: []Rank{},
+	}
+
+	var durationSum int64
+	if err := s.db.QueryRow(`
+SELECT
+  COUNT(*) AS total,
+  COALESCE(SUM(CASE WHEN `+failedHistorySQL+` THEN 1 ELSE 0 END), 0) AS failed,
+  COALESCE(SUM(COALESCE(total_tokens, 0)), 0) AS total_tokens,
+  COALESCE(SUM(COALESCE(duration_ms, 0)), 0) AS duration_ms
+FROM request_history`+whereSQL, args...).Scan(&out.Total, &out.Failed, &out.TotalTokens, &durationSum); err != nil {
+		return Summary{}, err
+	}
+	if out.Total > 0 {
+		out.FailureRate = int((int64(out.Failed)*100 + int64(out.Total)/2) / int64(out.Total))
+		out.AverageDuration = (durationSum + int64(out.Total)/2) / int64(out.Total)
+	}
+
+	dailyRows, err := s.summaryDailyRows(whereSQL, args, days)
+	if err != nil {
+		return Summary{}, err
+	}
+	out.DailyRows = dailyRows
+
+	if out.ProviderRanks, err = s.summaryRanks(providerRankLabelSQL, where, args, "count", 0); err != nil {
+		return Summary{}, err
+	}
+	if out.ClientRanks, err = s.summaryRanks(clientRankLabelSQL, where, args, "count", 0); err != nil {
+		return Summary{}, err
+	}
+	if out.ModelRanks, err = s.summaryRanks(modelRankLabelSQL, where, args, "total_tokens", 0); err != nil {
+		return Summary{}, err
+	}
+
+	failedWhere := append([]string{}, where...)
+	failedWhere = append(failedWhere, failedHistorySQL)
+	if out.TokenFailureRanks, err = s.summaryRanks(tokenRankLabelSQL, failedWhere, args, "count", 50); err != nil {
+		return Summary{}, err
+	}
+	if out.FailureReasonRanks, err = s.summaryRanks(failureReasonRankLabelSQL, failedWhere, args, "count", 50); err != nil {
+		return Summary{}, err
+	}
+	return out, nil
+}
+
+func (s *SQLiteStore) summaryDailyRows(whereSQL string, args []any, days int) ([]DailySummary, error) {
+	rows, err := s.db.Query(`
+SELECT
+  substr(time, 1, 10) AS date,
+  COUNT(*) AS request_count,
+  COALESCE(SUM(CASE WHEN `+failedHistorySQL+` THEN 1 ELSE 0 END), 0) AS failed_count,
+  COALESCE(SUM(COALESCE(total_tokens, 0)), 0) AS total_tokens
+FROM request_history`+whereSQL+`
+GROUP BY date
+ORDER BY date`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	byDate := map[string]*DailySummary{}
+	for rows.Next() {
+		var row DailySummary
+		if err := rows.Scan(&row.Date, &row.RequestCount, &row.FailedCount, &row.TotalTokens); err != nil {
+			return nil, err
+		}
+		byDate[row.Date] = &row
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return dailySummaryWindow(byDate, days), nil
+}
+
+func (s *SQLiteStore) summaryRanks(labelSQL string, where []string, args []any, mode string, limit int) ([]Rank, error) {
+	orderBy := `count DESC, total_tokens DESC, label COLLATE NOCASE`
+	if mode == "total_tokens" {
+		orderBy = `total_tokens DESC, count DESC, label COLLATE NOCASE`
+	}
+	query := `
+SELECT
+  ` + labelSQL + ` AS label,
+  COUNT(*) AS count,
+  COALESCE(SUM(COALESCE(total_tokens, 0)), 0) AS total_tokens,
+  COALESCE(SUM(CASE WHEN ` + failedHistorySQL + ` THEN 1 ELSE 0 END), 0) AS failed_count
+FROM request_history` + historyWhereSQL(where) + `
+GROUP BY label
+ORDER BY ` + orderBy
+	queryArgs := append([]any{}, args...)
+	if limit > 0 {
+		query += ` LIMIT ?`
+		queryArgs = append(queryArgs, limit)
+	}
+
+	rows, err := s.db.Query(query, queryArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []Rank{}
+	for rows.Next() {
+		var row Rank
+		if err := rows.Scan(&row.Label, &row.Count, &row.TotalTokens, &row.FailedCount); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 func (s *SQLiteStore) PruneBeforeDate(cutoffDate string) error {
 	cutoffDate = strings.TrimSpace(cutoffDate)
 	if cutoffDate == "" {
@@ -390,6 +515,32 @@ INSERT OR REPLACE INTO request_history (
   retry_chain, message
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
+const failedHistorySQL = `(LOWER(COALESCE(level, '')) IN ('error', 'warn') OR COALESCE(status, 0) >= 400)`
+
+const providerRankLabelSQL = `COALESCE(NULLIF(provider, ''), '')`
+
+const clientRankLabelSQL = `CASE
+  WHEN UPPER(TRIM(COALESCE(method, ''))) = 'CHECK'
+    OR LOWER(TRIM(COALESCE(protocol, ''))) = 'health-check'
+    OR LOWER(TRIM(COALESCE(path, ''))) LIKE '%/maintenance/token-health-check%'
+  THEN '__status_check__'
+  ELSE COALESCE(NULLIF(client_name, ''), NULLIF(client_key, ''), '')
+END`
+
+const modelRankLabelSQL = `COALESCE(NULLIF(model, ''), NULLIF(protocol, ''), '')`
+
+const tokenRankLabelSQL = `COALESCE(NULLIF(token_name, ''), '')`
+
+const failureStatusLabelSQL = `CASE
+  WHEN COALESCE(status, 0) = 0 THEN '__no_status__'
+  ELSE CAST(status AS TEXT)
+END`
+
+const failureReasonRankLabelSQL = `CASE
+  WHEN TRIM(COALESCE(message, '')) = '' THEN ` + failureStatusLabelSQL + `
+  ELSE ` + failureStatusLabelSQL + ` || '__reason_sep__' || message
+END`
+
 const upsertDailyUsageSQL = `
 INSERT INTO billing_daily_usage (
   date, provider, protocol, client_key, client_name, model,
@@ -521,9 +672,19 @@ func tokenCounts(entry Entry) (int, int, int) {
 }
 
 func historyListQuery(filter Filter, limit int) (string, []any) {
+	where, args := historyWhere(filter)
+
+	var builder strings.Builder
+	builder.WriteString(`SELECT id, time, level, method, path, provider, protocol, client_key, client_name, model, status, duration_ms, token_id, token_name, input_tokens, output_tokens, total_tokens, cooldown_triggered, retry_chain, message FROM request_history`)
+	builder.WriteString(historyWhereSQL(where))
+	builder.WriteString(` ORDER BY id DESC LIMIT ?`)
+	args = append(args, limit)
+	return builder.String(), args
+}
+
+func historyWhere(filter Filter) ([]string, []any) {
 	where := make([]string, 0, 6)
 	args := make([]any, 0, 8)
-
 	if filter.Provider != "" && filter.Provider != "all" {
 		where = append(where, `provider = ? COLLATE NOCASE`)
 		args = append(args, filter.Provider)
@@ -566,15 +727,14 @@ CAST(status AS TEXT) LIKE ?
 		args = append(args, search, search, search, search, search, search, search, search, search, search)
 	}
 
-	var builder strings.Builder
-	builder.WriteString(`SELECT id, time, level, method, path, provider, protocol, client_key, client_name, model, status, duration_ms, token_id, token_name, input_tokens, output_tokens, total_tokens, cooldown_triggered, retry_chain, message FROM request_history`)
+	return where, args
+}
+
+func historyWhereSQL(where []string) string {
 	if len(where) > 0 {
-		builder.WriteString(` WHERE `)
-		builder.WriteString(strings.Join(where, ` AND `))
+		return ` WHERE ` + strings.Join(where, ` AND `)
 	}
-	builder.WriteString(` ORDER BY id DESC LIMIT ?`)
-	args = append(args, limit)
-	return builder.String(), args
+	return ``
 }
 
 func statusSQL(filter string) (string, []any) {

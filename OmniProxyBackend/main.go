@@ -299,6 +299,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/config", a.handleConfig)
 	mux.HandleFunc("/api/logs", a.handleLogs)
 	mux.HandleFunc("/api/history", a.handleHistory)
+	mux.HandleFunc("/api/history/summary", a.handleHistorySummary)
 	mux.HandleFunc("/api/history/clear", a.handleHistoryClear)
 	mux.HandleFunc("/api/billing/usage", a.handleBillingUsage)
 	mux.HandleFunc("/api/billing/dates", a.handleBillingDates)
@@ -1230,6 +1231,37 @@ func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 		Limit:    limit,
 	}
 	writeJSON(w, http.StatusOK, historyResponses(recorder.List(filter)))
+}
+
+func (a *appServer) handleHistorySummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		writeJSON(w, http.StatusOK, history.Summary{})
+		return
+	}
+
+	days := 14
+	if raw := strings.TrimSpace(r.URL.Query().Get("days")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			days = parsed
+		}
+	}
+	filter := history.Filter{
+		Provider: strings.TrimSpace(r.URL.Query().Get("provider")),
+		Client:   strings.TrimSpace(r.URL.Query().Get("client")),
+		Level:    strings.TrimSpace(r.URL.Query().Get("level")),
+		Status:   strings.TrimSpace(r.URL.Query().Get("status")),
+		Model:    strings.TrimSpace(r.URL.Query().Get("model")),
+		Token:    strings.TrimSpace(r.URL.Query().Get("token")),
+		Search:   strings.TrimSpace(r.URL.Query().Get("search")),
+	}
+	writeJSON(w, http.StatusOK, recorder.Summary(filter, days))
 }
 
 func (a *appServer) handleHistoryClear(w http.ResponseWriter, r *http.Request) {

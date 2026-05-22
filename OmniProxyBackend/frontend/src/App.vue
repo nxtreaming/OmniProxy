@@ -56,6 +56,7 @@ import {
   getConfig,
   getDataDirectory,
   getHistory,
+  getHistorySummary,
   getLogs,
   getOpenRouterModels,
   getProxyStatus,
@@ -186,6 +187,7 @@ let workspaceScrollSavePaused = false
 let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
+let historyRefreshSeq = 0
 const validatingIds = reactive({})
 const refreshingTokenIds = reactive({})
 const togglingTokenIds = reactive({})
@@ -194,6 +196,8 @@ const workspaceScrollPositions = reactive({})
 const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
+const requestHistorySummary = ref(null)
+const requestHistoryFilters = ref({})
 const billingUsage = ref([])
 const billingDates = ref([])
 const selectedBillingDate = ref(localDateKey())
@@ -1261,9 +1265,18 @@ async function installReadyUpdate() {
   }
 }
 
-async function refreshHistory(filters = {}) {
+async function refreshHistory(filters = requestHistoryFilters.value) {
   try {
-    requestHistory.value = await getHistory(filters)
+    const seq = ++historyRefreshSeq
+    const normalizedFilters = { ...(filters || {}) }
+    requestHistoryFilters.value = normalizedFilters
+    const [entries, summary] = await Promise.all([
+      getHistory(normalizedFilters),
+      getHistorySummary(normalizedFilters, 14),
+    ])
+    if (seq !== historyRefreshSeq) return
+    requestHistory.value = entries
+    requestHistorySummary.value = summary
   } catch (error) {
     errorMessage.value = error.message
   }
@@ -1997,6 +2010,7 @@ async function clearRequestHistoryData() {
     errorMessage.value = ''
     await clearRequestHistory()
     requestHistory.value = []
+    requestHistorySummary.value = null
     await refreshBilling()
     successMessage.value = '请求历史已清空'
   } catch (action) {
@@ -3690,6 +3704,7 @@ async function refreshQuota(item) {
         v-else-if="activeTab === 'history'"
         key="history"
         :entries="requestHistory"
+        :summary="requestHistorySummary"
         :providers="providers"
         :exporting="exportingHistory"
         :format-time="formatTime"
