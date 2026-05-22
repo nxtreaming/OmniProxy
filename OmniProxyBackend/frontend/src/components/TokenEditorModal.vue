@@ -1,4 +1,7 @@
 <script setup>
+import { computed } from 'vue'
+import GeminiSelect from './GeminiSelect.vue'
+
 const props = defineProps({
   form: {
     type: Object,
@@ -19,6 +22,34 @@ const props = defineProps({
 })
 
 defineEmits(['close', 'submit', 'provider-change'])
+
+const providerOptions = computed(() =>
+  props.providers.map((provider) => ({ value: provider.key, label: provider.label })),
+)
+
+const credentialTypeOptions = computed(() => {
+  const options = [
+    { value: 'api_key', label: props.form.provider === 'xiaomi' ? 'MiMo 按量 API Key (sk-)' : 'API Key' },
+  ]
+  if (props.form.provider === 'openai') {
+    options.push({ value: 'codex_auth_json', label: 'Codex auth.json' })
+  }
+  if (props.form.provider === 'anthropic') {
+    options.push({ value: 'claude_oauth_json', label: 'Claude OAuth JSON' })
+  }
+  if (props.form.provider === 'xiaomi') {
+    options.push({ value: 'mimo_token_plan', label: 'MiMo Token Plan (tp-)' })
+  }
+  if (props.form.provider === 'zhipu') {
+    options.push({ value: 'coding_plan', label: 'GLM Coding Plan' })
+  }
+  return options
+})
+
+const regionOptions = [
+  { value: 'cn', label: '中国区' },
+  { value: 'sgp', label: '海外 SGP' },
+]
 
 function credentialTypeLocked(form) {
   return !['openai', 'xiaomi', 'zhipu', 'anthropic'].includes(form.provider)
@@ -64,8 +95,8 @@ function autoNameText(form) {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="$emit('close')">
-    <form class="modal" @submit.prevent="$emit('submit')">
+  <div class="modal-backdrop token-editor-backdrop" @click.self="$emit('close')">
+    <form class="modal token-editor-modal" @submit.prevent="$emit('submit')">
       <div class="section-heading">
         <div>
           <h2>{{ form.editingId ? '编辑账号' : '添加账号' }}</h2>
@@ -82,28 +113,25 @@ function autoNameText(form) {
       </div>
       <label>
         <span>厂商</span>
-        <select v-model="form.provider" @change="$emit('provider-change')">
-          <option v-for="provider in providers" :key="provider.key" :value="provider.key">
-            {{ provider.label }}
-          </option>
-        </select>
+        <GeminiSelect
+          v-model="form.provider"
+          :options="providerOptions"
+          aria-label="选择厂商"
+          @change="$emit('provider-change')"
+        />
       </label>
       <label>
         <span>凭据类型</span>
-        <select v-model="form.credentialType" :disabled="credentialTypeLocked(form)">
-          <option value="api_key">{{ form.provider === 'xiaomi' ? 'MiMo 按量 API Key (sk-)' : 'API Key' }}</option>
-          <option v-if="form.provider === 'openai'" value="codex_auth_json">Codex auth.json</option>
-          <option v-if="form.provider === 'anthropic'" value="claude_oauth_json">Claude OAuth JSON</option>
-          <option v-if="form.provider === 'xiaomi'" value="mimo_token_plan">MiMo Token Plan (tp-)</option>
-          <option v-if="form.provider === 'zhipu'" value="coding_plan">GLM Coding Plan</option>
-        </select>
+        <GeminiSelect
+          v-model="form.credentialType"
+          :options="credentialTypeOptions"
+          :disabled="credentialTypeLocked(form)"
+          aria-label="选择凭据类型"
+        />
       </label>
       <label v-if="form.provider === 'xiaomi' && form.credentialType === 'mimo_token_plan'">
         <span>Token Plan 区域</span>
-        <select v-model="form.region">
-          <option value="cn">中国区</option>
-          <option value="sgp">海外 SGP</option>
-        </select>
+        <GeminiSelect v-model="form.region" :options="regionOptions" aria-label="选择 Token Plan 区域" />
         <small>海外账号会使用 token-plan-sgp.xiaomimimo.com。</small>
       </label>
       <label v-if="form.provider === 'sub2api'">

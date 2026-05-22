@@ -500,6 +500,93 @@ function updateDraft(event) {
   draft.value = event?.target?.value || ''
 }
 
+function firstDefined(source, keys) {
+  if (!source || typeof source !== 'object') {
+    return undefined
+  }
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null) {
+      return source[key]
+    }
+  }
+  return undefined
+}
+
+function normalizeChatText(value) {
+  if (value === undefined || value === null) {
+    return ''
+  }
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeChatText(
+        typeof item === 'object' && item !== null
+          ? firstDefined(item, ['text', 'Text', 'content', 'Content', 'value', 'Value'])
+          : item,
+      ))
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+  if (typeof value === 'object') {
+    const nested = firstDefined(value, ['text', 'Text', 'content', 'Content', 'value', 'Value'])
+    if (nested !== undefined && nested !== value) {
+      return normalizeChatText(nested)
+    }
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return ''
+    }
+  }
+  return String(value).trim()
+}
+
+function normalizeChatUsage(usage) {
+  const source = usage && typeof usage === 'object' ? usage : {}
+  const inputTokens = numberValue(firstDefined(source, ['inputTokens', 'InputTokens', 'prompt_tokens']))
+  const outputTokens = numberValue(firstDefined(source, ['outputTokens', 'OutputTokens', 'completion_tokens']))
+  const totalTokens = numberValue(firstDefined(source, ['totalTokens', 'TotalTokens', 'total_tokens']))
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: totalTokens || inputTokens + outputTokens,
+  }
+}
+
+function normalizeChatResult(result, fallbackModel) {
+  if (typeof result === 'string') {
+    return {
+      role: 'assistant',
+      content: result.trim(),
+      model: fallbackModel,
+      usage: normalizeChatUsage(),
+      finishReason: '',
+    }
+  }
+
+  const choices = Array.isArray(result?.choices) ? result.choices : Array.isArray(result?.Choices) ? result.Choices : []
+  const choice = choices[0] || {}
+  const choiceMessage = firstDefined(choice, ['message', 'Message', 'delta', 'Delta'])
+  const message = firstDefined(result, ['message', 'Message']) || choiceMessage || {}
+  const content = normalizeChatText(
+    firstDefined(message, ['content', 'Content', 'text', 'Text']) ??
+      firstDefined(result, ['content', 'Content', 'text', 'Text']),
+  )
+
+  return {
+    role: firstDefined(message, ['role', 'Role']) || 'assistant',
+    content,
+    model: firstDefined(result, ['model', 'Model']) || fallbackModel,
+    usage: normalizeChatUsage(firstDefined(result, ['usage', 'Usage'])),
+    finishReason: firstDefined(result, ['finishReason', 'FinishReason', 'finish_reason']) ||
+      firstDefined(choice, ['finishReason', 'FinishReason', 'finish_reason']) ||
+      '',
+  }
+}
+
 async function sendMessage() {
   const content = draft.value.trim()
   const model = selectedModelId.value.trim()
@@ -532,16 +619,18 @@ async function sendMessage() {
     if (error) {
       throw error
     }
+    const normalizedResult = normalizeChatResult(result, model)
     const assistantMessage = {
-      role: result?.message?.role || 'assistant',
+      role: normalizedResult.role || 'assistant',
       content: '',
-      model: result?.model || model,
-      usage: result?.usage,
-      finishReason: result?.finishReason,
+      model: normalizedResult.model || model,
+      usage: normalizedResult.usage,
+      finishReason: normalizedResult.finishReason,
       isTyping: true,
     }
     messages.value.push(assistantMessage)
-    typeAssistantMessage(assistantMessage, result?.message?.content || 'OpenRouter 未返回文本内容')
+    await scrollTranscript()
+    typeAssistantMessage(assistantMessage, normalizedResult.content || 'OpenRouter 未返回文本内容')
   } catch (error) {
     chatError.value = error.message
   } finally {
@@ -638,6 +727,13 @@ async function sendMessage() {
             <el-button :icon="Refresh" :loading="modelsLoading" @click="$emit('refresh-models')">
               {{ modelsLoading ? '刷新中' : '刷新' }}
             </el-button>
+            <el-button
+              :icon="Refresh"
+              :loading="openRouterQuotaLoading"
+              @click="refreshOpenRouterQuota"
+            >
+              {{ openRouterQuotaToken ? '额度' : '添加 Key' }}
+            </el-button>
             <el-button :icon="Delete" :disabled="!messages.length || sending || typing" @click="resetConversation()">
               清空
             </el-button>
@@ -662,14 +758,6 @@ async function sendMessage() {
             <span>上限</span>
             <strong>{{ openRouterQuotaLimitText }}</strong>
           </div>
-          <el-button
-            text
-            :icon="Refresh"
-            :loading="openRouterQuotaLoading"
-            @click="refreshOpenRouterQuota"
-          >
-            {{ openRouterQuotaToken ? '刷新额度' : '添加 Key' }}
-          </el-button>
         </div>
 
         <div ref="transcriptRef" class="openrouter-chat-transcript">

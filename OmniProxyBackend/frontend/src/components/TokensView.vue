@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Connection, Download, Refresh, Upload } from '@element-plus/icons-vue'
+import { CircleCheckFilled, Connection, Delete, Download, Edit, Key, Refresh, Upload } from '@element-plus/icons-vue'
 
 const props = defineProps({
   providers: {
@@ -132,7 +132,7 @@ const emit = defineEmits([
 
 const codexAuthInput = ref(null)
 const openRouterModelPage = ref(1)
-const openRouterModelPageSize = 24
+const openRouterModelPageSize = 12
 
 const openRouterModelPageCount = computed(() =>
   Math.max(1, Math.ceil(props.openRouterModels.length / openRouterModelPageSize)),
@@ -188,14 +188,7 @@ function apiBalanceSummaryMeta(summary) {
 </script>
 
 <template>
-  <section class="panel">
-    <div class="section-heading">
-      <div>
-        <h2>账号管理</h2>
-        <p>按厂商独立管理账号池，新添加账号默认显示在对应分组顶部</p>
-      </div>
-    </div>
-
+  <section class="panel tokens-page-panel">
     <div class="provider-switch" aria-label="厂商选择">
       <button
         v-for="provider in providers"
@@ -331,98 +324,92 @@ function apiBalanceSummaryMeta(summary) {
       </div>
     </div>
 
-    <div class="table-wrap">
-      <table class="account-table">
-        <colgroup>
-          <col class="account-col-name" />
-          <col class="account-col-credential-type" />
-          <col class="account-col-credential" />
-          <col class="account-col-quota" />
-          <col class="account-col-usage" />
-          <col class="account-col-status" />
-          <col class="account-col-last-used" />
-          <col class="account-col-actions" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>账号名称</th>
-            <th>凭据类型</th>
-            <th>凭据</th>
-            <th>额度</th>
-            <th>代理用量</th>
-            <th>状态</th>
-            <th>最后使用</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in activeProviderTokens" :key="item.id">
-            <td>
-              <strong>{{ item.name }}</strong>
-              <small v-if="item.lastError">{{ item.lastError }}</small>
-            </td>
-            <td>{{ credentialLabel(item) }}</td>
-            <td class="mono">{{ credentialDisplay(item) }}</td>
-            <td>{{ quotaDisplay(item) }}</td>
-            <td>
-              {{ formatNumber(item.stats?.totalTokens) }}
-              <small>{{ formatNumber(item.stats?.requestCount) }} 次请求</small>
-            </td>
-            <td>
-              <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">
-                {{ displayStatusLabel(item) }}
-              </el-tag>
-              <small class="health-line">{{ healthSummary(item) }}</small>
-            </td>
-            <td>{{ formatTime(item.lastUsedAt) }}</td>
-            <td class="actions-cell">
-              <div class="row-actions">
-                <el-button
-                  v-if="canRefreshAuthToken(item)"
-                  size="small"
-                  class="account-action-button"
-                  plain
-                  :icon="Refresh"
-                  :loading="refreshingTokenIds[item.id]"
-                  @click="$emit('refresh-token-auth', item)"
-                >
-                  刷新令牌
-                </el-button>
-                <el-button
-                  size="small"
-                  class="account-action-button"
-                  plain
-                  :icon="Refresh"
-                  :loading="validatingIds[item.id]"
-                  @click="$emit('verify-token', item)"
-                >
-                  验证
-                </el-button>
-                <el-button
-                  size="small"
-                  class="account-action-button"
-                  :type="item.disabled ? 'primary' : 'info'"
-                  plain
-                  :loading="togglingTokenIds[item.id]"
-                  @click="$emit('toggle-token-enabled', item, item.disabled)"
-                >
-                  {{ item.disabled ? '启用' : '停用' }}
-                </el-button>
-                <el-button size="small" class="account-action-button" plain @click="$emit('open-edit-form', item)">编辑</el-button>
-                <el-button
-                  size="small"
-                  class="account-action-button"
-                  type="danger"
-                  plain
-                  @click="$emit('remove-token', item)"
-                >
-                  删除
-                </el-button>
+    <div class="account-list-wrap">
+      <div class="account-list" role="list" aria-label="账号列表">
+        <article v-for="item in activeProviderTokens" :key="item.id" class="account-list-item" role="listitem">
+          <div class="account-list-main">
+            <div class="account-list-icon" aria-hidden="true">
+              <Key />
+            </div>
+            <div class="account-list-text">
+              <div class="account-list-title">
+                <strong>{{ item.name }}</strong>
+                <el-tag :type="displayStatusType(item)" effect="light" class="status-tag">
+                  {{ displayStatusLabel(item) }}
+                </el-tag>
               </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <div class="account-list-subline">
+                <span class="account-credential-pill mono">{{ credentialDisplay(item) }}</span>
+                <span v-if="item.lastError" class="account-subtext">{{ item.lastError }}</span>
+                <span v-else class="account-subtext">{{ credentialLabel(item) }} · {{ healthSummary(item) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="account-list-meta" aria-label="账号状态">
+            <div>
+              <span>额度</span>
+              <strong>{{ quotaDisplay(item) }}</strong>
+            </div>
+            <div>
+              <span>用量</span>
+              <strong>{{ formatNumber(item.stats?.totalTokens) }}</strong>
+              <small>{{ formatNumber(item.stats?.requestCount) }} 次请求</small>
+            </div>
+            <div>
+              <span>最后使用</span>
+              <strong>{{ formatTime(item.lastUsedAt) }}</strong>
+            </div>
+          </div>
+
+          <div class="account-list-actions">
+            <button
+              type="button"
+              class="account-toggle"
+              :class="{ active: !item.disabled }"
+              :aria-pressed="!item.disabled"
+              :disabled="togglingTokenIds[item.id]"
+              @click="$emit('toggle-token-enabled', item, item.disabled)"
+            >
+              <span></span>
+            </button>
+            <div class="row-actions">
+              <el-button
+                v-if="canRefreshAuthToken(item)"
+                size="small"
+                class="account-action-button"
+                plain
+                :icon="Refresh"
+                :loading="refreshingTokenIds[item.id]"
+                @click="$emit('refresh-token-auth', item)"
+              >
+                刷新
+              </el-button>
+              <el-button
+                size="small"
+                class="account-action-button"
+                plain
+                :icon="CircleCheckFilled"
+                :loading="validatingIds[item.id]"
+                @click="$emit('verify-token', item)"
+              >
+                验证
+              </el-button>
+              <el-button size="small" class="account-action-button" plain :icon="Edit" @click="$emit('open-edit-form', item)">编辑</el-button>
+              <el-button
+                size="small"
+                class="account-action-button"
+                type="danger"
+                plain
+                :icon="Delete"
+                @click="$emit('remove-token', item)"
+              >
+                删除
+              </el-button>
+            </div>
+          </div>
+        </article>
+      </div>
       <div v-if="!activeProviderTokens.length" class="empty">
         暂无 {{ activeProviderInfo.label }} 账号
       </div>

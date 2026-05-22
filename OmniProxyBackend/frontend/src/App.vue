@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import AboutView from './components/AboutView.vue'
 import BillingView from './components/BillingView.vue'
@@ -109,6 +109,7 @@ import {
 
 const activeTab = ref('dashboard')
 const activeProvider = ref('openai')
+const mobileSidebarOpen = ref(false)
 const tabIcons = {
   dashboard: DataBoard,
   'usage-trends': TrendCharts,
@@ -132,6 +133,8 @@ const navSections = [
 const isDark = ref(false)
 const windowMaximised = ref(false)
 const loading = ref(false)
+const workspaceRef = ref(null)
+const workspaceScrollbarVisible = ref(false)
 const codexConfiguring = ref(false)
 const codexSub2APIConfiguring = ref(false)
 const codexZoConfiguring = ref(false)
@@ -177,6 +180,7 @@ const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
 const appThemeStorageKey = 'omniproxy.appTheme'
 const firstUseGuideStorageKey = 'omniproxy.firstRunGuideModalDismissed'
 let toastTimer = null
+let workspaceScrollbarTimer = null
 let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
@@ -184,6 +188,7 @@ const validatingIds = reactive({})
 const refreshingTokenIds = reactive({})
 const togglingTokenIds = reactive({})
 const switchingOnlyTokenIds = reactive({})
+const workspaceScrollPositions = reactive({})
 const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
@@ -822,6 +827,79 @@ function toggleAppTheme() {
   isDark.value = !isDark.value
 }
 
+function selectTab(tabKey) {
+  activeTab.value = tabKey
+  mobileSidebarOpen.value = false
+}
+
+function saveWorkspaceScrollPosition(tabKey = activeTab.value) {
+  const target = workspaceRef.value
+  if (!target || !tabKey) return
+  workspaceScrollPositions[tabKey] = target.scrollTop || 0
+}
+
+function restoreWorkspaceScrollPosition(tabKey = activeTab.value) {
+  const target = workspaceRef.value
+  if (!target || !tabKey) return
+  const savedTop = Number(workspaceScrollPositions[tabKey] || 0)
+  const maxTop = Math.max(0, target.scrollHeight - target.clientHeight)
+  target.scrollTop = Math.min(savedTop, maxTop)
+}
+
+function restoreActiveWorkspaceScroll() {
+  nextTick(() => {
+    restoreWorkspaceScrollPosition(activeTab.value)
+  })
+}
+
+function handleWorkspaceScroll(event) {
+  if (event?.currentTarget !== workspaceRef.value) return
+  saveWorkspaceScrollPosition(activeTab.value)
+}
+
+function clearWorkspaceScrollbarTimer() {
+  if (workspaceScrollbarTimer) {
+    window.clearTimeout(workspaceScrollbarTimer)
+    workspaceScrollbarTimer = null
+  }
+}
+
+function hideWorkspaceScrollbar() {
+  clearWorkspaceScrollbarTimer()
+  workspaceScrollbarVisible.value = false
+}
+
+function handleWorkspacePointerMove(event) {
+  const target = event.currentTarget
+  if (!target || target.scrollHeight <= target.clientHeight) {
+    hideWorkspaceScrollbar()
+    return
+  }
+
+  const rect = target.getBoundingClientRect()
+  const scrollbarHotZone = 14
+  const inScrollbarArea = event.clientX >= rect.right - scrollbarHotZone && event.clientX <= rect.right
+
+  if (!inScrollbarArea) {
+    hideWorkspaceScrollbar()
+    return
+  }
+
+  if (workspaceScrollbarVisible.value || workspaceScrollbarTimer) return
+  workspaceScrollbarTimer = window.setTimeout(() => {
+    workspaceScrollbarVisible.value = true
+    workspaceScrollbarTimer = null
+  }, 500)
+}
+
+function syncDocumentTheme(value) {
+  if (typeof document === 'undefined') {
+    return
+  }
+  document.documentElement.classList.toggle('dark', value)
+  document.body.classList.toggle('dark', value)
+}
+
 onMounted(async () => {
   const savedAppTheme = window.localStorage?.getItem(appThemeStorageKey)
   if (savedAppTheme === 'dark' || savedAppTheme === 'light') {
@@ -829,6 +907,7 @@ onMounted(async () => {
   } else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     isDark.value = true
   }
+  syncDocumentTheme(isDark.value)
   await refreshWindowState()
   window.addEventListener('resize', refreshWindowState)
   await refreshAll()
@@ -852,6 +931,8 @@ onBeforeUnmount(() => {
     window.clearTimeout(toastTimer)
     toastTimer = null
   }
+  saveWorkspaceScrollPosition()
+  clearWorkspaceScrollbarTimer()
 })
 
 watch([errorMessage, successMessage], ([error, success]) => {
@@ -871,9 +952,12 @@ watch([errorMessage, successMessage], ([error, success]) => {
 
 watch(isDark, (value) => {
   window.localStorage?.setItem(appThemeStorageKey, value ? 'dark' : 'light')
+  syncDocumentTheme(value)
 })
 
-watch(activeTab, (tab) => {
+watch(activeTab, (tab, previousTab) => {
+  saveWorkspaceScrollPosition(previousTab)
+  hideWorkspaceScrollbar()
   if (tab === 'history') {
     refreshHistory()
   } else if (tab === 'billing') {
@@ -3111,7 +3195,14 @@ async function refreshQuota(item) {
       @mousedown.prevent.stop="startWindowResize('e-resize')"
     ></div>
 
-    <aside class="sidebar">
+    <div
+      v-if="mobileSidebarOpen"
+      class="mobile-sidebar-backdrop"
+      aria-hidden="true"
+      @click="mobileSidebarOpen = false"
+    ></div>
+
+    <aside class="sidebar" :class="{ open: mobileSidebarOpen }">
       <div class="brand">
         <div class="brand-mark">
           <img :src="appIconUrl" alt="" />
@@ -3123,11 +3214,31 @@ async function refreshQuota(item) {
       </div>
 
       <div class="sidebar-status">
-        <div :class="['status-light', { online: proxyStatus.running }]"></div>
-        <div>
-          <strong>{{ proxyStatus.running ? '代理运行中' : '代理未启动' }}</strong>
-          <span>{{ proxyEndpoint }}</span>
+        <div class="sidebar-status-main">
+          <div :class="['status-light', { online: proxyStatus.running }]"></div>
+          <div>
+            <strong>{{ proxyStatus.running ? '代理运行中' : '代理未启动' }}</strong>
+            <span>{{ proxyEndpoint }} · {{ tokens.length }} 个账号</span>
+          </div>
         </div>
+        <div class="sidebar-status-meta">
+          <div>
+            <span>端口</span>
+            <strong>{{ proxyStatus.port || config.proxyPort }}</strong>
+          </div>
+          <div>
+            <span>可用账号</span>
+            <strong>{{ activeTokens.length }}</strong>
+          </div>
+          <div>
+            <span>状态</span>
+            <strong>{{ proxyStatus.running ? '运行中' : '已停止' }}</strong>
+          </div>
+        </div>
+        <button type="button" class="sidebar-proxy-button" @click="toggleProxy">
+          <component :is="SwitchButton" class="button-icon" aria-hidden="true" />
+          <span>{{ proxyStatus.running ? '停止代理' : '启动代理' }}</span>
+        </button>
       </div>
 
       <nav class="nav-list">
@@ -3138,7 +3249,7 @@ async function refreshQuota(item) {
             :key="tab.key"
             type="button"
             :class="{ active: activeTab === tab.key }"
-            @click="activeTab = tab.key"
+            @click="selectTab(tab.key)"
           >
             <component :is="tabIcons[tab.key]" class="nav-icon" aria-hidden="true" />
             <span>{{ tab.label }}</span>
@@ -3154,43 +3265,57 @@ async function refreshQuota(item) {
       </div>
     </aside>
 
-    <main :class="['workspace', { 'openrouter-workspace': activeTab === 'openrouter-chat' }]">
+    <main
+      ref="workspaceRef"
+      :class="[
+        'workspace',
+        {
+          'openrouter-workspace': activeTab === 'openrouter-chat',
+          'logs-workspace': activeTab === 'logs',
+          'workspace-scrollbar-visible': workspaceScrollbarVisible,
+        },
+      ]"
+      @pointermove="handleWorkspacePointerMove"
+      @pointerleave="hideWorkspaceScrollbar"
+      @scroll="handleWorkspaceScroll"
+    >
       <header class="topbar">
+        <button
+          type="button"
+          class="mobile-menu-button"
+          :aria-expanded="mobileSidebarOpen"
+          aria-label="打开导航"
+          @click="mobileSidebarOpen = true"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
         <div class="topbar-title">
           <p class="eyebrow">本地控制台</p>
           <h1>{{ currentTabLabel }}</h1>
-          <p class="topbar-subtitle">{{ proxyEndpoint }} · {{ tokens.length }} 个账号</p>
-        </div>
-        <div class="topbar-actions">
-          <div class="topbar-meta">
-            <span>端口</span>
-            <strong>{{ proxyStatus.port }}</strong>
-          </div>
-          <div class="topbar-meta">
-            <span>可用账号</span>
-            <strong>{{ activeTokens.length }}</strong>
-          </div>
-          <el-tag :type="proxyStatus.running ? 'success' : 'info'" effect="light" round class="proxy-tag">
-            {{ proxyStatus.running ? '运行中' : '已停止' }}
-          </el-tag>
-          <el-button type="primary" :icon="SwitchButton" @click="toggleProxy">
-            {{ proxyStatus.running ? '停止代理' : '启动代理' }}
-          </el-button>
+          <p class="topbar-subtitle">OmniProxy 桌面网关</p>
         </div>
       </header>
 
-      <div v-if="errorMessage || successMessage" class="toast-stack" aria-live="polite">
-        <div v-if="errorMessage" class="alert" role="alert">
+      <TransitionGroup name="snackbar" tag="div" class="toast-stack" aria-live="polite">
+        <div v-if="errorMessage" key="error" class="alert" role="alert">
           <span class="toast-message">{{ errorMessage }}</span>
           <button type="button" aria-label="关闭错误提示" @click="errorMessage = ''">×</button>
         </div>
-        <div v-if="successMessage" class="notice" role="status">
+        <div v-if="successMessage" key="success" class="notice" role="status">
           <span class="toast-message">{{ successMessage }}</span>
           <button type="button" aria-label="关闭成功提示" @click="successMessage = ''">×</button>
         </div>
-      </div>
+      </TransitionGroup>
 
-      <Transition name="page-switch" mode="out-in" appear>
+      <Transition
+        name="page-switch"
+        mode="out-in"
+        appear
+        @before-enter="restoreActiveWorkspaceScroll"
+        @after-enter="restoreActiveWorkspaceScroll"
+      >
       <DashboardView
         v-if="activeTab === 'dashboard'"
         key="dashboard"
@@ -3271,7 +3396,7 @@ async function refreshQuota(item) {
         @refresh="refreshBilling"
       />
 
-      <section v-else-if="activeTab === 'quotas'" key="quotas" class="panel">
+      <section v-else-if="activeTab === 'quotas'" key="quotas" class="panel quotas-page-panel">
         <div class="section-heading">
           <div>
             <h2>账号状态</h2>
@@ -3304,7 +3429,19 @@ async function refreshQuota(item) {
             <p>{{ activeProviderEnabledCount }} 启用 / {{ activeProviderTokens.length }} 总数 · {{ activeProviderInfo.note }}</p>
           </div>
           <div
-            v-if="activeProviderAPIBalanceSummaries.length"
+            v-if="activeProvider === 'openrouter' && activeProviderTokens.length"
+            class="provider-api-balance-summary openrouter-provider-summary"
+            aria-label="OpenRouter 额度"
+          >
+            <article v-for="item in activeProviderTokens" :key="`openrouter-provider-summary-${item.id}`">
+              <span>{{ item.name }}</span>
+              <strong>{{ openRouterQuotaRemaining(item) }}</strong>
+              <small>{{ openRouterQuotaMeta(item) }}</small>
+              <small>已用 {{ openRouterQuotaValue(item, 'balanceUsed') }} · 上限 {{ openRouterQuotaLimit(item) }}</small>
+            </article>
+          </div>
+          <div
+            v-else-if="activeProviderAPIBalanceSummaries.length"
             class="provider-api-balance-summary"
             aria-label="API Key 总额度"
           >
@@ -3312,56 +3449,6 @@ async function refreshQuota(item) {
               <span>API Key 总额度 · {{ summary.unit }}</span>
               <strong>{{ formatBalance(summary.remaining) }} {{ summary.unit }}</strong>
               <small>{{ apiBalanceSummaryMeta(summary) }}</small>
-            </article>
-          </div>
-        </div>
-
-        <div v-if="activeProvider === 'openrouter' && activeProviderTokens.length" class="openrouter-quota-panel">
-          <div class="openrouter-quota-panel-head">
-            <div>
-              <span>OpenRouter 额度</span>
-              <strong>API Key 余额来自 OpenRouter /key</strong>
-              <small>刷新后显示剩余额度、已用额度和额度上限；没有设置上限时 OpenRouter 可能只返回用量。</small>
-            </div>
-            <el-button
-              :icon="RefreshRight"
-              :loading="refreshingProvider"
-              @click="refreshProviderQuotas"
-            >
-              刷新 OpenRouter 额度
-            </el-button>
-          </div>
-          <div class="openrouter-quota-summary-list">
-            <article
-              v-for="item in activeProviderTokens"
-              :key="`openrouter-quota-${item.id}`"
-              :class="['openrouter-quota-summary-row', { disabled: item.disabled }]"
-            >
-              <div class="openrouter-quota-account">
-                <strong>{{ item.name }}</strong>
-                <small>{{ openRouterQuotaMeta(item) }}</small>
-              </div>
-              <div>
-                <span>剩余</span>
-                <strong>{{ openRouterQuotaRemaining(item) }}</strong>
-              </div>
-              <div>
-                <span>已用</span>
-                <strong>{{ openRouterQuotaValue(item, 'balanceUsed') }}</strong>
-              </div>
-              <div>
-                <span>上限</span>
-                <strong>{{ openRouterQuotaLimit(item) }}</strong>
-              </div>
-              <el-button
-                text
-                :icon="Refresh"
-                :loading="validatingIds[item.id]"
-                :disabled="item.disabled"
-                @click="refreshQuota(item)"
-              >
-                刷新
-              </el-button>
             </article>
           </div>
         </div>
@@ -3638,14 +3725,7 @@ async function refreshQuota(item) {
         @open-url="openExternalURL"
       />
 
-      <section v-else-if="activeTab === 'quickstart'" key="quickstart" class="panel help-panel">
-        <div class="section-heading">
-          <div>
-            <h2>一键配置</h2>
-            <p>把本机 Codex、Claude Code、Gemini CLI、OpenCode、Pi Coding Agent 或 DeepSeek-TUI 指向 OmniProxy，本页只负责写入本地客户端配置</p>
-          </div>
-        </div>
-
+      <section v-else-if="activeTab === 'quickstart'" key="quickstart" class="help-panel quickstart-panel">
         <div class="help-grid">
           <article class="wide-help">
             <strong>Codex</strong>
@@ -3845,15 +3925,6 @@ api_key = "omniproxy-local"</code></pre>
       </section>
 
       <section v-else-if="activeTab === 'help'" key="help" class="help-page">
-        <div class="panel help-intro-panel">
-          <div class="section-heading">
-            <div>
-              <h2>使用说明</h2>
-              <p>围绕账号池、调度策略、本地路由和诊断日志完成一次可验证的接入流程</p>
-            </div>
-          </div>
-        </div>
-
         <div class="help-guide">
           <div class="help-readiness-grid" aria-label="当前接入状态">
             <article

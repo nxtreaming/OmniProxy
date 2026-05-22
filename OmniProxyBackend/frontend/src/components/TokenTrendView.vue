@@ -174,11 +174,8 @@ function pointTitle(point, label, unit) {
 
 <template>
   <section class="token-trend-page">
-    <div class="section-heading token-trend-heading">
-      <div>
-        <h2>用量趋势</h2>
-        <p>展示全部已记录天数的 Token 与请求次数变化</p>
-      </div>
+    <div class="token-trend-toolbar">
+      <p>展示全部已记录天数的 Token 与请求次数变化</p>
       <el-button :icon="Refresh" @click="refresh">刷新</el-button>
     </div>
 

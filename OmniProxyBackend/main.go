@@ -88,7 +88,7 @@ func main() {
 		Title:             appDisplayName(),
 		Width:             1280,
 		Height:            860,
-		MinWidth:          1040,
+		MinWidth:          1240,
 		MinHeight:         720,
 		Frameless:         true,
 		StartHidden:       startHiddenFromArgs(),

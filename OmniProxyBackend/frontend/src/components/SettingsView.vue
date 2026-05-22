@@ -224,16 +224,13 @@ function normalizeOutboundProxyProviders(providers) {
 </script>
 
 <template>
-  <section class="panel settings-panel">
-    <div class="section-heading">
-      <div>
-        <h2>代理设置</h2>
-        <p>保存后新请求会使用最新配置，端口变更需要重启代理</p>
-      </div>
+  <section class="settings-panel">
+    <div class="settings-page-toolbar">
+      <p>保存后新请求会使用最新配置，端口变更需要重启代理。</p>
       <button type="button" class="primary-button" @click="$emit('persist-config')">保存设置</button>
     </div>
     <div class="settings-stack">
-      <section class="settings-section">
+      <section class="settings-section settings-maintenance-section">
         <div class="settings-section-head">
           <div>
             <h3>应用维护</h3>
@@ -311,7 +308,7 @@ function normalizeOutboundProxyProviders(providers) {
         </div>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-service-section">
         <div class="settings-section-head">
           <div>
             <h3>本机服务</h3>
@@ -343,7 +340,7 @@ function normalizeOutboundProxyProviders(providers) {
         </div>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-outbound-section">
         <div class="settings-section-head">
           <div>
             <h3>出站代理</h3>
@@ -434,7 +431,7 @@ function normalizeOutboundProxyProviders(providers) {
         </div>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-scheduling-section">
         <div class="settings-section-head">
           <div>
             <h3>调度与保护</h3>
@@ -442,13 +439,35 @@ function normalizeOutboundProxyProviders(providers) {
           </div>
         </div>
         <div class="settings-grid compact-settings-grid">
-          <label>
+          <div class="settings-segmented-field">
             <span>账号调度模式</span>
-            <select v-model="config.schedulingMode">
-              <option value="queue">队列模式</option>
-              <option value="balanced">优先平衡使用</option>
-            </select>
-          </label>
+            <div
+              :class="[
+                'settings-segmented',
+                'settings-segmented-two',
+                config.schedulingMode === 'balanced' ? 'active-right' : 'active-left',
+              ]"
+              role="group"
+              aria-label="账号调度模式"
+            >
+              <button
+                type="button"
+                :class="{ active: config.schedulingMode === 'queue' }"
+                :aria-pressed="config.schedulingMode === 'queue'"
+                @click="config.schedulingMode = 'queue'"
+              >
+                队列模式
+              </button>
+              <button
+                type="button"
+                :class="{ active: config.schedulingMode === 'balanced' }"
+                :aria-pressed="config.schedulingMode === 'balanced'"
+                @click="config.schedulingMode = 'balanced'"
+              >
+                优先平衡使用
+              </button>
+            </div>
+          </div>
           <label>
             <span>额度切换阈值</span>
             <input v-model="config.switchThreshold" type="number" min="1" max="100" />
@@ -459,10 +478,19 @@ function normalizeOutboundProxyProviders(providers) {
           </label>
           <div class="settings-segmented-field">
             <span>MiMo 优先使用</span>
-            <div class="settings-segmented" role="group" aria-label="MiMo 凭据优先级">
+            <div
+              :class="[
+                'settings-segmented',
+                'settings-segmented-two',
+                config.xiaomiCredentialPriority === 'api_key' ? 'active-right' : 'active-left',
+              ]"
+              role="group"
+              aria-label="MiMo 凭据优先级"
+            >
               <button
                 type="button"
                 :class="{ active: config.xiaomiCredentialPriority === 'mimo_token_plan' }"
+                :aria-pressed="config.xiaomiCredentialPriority === 'mimo_token_plan'"
                 @click="config.xiaomiCredentialPriority = 'mimo_token_plan'"
               >
                 Token Plan
@@ -470,6 +498,7 @@ function normalizeOutboundProxyProviders(providers) {
               <button
                 type="button"
                 :class="{ active: config.xiaomiCredentialPriority === 'api_key' }"
+                :aria-pressed="config.xiaomiCredentialPriority === 'api_key'"
                 @click="config.xiaomiCredentialPriority = 'api_key'"
               >
                 按量 API
@@ -479,7 +508,7 @@ function normalizeOutboundProxyProviders(providers) {
         </div>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-url-section settings-url-section-core">
         <div class="settings-section-head">
           <div>
             <h3>OpenAI / Anthropic / Codex</h3>
@@ -513,7 +542,7 @@ function normalizeOutboundProxyProviders(providers) {
         </div>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-url-section settings-url-section-third-party">
         <div class="settings-section-head">
           <div>
             <h3>第三方路由</h3>

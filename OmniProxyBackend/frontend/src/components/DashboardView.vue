@@ -77,7 +77,7 @@ const contributionCalendar = computed(() =>
 const contributionCalendarWeeks = computed(() => contributionCalendar.value.weeks)
 const contributionCalendarSummary = computed(() => contributionCalendar.value.summary)
 const contributionGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${Math.max(1, contributionCalendarWeeks.value.length)}, 10px)`,
+  gridTemplateColumns: `repeat(${Math.max(1, contributionCalendarWeeks.value.length)}, var(--contribution-cell))`,
 }))
 
 function toggleProxy() {
@@ -196,30 +196,6 @@ function localDateKeyFromDate(value) {
 
 <template>
   <section class="view-grid dashboard-grid">
-        <section class="dashboard-brief full">
-          <div class="brief-status">
-            <span :class="['brief-dot', { online: proxyStatus.running }]"></span>
-            <div>
-              <strong>{{ proxyStatus.running ? '运行中' : '已停止' }}</strong>
-              <code>{{ proxyEndpoint }}</code>
-            </div>
-          </div>
-          <div class="brief-signal-grid">
-            <div v-for="item in dashboardSignals" :key="item.label" class="brief-signal">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.meta }}</small>
-            </div>
-          </div>
-          <div class="brief-actions">
-            <el-button type="primary" :icon="SwitchButton" @click="toggleProxy">
-              {{ proxyStatus.running ? '停止' : '启动' }}
-            </el-button>
-            <el-button :icon="Refresh" @click="refreshAll">刷新</el-button>
-            <el-button plain @click="openSettings">设置</el-button>
-          </div>
-        </section>
-
         <article class="metric-card account-status-card">
           <div class="metric-card-head">
             <span>账号状态</span>

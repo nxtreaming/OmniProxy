@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { Download, Refresh, View } from '@element-plus/icons-vue'
+import GeminiSelect from './GeminiSelect.vue'
 
 const props = defineProps({
   entries: {
@@ -57,6 +58,30 @@ const providerRanks = computed(() =>
   rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5),
 )
 const clientOptions = computed(() => historyClientOptions(props.entries))
+const providerFilterOptions = computed(() => [
+  { value: 'all', label: '全部厂商' },
+  ...props.providers.map((provider) => ({ value: provider.key, label: provider.label })),
+])
+const clientFilterOptions = computed(() => [
+  { value: 'all', label: '全部工具' },
+  ...clientOptions.value.map((client) => ({ value: client.key, label: client.label })),
+])
+const levelFilterOptions = [
+  { value: 'all', label: '全部级别' },
+  { value: 'info', label: '正常' },
+  { value: 'warn', label: '警告' },
+  { value: 'error', label: '错误' },
+]
+const statusFilterOptions = [
+  { value: 'all', label: '全部状态' },
+  { value: 'success', label: '成功' },
+  { value: 'error', label: '失败' },
+  { value: '429', label: '429' },
+  { value: '500', label: '500' },
+  { value: '502', label: '502' },
+  { value: '503', label: '503' },
+  { value: '504', label: '504' },
+]
 const clientRanks = computed(() =>
   rankHistory(filteredHistory.value, (entry) => clientLabel(entry), 'count').slice(0, 5),
 )
@@ -209,7 +234,16 @@ function historyClientOptions(items) {
 }
 
 function clientLabel(entry) {
+  if (isStatusCheckEntry(entry)) return '状态检查'
   return entry?.clientName || entry?.clientKey || '未记录工具'
+}
+
+function isStatusCheckEntry(entry) {
+  return (
+    entry?.method === 'CHECK' ||
+    entry?.protocol === 'health-check' ||
+    String(entry?.path || '').includes('/maintenance/token-health-check')
+  )
 }
 
 function buildModelPieSegments(rows) {
@@ -313,11 +347,11 @@ function isFailedHistory(entry) {
 </script>
 
 <template>
-  <section class="panel">
+  <section class="panel history-page-panel">
     <div class="section-heading">
       <div>
-        <h2>请求历史</h2>
-        <p>持久化记录代理请求、账号验证、额度刷新、重试结果、耗时和 Token 用量</p>
+        <h2>请求记录分析</h2>
+        <p>筛选代理请求、账号验证、额度刷新、重试结果、耗时和 Token 用量</p>
       </div>
       <div class="section-actions">
         <el-button :icon="Refresh" @click="emit('refresh', { ...filters })">刷新</el-button>
@@ -333,43 +367,19 @@ function isFailedHistory(entry) {
     <div class="history-filters">
       <label>
         <span>厂商</span>
-        <select v-model="filters.provider">
-          <option value="all">全部厂商</option>
-          <option v-for="provider in providers" :key="provider.key" :value="provider.key">
-            {{ provider.label }}
-          </option>
-        </select>
+        <GeminiSelect v-model="filters.provider" :options="providerFilterOptions" aria-label="筛选厂商" />
       </label>
       <label>
         <span>工具</span>
-        <select v-model="filters.client">
-          <option value="all">全部工具</option>
-          <option v-for="client in clientOptions" :key="client.key" :value="client.key">
-            {{ client.label }}
-          </option>
-        </select>
+        <GeminiSelect v-model="filters.client" :options="clientFilterOptions" aria-label="筛选工具" />
       </label>
       <label>
         <span>级别</span>
-        <select v-model="filters.level">
-          <option value="all">全部级别</option>
-          <option value="info">正常</option>
-          <option value="warn">警告</option>
-          <option value="error">错误</option>
-        </select>
+        <GeminiSelect v-model="filters.level" :options="levelFilterOptions" aria-label="筛选级别" />
       </label>
       <label>
         <span>状态</span>
-        <select v-model="filters.status">
-          <option value="all">全部状态</option>
-          <option value="success">成功</option>
-          <option value="error">失败</option>
-          <option value="429">429</option>
-          <option value="500">500</option>
-          <option value="502">502</option>
-          <option value="503">503</option>
-          <option value="504">504</option>
-        </select>
+        <GeminiSelect v-model="filters.status" :options="statusFilterOptions" aria-label="筛选状态" />
       </label>
       <label>
         <span>模型</span>
@@ -523,75 +533,77 @@ function isFailedHistory(entry) {
       </div>
     </div>
 
-    <div class="table-wrap">
-      <table class="account-table history-table">
-        <colgroup>
-          <col class="history-col-time" />
-          <col class="history-col-route" />
-          <col class="history-col-client" />
-          <col class="history-col-token" />
-          <col class="history-col-status" />
-          <col class="history-col-duration" />
-          <col class="history-col-usage" />
-          <col class="history-col-path" />
-          <col class="history-col-actions" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>时间</th>
-            <th>厂商 / 模型</th>
-            <th>工具</th>
-            <th>账号</th>
-            <th>状态</th>
-            <th>耗时</th>
-            <th>Token</th>
-            <th>路径</th>
-            <th>详情</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="entry in pagedHistory"
-            :key="entry.id"
-            class="clickable-history-row"
-            @click="openHistoryDiagnosis(entry)"
-          >
-            <td>
-              <time class="history-time-cell" :datetime="entry.time">
-                <span>{{ historyDate(entry.time) }}</span>
-                <small>{{ historyClock(entry.time) }}</small>
-              </time>
-            </td>
-            <td>
-              <strong>{{ providerLabel(entry.provider) }}</strong>
-              <small>{{ entry.model || entry.protocol || '-' }}</small>
-            </td>
-            <td :title="clientLabel(entry)">{{ clientLabel(entry) }}</td>
-            <td :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</td>
-            <td>
-              <span :class="['tag', historyTagClass(entry)]">{{ historyStatusLabel(entry) }}</span>
-              <small :title="entry.message">{{ entry.message }}</small>
-            </td>
-            <td>{{ formatDuration(entry.durationMs) }}</td>
-            <td>
-              <strong>{{ historyUsageTotal(entry) }}</strong>
-              <small v-if="historyUsageDetail(entry)">{{ historyUsageDetail(entry) }}</small>
-            </td>
-            <td class="mono" :title="`${entry.method} ${entry.path}`">{{ entry.method }} {{ entry.path }}</td>
-            <td>
-              <el-button
-                size="small"
-                :icon="View"
-                @click.stop="openHistoryDiagnosis(entry)"
-              >
-                {{ isFailedHistory(entry) ? '诊断' : '详情' }}
-              </el-button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="!filteredHistory.length" class="empty">暂无匹配的请求历史</div>
-      <div v-else class="history-pagination">
+    <div class="table-wrap history-table-wrap">
+      <div class="history-table-scroll">
+        <table class="account-table history-table">
+          <colgroup>
+            <col class="history-col-time" />
+            <col class="history-col-route" />
+            <col class="history-col-client" />
+            <col class="history-col-token" />
+            <col class="history-col-status" />
+            <col class="history-col-duration" />
+            <col class="history-col-usage" />
+            <col class="history-col-path" />
+            <col class="history-col-actions" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>厂商 / 模型</th>
+              <th>工具</th>
+              <th>账号</th>
+              <th>状态</th>
+              <th>耗时</th>
+              <th>Token</th>
+              <th>路径</th>
+              <th>详情</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="entry in pagedHistory"
+              :key="entry.id"
+              class="clickable-history-row"
+              @click="openHistoryDiagnosis(entry)"
+            >
+              <td>
+                <time class="history-time-cell" :datetime="entry.time">
+                  <span>{{ historyDate(entry.time) }}</span>
+                  <small>{{ historyClock(entry.time) }}</small>
+                </time>
+              </td>
+              <td>
+                <strong>{{ providerLabel(entry.provider) }}</strong>
+                <small>{{ entry.model || entry.protocol || '-' }}</small>
+              </td>
+              <td :title="clientLabel(entry)">{{ clientLabel(entry) }}</td>
+              <td :title="entry.tokenName || '-'">{{ entry.tokenName || '-' }}</td>
+              <td>
+                <span :class="['tag', historyTagClass(entry)]">{{ historyStatusLabel(entry) }}</span>
+                <small :title="entry.message">{{ entry.message }}</small>
+              </td>
+              <td>{{ formatDuration(entry.durationMs) }}</td>
+              <td>
+                <strong>{{ historyUsageTotal(entry) }}</strong>
+                <small v-if="historyUsageDetail(entry)">{{ historyUsageDetail(entry) }}</small>
+              </td>
+              <td class="mono" :title="`${entry.method} ${entry.path}`">{{ entry.method }} {{ entry.path }}</td>
+              <td>
+                <el-button
+                  size="small"
+                  :icon="View"
+                  @click.stop="openHistoryDiagnosis(entry)"
+                >
+                  {{ isFailedHistory(entry) ? '诊断' : '详情' }}
+                </el-button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="!filteredHistory.length" class="empty">暂无匹配的请求历史</div>
+      </div>
+      <div v-if="filteredHistory.length" class="history-pagination">
         <span>共 {{ formatNumber(filteredHistory.length) }} 条，每页 {{ historyPageSize }} 条</span>
         <div>
           <el-button size="small" :disabled="historyPage <= 1" @click="previousHistoryPage">上一页</el-button>

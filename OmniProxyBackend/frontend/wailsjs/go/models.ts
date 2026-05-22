@@ -130,6 +130,7 @@ export namespace config {
 	        this.source = source["source"];
 	    }
 	}
+
 }
 
 export namespace history {
@@ -1209,3 +1210,4 @@ export namespace token {
 	}
 
 }
+

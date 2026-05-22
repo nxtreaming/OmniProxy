@@ -1,5 +1,8 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+import GeminiSelect from './GeminiSelect.vue'
+
+const props = defineProps({
   form: {
     type: Object,
     required: true,
@@ -19,11 +22,15 @@ defineProps({
 })
 
 defineEmits(['close', 'submit', 'provider-change'])
+
+const providerOptions = computed(() =>
+  props.providers.map((provider) => ({ value: provider.key, label: provider.label })),
+)
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="$emit('close')">
-    <form class="modal" @submit.prevent="$emit('submit')">
+  <div class="modal-backdrop token-editor-backdrop batch-import-backdrop" @click.self="$emit('close')">
+    <form class="modal token-editor-modal batch-import-modal" @submit.prevent="$emit('submit')">
       <div class="section-heading">
         <div>
           <h2>批量导入 API Key</h2>
@@ -34,11 +41,13 @@ defineEmits(['close', 'submit', 'provider-change'])
 
       <label>
         <span>厂商</span>
-        <select v-model="form.provider" :disabled="importing" @change="$emit('provider-change')">
-          <option v-for="provider in providers" :key="provider.key" :value="provider.key">
-            {{ provider.label }}
-          </option>
-        </select>
+        <GeminiSelect
+          v-model="form.provider"
+          :options="providerOptions"
+          :disabled="importing"
+          aria-label="选择厂商"
+          @change="$emit('provider-change')"
+        />
       </label>
 
       <label v-if="form.provider === 'sub2api'">

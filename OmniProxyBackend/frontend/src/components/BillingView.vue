@@ -4,6 +4,7 @@ import { Download, Refresh, View } from '@element-plus/icons-vue'
 import { buildBillingRows, entryDate } from '../billing/aggregate'
 import { buildReportBlob as buildCanvasReportBlob, createReportCanvas as createCanvasReport } from '../billing/reportCanvas'
 import { localDateKey } from '../utils/format'
+import GeminiSelect from './GeminiSelect.vue'
 
 const props = defineProps({
   entries: {
@@ -174,6 +175,10 @@ const availableDates = computed(() => {
   }
   return [...dates].sort((a, b) => b.localeCompare(a)).slice(0, 30)
 })
+
+const billingDateOptions = computed(() =>
+  availableDates.value.map((date) => ({ value: date, label: date })),
+)
 
 watch(
   () => props.selectedDate,
@@ -1299,9 +1304,12 @@ function truncateText(ctx, text, maxWidth) {
           </div>
         </div>
         <div class="billing-control-row">
-          <select v-model="selectedDate" aria-label="账单日期">
-            <option v-for="date in availableDates" :key="date" :value="date">{{ date }}</option>
-          </select>
+          <GeminiSelect
+            v-model="selectedDate"
+            class="billing-date-select"
+            :options="billingDateOptions"
+            aria-label="账单日期"
+          />
           <div class="billing-action-buttons">
             <el-button :icon="Refresh" @click="$emit('refresh')">刷新</el-button>
             <el-button type="primary" :icon="View" :loading="previewBusy" @click="exportReportImage">

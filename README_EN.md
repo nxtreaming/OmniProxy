@@ -37,6 +37,7 @@ OmniProxy is not a cloud relay service. It is built for personal local developme
 | Quota observability | Shows API balances, subscription quotas, reset times, Codex Free weekly quota, Coding Plan usage, OpenRouter balance, and API key balance totals grouped by currency. |
 | Usage accounting | Records request history, client source, model, input / output / total tokens, failure reasons, daily billing snapshots, and billing detail insights. |
 | Client configuration | One-click setup for Codex, Claude Code, Claude Desktop, Gemini CLI, OpenCode, Pi Coding Agent, and DeepSeek-TUI, with restore support. |
+| Modern desktop console | Gemini-style light / dark themes with consistent cards, dialogs, dropdowns, scrolling, and snackbars for long-running local proxy monitoring. |
 | Claude model slots | Writes up to 4 selected DeepSeek, MiMo, Kimi, GLM, or Zo Computer model slots into Claude Code / Claude Desktop. |
 | Zo Computer gateway | Adapts OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and model lists through local `/zo` and `/zo/v1` entrypoints. |
 | Local secure storage | On Windows, account credentials are encrypted with the current user's DPAPI profile; exported backups remain explicit and user-controlled. |
@@ -85,6 +86,8 @@ flowchart LR
 
 ## Latest Changes
 
+- **Gemini-style UI refresh**: The desktop console now uses a modern minimal visual system across Dashboard, Quota, Account Management, Request History, Realtime Logs, Usage Trends, Billing, One-click Setup, Global Settings, and OpenRouter Chat.
+- **Desktop interaction polish**: Dropdowns, dialogs, global snackbars, scrollbars, buttons, and cards now share one visual language. Each page keeps its own scroll position, and Realtime Logs now shows only the latest 5 minutes with internal scrolling.
 - **Zo Computer gateway**: Added a Go-native Zo Computer adapter for `/zo/v1/chat/completions`, `/zo/v1/responses`, `/zo/v1/messages`, and compatible model-list endpoints.
 - **Zo one-click setup**: Codex, Claude Code, OpenCode, and Pi Coding Agent can write Zo Computer local entrypoints, with presets for GPT-5.5, GPT-5.4, GLM 5, Gemini 3.1 Pro, MiniMax 2.7, DeepSeek V4 Pro, Claude Opus 4.7, and Claude Sonnet 4.6.
 - **Claude Desktop and DeepSeek-TUI**: Added local write / restore support for Claude Desktop 3P Gateway Profile and DeepSeek-TUI configuration.
@@ -220,7 +223,7 @@ C:\Users\mimanchi\go\bin\wails.exe build
 Coexisting Dev build:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\scripts\build-dev.ps1 -Version dev -OutputName OmniProxy-dev.exe
 ```
 
 The Dev build uses the `omniproxy_dev` build tag. App title, single-instance ID, data directory, and default ports are isolated from the production build, so it is suitable for parallel validation on machines with the production app installed.
@@ -247,8 +250,8 @@ The Dev build uses the `omniproxy_dev` build tag. App title, single-instance ID,
 
 | Channel | Tag Example | GitHub Release Behavior |
 | --- | --- | --- |
-| Stable | `v1.1.4` | Stable release for daily use. |
-| Beta | `v1.1.4-beta.4` | Pre-release for validating new features and regression fixes. |
+| Stable | `v1.1.5` | Stable release for daily use. |
+| Beta | `v1.1.5-beta.1` | Pre-release for validating new features and regression fixes. |
 | Dev | `dev-*` | Local build version, not published as a public release. |
 
 Release notes live in `docs/releases/`. Beta versions are marked as GitHub Pre-release, while stable versions are reserved for regular public releases.

@@ -51,6 +51,19 @@ function isProblemHistory(entry) {
 function historyMessageSummary(entry) {
   return entry?.message || historyStatusLabel(entry)
 }
+
+function isStatusCheckEntry(entry) {
+  return (
+    entry?.method === 'CHECK' ||
+    entry?.protocol === 'health-check' ||
+    String(entry?.path || '').includes('/maintenance/token-health-check')
+  )
+}
+
+function diagnosticClientLabel(entry) {
+  if (isStatusCheckEntry(entry)) return '状态检查'
+  return entry?.clientName || entry?.clientKey || '-'
+}
 </script>
 
 <template>
@@ -80,7 +93,7 @@ function historyMessageSummary(entry) {
           </div>
           <div>
             <span>编程工具</span>
-            <strong>{{ entry.clientName || entry.clientKey || '-' }}</strong>
+            <strong>{{ diagnosticClientLabel(entry) }}</strong>
           </div>
           <div>
             <span>协议</span>
