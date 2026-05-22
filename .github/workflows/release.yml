@@ -62,11 +62,33 @@ jobs:
 
       - name: Add NSIS to PATH
         run: |
-          $nsisDir = "${env:ProgramFiles(x86)}\NSIS"
-          $makensis = Join-Path $nsisDir "makensis.exe"
-          if (-not (Test-Path $makensis)) {
-            throw "makensis.exe was not found at $makensis"
+          $makensisCommand = Get-Command makensis.exe -ErrorAction SilentlyContinue
+          $makensis = if ($makensisCommand) { $makensisCommand.Source } else { "" }
+
+          if ([string]::IsNullOrWhiteSpace($makensis)) {
+            $candidateRoots = @(
+              "${env:ProgramFiles(x86)}\NSIS",
+              "${env:ProgramFiles}\NSIS",
+              "${env:ChocolateyInstall}\lib\nsis\tools",
+              "${env:ChocolateyInstall}\bin"
+            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path $_) }
+
+            foreach ($root in $candidateRoots) {
+              $candidate = Get-ChildItem -LiteralPath $root -Filter "makensis.exe" -File -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($candidate) {
+                $makensis = $candidate.FullName
+                break
+              }
+            }
           }
+
+          if ([string]::IsNullOrWhiteSpace($makensis) -or -not (Test-Path $makensis)) {
+            throw "makensis.exe was not found after Chocolatey NSIS install."
+          }
+
+          $nsisDir = Split-Path -Parent $makensis
+          Write-Host "Using makensis.exe at $makensis"
           Add-Content -Path $env:GITHUB_PATH -Value $nsisDir
 
       - name: Install Wails CLI
