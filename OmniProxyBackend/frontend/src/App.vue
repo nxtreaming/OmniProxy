@@ -165,6 +165,7 @@ const autoStartEnabled = ref(false)
 const updateChecking = ref(false)
 const lastUpdateInfo = ref(null)
 const lastUpdateCheckedAt = ref('')
+const titlebarUpdatePopoverOpen = ref(false)
 const updateDownloadStatus = ref({ state: 'idle', percent: 0, bytesReceived: 0 })
 const exportingHistory = ref('')
 const exportingTokens = ref(false)
@@ -340,6 +341,27 @@ const appInfo = reactive({
   goVersion: '',
   executablePath: '',
   startedAt: '',
+})
+const titlebarUpdateVisible = computed(() => Boolean(lastUpdateInfo.value?.updateAvailable && !appInfo.isDevelopment))
+const titlebarUpdatePrompt = computed(() => {
+  const update = lastUpdateInfo.value || {}
+  const updateAvailable = Boolean(update?.updateAvailable)
+  const currentVersion = update?.currentVersion || appInfo.version || '当前版本'
+  const latestVersion = update?.latestVersion || '新版本'
+  const canDownload = Boolean(updateAvailable && update?.downloadUrl && update?.checksumUrl)
+  return {
+    update: updateAvailable ? update : null,
+    canDownload,
+    currentVersion,
+    latestVersion,
+    badge: '更新可用',
+    title: `发现新版本 ${latestVersion}`,
+    description: canDownload
+      ? '可在应用内下载并校验更新安装包。'
+      : '暂未获取到可用安装包，可以打开关于应用查看发布页。',
+    primaryText: canDownload ? '下载更新' : '查看详情',
+    tooltip: `发现新版本 ${latestVersion}`,
+  }
 })
 const form = reactive({
   visible: false,
@@ -855,11 +877,40 @@ function toggleAppTheme() {
 
 function selectTab(tabKey) {
   if (!tabKeys.has(tabKey)) return
+  titlebarUpdatePopoverOpen.value = false
   if (activeTab.value !== tabKey) {
     saveWorkspaceScrollPosition(activeTab.value)
     activeTab.value = tabKey
   }
   mobileSidebarOpen.value = false
+}
+
+function closeTitlebarUpdatePopover() {
+  titlebarUpdatePopoverOpen.value = false
+}
+
+function toggleTitlebarUpdatePopover() {
+  titlebarUpdatePopoverOpen.value = !titlebarUpdatePopoverOpen.value
+}
+
+async function confirmTitlebarUpdatePopover() {
+  const prompt = titlebarUpdatePrompt.value
+  closeTitlebarUpdatePopover()
+  if (prompt.canDownload && prompt.update) {
+    await startUpdateDownload(prompt.update)
+    return
+  }
+  selectTab('about')
+}
+
+function handleTitlebarUpdateOutsidePointer() {
+  closeTitlebarUpdatePopover()
+}
+
+function handleTitlebarUpdateKeydown(event) {
+  if (event.key === 'Escape') {
+    closeTitlebarUpdatePopover()
+  }
 }
 
 function saveWorkspaceScrollPosition(tabKey = activeTab.value) {
@@ -954,6 +1005,8 @@ onMounted(async () => {
   syncDocumentTheme(isDark.value)
   await refreshWindowState()
   window.addEventListener('resize', refreshWindowState)
+  window.addEventListener('keydown', handleTitlebarUpdateKeydown)
+  document.addEventListener('pointerdown', handleTitlebarUpdateOutsidePointer)
   await refreshAll()
   await refreshUpdateDownloadStatus()
   updateCheckTimer = window.setTimeout(() => checkForAvailableUpdate(), 2500)
@@ -962,6 +1015,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', refreshWindowState)
+  window.removeEventListener('keydown', handleTitlebarUpdateKeydown)
+  document.removeEventListener('pointerdown', handleTitlebarUpdateOutsidePointer)
   if (realtimeTimer) {
     window.clearInterval(realtimeTimer)
     realtimeTimer = null
@@ -3303,20 +3358,64 @@ async function refreshQuota(item) {
         </div>
       </div>
       <div
-        v-if="lastUpdateInfo?.updateAvailable && !appInfo.isDevelopment"
+        v-if="titlebarUpdateVisible"
         class="window-titlebar-actions"
         aria-label="应用状态"
+        @pointerdown.stop
       >
         <button
           type="button"
           class="titlebar-update-button"
-          :title="`发现新版本 ${lastUpdateInfo.latestVersion || ''}`.trim()"
-          @click.stop="selectTab('about')"
+          :title="titlebarUpdatePrompt.tooltip"
+          aria-haspopup="dialog"
+          :aria-expanded="titlebarUpdatePopoverOpen"
+          @click.stop="toggleTitlebarUpdatePopover"
           @dblclick.stop
         >
           <span class="titlebar-update-mark" aria-hidden="true"></span>
           <span>新版本</span>
         </button>
+        <div
+          v-if="titlebarUpdatePopoverOpen"
+          class="titlebar-update-popover"
+          role="dialog"
+          aria-label="新版本提示"
+          @click.stop
+          @dblclick.stop
+        >
+          <div class="titlebar-update-popover-head">
+            <span class="titlebar-update-popover-icon" aria-hidden="true"></span>
+            <div>
+              <span class="titlebar-update-popover-kicker">{{ titlebarUpdatePrompt.badge }}</span>
+              <strong>{{ titlebarUpdatePrompt.title }}</strong>
+            </div>
+            <button
+              type="button"
+              class="titlebar-update-popover-close"
+              aria-label="关闭更新提示"
+              @click="closeTitlebarUpdatePopover"
+            >
+              <span aria-hidden="true"></span>
+            </button>
+          </div>
+          <p>{{ titlebarUpdatePrompt.description }}</p>
+          <div class="titlebar-update-popover-meta">
+            <div>
+              <span>当前版本</span>
+              <strong>{{ titlebarUpdatePrompt.currentVersion }}</strong>
+            </div>
+            <div>
+              <span>最新版本</span>
+              <strong>{{ titlebarUpdatePrompt.latestVersion }}</strong>
+            </div>
+          </div>
+          <div class="titlebar-update-popover-actions">
+            <button type="button" class="ghost-button compact-button" @click="closeTitlebarUpdatePopover">稍后</button>
+            <button type="button" class="primary-button compact-button" @click="confirmTitlebarUpdatePopover">
+              {{ titlebarUpdatePrompt.primaryText }}
+            </button>
+          </div>
+        </div>
       </div>
       <div class="window-controls" aria-label="窗口操作">
         <button type="button" class="window-control minimise" aria-label="最小化" @click.stop="minimiseWindow">
