@@ -4,6 +4,7 @@ import {main} from '../models';
 import {history} from '../models';
 import {config} from '../models';
 import {token} from '../models';
+import {taskautomation} from '../models';
 
 export function ActiveProxyRequests():Promise<Array<main.activeRequestResponse>>;
 
@@ -120,6 +121,8 @@ export function SetTokenSelected(arg1:string,arg2:boolean):Promise<Array<main.to
 export function StartProxy():Promise<Record<string, any>>;
 
 export function StopProxy():Promise<Record<string, any>>;
+
+export function TaskAutomationBrowserProfiles(arg1:string):Promise<Array<taskautomation.BrowserProfile>>;
 
 export function Tokens():Promise<Array<main.tokenResponse>>;
 

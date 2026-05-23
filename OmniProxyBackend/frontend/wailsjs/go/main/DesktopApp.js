@@ -234,6 +234,10 @@ export function StopProxy() {
   return window['go']['main']['DesktopApp']['StopProxy']();
 }
 
+export function TaskAutomationBrowserProfiles(arg1) {
+  return window['go']['main']['DesktopApp']['TaskAutomationBrowserProfiles'](arg1);
+}
+
 export function Tokens() {
   return window['go']['main']['DesktopApp']['Tokens']();
 }

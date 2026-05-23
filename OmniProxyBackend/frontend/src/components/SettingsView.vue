@@ -25,6 +25,18 @@ const props = defineProps({
     type: Boolean,
     required: true,
   },
+  taskAutomationBrowserProfiles: {
+    type: Array,
+    default: () => [],
+  },
+  taskAutomationBrowserProfilesLoading: {
+    type: Boolean,
+    default: false,
+  },
+  taskAutomationBrowserProfilesError: {
+    type: String,
+    default: '',
+  },
   clearingBillingUsage: {
     type: Boolean,
     required: true,
@@ -35,10 +47,11 @@ const props = defineProps({
   },
 })
 
-defineEmits([
+const emit = defineEmits([
   'persist-config',
   'choose-data-directory',
   'toggle-auto-start',
+  'refresh-task-automation-browser-profiles',
   'clear-billing-usage',
   'clear-request-history',
 ])
@@ -201,6 +214,7 @@ function setTaskAutomationLaunchMode(mode) {
   if (normalized === 'linuxdo') {
     props.config.taskAutomationLaunchTarget = 'preset:linuxdo'
     props.config.taskAutomationFallbackUrl = 'https://linux.do/'
+    emit('refresh-task-automation-browser-profiles', taskAutomationBrowser())
   } else if (String(props.config.taskAutomationLaunchTarget || '').trim().toLowerCase() === 'preset:linuxdo') {
     props.config.taskAutomationLaunchTarget = 'preset:douyin'
     props.config.taskAutomationFallbackUrl = 'https://www.douyin.com'
@@ -218,6 +232,7 @@ function taskAutomationBrowser() {
 
 function setTaskAutomationBrowser(browser) {
   props.config.taskAutomationBrowser = taskAutomationBrowserOptions.some((item) => item.key === browser) ? browser : 'default'
+  emit('refresh-task-automation-browser-profiles', props.config.taskAutomationBrowser)
 }
 
 function isTaskAutomationBrowser(browser) {
@@ -226,6 +241,41 @@ function isTaskAutomationBrowser(browser) {
 
 function isTaskAutomationLinuxDO() {
   return taskAutomationLaunchMode() === 'linuxdo'
+}
+
+function browserProfileKey(profile) {
+  return [profile.browser, profile.userDataDir, profile.profile, profile.path].filter(Boolean).join('|')
+}
+
+function browserProfileTitle(profile) {
+  const browserLabel = profile.browserLabel || taskAutomationBrowserOptions.find((item) => item.key === profile.browser)?.label || profile.browser
+  const profileLabel = profile.label || profile.name || profile.profile || profile.path || 'Profile'
+  return `${browserLabel} / ${profileLabel}`
+}
+
+function browserProfileDetail(profile) {
+  if (!profile) return ''
+  if (profile.browser === 'firefox') {
+    return profile.path || profile.profile || ''
+  }
+  const parts = [profile.userDataDir, profile.profile].filter(Boolean)
+  return parts.join(' / ')
+}
+
+function applyTaskAutomationBrowserProfile(profile) {
+  if (!profile) return
+  props.config.taskAutomationBrowser = profile.browser || taskAutomationBrowser()
+  props.config.taskAutomationBrowserUserDataDir = profile.userDataDir || ''
+  props.config.taskAutomationBrowserProfile = profile.profile || ''
+}
+
+function isTaskAutomationBrowserProfileSelected(profile) {
+  if (!profile) return false
+  return (
+    taskAutomationBrowser() === profile.browser &&
+    String(props.config.taskAutomationBrowserUserDataDir || '') === String(profile.userDataDir || '') &&
+    String(props.config.taskAutomationBrowserProfile || '') === String(profile.profile || '')
+  )
 }
 
 function applyTaskAutomationTargetPreset(preset) {
@@ -611,6 +661,45 @@ function normalizeOutboundProxyProviders(providers) {
                   </button>
                 </div>
                 <small>默认浏览器无法指定用户资料；Edge、Chrome、Firefox 支持指定已有登录态的 Profile。</small>
+              </div>
+              <div v-if="isTaskAutomationLinuxDO()" class="wide-field browser-profile-field">
+                <div class="browser-profile-head">
+                  <div>
+                    <span>已检测到的浏览器资料</span>
+                    <small>只读取浏览器配置和 Profile 目录；选择后会自动填入下方两个字段。</small>
+                  </div>
+                  <button
+                    type="button"
+                    class="ghost-button compact-button"
+                    :disabled="taskAutomationBrowserProfilesLoading"
+                    @click="$emit('refresh-task-automation-browser-profiles', taskAutomationBrowser())"
+                  >
+                    {{ taskAutomationBrowserProfilesLoading ? '扫描中' : '重新扫描' }}
+                  </button>
+                </div>
+                <div v-if="taskAutomationBrowserProfilesLoading" class="browser-profile-empty">正在扫描本机浏览器资料...</div>
+                <div v-else-if="taskAutomationBrowserProfilesError" class="browser-profile-empty error">
+                  {{ taskAutomationBrowserProfilesError }}
+                </div>
+                <div v-else-if="taskAutomationBrowserProfiles.length" class="browser-profile-list">
+                  <button
+                    v-for="profile in taskAutomationBrowserProfiles"
+                    :key="browserProfileKey(profile)"
+                    type="button"
+                    class="browser-profile-option"
+                    :class="{ active: isTaskAutomationBrowserProfileSelected(profile) }"
+                    @click="applyTaskAutomationBrowserProfile(profile)"
+                  >
+                    <span class="browser-profile-main">
+                      <strong>{{ browserProfileTitle(profile) }}</strong>
+                      <small>{{ browserProfileDetail(profile) }}</small>
+                    </span>
+                    <span v-if="profile.isDefault" class="browser-profile-badge">默认</span>
+                  </button>
+                </div>
+                <div v-else class="browser-profile-empty">
+                  未检测到可用资料。可以手动填写，或先选择 Edge / Chrome / Firefox 后重新扫描。
+                </div>
               </div>
               <label v-if="isTaskAutomationLinuxDO()" class="wide-field">
                 <span>用户数据目录</span>

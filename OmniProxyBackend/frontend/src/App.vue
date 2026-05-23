@@ -60,6 +60,7 @@ import {
   getLogs,
   getOpenRouterModels,
   getProxyStatus,
+  getTaskAutomationBrowserProfiles,
   getTokens,
   getUpdateDownloadStatus,
   installDownloadedUpdate,
@@ -162,6 +163,9 @@ const refreshingProvider = ref(false)
 const dataDirChanging = ref(false)
 const autoStartChanging = ref(false)
 const autoStartEnabled = ref(false)
+const taskAutomationBrowserProfiles = ref([])
+const taskAutomationBrowserProfilesLoading = ref(false)
+const taskAutomationBrowserProfilesError = ref('')
 const updateChecking = ref(false)
 const lastUpdateInfo = ref(null)
 const lastUpdateCheckedAt = ref('')
@@ -198,6 +202,7 @@ let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
 let historyRefreshSeq = 0
+let taskAutomationBrowserProfileSeq = 0
 const validatingIds = reactive({})
 const refreshingTokenIds = reactive({})
 const togglingTokenIds = reactive({})
@@ -1066,8 +1071,19 @@ watch(activeTab, (tab, previousTab) => {
     refreshOpenRouterModels()
   } else if (tab === 'openrouter-chat') {
     refreshOpenRouterModels()
+  } else if (tab === 'settings') {
+    refreshTaskAutomationBrowserProfiles()
   }
 })
+
+watch(
+  () => [config.taskAutomationLaunchMode, config.taskAutomationBrowser],
+  () => {
+    if (activeTab.value === 'settings') {
+      refreshTaskAutomationBrowserProfiles()
+    }
+  },
+)
 
 watch(activeProvider, (provider) => {
   if (activeTab.value === 'tokens' && provider === 'openrouter') {
@@ -1407,6 +1423,37 @@ function selectOpenRouterChatModel(modelId) {
 
 async function changeBillingDate(date) {
   await refreshBilling(date)
+}
+
+function isTaskAutomationLinuxDOMode() {
+  const mode = String(config.taskAutomationLaunchMode || '').trim().toLowerCase()
+  return mode === 'linuxdo' || mode === 'linux.do' || mode === 'linux-do' || mode === 'browser'
+}
+
+async function refreshTaskAutomationBrowserProfiles(browser = config.taskAutomationBrowser) {
+  if (!isTaskAutomationLinuxDOMode()) {
+    taskAutomationBrowserProfileSeq += 1
+    taskAutomationBrowserProfiles.value = []
+    taskAutomationBrowserProfilesError.value = ''
+    taskAutomationBrowserProfilesLoading.value = false
+    return
+  }
+  const seq = ++taskAutomationBrowserProfileSeq
+  taskAutomationBrowserProfilesLoading.value = true
+  taskAutomationBrowserProfilesError.value = ''
+  try {
+    const profiles = await getTaskAutomationBrowserProfiles(browser || 'default')
+    if (seq !== taskAutomationBrowserProfileSeq) return
+    taskAutomationBrowserProfiles.value = Array.isArray(profiles) ? profiles : []
+  } catch (error) {
+    if (seq !== taskAutomationBrowserProfileSeq) return
+    taskAutomationBrowserProfiles.value = []
+    taskAutomationBrowserProfilesError.value = error.message
+  } finally {
+    if (seq === taskAutomationBrowserProfileSeq) {
+      taskAutomationBrowserProfilesLoading.value = false
+    }
+  }
 }
 
 function openBillingView() {
@@ -3969,11 +4016,15 @@ async function refreshQuota(item) {
         :data-dir-changing="dataDirChanging"
         :auto-start-changing="autoStartChanging"
         :auto-start-enabled="autoStartEnabled"
+        :task-automation-browser-profiles="taskAutomationBrowserProfiles"
+        :task-automation-browser-profiles-loading="taskAutomationBrowserProfilesLoading"
+        :task-automation-browser-profiles-error="taskAutomationBrowserProfilesError"
         :clearing-billing-usage="clearingBillingUsage"
         :clearing-request-history="clearingRequestHistory"
         @persist-config="persistConfig"
         @choose-data-directory="chooseDataDirectory"
         @toggle-auto-start="toggleAutoStart"
+        @refresh-task-automation-browser-profiles="refreshTaskAutomationBrowserProfiles"
         @clear-billing-usage="clearBillingUsageData"
         @clear-request-history="clearRequestHistoryData"
       />

@@ -304,6 +304,13 @@ export function chooseDataDirectory(migrate = true) {
   return Promise.reject(new Error('更改数据目录需要在桌面客户端中操作'))
 }
 
+export function getTaskAutomationBrowserProfiles(browser = 'default') {
+  if (useWailsBindings() && DesktopApp.TaskAutomationBrowserProfiles) {
+    return DesktopApp.TaskAutomationBrowserProfiles(String(browser || 'default'))
+  }
+  return Promise.resolve([])
+}
+
 export async function exportHistory(format, filters = {}, entries = []) {
   if (useWailsBindings() && DesktopApp.ExportRequestHistory) {
     return DesktopApp.ExportRequestHistory(format, historyFilter(filters))

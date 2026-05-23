@@ -18,6 +18,7 @@ import (
 	"OmniProxyBackend/internal/config"
 	"OmniProxyBackend/internal/history"
 	"OmniProxyBackend/internal/logs"
+	"OmniProxyBackend/internal/taskautomation"
 	"OmniProxyBackend/internal/token"
 	"OmniProxyBackend/internal/tray"
 
@@ -613,6 +614,10 @@ func (a *DesktopApp) ChooseDataDirectory(migrate bool) (config.DataDirectoryChan
 		return config.DataDirectoryChangeResult{Cancelled: true, DataDir: info.DataDir, BootstrapPath: info.BootstrapPath}, nil
 	}
 	return a.server.changeDataDirectory(selected, migrate)
+}
+
+func (a *DesktopApp) TaskAutomationBrowserProfiles(browser string) ([]taskautomation.BrowserProfile, error) {
+	return taskautomation.ListBrowserProfiles(browser)
 }
 
 func (a *DesktopApp) ensureDataDirectory(ctx context.Context) error {
