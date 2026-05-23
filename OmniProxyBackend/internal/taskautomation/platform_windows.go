@@ -11,14 +11,17 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"OmniProxyBackend/internal/config"
 )
 
 const (
-	swShownormal = 1
-	swRestore    = 9
+	swShow    = 5
+	swRestore = 9
+
+	processQueryLimitedInformation = 0x1000
 
 	keyeventfKeyup = 0x0002
 	swpNoSize      = 0x0001
@@ -37,8 +40,13 @@ var (
 	procGetCurrentThreadID  = kernel32.NewProc("GetCurrentThreadId")
 	procGetForegroundWindow = user32.NewProc("GetForegroundWindow")
 	procGetWindowThreadID   = user32.NewProc("GetWindowThreadProcessId")
+	procOpenProcess         = kernel32.NewProc("OpenProcess")
+	procQueryProcessImage   = kernel32.NewProc("QueryFullProcessImageNameW")
 	procAttachThreadInput   = user32.NewProc("AttachThreadInput")
 	procIsWindow            = user32.NewProc("IsWindow")
+	procIsIconic            = user32.NewProc("IsIconic")
+	procIsWindowVisible     = user32.NewProc("IsWindowVisible")
+	procEnumWindows         = user32.NewProc("EnumWindows")
 	procShowWindow          = user32.NewProc("ShowWindow")
 	procSetWindowPos        = user32.NewProc("SetWindowPos")
 	procBringWindowToTop    = user32.NewProc("BringWindowToTop")
@@ -60,12 +68,14 @@ type launchPreset struct {
 }
 
 type browserSpec struct {
-	key        string
-	name       string
-	command    string
-	chromium   bool
-	firefox    bool
-	candidates []string
+	key            string
+	name           string
+	command        string
+	defaultDataDir string
+	chromium       bool
+	firefox        bool
+	processNames   []string
+	candidates     []string
 }
 
 func defaultPlatformController() platformController {
@@ -127,7 +137,7 @@ func (windowsPlatform) Focus(hwnd windowHandle) error {
 		return fmt.Errorf("CLI window is no longer available")
 	}
 	target := uintptr(hwnd)
-	procShowWindow.Call(target, swRestore)
+	restoreWindowIfMinimized(target)
 	if !forceForegroundWindow(target) {
 		unlockForegroundWithAlt()
 	}
@@ -158,7 +168,7 @@ func forceForegroundWindow(hwnd uintptr) bool {
 	defer detachThreadInput(currentThread, foregroundThread, attachedForeground)
 	defer detachThreadInput(currentThread, targetThread, attachedTarget)
 
-	procShowWindow.Call(hwnd, swRestore)
+	restoreWindowIfMinimized(hwnd)
 	procSetWindowPos.Call(hwnd, ^uintptr(0), 0, 0, 0, 0, swpNoMove|swpNoSize|swpShowWindow)
 	procSetWindowPos.Call(hwnd, ^uintptr(1), 0, 0, 0, 0, swpNoMove|swpNoSize|swpShowWindow)
 	procBringWindowToTop.Call(hwnd)
@@ -166,6 +176,16 @@ func forceForegroundWindow(hwnd uintptr) bool {
 	procSetFocus.Call(hwnd)
 	procSetForegroundWindow.Call(hwnd)
 	return isForegroundWindow(hwnd)
+}
+
+func restoreWindowIfMinimized(hwnd uintptr) {
+	if hwnd == 0 {
+		return
+	}
+	minimized, _, _ := procIsIconic.Call(hwnd)
+	if minimized != 0 {
+		procShowWindow.Call(hwnd, swRestore)
+	}
 }
 
 func attachThreadInput(currentThread uintptr, targetThread uintptr) bool {
@@ -324,13 +344,14 @@ func isLinuxDOPreset(target string) bool {
 }
 
 func openLinuxDOInBrowser(req launchRequest) (string, error) {
-	targetURL := linuxDOURL
-	if isURLTarget(req.Target) {
-		targetURL = req.Target
-	}
+	targetURL := linuxDOTargetURL(req.Target)
 	spec, ok := browserSpecFor(req.Browser)
 	if !ok || spec.key == config.TaskAutomationBrowserDefault {
-		return "Linux.do", shellOpen(targetURL)
+		if err := shellOpen(targetURL); err != nil {
+			return "", err
+		}
+		focusBrowserWindowSoon(spec)
+		return "Linux.do", nil
 	}
 	executable := resolveBrowserExecutable(spec)
 	if executable == "" {
@@ -340,16 +361,28 @@ func openLinuxDOInBrowser(req launchRequest) (string, error) {
 	if err := exec.Command(executable, args...).Start(); err != nil {
 		return "", err
 	}
+	focusBrowserWindowSoon(spec)
 	if strings.TrimSpace(req.BrowserProfile) != "" {
 		return fmt.Sprintf("Linux.do（%s / %s）", spec.name, req.BrowserProfile), nil
 	}
 	return fmt.Sprintf("Linux.do（%s）", spec.name), nil
 }
 
+func linuxDOTargetURL(target string) string {
+	target = strings.TrimSpace(target)
+	if parsed, err := url.Parse(target); err == nil {
+		switch strings.ToLower(parsed.Scheme) {
+		case "http", "https":
+			return target
+		}
+	}
+	return linuxDOURL
+}
+
 func browserLaunchArgs(req launchRequest, targetURL string, spec browserSpec) []string {
 	if spec.chromium {
 		args := []string{}
-		if userData := expandEnvPath(req.BrowserUserData); userData != "" {
+		if userData := customChromiumUserDataDir(req, spec); userData != "" {
 			args = append(args, "--user-data-dir="+userData)
 		}
 		if profile := strings.TrimSpace(req.BrowserProfile); profile != "" {
@@ -376,6 +409,89 @@ func browserLaunchArgs(req launchRequest, targetURL string, spec browserSpec) []
 	return []string{targetURL}
 }
 
+func focusBrowserWindowSoon(spec browserSpec) {
+	for _, delay := range []time.Duration{250 * time.Millisecond, 900 * time.Millisecond, 1600 * time.Millisecond} {
+		time.AfterFunc(delay, func() {
+			if hwnd := findBrowserWindow(spec); hwnd != 0 {
+				if !forceForegroundWindow(hwnd) {
+					unlockForegroundWithAlt()
+					forceForegroundWindow(hwnd)
+				}
+			}
+		})
+	}
+}
+
+func findBrowserWindow(spec browserSpec) uintptr {
+	names := browserProcessNameSet(spec)
+	if len(names) == 0 {
+		return 0
+	}
+
+	var match uintptr
+	callback := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
+		if match != 0 || !isVisibleWindow(hwnd) {
+			return 1
+		}
+		if names[windowProcessName(hwnd)] {
+			match = hwnd
+			return 0
+		}
+		return 1
+	})
+	procEnumWindows.Call(callback, 0)
+	return match
+}
+
+func browserProcessNameSet(spec browserSpec) map[string]bool {
+	names := map[string]bool{}
+	for _, name := range spec.processNames {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name != "" {
+			names[name] = true
+		}
+	}
+	return names
+}
+
+func isVisibleWindow(hwnd uintptr) bool {
+	if hwnd == 0 {
+		return false
+	}
+	visible, _, _ := procIsWindowVisible.Call(hwnd)
+	return visible != 0
+}
+
+func windowProcessName(hwnd uintptr) string {
+	var pid uint32
+	procGetWindowThreadID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	if pid == 0 {
+		return ""
+	}
+	return processImageName(pid)
+}
+
+func processImageName(pid uint32) string {
+	handle, _, _ := procOpenProcess.Call(processQueryLimitedInformation, 0, uintptr(pid))
+	if handle == 0 {
+		return ""
+	}
+	defer syscall.CloseHandle(syscall.Handle(handle))
+
+	buffer := make([]uint16, 32768)
+	size := uint32(len(buffer))
+	ok, _, _ := procQueryProcessImage.Call(
+		handle,
+		0,
+		uintptr(unsafe.Pointer(&buffer[0])),
+		uintptr(unsafe.Pointer(&size)),
+	)
+	if ok == 0 || size == 0 {
+		return ""
+	}
+	return strings.ToLower(filepath.Base(syscall.UTF16ToString(buffer[:size])))
+}
+
 func resolveBrowserExecutable(spec browserSpec) string {
 	if target := findFirstExisting(spec.candidates); target != "" {
 		return target
@@ -391,13 +507,29 @@ func resolveBrowserExecutable(spec browserSpec) string {
 func browserSpecFor(browser string) (browserSpec, bool) {
 	switch normalizeBrowserKey(browser) {
 	case config.TaskAutomationBrowserDefault:
-		return browserSpec{key: config.TaskAutomationBrowserDefault, name: "默认浏览器"}, true
+		return browserSpec{
+			key:  config.TaskAutomationBrowserDefault,
+			name: "默认浏览器",
+			processNames: []string{
+				"msedge.exe",
+				"chrome.exe",
+				"firefox.exe",
+				"brave.exe",
+				"opera.exe",
+				"vivaldi.exe",
+				"qqbrowser.exe",
+				"360chrome.exe",
+				"360se.exe",
+			},
+		}, true
 	case config.TaskAutomationBrowserEdge:
 		return browserSpec{
-			key:      config.TaskAutomationBrowserEdge,
-			name:     "Microsoft Edge",
-			command:  "msedge.exe",
-			chromium: true,
+			key:            config.TaskAutomationBrowserEdge,
+			name:           "Microsoft Edge",
+			command:        "msedge.exe",
+			defaultDataDir: envPath("LOCALAPPDATA", "Microsoft", "Edge", "User Data"),
+			chromium:       true,
+			processNames:   []string{"msedge.exe"},
 			candidates: []string{
 				envPath("ProgramFiles(x86)", "Microsoft", "Edge", "Application", "msedge.exe"),
 				envPath("ProgramFiles", "Microsoft", "Edge", "Application", "msedge.exe"),
@@ -406,10 +538,12 @@ func browserSpecFor(browser string) (browserSpec, bool) {
 		}, true
 	case config.TaskAutomationBrowserChrome:
 		return browserSpec{
-			key:      config.TaskAutomationBrowserChrome,
-			name:     "Google Chrome",
-			command:  "chrome.exe",
-			chromium: true,
+			key:            config.TaskAutomationBrowserChrome,
+			name:           "Google Chrome",
+			command:        "chrome.exe",
+			defaultDataDir: envPath("LOCALAPPDATA", "Google", "Chrome", "User Data"),
+			chromium:       true,
+			processNames:   []string{"chrome.exe"},
 			candidates: []string{
 				envPath("ProgramFiles", "Google", "Chrome", "Application", "chrome.exe"),
 				envPath("ProgramFiles(x86)", "Google", "Chrome", "Application", "chrome.exe"),
@@ -422,6 +556,9 @@ func browserSpecFor(browser string) (browserSpec, bool) {
 			name:    "Firefox",
 			command: "firefox.exe",
 			firefox: true,
+			processNames: []string{
+				"firefox.exe",
+			},
 			candidates: []string{
 				envPath("ProgramFiles", "Mozilla Firefox", "firefox.exe"),
 				envPath("ProgramFiles(x86)", "Mozilla Firefox", "firefox.exe"),
@@ -431,6 +568,23 @@ func browserSpecFor(browser string) (browserSpec, bool) {
 	default:
 		return browserSpec{}, false
 	}
+}
+
+func customChromiumUserDataDir(req launchRequest, spec browserSpec) string {
+	userData := expandEnvPath(req.BrowserUserData)
+	if userData == "" || samePath(userData, spec.defaultDataDir) {
+		return ""
+	}
+	return userData
+}
+
+func samePath(left string, right string) bool {
+	left = expandEnvPath(left)
+	right = expandEnvPath(right)
+	if strings.TrimSpace(left) == "" || strings.TrimSpace(right) == "" {
+		return false
+	}
+	return strings.EqualFold(filepath.Clean(left), filepath.Clean(right))
 }
 
 func normalizeBrowserKey(browser string) string {
@@ -534,7 +688,7 @@ func shellOpen(target string) error {
 		uintptr(unsafe.Pointer(file)),
 		0,
 		0,
-		swShownormal,
+		swShow,
 	)
 	if result <= 32 {
 		return fmt.Errorf("ShellExecute failed with code %d", result)

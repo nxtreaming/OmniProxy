@@ -45,6 +45,8 @@ type Manager struct {
 	pauseBeforeReturn  bool
 	pausedByAutomation bool
 	pausedWindow       windowHandle
+	linuxDOSessionKey  string
+	linuxDOWindow      windowHandle
 	idleTimer          *time.Timer
 	idleSeq            int64
 	resumeDelay        time.Duration
@@ -66,11 +68,14 @@ func newManagerWithPlatform(cfg config.Config, recorder *logs.Recorder, platform
 
 func (m *Manager) UpdateConfig(cfg config.Config) {
 	cfg = config.Normalize(cfg)
+	sessionKey := linuxDOSessionKey(launchRequestFromConfig(cfg))
 
 	m.mu.Lock()
 	m.cfg = cfg
 	if !cfg.TaskAutomationEnabled {
 		m.resetLocked()
+	} else if m.linuxDOSessionKey != "" && m.linuxDOSessionKey != sessionKey {
+		m.clearLinuxDOSessionLocked()
 	}
 	m.mu.Unlock()
 }
@@ -86,6 +91,8 @@ func (m *Manager) ActiveRequestStarted(req proxy.ActiveRequest) {
 	if !requestMatchesConfig(req, cfg) {
 		return
 	}
+	launchReq := launchRequestFromConfig(cfg)
+	sessionKey := linuxDOSessionKey(launchReq)
 
 	m.mu.Lock()
 	if m.idleTimer != nil {
@@ -105,6 +112,8 @@ func (m *Manager) ActiveRequestStarted(req proxy.ActiveRequest) {
 		m.returnTo = returnTo
 	}
 	m.pauseBeforeReturn = shouldPauseBeforeReturn(cfg)
+	hasLinuxDOSession := sessionKey != "" && m.linuxDOSessionKey == sessionKey
+	linuxDOWindow := m.linuxDOWindow
 	m.mu.Unlock()
 
 	if hadPendingReturn {
@@ -112,7 +121,29 @@ func (m *Manager) ActiveRequestStarted(req proxy.ActiveRequest) {
 		return
 	}
 
-	result, err := m.platform.Launch(launchRequestFromConfig(cfg))
+	if hasLinuxDOSession {
+		if linuxDOWindow != 0 && linuxDOWindow != returnTo {
+			if err := m.platform.Focus(linuxDOWindow); err != nil {
+				m.log(logs.LevelWarn, "任务开始，切回 Linux.do 浏览器失败：%v", err)
+				if !isWindowUnavailableError(err) {
+					return
+				}
+				m.mu.Lock()
+				if m.linuxDOSessionKey == sessionKey {
+					m.clearLinuxDOSessionLocked()
+				}
+				m.mu.Unlock()
+			} else {
+				m.log(logs.LevelInfo, "任务开始，已切回 Linux.do 浏览器")
+				return
+			}
+		} else {
+			m.log(logs.LevelInfo, "任务开始，Linux.do 浏览器已打开，跳过重复启动")
+			return
+		}
+	}
+
+	result, err := m.platform.Launch(launchReq)
 	if err != nil {
 		m.log(logs.LevelWarn, "放心刷打开目标失败：%v", err)
 		return
@@ -125,7 +156,11 @@ func (m *Manager) ActiveRequestStarted(req proxy.ActiveRequest) {
 		opened = "目标应用"
 	}
 	m.log(logs.LevelInfo, "任务开始，已打开%s", opened)
-	m.resumePausedForeground(returnTo, m.resumeDelay)
+	if sessionKey != "" {
+		m.rememberLinuxDOSession(sessionKey, returnTo, m.resumeDelay)
+	} else {
+		m.resumePausedForeground(returnTo, m.resumeDelay)
+	}
 }
 
 func (m *Manager) ActiveRequestFinished(req proxy.ActiveRequest) {
@@ -267,6 +302,30 @@ func (m *Manager) setPausedByAutomation(paused bool, pausedWindow windowHandle) 
 	m.mu.Unlock()
 }
 
+func (m *Manager) rememberLinuxDOSession(sessionKey string, returnTo windowHandle, delay time.Duration) {
+	m.mu.Lock()
+	m.linuxDOSessionKey = sessionKey
+	m.linuxDOWindow = 0
+	m.mu.Unlock()
+
+	capture := func() {
+		foreground := m.platform.ForegroundWindow()
+		if foreground == 0 || foreground == returnTo {
+			return
+		}
+		m.mu.Lock()
+		if m.linuxDOSessionKey == sessionKey {
+			m.linuxDOWindow = foreground
+		}
+		m.mu.Unlock()
+	}
+	if delay <= 0 {
+		capture()
+		return
+	}
+	time.AfterFunc(delay, capture)
+}
+
 func (m *Manager) snapshotConfig() config.Config {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -283,7 +342,13 @@ func (m *Manager) resetLocked() {
 	m.pauseBeforeReturn = false
 	m.pausedByAutomation = false
 	m.pausedWindow = 0
+	m.clearLinuxDOSessionLocked()
 	m.idleSeq++
+}
+
+func (m *Manager) clearLinuxDOSessionLocked() {
+	m.linuxDOSessionKey = ""
+	m.linuxDOWindow = 0
 }
 
 func (m *Manager) log(level logs.Level, format string, args ...any) {
@@ -333,4 +398,29 @@ func shouldPauseBeforeReturn(cfg config.Config) bool {
 		target != "preset:linuxdo" &&
 		target != "preset:linux-do" &&
 		target != "preset:linux.do"
+}
+
+func isWindowUnavailableError(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "no longer available")
+}
+
+func linuxDOSessionKey(req launchRequest) string {
+	mode := strings.ToLower(strings.TrimSpace(req.Mode))
+	target := strings.ToLower(strings.TrimSpace(req.Target))
+	if mode != config.TaskAutomationLaunchModeLinuxDO &&
+		target != "preset:linuxdo" &&
+		target != "preset:linux-do" &&
+		target != "preset:linux.do" {
+		return ""
+	}
+	if target == "" || target == "preset:linuxdo" || target == "preset:linux-do" || target == "preset:linux.do" {
+		target = "https://linux.do/"
+	}
+	return strings.Join([]string{
+		"linuxdo",
+		target,
+		strings.ToLower(strings.TrimSpace(req.Browser)),
+		strings.ToLower(strings.TrimSpace(req.BrowserUserData)),
+		strings.ToLower(strings.TrimSpace(req.BrowserProfile)),
+	}, "\x00")
 }

@@ -1,6 +1,7 @@
 package taskautomation
 
 import (
+	"errors"
 	"testing"
 
 	"OmniProxyBackend/internal/config"
@@ -13,6 +14,7 @@ type fakePlatform struct {
 	opened           []string
 	spaces           int
 	focused          []windowHandle
+	focusErr         error
 }
 
 func (f *fakePlatform) ForegroundWindow() windowHandle {
@@ -39,9 +41,29 @@ func (f *fakePlatform) PressSpace() error {
 }
 
 func (f *fakePlatform) Focus(handle windowHandle) error {
+	if f.focusErr != nil {
+		return f.focusErr
+	}
 	f.focused = append(f.focused, handle)
 	f.foreground = handle
 	return nil
+}
+
+func finishIdleAndReturnForTest(t *testing.T, manager *Manager) {
+	t.Helper()
+	manager.mu.Lock()
+	seq := manager.idleSeq
+	if manager.idleTimer != nil {
+		manager.idleTimer.Stop()
+	}
+	manager.mu.Unlock()
+	manager.finishIdle(seq)
+	manager.mu.Lock()
+	if manager.idleTimer != nil {
+		manager.idleTimer.Stop()
+	}
+	manager.mu.Unlock()
+	manager.finishReturn(seq)
 }
 
 func TestManagerAggregatesRequestsIntoOneTask(t *testing.T) {
@@ -146,5 +168,59 @@ func TestManagerSkipsPauseForLinuxDOMode(t *testing.T) {
 	manager.finishReturn(seq)
 	if len(platform.focused) != 1 || platform.focused[0] != 42 {
 		t.Fatalf("expected linux.do mode to still return focus, got %#v", platform.focused)
+	}
+}
+
+func TestManagerReusesLinuxDOBrowserSessionAcrossRounds(t *testing.T) {
+	platform := &fakePlatform{foreground: 42}
+	cfg := config.Default()
+	cfg.TaskAutomationEnabled = true
+	cfg.TaskAutomationClients = []string{"codex"}
+	cfg.TaskAutomationLaunchMode = config.TaskAutomationLaunchModeLinuxDO
+	cfg.TaskAutomationLaunchTarget = "preset:linuxdo"
+	cfg.TaskAutomationIdleSeconds = 1
+
+	manager := newManagerWithPlatform(cfg, nil, platform)
+	manager.resumeDelay = 0
+
+	manager.ActiveRequestStarted(proxy.ActiveRequest{ID: 1, ClientKey: "codex"})
+	if len(platform.opened) != 1 {
+		t.Fatalf("expected first round to launch linux.do once, got %d", len(platform.opened))
+	}
+	manager.ActiveRequestFinished(proxy.ActiveRequest{ID: 1, ClientKey: "codex"})
+	finishIdleAndReturnForTest(t, manager)
+
+	manager.ActiveRequestStarted(proxy.ActiveRequest{ID: 2, ClientKey: "codex"})
+	if len(platform.opened) != 1 {
+		t.Fatalf("expected second round to reuse linux.do browser without relaunching, got %d launches", len(platform.opened))
+	}
+	if len(platform.focused) != 2 || platform.focused[1] != 99 {
+		t.Fatalf("expected second round to focus captured linux.do browser window, got %#v", platform.focused)
+	}
+}
+
+func TestManagerReopensLinuxDOWhenCapturedWindowClosed(t *testing.T) {
+	platform := &fakePlatform{foreground: 42}
+	cfg := config.Default()
+	cfg.TaskAutomationEnabled = true
+	cfg.TaskAutomationClients = []string{"codex"}
+	cfg.TaskAutomationLaunchMode = config.TaskAutomationLaunchModeLinuxDO
+	cfg.TaskAutomationLaunchTarget = "preset:linuxdo"
+
+	manager := newManagerWithPlatform(cfg, nil, platform)
+	manager.resumeDelay = 0
+
+	manager.ActiveRequestStarted(proxy.ActiveRequest{ID: 1, ClientKey: "codex"})
+	if len(platform.opened) != 1 {
+		t.Fatalf("expected first round to launch linux.do once, got %d", len(platform.opened))
+	}
+	manager.ActiveRequestFinished(proxy.ActiveRequest{ID: 1, ClientKey: "codex"})
+	finishIdleAndReturnForTest(t, manager)
+
+	platform.foreground = 42
+	platform.focusErr = errors.New("window is no longer available")
+	manager.ActiveRequestStarted(proxy.ActiveRequest{ID: 2, ClientKey: "codex"})
+	if len(platform.opened) != 2 {
+		t.Fatalf("expected closed linux.do window to be reopened, got %d launches", len(platform.opened))
 	}
 }
