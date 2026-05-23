@@ -48,6 +48,19 @@ const outboundProxyPresets = [
   { label: '7890 mixed', url: 'http://127.0.0.1:7890' },
   { label: 'SOCKS5 10808', url: 'socks5://127.0.0.1:10808' },
 ]
+const taskAutomationClientOptions = [
+  { key: 'codex', label: 'Codex' },
+  { key: 'claude', label: 'Claude Code' },
+  { key: 'claude-desktop', label: 'Claude Desktop' },
+  { key: 'opencode', label: 'OpenCode' },
+  { key: 'gemini', label: 'Gemini CLI' },
+  { key: 'deepseek-tui', label: 'DeepSeek-TUI' },
+  { key: 'pi', label: 'Pi Agent' },
+]
+const taskAutomationTargetPresets = [
+  { key: 'douyin', label: '抖音', target: 'preset:douyin', fallbackUrl: 'https://www.douyin.com' },
+  { key: 'bilibili', label: '哔哩哔哩', target: 'preset:bilibili', fallbackUrl: 'https://www.bilibili.com' },
+]
 const recommendedOutboundProxyProviders = ['openai', 'anthropic', 'gemini', 'openrouter', 'zo']
 const outboundProxyProviderGroups = [
   {
@@ -160,6 +173,48 @@ function setOutboundProxyUrl(url) {
 
 function resetOutboundProxyProviders() {
   props.config.outboundProxyProviders = [...recommendedOutboundProxyProviders]
+}
+
+function resetTaskAutomationClients() {
+  props.config.taskAutomationClients = ['codex', 'claude', 'claude-desktop']
+}
+
+function applyTaskAutomationTargetPreset(preset) {
+  props.config.taskAutomationLaunchTarget = preset.target
+  props.config.taskAutomationFallbackUrl = preset.fallbackUrl
+}
+
+function isTaskAutomationTargetPresetSelected(preset) {
+  return String(props.config.taskAutomationLaunchTarget || '').trim().toLowerCase() === preset.target
+}
+
+function toggleTaskAutomationClient(key) {
+  if (hasTaskAutomationClient(key)) {
+    props.config.taskAutomationClients = selectedTaskAutomationClients().filter((item) => item !== key)
+  } else {
+    props.config.taskAutomationClients = normalizeTaskAutomationClients([...selectedTaskAutomationClients(), key])
+  }
+}
+
+function hasTaskAutomationClient(key) {
+  return selectedTaskAutomationClients().includes(key)
+}
+
+function selectedTaskAutomationClients() {
+  return normalizeTaskAutomationClients(Array.isArray(props.config.taskAutomationClients) ? props.config.taskAutomationClients : [])
+}
+
+function normalizeTaskAutomationClients(clients) {
+  const known = new Set(taskAutomationClientOptions.map((item) => item.key))
+  const seen = new Set()
+  const next = []
+  for (const client of clients) {
+    const key = String(client || '').trim().toLowerCase().replaceAll('_', '-')
+    if (!known.has(key) || seen.has(key)) continue
+    seen.add(key)
+    next.push(key)
+  }
+  return next
 }
 
 function toggleOutboundProxyProvider(item) {
@@ -304,6 +359,92 @@ function normalizeOutboundProxyProviders(providers) {
                 {{ clearingRequestHistory ? '清理中' : '清空请求历史' }}
               </button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section settings-task-automation-section">
+        <div class="settings-section-head">
+          <div>
+            <h3>放心刷</h3>
+            <p>检测 CLI 请求活动：开始时打开指定应用或网页，空闲确认后先发送空格暂停当前窗口，再切回发起任务时的窗口。</p>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <label class="toggle-field">
+            <span>启用放心刷</span>
+            <input v-model="config.taskAutomationEnabled" class="toggle-input" type="checkbox" />
+            <span class="toggle-switch" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+          <label class="toggle-field">
+            <span>任务结束后切回 CLI</span>
+            <input v-model="config.taskAutomationReturnToClient" class="toggle-input" type="checkbox" />
+            <span class="toggle-switch" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+          <label class="wide-field">
+            <span>开始时打开</span>
+            <input
+              v-model="config.taskAutomationLaunchTarget"
+              type="text"
+              placeholder="选择预设，或填 exe / lnk 路径、网址"
+            />
+            <small>留空默认使用抖音；预设会优先找本地程序，找不到再打开备用网址。</small>
+          </label>
+          <div class="wide-field settings-chip-field">
+            <span>常用预设</span>
+            <div class="settings-chip-list">
+              <button
+                v-for="preset in taskAutomationTargetPresets"
+                :key="preset.key"
+                type="button"
+                class="settings-chip-button"
+                :class="{ active: isTaskAutomationTargetPresetSelected(preset) }"
+                @click="applyTaskAutomationTargetPreset(preset)"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+            <small>会优先尝试打开桌面端；找不到本地程序时打开对应官网。</small>
+          </div>
+          <label class="wide-field">
+            <span>备用网址</span>
+            <input v-model="config.taskAutomationFallbackUrl" type="url" placeholder="https://www.douyin.com" />
+          </label>
+          <label>
+            <span>空闲判定秒数</span>
+            <input v-model="config.taskAutomationIdleSeconds" type="number" min="1" max="600" />
+          </label>
+          <label>
+            <span>回切前等待秒数</span>
+            <input v-model="config.taskAutomationReturnDelaySeconds" type="number" min="1" max="600" />
+          </label>
+          <div class="wide-field settings-chip-field">
+            <div class="outbound-model-selector-head">
+              <div>
+                <span>触发客户端</span>
+                <small>已选择 {{ selectedTaskAutomationClients().length }} 个 CLI</small>
+              </div>
+              <button type="button" class="ghost-button compact-button" @click="resetTaskAutomationClients">
+                恢复默认
+              </button>
+            </div>
+            <div class="settings-chip-list">
+              <button
+                v-for="client in taskAutomationClientOptions"
+                :key="client.key"
+                type="button"
+                class="settings-chip-button"
+                :class="{ active: hasTaskAutomationClient(client.key) }"
+                @click="toggleTaskAutomationClient(client.key)"
+              >
+                {{ client.label }}
+              </button>
+            </div>
+            <small>任务活动来自 OmniProxy 代理请求；未经过本地代理的 CLI 不会触发。</small>
           </div>
         </div>
       </section>

@@ -42,6 +42,7 @@ type Service struct {
 	activeMu       sync.RWMutex
 	activeSeq      int64
 	activeRequests map[int64]ActiveRequest
+	activity       ActivityObserver
 }
 
 const maxProxyRequestBodyBytes = 32 * 1024 * 1024
@@ -62,6 +63,11 @@ type ActiveRequest struct {
 	Model      string    `json:"model,omitempty"`
 	TokenID    string    `json:"tokenId,omitempty"`
 	TokenName  string    `json:"tokenName,omitempty"`
+}
+
+type ActivityObserver interface {
+	ActiveRequestStarted(ActiveRequest)
+	ActiveRequestFinished(ActiveRequest)
 }
 
 type tokenAttemptOutcome struct {
@@ -107,6 +113,10 @@ func NewService(cfg config.Config, tokens *token.Manager, recorder *logs.Recorde
 
 func (s *Service) SetTokenRefresher(refresher TokenRefresher) {
 	s.tokenRefresher = refresher
+}
+
+func (s *Service) SetActivityObserver(observer ActivityObserver) {
+	s.activity = observer
 }
 
 func (s *Service) ActiveRequests() []ActiveRequest {
@@ -869,7 +879,6 @@ func (s *Service) recordHistory(r *http.Request, route routeInfo, selected *toke
 
 func (s *Service) beginActiveRequest(r *http.Request, route routeInfo, selected token.Token) func() {
 	s.activeMu.Lock()
-	defer s.activeMu.Unlock()
 
 	if s.activeRequests == nil {
 		s.activeRequests = map[int64]ActiveRequest{}
@@ -884,7 +893,7 @@ func (s *Service) beginActiveRequest(r *http.Request, route routeInfo, selected 
 			path = r.URL.RequestURI()
 		}
 	}
-	s.activeRequests[id] = ActiveRequest{
+	entry := ActiveRequest{
 		ID:         id,
 		StartedAt:  time.Now(),
 		ClientKey:  route.ClientKey,
@@ -897,12 +906,20 @@ func (s *Service) beginActiveRequest(r *http.Request, route routeInfo, selected 
 		TokenID:    selected.ID,
 		TokenName:  selected.Name,
 	}
+	s.activeRequests[id] = entry
+	s.activeMu.Unlock()
+	if s.activity != nil {
+		s.activity.ActiveRequestStarted(entry)
+	}
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			s.activeMu.Lock()
 			delete(s.activeRequests, id)
 			s.activeMu.Unlock()
+			if s.activity != nil {
+				s.activity.ActiveRequestFinished(entry)
+			}
 		})
 	}
 }

@@ -15136,6 +15136,10 @@ body.dark .daily-detail-popover {
   grid-column: 1 / -1;
 }
 
+.settings-panel .settings-task-automation-section {
+  grid-column: 1 / -1;
+}
+
 .settings-panel .settings-section-head {
   align-items: flex-start;
   gap: 14px;

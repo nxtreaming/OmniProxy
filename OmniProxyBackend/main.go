@@ -25,6 +25,7 @@ import (
 	"OmniProxyBackend/internal/logs"
 	"OmniProxyBackend/internal/proxy"
 	"OmniProxyBackend/internal/storage"
+	"OmniProxyBackend/internal/taskautomation"
 	"OmniProxyBackend/internal/token"
 
 	"github.com/wailsapp/wails/v2"
@@ -46,6 +47,7 @@ type appServer struct {
 	history               *history.Recorder
 	proxyServer           *http.Server
 	proxyService          *proxy.Service
+	taskAutomation        *taskautomation.Manager
 	control               *http.Server
 	controlToken          string
 	updates               *updateDownloader
@@ -135,11 +137,14 @@ func newAppServer() (*appServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("generate control token: %w", err)
 	}
+	recorder := logs.NewRecorder(500)
+	defaultCfg := config.Default()
 	server := &appServer{
-		cfg:          config.Default(),
-		logs:         logs.NewRecorder(500),
-		controlToken: controlToken,
-		updates:      newUpdateDownloader(),
+		cfg:            defaultCfg,
+		logs:           recorder,
+		taskAutomation: taskautomation.NewManager(defaultCfg, recorder),
+		controlToken:   controlToken,
+		updates:        newUpdateDownloader(),
 	}
 	info, configured, err := config.ResolveDataDir()
 	if err != nil {
@@ -197,6 +202,9 @@ func (a *appServer) loadData(dataDir string) error {
 	a.tokens = tokenManager
 	a.history = historyRecorder
 	a.mu.Unlock()
+	if a.taskAutomation != nil {
+		a.taskAutomation.UpdateConfig(cfg)
+	}
 	return nil
 }
 
@@ -1119,6 +1127,9 @@ func (a *appServer) saveConfig(cfg config.Config) (config.Config, error) {
 			return config.Config{}, err
 		}
 	}
+	if a.taskAutomation != nil {
+		a.taskAutomation.UpdateConfig(cfg)
+	}
 
 	if shouldRestartProxy {
 		if err := a.restartProxy(); err != nil {
@@ -1792,6 +1803,9 @@ func (a *appServer) startProxy() error {
 		return err
 	}
 	svc.SetTokenRefresher(a.refreshAuthTokenIfNeeded)
+	if a.taskAutomation != nil {
+		svc.SetActivityObserver(a.taskAutomation)
+	}
 
 	addr := fmt.Sprintf("127.0.0.1:%d", a.cfg.ProxyPort)
 	listener, err := net.Listen("tcp", addr)
@@ -1892,6 +1906,9 @@ func (a *appServer) stopProxy() error {
 	a.proxyServer = nil
 	a.proxyService = nil
 	a.mu.Unlock()
+	if a.taskAutomation != nil {
+		a.taskAutomation.Stop()
+	}
 
 	if server == nil {
 		return nil

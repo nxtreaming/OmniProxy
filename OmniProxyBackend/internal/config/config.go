@@ -41,6 +41,13 @@ type Config struct {
 	ControlPort                        int      `json:"controlPort"`
 	SchedulingMode                     string   `json:"schedulingMode"`
 	WebSocketMode                      string   `json:"websocketMode"`
+	TaskAutomationEnabled              bool     `json:"taskAutomationEnabled"`
+	TaskAutomationClients              []string `json:"taskAutomationClients"`
+	TaskAutomationLaunchTarget         string   `json:"taskAutomationLaunchTarget"`
+	TaskAutomationFallbackURL          string   `json:"taskAutomationFallbackUrl"`
+	TaskAutomationReturnToClient       bool     `json:"taskAutomationReturnToClient"`
+	TaskAutomationIdleSeconds          int      `json:"taskAutomationIdleSeconds"`
+	TaskAutomationReturnDelaySeconds   int      `json:"taskAutomationReturnDelaySeconds"`
 	OutboundProxyEnabled               bool     `json:"outboundProxyEnabled"`
 	OutboundProxyURL                   string   `json:"outboundProxyUrl"`
 	OutboundProxyProviders             []string `json:"outboundProxyProviders"`
@@ -83,6 +90,13 @@ func Default() Config {
 		ControlPort:                        DefaultControlPort(),
 		SchedulingMode:                     SchedulingModeQueue,
 		WebSocketMode:                      WebSocketModeEnabled,
+		TaskAutomationEnabled:              false,
+		TaskAutomationClients:              []string{"codex", "claude", "claude-desktop"},
+		TaskAutomationLaunchTarget:         "",
+		TaskAutomationFallbackURL:          "https://www.douyin.com",
+		TaskAutomationReturnToClient:       true,
+		TaskAutomationIdleSeconds:          5,
+		TaskAutomationReturnDelaySeconds:   3,
 		OutboundProxyEnabled:               false,
 		OutboundProxyURL:                   "http://127.0.0.1:10808",
 		OutboundProxyProviders:             append([]string(nil), defaultOutboundProxyProviders...),
@@ -148,6 +162,13 @@ func (s *Store) Load() (Config, error) {
 		ControlPort                        *int      `json:"controlPort"`
 		SchedulingMode                     *string   `json:"schedulingMode"`
 		WebSocketMode                      *string   `json:"websocketMode"`
+		TaskAutomationEnabled              *bool     `json:"taskAutomationEnabled"`
+		TaskAutomationClients              *[]string `json:"taskAutomationClients"`
+		TaskAutomationLaunchTarget         *string   `json:"taskAutomationLaunchTarget"`
+		TaskAutomationFallbackURL          *string   `json:"taskAutomationFallbackUrl"`
+		TaskAutomationReturnToClient       *bool     `json:"taskAutomationReturnToClient"`
+		TaskAutomationIdleSeconds          *int      `json:"taskAutomationIdleSeconds"`
+		TaskAutomationReturnDelaySeconds   *int      `json:"taskAutomationReturnDelaySeconds"`
 		OutboundProxyEnabled               *bool     `json:"outboundProxyEnabled"`
 		OutboundProxyURL                   *string   `json:"outboundProxyUrl"`
 		OutboundProxyProviders             *[]string `json:"outboundProxyProviders"`
@@ -198,6 +219,27 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.WebSocketMode != nil {
 		cfg.WebSocketMode = *saved.WebSocketMode
+	}
+	if saved.TaskAutomationEnabled != nil {
+		cfg.TaskAutomationEnabled = *saved.TaskAutomationEnabled
+	}
+	if saved.TaskAutomationClients != nil {
+		cfg.TaskAutomationClients = append([]string(nil), (*saved.TaskAutomationClients)...)
+	}
+	if saved.TaskAutomationLaunchTarget != nil {
+		cfg.TaskAutomationLaunchTarget = *saved.TaskAutomationLaunchTarget
+	}
+	if saved.TaskAutomationFallbackURL != nil {
+		cfg.TaskAutomationFallbackURL = *saved.TaskAutomationFallbackURL
+	}
+	if saved.TaskAutomationReturnToClient != nil {
+		cfg.TaskAutomationReturnToClient = *saved.TaskAutomationReturnToClient
+	}
+	if saved.TaskAutomationIdleSeconds != nil {
+		cfg.TaskAutomationIdleSeconds = *saved.TaskAutomationIdleSeconds
+	}
+	if saved.TaskAutomationReturnDelaySeconds != nil {
+		cfg.TaskAutomationReturnDelaySeconds = *saved.TaskAutomationReturnDelaySeconds
 	}
 	if saved.OutboundProxyEnabled != nil {
 		cfg.OutboundProxyEnabled = *saved.OutboundProxyEnabled
@@ -336,6 +378,28 @@ func Normalize(cfg Config) Config {
 	default:
 		cfg.WebSocketMode = defaults.WebSocketMode
 	}
+	if cfg.TaskAutomationClients == nil {
+		cfg.TaskAutomationClients = append([]string(nil), defaults.TaskAutomationClients...)
+	} else {
+		cfg.TaskAutomationClients = normalizeTaskAutomationClients(cfg.TaskAutomationClients)
+	}
+	cfg.TaskAutomationLaunchTarget = strings.TrimSpace(cfg.TaskAutomationLaunchTarget)
+	cfg.TaskAutomationFallbackURL = strings.TrimSpace(cfg.TaskAutomationFallbackURL)
+	if cfg.TaskAutomationFallbackURL == "" {
+		cfg.TaskAutomationFallbackURL = defaults.TaskAutomationFallbackURL
+	}
+	if cfg.TaskAutomationIdleSeconds <= 0 {
+		cfg.TaskAutomationIdleSeconds = defaults.TaskAutomationIdleSeconds
+	}
+	if cfg.TaskAutomationIdleSeconds > 600 {
+		cfg.TaskAutomationIdleSeconds = 600
+	}
+	if cfg.TaskAutomationReturnDelaySeconds <= 0 {
+		cfg.TaskAutomationReturnDelaySeconds = defaults.TaskAutomationReturnDelaySeconds
+	}
+	if cfg.TaskAutomationReturnDelaySeconds > 600 {
+		cfg.TaskAutomationReturnDelaySeconds = 600
+	}
 	cfg.OutboundProxyURL = normalizeOutboundProxyURL(cfg.OutboundProxyURL)
 	if cfg.OutboundProxyURL == "" {
 		cfg.OutboundProxyURL = defaults.OutboundProxyURL
@@ -471,6 +535,44 @@ func normalizeOutboundProxyURL(value string) string {
 		}
 	}
 	return "http://" + value
+}
+
+func normalizeTaskAutomationClients(clients []string) []string {
+	if len(clients) == 0 {
+		return []string{}
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(clients))
+	for _, item := range clients {
+		value := normalizeTaskAutomationClient(item)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func normalizeTaskAutomationClient(client string) string {
+	switch strings.ToLower(strings.TrimSpace(strings.ReplaceAll(client, "_", "-"))) {
+	case "codex", "openai-codex":
+		return "codex"
+	case "claude", "claude-code", "claudecode":
+		return "claude"
+	case "claude-desktop", "claude-code-desktop":
+		return "claude-desktop"
+	case "opencode", "open-code":
+		return "opencode"
+	case "deepseek-tui", "deepseek":
+		return "deepseek-tui"
+	case "gemini", "gemini-cli":
+		return "gemini"
+	case "pi", "pi-coding-agent":
+		return "pi"
+	default:
+		return ""
+	}
 }
 
 func normalizeOutboundProxyModels(models []string) []string {
