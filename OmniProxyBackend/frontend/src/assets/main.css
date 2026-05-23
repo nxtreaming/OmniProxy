@@ -17201,19 +17201,23 @@ body.dark .daily-detail-popover {
   margin: 0;
   padding: 13px 14px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--success) 22%, var(--line));
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--surface-soft) 38%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand) 15%, var(--line));
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 3%, transparent), transparent),
+    color-mix(in srgb, var(--surface-soft) 28%, var(--surface));
   box-shadow: none;
 }
 
 .quota-overview-panel .current-quota-row::before {
   content: '';
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--success) 70%, var(--brand));
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand) 8%, transparent), transparent 45%),
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 4%, transparent), transparent);
+  pointer-events: none;
 }
 
 .quota-overview-panel .current-quota-row .quota-account-title {
@@ -17230,10 +17234,10 @@ body.dark .daily-detail-popover {
 .quota-overview-panel .current-quota-row .current-usage-badge,
 .quota-overview-panel .current-quota-row .tag {
   min-height: 24px;
-  padding: 4px 9px;
-  border: 1px solid color-mix(in srgb, var(--success) 26%, transparent);
-  background: color-mix(in srgb, var(--success) 13%, transparent);
-  color: var(--success);
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
+  background: color-mix(in srgb, var(--brand) 11%, transparent);
+  color: var(--brand-strong);
   font-size: 11px;
   font-weight: 720;
   box-shadow: none;
@@ -17241,35 +17245,41 @@ body.dark .daily-detail-popover {
 
 .quota-overview-panel .current-quota-row .tag {
   border-color: color-mix(in srgb, var(--line) 78%, transparent);
-  background: color-mix(in srgb, var(--surface-subtle) 54%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 48%, transparent);
   color: var(--text-muted);
 }
 
 .quota-overview-panel .current-quota-row .current-usage-meta {
-  color: var(--brand-strong);
+  color: var(--text-muted);
   font-size: 12px;
-  font-weight: 560;
+  font-weight: 580;
 }
 
 .quota-overview-panel .current-quota-row .progress {
-  height: 7px;
-  background: color-mix(in srgb, var(--line) 48%, transparent);
+  height: 6px;
+  background: color-mix(in srgb, var(--line) 42%, transparent);
 }
 
 .quota-overview-panel .current-quota-row .progress span {
-  background: linear-gradient(90deg, var(--brand), var(--accent));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--brand) 76%, #ffffff),
+    color-mix(in srgb, var(--accent) 70%, #ffffff)
+  );
   box-shadow: none;
 }
 
 .quota-overview-panel .current-quota-row .quota-percent {
-  color: var(--success);
-  font-size: 15px;
-  font-weight: 760;
+  color: var(--brand-strong);
+  font-size: 14px;
+  font-weight: 740;
 }
 
 .shell.dark .quota-overview-panel .current-quota-row {
-  border-color: color-mix(in srgb, var(--success) 26%, var(--line));
-  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand) 18%, var(--line));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent),
+    color-mix(in srgb, var(--surface-soft) 31%, var(--surface));
   box-shadow: none;
 }
 
