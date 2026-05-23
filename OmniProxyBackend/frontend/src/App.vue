@@ -175,6 +175,15 @@ const clearingBillingUsage = ref(false)
 const clearingRequestHistory = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const quotaRefreshProgress = reactive({
+  visible: false,
+  percent: 0,
+  total: 0,
+  completed: 0,
+  failed: 0,
+  providerLabel: '',
+  currentName: '',
+})
 const deleteCandidate = ref(null)
 const deleteBusy = ref(false)
 const toastAutoCloseMs = 4000
@@ -3150,7 +3159,48 @@ function closeHistoryDiagnosis() {
   selectedHistoryEntry.value = null
 }
 
+function resetQuotaRefreshProgress() {
+  Object.assign(quotaRefreshProgress, {
+    visible: false,
+    percent: 0,
+    total: 0,
+    completed: 0,
+    failed: 0,
+    providerLabel: '',
+    currentName: '',
+  })
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+function startQuotaRefreshProgress(items) {
+  Object.assign(quotaRefreshProgress, {
+    visible: true,
+    percent: 10,
+    total: items.length,
+    completed: 0,
+    failed: 0,
+    providerLabel: activeProviderInfo.value.label,
+    currentName: items[0]?.name || '',
+  })
+}
+
+function updateQuotaRefreshProgress({ completed, failed, currentName, done = false }) {
+  quotaRefreshProgress.completed = completed
+  quotaRefreshProgress.failed = failed
+  quotaRefreshProgress.currentName = currentName || quotaRefreshProgress.currentName
+  quotaRefreshProgress.percent = done
+    ? 100
+    : Math.min(96, Math.max(10, Math.round(10 + (completed / Math.max(quotaRefreshProgress.total, 1)) * 84)))
+}
+
 async function refreshProviderQuotas() {
+  if (refreshingProvider.value) return
+
   const items = activeProviderTokens.value.filter((item) => !item.disabled)
   if (!items.length) {
     successMessage.value = `暂无启用的 ${activeProviderInfo.value.label} 账号可刷新`
@@ -3161,8 +3211,14 @@ async function refreshProviderQuotas() {
   successMessage.value = ''
   refreshingProvider.value = true
   let failed = 0
+  let completed = 0
+  let finalErrorMessage = ''
+  let finalSuccessMessage = ''
+  startQuotaRefreshProgress(items)
+
   try {
     for (const item of items) {
+      quotaRefreshProgress.currentName = item.name
       validatingIds[item.id] = true
       try {
         const result = await validateToken(item.id)
@@ -3173,16 +3229,34 @@ async function refreshProviderQuotas() {
         failed += 1
       } finally {
         validatingIds[item.id] = false
+        completed += 1
+        updateQuotaRefreshProgress({ completed, failed, currentName: item.name })
       }
     }
+    updateQuotaRefreshProgress({ completed, failed, currentName: '同步最新额度状态' })
     await refreshRealtime()
+    updateQuotaRefreshProgress({
+      completed,
+      failed,
+      currentName: failed ? '部分账号刷新失败' : '刷新完成',
+      done: true,
+    })
+    await wait(260)
     if (failed) {
-      errorMessage.value = `已刷新 ${items.length - failed} 个账号，${failed} 个失败`
+      finalErrorMessage = `已刷新 ${items.length - failed} 个账号，${failed} 个失败`
     } else {
-      successMessage.value = `已刷新 ${items.length} 个 ${activeProviderInfo.value.label} 账号`
+      finalSuccessMessage = `已刷新 ${items.length} 个 ${activeProviderInfo.value.label} 账号`
     }
+  } catch (error) {
+    finalErrorMessage = error.message
   } finally {
+    resetQuotaRefreshProgress()
     refreshingProvider.value = false
+    if (finalErrorMessage) {
+      errorMessage.value = finalErrorMessage
+    } else if (finalSuccessMessage) {
+      successMessage.value = finalSuccessMessage
+    }
   }
 }
 
@@ -3332,6 +3406,31 @@ async function refreshQuota(item) {
           <p class="topbar-subtitle">OmniProxy 桌面网关</p>
         </div>
       </header>
+
+      <TransitionGroup name="quota-refresh" tag="div" class="toast-stack quota-refresh-stack" aria-live="polite">
+        <div v-if="quotaRefreshProgress.visible" key="quota-refresh" class="notice quota-refresh-toast" role="status">
+          <div class="quota-refresh-orb" aria-hidden="true">
+            <span></span>
+          </div>
+          <div class="quota-refresh-body">
+            <div class="quota-refresh-title-row">
+              <strong>刷新中{{ quotaRefreshProgress.percent }}%</strong>
+              <span>{{ quotaRefreshProgress.completed }} / {{ quotaRefreshProgress.total }}</span>
+            </div>
+            <div
+              class="quota-refresh-track"
+              role="progressbar"
+              aria-label="额度刷新进度"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              :aria-valuenow="quotaRefreshProgress.percent"
+            >
+              <span :style="{ width: `${quotaRefreshProgress.percent}%` }"></span>
+            </div>
+            <small>{{ quotaRefreshProgress.currentName || `${quotaRefreshProgress.providerLabel} 额度刷新中` }}</small>
+          </div>
+        </div>
+      </TransitionGroup>
 
       <TransitionGroup name="snackbar" tag="div" class="toast-stack" aria-live="polite">
         <div v-if="errorMessage" key="error" class="alert" role="alert">
