@@ -14,8 +14,8 @@ func (noopPlatform) ForegroundWindow() windowHandle {
 	return 0
 }
 
-func (noopPlatform) Launch(target string, fallbackURL string) (string, error) {
-	return "", fmt.Errorf("task automation is only supported on Windows")
+func (noopPlatform) Launch(launchRequest) (launchResult, error) {
+	return launchResult{}, fmt.Errorf("task automation is only supported on Windows")
 }
 
 func (noopPlatform) PressSpace() error {

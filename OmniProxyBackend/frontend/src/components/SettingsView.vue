@@ -57,9 +57,20 @@ const taskAutomationClientOptions = [
   { key: 'deepseek-tui', label: 'DeepSeek-TUI' },
   { key: 'pi', label: 'Pi Agent' },
 ]
+const taskAutomationLaunchModes = [
+  { key: 'media', label: '短视频 / 媒体' },
+  { key: 'linuxdo', label: 'Linux.do 浏览器' },
+]
 const taskAutomationTargetPresets = [
-  { key: 'douyin', label: '抖音', target: 'preset:douyin', fallbackUrl: 'https://www.douyin.com' },
-  { key: 'bilibili', label: '哔哩哔哩', target: 'preset:bilibili', fallbackUrl: 'https://www.bilibili.com' },
+  { key: 'douyin', label: '抖音', mode: 'media', target: 'preset:douyin', fallbackUrl: 'https://www.douyin.com' },
+  { key: 'bilibili', label: '哔哩哔哩', mode: 'media', target: 'preset:bilibili', fallbackUrl: 'https://www.bilibili.com' },
+  { key: 'linuxdo', label: 'Linux.do', mode: 'linuxdo', target: 'preset:linuxdo', fallbackUrl: 'https://linux.do/' },
+]
+const taskAutomationBrowserOptions = [
+  { key: 'default', label: '默认浏览器' },
+  { key: 'edge', label: 'Microsoft Edge' },
+  { key: 'chrome', label: 'Google Chrome' },
+  { key: 'firefox', label: 'Firefox' },
 ]
 const recommendedOutboundProxyProviders = ['openai', 'anthropic', 'gemini', 'openrouter', 'zo']
 const outboundProxyProviderGroups = [
@@ -179,12 +190,52 @@ function resetTaskAutomationClients() {
   props.config.taskAutomationClients = ['codex', 'claude', 'claude-desktop']
 }
 
+function taskAutomationLaunchMode() {
+  const mode = String(props.config.taskAutomationLaunchMode || '').trim().toLowerCase()
+  return mode === 'linuxdo' || mode === 'linux.do' || mode === 'linux-do' || mode === 'browser' ? 'linuxdo' : 'media'
+}
+
+function setTaskAutomationLaunchMode(mode) {
+  const normalized = mode === 'linuxdo' ? 'linuxdo' : 'media'
+  props.config.taskAutomationLaunchMode = normalized
+  if (normalized === 'linuxdo') {
+    props.config.taskAutomationLaunchTarget = 'preset:linuxdo'
+    props.config.taskAutomationFallbackUrl = 'https://linux.do/'
+  } else if (String(props.config.taskAutomationLaunchTarget || '').trim().toLowerCase() === 'preset:linuxdo') {
+    props.config.taskAutomationLaunchTarget = 'preset:douyin'
+    props.config.taskAutomationFallbackUrl = 'https://www.douyin.com'
+  }
+}
+
+function isTaskAutomationLaunchMode(mode) {
+  return taskAutomationLaunchMode() === mode
+}
+
+function taskAutomationBrowser() {
+  const browser = String(props.config.taskAutomationBrowser || '').trim().toLowerCase().replaceAll('_', '-')
+  return taskAutomationBrowserOptions.some((item) => item.key === browser) ? browser : 'default'
+}
+
+function setTaskAutomationBrowser(browser) {
+  props.config.taskAutomationBrowser = taskAutomationBrowserOptions.some((item) => item.key === browser) ? browser : 'default'
+}
+
+function isTaskAutomationBrowser(browser) {
+  return taskAutomationBrowser() === browser
+}
+
+function isTaskAutomationLinuxDO() {
+  return taskAutomationLaunchMode() === 'linuxdo'
+}
+
 function applyTaskAutomationTargetPreset(preset) {
+  props.config.taskAutomationLaunchMode = preset.mode || 'media'
   props.config.taskAutomationLaunchTarget = preset.target
   props.config.taskAutomationFallbackUrl = preset.fallbackUrl
 }
 
 function isTaskAutomationTargetPresetSelected(preset) {
+  if ((preset.mode || 'media') !== taskAutomationLaunchMode()) return false
   return String(props.config.taskAutomationLaunchTarget || '').trim().toLowerCase() === preset.target
 }
 
@@ -367,7 +418,7 @@ function normalizeOutboundProxyProviders(providers) {
         <div class="settings-section-head">
           <div>
             <h3>放心刷</h3>
-            <p>检测 CLI 请求活动：开始时打开指定应用或网页，空闲确认后先发送空格暂停当前窗口，再切回发起任务时的窗口。</p>
+            <p>检测 CLI 请求活动：可以打开短视频应用并在结束时暂停，也可以打开带登录态的浏览器去刷 Linux.do。</p>
           </div>
         </div>
         <div class="settings-grid">
@@ -385,17 +436,35 @@ function normalizeOutboundProxyProviders(providers) {
               <span class="toggle-thumb"></span>
             </span>
           </label>
+          <div class="wide-field settings-chip-field">
+            <span>打开方式</span>
+            <div class="settings-chip-list">
+              <button
+                v-for="mode in taskAutomationLaunchModes"
+                :key="mode.key"
+                type="button"
+                class="settings-chip-button"
+                :class="{ active: isTaskAutomationLaunchMode(mode.key) }"
+                @click="setTaskAutomationLaunchMode(mode.key)"
+              >
+                {{ mode.label }}
+              </button>
+            </div>
+            <small>Linux.do 浏览器模式不会发送空格暂停，只负责打开站点并按设置切回 CLI。</small>
+          </div>
           <label class="wide-field">
             <span>开始时打开</span>
             <input
               v-model="config.taskAutomationLaunchTarget"
               type="text"
               placeholder="选择预设，或填 exe / lnk 路径、网址"
+              :disabled="isTaskAutomationLinuxDO()"
             />
-            <small>留空默认使用抖音；预设会优先找本地程序，找不到再打开备用网址。</small>
+            <small v-if="isTaskAutomationLinuxDO()">Linux.do 模式固定打开 https://linux.do/，浏览器登录态由下方用户资料决定。</small>
+            <small v-else>留空默认使用抖音；预设会优先找本地程序，找不到再打开备用网址。</small>
           </label>
           <div class="wide-field settings-chip-field">
-            <span>常用预设</span>
+            <span>常用目标</span>
             <div class="settings-chip-list">
               <button
                 v-for="preset in taskAutomationTargetPresets"
@@ -408,11 +477,41 @@ function normalizeOutboundProxyProviders(providers) {
                 {{ preset.label }}
               </button>
             </div>
-            <small>会优先尝试打开桌面端；找不到本地程序时打开对应官网。</small>
+            <small>抖音和哔哩哔哩会优先尝试桌面端；Linux.do 会按浏览器设置打开网页。</small>
           </div>
-          <label class="wide-field">
+          <label v-if="!isTaskAutomationLinuxDO()" class="wide-field">
             <span>备用网址</span>
             <input v-model="config.taskAutomationFallbackUrl" type="url" placeholder="https://www.douyin.com" />
+          </label>
+          <div v-if="isTaskAutomationLinuxDO()" class="wide-field settings-chip-field">
+            <span>浏览器类型</span>
+            <div class="settings-chip-list">
+              <button
+                v-for="browser in taskAutomationBrowserOptions"
+                :key="browser.key"
+                type="button"
+                class="settings-chip-button"
+                :class="{ active: isTaskAutomationBrowser(browser.key) }"
+                @click="setTaskAutomationBrowser(browser.key)"
+              >
+                {{ browser.label }}
+              </button>
+            </div>
+            <small>默认浏览器无法指定用户资料；Edge、Chrome、Firefox 支持指定已有登录态的 Profile。</small>
+          </div>
+          <label v-if="isTaskAutomationLinuxDO()" class="wide-field">
+            <span>用户数据目录</span>
+            <input
+              v-model="config.taskAutomationBrowserUserDataDir"
+              type="text"
+              placeholder="%LOCALAPPDATA%\\Microsoft\\Edge\\User Data"
+            />
+            <small>Edge/Chrome 可填 User Data 根目录；Firefox 可留空，直接在用户资料里填 Profile 名或路径。</small>
+          </label>
+          <label v-if="isTaskAutomationLinuxDO()" class="wide-field">
+            <span>用户资料 / Profile</span>
+            <input v-model="config.taskAutomationBrowserProfile" type="text" placeholder="Default 或 Profile 1" />
+            <small>填已有资料夹才会带登录态，例如 Edge/Chrome 的 Default、Profile 1，或 Firefox 的 profile 名/路径。</small>
           </label>
           <label>
             <span>空闲判定秒数</span>

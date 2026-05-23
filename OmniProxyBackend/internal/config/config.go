@@ -17,6 +17,14 @@ const (
 	WebSocketModeEnabled  = "enabled"
 	WebSocketModeDisabled = "disabled"
 
+	TaskAutomationLaunchModeMedia   = "media"
+	TaskAutomationLaunchModeLinuxDO = "linuxdo"
+
+	TaskAutomationBrowserDefault = "default"
+	TaskAutomationBrowserEdge    = "edge"
+	TaskAutomationBrowserChrome  = "chrome"
+	TaskAutomationBrowserFirefox = "firefox"
+
 	MimoCredentialPriorityAPIKey    = "api_key"
 	MimoCredentialPriorityTokenPlan = "mimo_token_plan"
 )
@@ -43,8 +51,12 @@ type Config struct {
 	WebSocketMode                      string   `json:"websocketMode"`
 	TaskAutomationEnabled              bool     `json:"taskAutomationEnabled"`
 	TaskAutomationClients              []string `json:"taskAutomationClients"`
+	TaskAutomationLaunchMode           string   `json:"taskAutomationLaunchMode"`
 	TaskAutomationLaunchTarget         string   `json:"taskAutomationLaunchTarget"`
 	TaskAutomationFallbackURL          string   `json:"taskAutomationFallbackUrl"`
+	TaskAutomationBrowser              string   `json:"taskAutomationBrowser"`
+	TaskAutomationBrowserUserDataDir   string   `json:"taskAutomationBrowserUserDataDir"`
+	TaskAutomationBrowserProfile       string   `json:"taskAutomationBrowserProfile"`
 	TaskAutomationReturnToClient       bool     `json:"taskAutomationReturnToClient"`
 	TaskAutomationIdleSeconds          int      `json:"taskAutomationIdleSeconds"`
 	TaskAutomationReturnDelaySeconds   int      `json:"taskAutomationReturnDelaySeconds"`
@@ -92,8 +104,12 @@ func Default() Config {
 		WebSocketMode:                      WebSocketModeEnabled,
 		TaskAutomationEnabled:              false,
 		TaskAutomationClients:              []string{"codex", "claude", "claude-desktop"},
+		TaskAutomationLaunchMode:           TaskAutomationLaunchModeMedia,
 		TaskAutomationLaunchTarget:         "",
 		TaskAutomationFallbackURL:          "https://www.douyin.com",
+		TaskAutomationBrowser:              TaskAutomationBrowserDefault,
+		TaskAutomationBrowserUserDataDir:   "",
+		TaskAutomationBrowserProfile:       "",
 		TaskAutomationReturnToClient:       true,
 		TaskAutomationIdleSeconds:          5,
 		TaskAutomationReturnDelaySeconds:   3,
@@ -164,8 +180,12 @@ func (s *Store) Load() (Config, error) {
 		WebSocketMode                      *string   `json:"websocketMode"`
 		TaskAutomationEnabled              *bool     `json:"taskAutomationEnabled"`
 		TaskAutomationClients              *[]string `json:"taskAutomationClients"`
+		TaskAutomationLaunchMode           *string   `json:"taskAutomationLaunchMode"`
 		TaskAutomationLaunchTarget         *string   `json:"taskAutomationLaunchTarget"`
 		TaskAutomationFallbackURL          *string   `json:"taskAutomationFallbackUrl"`
+		TaskAutomationBrowser              *string   `json:"taskAutomationBrowser"`
+		TaskAutomationBrowserUserDataDir   *string   `json:"taskAutomationBrowserUserDataDir"`
+		TaskAutomationBrowserProfile       *string   `json:"taskAutomationBrowserProfile"`
 		TaskAutomationReturnToClient       *bool     `json:"taskAutomationReturnToClient"`
 		TaskAutomationIdleSeconds          *int      `json:"taskAutomationIdleSeconds"`
 		TaskAutomationReturnDelaySeconds   *int      `json:"taskAutomationReturnDelaySeconds"`
@@ -226,11 +246,23 @@ func (s *Store) Load() (Config, error) {
 	if saved.TaskAutomationClients != nil {
 		cfg.TaskAutomationClients = append([]string(nil), (*saved.TaskAutomationClients)...)
 	}
+	if saved.TaskAutomationLaunchMode != nil {
+		cfg.TaskAutomationLaunchMode = *saved.TaskAutomationLaunchMode
+	}
 	if saved.TaskAutomationLaunchTarget != nil {
 		cfg.TaskAutomationLaunchTarget = *saved.TaskAutomationLaunchTarget
 	}
 	if saved.TaskAutomationFallbackURL != nil {
 		cfg.TaskAutomationFallbackURL = *saved.TaskAutomationFallbackURL
+	}
+	if saved.TaskAutomationBrowser != nil {
+		cfg.TaskAutomationBrowser = *saved.TaskAutomationBrowser
+	}
+	if saved.TaskAutomationBrowserUserDataDir != nil {
+		cfg.TaskAutomationBrowserUserDataDir = *saved.TaskAutomationBrowserUserDataDir
+	}
+	if saved.TaskAutomationBrowserProfile != nil {
+		cfg.TaskAutomationBrowserProfile = *saved.TaskAutomationBrowserProfile
 	}
 	if saved.TaskAutomationReturnToClient != nil {
 		cfg.TaskAutomationReturnToClient = *saved.TaskAutomationReturnToClient
@@ -383,11 +415,15 @@ func Normalize(cfg Config) Config {
 	} else {
 		cfg.TaskAutomationClients = normalizeTaskAutomationClients(cfg.TaskAutomationClients)
 	}
+	cfg.TaskAutomationLaunchMode = normalizeTaskAutomationLaunchMode(cfg.TaskAutomationLaunchMode)
 	cfg.TaskAutomationLaunchTarget = strings.TrimSpace(cfg.TaskAutomationLaunchTarget)
 	cfg.TaskAutomationFallbackURL = strings.TrimSpace(cfg.TaskAutomationFallbackURL)
 	if cfg.TaskAutomationFallbackURL == "" {
 		cfg.TaskAutomationFallbackURL = defaults.TaskAutomationFallbackURL
 	}
+	cfg.TaskAutomationBrowser = normalizeTaskAutomationBrowser(cfg.TaskAutomationBrowser)
+	cfg.TaskAutomationBrowserUserDataDir = strings.TrimSpace(cfg.TaskAutomationBrowserUserDataDir)
+	cfg.TaskAutomationBrowserProfile = strings.TrimSpace(cfg.TaskAutomationBrowserProfile)
 	if cfg.TaskAutomationIdleSeconds <= 0 {
 		cfg.TaskAutomationIdleSeconds = defaults.TaskAutomationIdleSeconds
 	}
@@ -510,6 +546,32 @@ func Normalize(cfg Config) Config {
 		cfg.CodexUsageEndpoint = defaults.CodexUsageEndpoint
 	}
 	return cfg
+}
+
+func normalizeTaskAutomationLaunchMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(strings.ReplaceAll(mode, "_", "-"))) {
+	case TaskAutomationLaunchModeLinuxDO, "linux-do", "linux.do", "linux", "browser":
+		return TaskAutomationLaunchModeLinuxDO
+	case TaskAutomationLaunchModeMedia, "video", "app", "":
+		return TaskAutomationLaunchModeMedia
+	default:
+		return TaskAutomationLaunchModeMedia
+	}
+}
+
+func normalizeTaskAutomationBrowser(browser string) string {
+	switch strings.ToLower(strings.TrimSpace(strings.ReplaceAll(browser, "_", "-"))) {
+	case TaskAutomationBrowserEdge, "msedge", "microsoft-edge":
+		return TaskAutomationBrowserEdge
+	case TaskAutomationBrowserChrome, "google-chrome":
+		return TaskAutomationBrowserChrome
+	case TaskAutomationBrowserFirefox, "mozilla-firefox":
+		return TaskAutomationBrowserFirefox
+	case TaskAutomationBrowserDefault, "":
+		return TaskAutomationBrowserDefault
+	default:
+		return TaskAutomationBrowserDefault
+	}
 }
 
 func normalizeOutboundProxyURL(value string) string {

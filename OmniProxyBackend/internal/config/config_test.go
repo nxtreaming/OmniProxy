@@ -31,6 +31,9 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if len(cfg.TaskAutomationClients) != 3 || cfg.TaskAutomationClients[0] != "codex" || cfg.TaskAutomationClients[1] != "claude" || cfg.TaskAutomationClients[2] != "claude-desktop" {
 		t.Fatalf("expected default task automation clients, got %#v", cfg.TaskAutomationClients)
 	}
+	if cfg.TaskAutomationLaunchMode != TaskAutomationLaunchModeMedia || cfg.TaskAutomationBrowser != TaskAutomationBrowserDefault {
+		t.Fatalf("expected default task automation media/default browser, got mode=%q browser=%q", cfg.TaskAutomationLaunchMode, cfg.TaskAutomationBrowser)
+	}
 	if cfg.TaskAutomationFallbackURL != "https://www.douyin.com" || cfg.TaskAutomationIdleSeconds != 5 || cfg.TaskAutomationReturnDelaySeconds != 3 {
 		t.Fatalf("expected default task automation timing, got fallback=%q idle=%d delay=%d", cfg.TaskAutomationFallbackURL, cfg.TaskAutomationIdleSeconds, cfg.TaskAutomationReturnDelaySeconds)
 	}
@@ -47,6 +50,10 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 		OutboundProxyModels:              []string{"gpt-5.4", " ", "GPT-5.4", "claude-*"},
 		XiaomiCredentialPriority:         "api",
 		TaskAutomationClients:            []string{"Codex", "claudecode", "claude-code-desktop", "codex", "unknown"},
+		TaskAutomationLaunchMode:         "linux.do",
+		TaskAutomationBrowser:            "msedge",
+		TaskAutomationBrowserUserDataDir: "  %LOCALAPPDATA%\\Microsoft\\Edge\\User Data  ",
+		TaskAutomationBrowserProfile:     "  Profile 1  ",
 		TaskAutomationIdleSeconds:        900,
 		TaskAutomationReturnDelaySeconds: 900,
 	})
@@ -70,6 +77,12 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	}
 	if len(cfg.TaskAutomationClients) != 3 || cfg.TaskAutomationClients[0] != "codex" || cfg.TaskAutomationClients[1] != "claude" || cfg.TaskAutomationClients[2] != "claude-desktop" {
 		t.Fatalf("expected normalized task automation clients, got %#v", cfg.TaskAutomationClients)
+	}
+	if cfg.TaskAutomationLaunchMode != TaskAutomationLaunchModeLinuxDO || cfg.TaskAutomationBrowser != TaskAutomationBrowserEdge {
+		t.Fatalf("expected normalized task automation browser mode, got mode=%q browser=%q", cfg.TaskAutomationLaunchMode, cfg.TaskAutomationBrowser)
+	}
+	if cfg.TaskAutomationBrowserUserDataDir != `%LOCALAPPDATA%\Microsoft\Edge\User Data` || cfg.TaskAutomationBrowserProfile != "Profile 1" {
+		t.Fatalf("expected trimmed browser profile config, got data=%q profile=%q", cfg.TaskAutomationBrowserUserDataDir, cfg.TaskAutomationBrowserProfile)
 	}
 	if cfg.TaskAutomationIdleSeconds != 600 {
 		t.Fatalf("expected capped task automation idle seconds, got %d", cfg.TaskAutomationIdleSeconds)

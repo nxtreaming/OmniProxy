@@ -7,8 +7,12 @@ export namespace config {
 	    websocketMode: string;
 	    taskAutomationEnabled: boolean;
 	    taskAutomationClients: string[];
+	    taskAutomationLaunchMode: string;
 	    taskAutomationLaunchTarget: string;
 	    taskAutomationFallbackUrl: string;
+	    taskAutomationBrowser: string;
+	    taskAutomationBrowserUserDataDir: string;
+	    taskAutomationBrowserProfile: string;
 	    taskAutomationReturnToClient: boolean;
 	    taskAutomationIdleSeconds: number;
 	    taskAutomationReturnDelaySeconds: number;
@@ -59,8 +63,12 @@ export namespace config {
 	        this.websocketMode = source["websocketMode"];
 	        this.taskAutomationEnabled = source["taskAutomationEnabled"];
 	        this.taskAutomationClients = source["taskAutomationClients"];
+	        this.taskAutomationLaunchMode = source["taskAutomationLaunchMode"];
 	        this.taskAutomationLaunchTarget = source["taskAutomationLaunchTarget"];
 	        this.taskAutomationFallbackUrl = source["taskAutomationFallbackUrl"];
+	        this.taskAutomationBrowser = source["taskAutomationBrowser"];
+	        this.taskAutomationBrowserUserDataDir = source["taskAutomationBrowserUserDataDir"];
+	        this.taskAutomationBrowserProfile = source["taskAutomationBrowserProfile"];
 	        this.taskAutomationReturnToClient = source["taskAutomationReturnToClient"];
 	        this.taskAutomationIdleSeconds = source["taskAutomationIdleSeconds"];
 	        this.taskAutomationReturnDelaySeconds = source["taskAutomationReturnDelaySeconds"];

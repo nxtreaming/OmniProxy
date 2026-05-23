@@ -19,9 +19,10 @@ func (f *fakePlatform) ForegroundWindow() windowHandle {
 	return f.foreground
 }
 
-func (f *fakePlatform) Launch(target string, fallbackURL string) (string, error) {
+func (f *fakePlatform) Launch(req launchRequest) (launchResult, error) {
+	target := req.Target
 	if target == "" {
-		target = fallbackURL
+		target = req.FallbackURL
 	}
 	f.opened = append(f.opened, target)
 	if f.launchForeground != 0 {
@@ -29,7 +30,7 @@ func (f *fakePlatform) Launch(target string, fallbackURL string) (string, error)
 	} else {
 		f.foreground = 99
 	}
-	return target, nil
+	return launchResult{Opened: target, PauseBeforeReturn: req.PauseBeforeReturn}, nil
 }
 
 func (f *fakePlatform) PressSpace() error {
@@ -111,5 +112,39 @@ func TestManagerIgnoresUnselectedClient(t *testing.T) {
 
 	if len(platform.opened) != 0 || len(platform.focused) != 0 {
 		t.Fatalf("expected no automation for unselected client, opened=%#v focused=%#v", platform.opened, platform.focused)
+	}
+}
+
+func TestManagerSkipsPauseForLinuxDOMode(t *testing.T) {
+	platform := &fakePlatform{foreground: 42}
+	cfg := config.Default()
+	cfg.TaskAutomationEnabled = true
+	cfg.TaskAutomationClients = []string{"codex"}
+	cfg.TaskAutomationLaunchMode = config.TaskAutomationLaunchModeLinuxDO
+	cfg.TaskAutomationLaunchTarget = "preset:linuxdo"
+	cfg.TaskAutomationIdleSeconds = 1
+
+	manager := newManagerWithPlatform(cfg, nil, platform)
+	manager.ActiveRequestStarted(proxy.ActiveRequest{ID: 1, ClientKey: "codex"})
+	manager.ActiveRequestFinished(proxy.ActiveRequest{ID: 1, ClientKey: "codex"})
+	manager.mu.Lock()
+	seq := manager.idleSeq
+	if manager.idleTimer != nil {
+		manager.idleTimer.Stop()
+	}
+	manager.mu.Unlock()
+	manager.finishIdle(seq)
+
+	if platform.spaces != 0 {
+		t.Fatalf("expected linux.do mode not to press space, got %d", platform.spaces)
+	}
+	manager.mu.Lock()
+	if manager.idleTimer != nil {
+		manager.idleTimer.Stop()
+	}
+	manager.mu.Unlock()
+	manager.finishReturn(seq)
+	if len(platform.focused) != 1 || platform.focused[0] != 42 {
+		t.Fatalf("expected linux.do mode to still return focus, got %#v", platform.focused)
 	}
 }

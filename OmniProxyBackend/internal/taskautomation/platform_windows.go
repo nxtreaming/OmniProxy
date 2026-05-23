@@ -3,6 +3,7 @@
 package taskautomation
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"OmniProxyBackend/internal/config"
 )
 
 const (
@@ -23,6 +26,8 @@ const (
 	swpShowWindow  = 0x0040
 	vkMenu         = 0x12
 	vkSpace        = 0x20
+
+	linuxDOURL = "https://linux.do/"
 )
 
 var (
@@ -54,6 +59,15 @@ type launchPreset struct {
 	candidates  []string
 }
 
+type browserSpec struct {
+	key        string
+	name       string
+	command    string
+	chromium   bool
+	firefox    bool
+	candidates []string
+}
+
 func defaultPlatformController() platformController {
 	return windowsPlatform{}
 }
@@ -63,29 +77,39 @@ func (windowsPlatform) ForegroundWindow() windowHandle {
 	return windowHandle(hwnd)
 }
 
-func (windowsPlatform) Launch(target string, fallbackURL string) (string, error) {
-	target = strings.TrimSpace(target)
-	fallbackURL = strings.TrimSpace(fallbackURL)
+func (windowsPlatform) Launch(req launchRequest) (launchResult, error) {
+	req = normalizeLaunchRequest(req)
+	if req.Mode == config.TaskAutomationLaunchModeLinuxDO || isLinuxDOPreset(req.Target) {
+		opened, err := openLinuxDOInBrowser(req)
+		if err != nil {
+			return launchResult{}, err
+		}
+		return launchResult{Opened: opened, PauseBeforeReturn: false}, nil
+	}
+
+	target := strings.TrimSpace(req.Target)
+	fallbackURL := strings.TrimSpace(req.FallbackURL)
 	if fallbackURL == "" {
 		fallbackURL = "https://www.douyin.com"
 	}
 
 	if target == "" {
 		preset, _ := launchPresetFor("douyin")
-		return openLaunchPreset(preset, fallbackURL)
+		opened, err := openLaunchPreset(preset, fallbackURL)
+		return launchResult{Opened: opened, PauseBeforeReturn: req.PauseBeforeReturn}, err
 	}
 
 	opened, err := openConfiguredTarget(target)
 	if err == nil {
-		return opened, nil
+		return launchResult{Opened: opened, PauseBeforeReturn: req.PauseBeforeReturn}, nil
 	}
 	if fallbackURL == "" {
-		return "", err
+		return launchResult{}, err
 	}
 	if fallbackErr := shellOpen(fallbackURL); fallbackErr != nil {
-		return "", fmt.Errorf("%w; fallback failed: %v", err, fallbackErr)
+		return launchResult{}, fmt.Errorf("%w; fallback failed: %v", err, fallbackErr)
 	}
-	return "备用地址", nil
+	return launchResult{Opened: "备用地址", PauseBeforeReturn: req.PauseBeforeReturn}, nil
 }
 
 func (windowsPlatform) PressSpace() error {
@@ -258,6 +282,13 @@ func launchPresetFor(key string) (launchPreset, bool) {
 				envPath("PUBLIC", "Desktop", "\u54d4\u54e9\u54d4\u54e9.lnk"),
 			},
 		}, true
+	case "linuxdo", "linux-do", "linux.do":
+		return launchPreset{
+			key:         "linuxdo",
+			desktopName: "Linux.do",
+			webName:     "Linux.do",
+			fallbackURL: linuxDOURL,
+		}, true
 	default:
 		return launchPreset{}, false
 	}
@@ -275,6 +306,194 @@ func openLaunchPreset(preset launchPreset, fallbackURL string) (string, error) {
 		return "", fmt.Errorf("preset target not found: %s", preset.key)
 	}
 	return preset.webName, shellOpen(targetURL)
+}
+
+func normalizeLaunchRequest(req launchRequest) launchRequest {
+	req.Mode = strings.ToLower(strings.TrimSpace(req.Mode))
+	req.Target = strings.TrimSpace(req.Target)
+	req.FallbackURL = strings.TrimSpace(req.FallbackURL)
+	req.Browser = normalizeBrowserKey(req.Browser)
+	req.BrowserUserData = strings.TrimSpace(req.BrowserUserData)
+	req.BrowserProfile = strings.TrimSpace(req.BrowserProfile)
+	return req
+}
+
+func isLinuxDOPreset(target string) bool {
+	preset, ok := launchPresetFromTarget(target)
+	return ok && preset.key == "linuxdo"
+}
+
+func openLinuxDOInBrowser(req launchRequest) (string, error) {
+	targetURL := linuxDOURL
+	if isURLTarget(req.Target) {
+		targetURL = req.Target
+	}
+	spec, ok := browserSpecFor(req.Browser)
+	if !ok || spec.key == config.TaskAutomationBrowserDefault {
+		return "Linux.do", shellOpen(targetURL)
+	}
+	executable := resolveBrowserExecutable(spec)
+	if executable == "" {
+		return "", fmt.Errorf("%s not found", spec.name)
+	}
+	args := browserLaunchArgs(req, targetURL, spec)
+	if err := exec.Command(executable, args...).Start(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(req.BrowserProfile) != "" {
+		return fmt.Sprintf("Linux.do（%s / %s）", spec.name, req.BrowserProfile), nil
+	}
+	return fmt.Sprintf("Linux.do（%s）", spec.name), nil
+}
+
+func browserLaunchArgs(req launchRequest, targetURL string, spec browserSpec) []string {
+	if spec.chromium {
+		args := []string{}
+		if userData := expandEnvPath(req.BrowserUserData); userData != "" {
+			args = append(args, "--user-data-dir="+userData)
+		}
+		if profile := strings.TrimSpace(req.BrowserProfile); profile != "" {
+			args = append(args, "--profile-directory="+profile)
+		}
+		return append(args, "--new-window", targetURL)
+	}
+	if spec.firefox {
+		args := []string{}
+		profile := strings.TrimSpace(req.BrowserProfile)
+		if profile == "" {
+			profile = strings.TrimSpace(req.BrowserUserData)
+		}
+		if profile != "" {
+			expanded := expandEnvPath(profile)
+			if looksLikePath(expanded) || exists(expanded) {
+				args = append(args, "-profile", expanded)
+			} else {
+				args = append(args, "-P", profile)
+			}
+		}
+		return append(args, "-new-window", targetURL)
+	}
+	return []string{targetURL}
+}
+
+func resolveBrowserExecutable(spec browserSpec) string {
+	if target := findFirstExisting(spec.candidates); target != "" {
+		return target
+	}
+	if spec.command != "" {
+		if resolved, err := exec.LookPath(spec.command); err == nil && resolved != "" {
+			return resolved
+		}
+	}
+	return ""
+}
+
+func browserSpecFor(browser string) (browserSpec, bool) {
+	switch normalizeBrowserKey(browser) {
+	case config.TaskAutomationBrowserDefault:
+		return browserSpec{key: config.TaskAutomationBrowserDefault, name: "默认浏览器"}, true
+	case config.TaskAutomationBrowserEdge:
+		return browserSpec{
+			key:      config.TaskAutomationBrowserEdge,
+			name:     "Microsoft Edge",
+			command:  "msedge.exe",
+			chromium: true,
+			candidates: []string{
+				envPath("ProgramFiles(x86)", "Microsoft", "Edge", "Application", "msedge.exe"),
+				envPath("ProgramFiles", "Microsoft", "Edge", "Application", "msedge.exe"),
+				envPath("LOCALAPPDATA", "Microsoft", "Edge", "Application", "msedge.exe"),
+			},
+		}, true
+	case config.TaskAutomationBrowserChrome:
+		return browserSpec{
+			key:      config.TaskAutomationBrowserChrome,
+			name:     "Google Chrome",
+			command:  "chrome.exe",
+			chromium: true,
+			candidates: []string{
+				envPath("ProgramFiles", "Google", "Chrome", "Application", "chrome.exe"),
+				envPath("ProgramFiles(x86)", "Google", "Chrome", "Application", "chrome.exe"),
+				envPath("LOCALAPPDATA", "Google", "Chrome", "Application", "chrome.exe"),
+			},
+		}, true
+	case config.TaskAutomationBrowserFirefox:
+		return browserSpec{
+			key:     config.TaskAutomationBrowserFirefox,
+			name:    "Firefox",
+			command: "firefox.exe",
+			firefox: true,
+			candidates: []string{
+				envPath("ProgramFiles", "Mozilla Firefox", "firefox.exe"),
+				envPath("ProgramFiles(x86)", "Mozilla Firefox", "firefox.exe"),
+				envPath("LOCALAPPDATA", "Mozilla Firefox", "firefox.exe"),
+			},
+		}, true
+	default:
+		return browserSpec{}, false
+	}
+}
+
+func normalizeBrowserKey(browser string) string {
+	switch strings.ToLower(strings.TrimSpace(strings.ReplaceAll(browser, "_", "-"))) {
+	case config.TaskAutomationBrowserEdge, "msedge", "microsoft-edge":
+		return config.TaskAutomationBrowserEdge
+	case config.TaskAutomationBrowserChrome, "google-chrome":
+		return config.TaskAutomationBrowserChrome
+	case config.TaskAutomationBrowserFirefox, "mozilla-firefox":
+		return config.TaskAutomationBrowserFirefox
+	case config.TaskAutomationBrowserDefault, "":
+		return config.TaskAutomationBrowserDefault
+	default:
+		return config.TaskAutomationBrowserDefault
+	}
+}
+
+func expandEnvPath(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	return os.ExpandEnv(expandPercentEnv(value))
+}
+
+func expandPercentEnv(value string) string {
+	var out strings.Builder
+	for {
+		start := strings.IndexByte(value, '%')
+		if start < 0 {
+			out.WriteString(value)
+			break
+		}
+		end := strings.IndexByte(value[start+1:], '%')
+		if end < 0 {
+			out.WriteString(value)
+			break
+		}
+		end += start + 1
+		out.WriteString(value[:start])
+		key := value[start+1 : end]
+		if replacement := os.Getenv(key); replacement != "" {
+			out.WriteString(replacement)
+		} else {
+			out.WriteString(value[start : end+1])
+		}
+		value = value[end+1:]
+	}
+	return out.String()
+}
+
+func looksLikePath(value string) bool {
+	if value == "" {
+		return false
+	}
+	if filepath.IsAbs(value) {
+		return true
+	}
+	if strings.ContainsAny(value, `\/`) {
+		return true
+	}
+	_, err := os.Stat(value)
+	return err == nil || !errors.Is(err, os.ErrNotExist)
 }
 
 func findFirstExisting(candidates []string) string {

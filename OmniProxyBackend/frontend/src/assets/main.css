@@ -15072,6 +15072,7 @@ body.dark .daily-detail-popover {
 
 /* Global settings: section cards only, fields stay lightweight. */
 .settings-panel {
+  width: min(100%, 1480px);
   display: grid;
   gap: 18px;
   padding: 0;
@@ -15128,15 +15129,12 @@ body.dark .daily-detail-popover {
 }
 
 .settings-panel .settings-service-section,
-.settings-panel .settings-scheduling-section {
+.settings-panel .settings-scheduling-section,
+.settings-panel .settings-task-automation-section {
   grid-column: span 5;
 }
 
 .settings-panel .settings-url-section {
-  grid-column: 1 / -1;
-}
-
-.settings-panel .settings-task-automation-section {
   grid-column: 1 / -1;
 }
 
@@ -15522,6 +15520,7 @@ body.dark .daily-detail-popover {
   .settings-panel .settings-service-section,
   .settings-panel .settings-outbound-section,
   .settings-panel .settings-scheduling-section,
+  .settings-panel .settings-task-automation-section,
   .settings-panel .settings-url-section {
     grid-column: 1 / -1;
   }

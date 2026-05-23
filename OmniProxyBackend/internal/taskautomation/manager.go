@@ -15,9 +15,24 @@ type windowHandle uintptr
 
 type platformController interface {
 	ForegroundWindow() windowHandle
-	Launch(target string, fallbackURL string) (string, error)
+	Launch(launchRequest) (launchResult, error)
 	PressSpace() error
 	Focus(windowHandle) error
+}
+
+type launchRequest struct {
+	Mode              string
+	Target            string
+	FallbackURL       string
+	Browser           string
+	BrowserUserData   string
+	BrowserProfile    string
+	PauseBeforeReturn bool
+}
+
+type launchResult struct {
+	Opened            string
+	PauseBeforeReturn bool
 }
 
 type Manager struct {
@@ -27,6 +42,7 @@ type Manager struct {
 	platform           platformController
 	active             map[int64]proxy.ActiveRequest
 	returnTo           windowHandle
+	pauseBeforeReturn  bool
 	pausedByAutomation bool
 	pausedWindow       windowHandle
 	idleTimer          *time.Timer
@@ -88,6 +104,7 @@ func (m *Manager) ActiveRequestStarted(req proxy.ActiveRequest) {
 		returnTo = m.platform.ForegroundWindow()
 		m.returnTo = returnTo
 	}
+	m.pauseBeforeReturn = shouldPauseBeforeReturn(cfg)
 	m.mu.Unlock()
 
 	if hadPendingReturn {
@@ -95,11 +112,15 @@ func (m *Manager) ActiveRequestStarted(req proxy.ActiveRequest) {
 		return
 	}
 
-	opened, err := m.platform.Launch(cfg.TaskAutomationLaunchTarget, cfg.TaskAutomationFallbackURL)
+	result, err := m.platform.Launch(launchRequestFromConfig(cfg))
 	if err != nil {
 		m.log(logs.LevelWarn, "放心刷打开目标失败：%v", err)
 		return
 	}
+	m.mu.Lock()
+	m.pauseBeforeReturn = result.PauseBeforeReturn
+	m.mu.Unlock()
+	opened := result.Opened
 	if opened == "" {
 		opened = "目标应用"
 	}
@@ -145,12 +166,15 @@ func (m *Manager) finishIdle(seq int64) {
 	}
 	if cfg.TaskAutomationEnabled && cfg.TaskAutomationReturnToClient && m.returnTo != 0 {
 		handle := m.returnTo
+		pauseBeforeReturn := m.pauseBeforeReturn
 		delay := time.Duration(cfg.TaskAutomationReturnDelaySeconds) * time.Second
 		m.idleTimer = time.AfterFunc(delay, func() {
 			m.finishReturn(seq)
 		})
 		m.mu.Unlock()
-		m.pauseForegroundBeforeReturn(handle)
+		if pauseBeforeReturn {
+			m.pauseForegroundBeforeReturn(handle)
+		}
 		m.log(logs.LevelInfo, "任务结束，等待 %d 秒后切回 CLI 窗口", cfg.TaskAutomationReturnDelaySeconds)
 		return
 	}
@@ -256,6 +280,7 @@ func (m *Manager) resetLocked() {
 	}
 	m.active = map[int64]proxy.ActiveRequest{}
 	m.returnTo = 0
+	m.pauseBeforeReturn = false
 	m.pausedByAutomation = false
 	m.pausedWindow = 0
 	m.idleSeq++
@@ -285,4 +310,27 @@ func requestMatchesConfig(req proxy.ActiveRequest, cfg config.Config) bool {
 		}
 	}
 	return false
+}
+
+func launchRequestFromConfig(cfg config.Config) launchRequest {
+	cfg = config.Normalize(cfg)
+	pauseBeforeReturn := shouldPauseBeforeReturn(cfg)
+	return launchRequest{
+		Mode:              cfg.TaskAutomationLaunchMode,
+		Target:            cfg.TaskAutomationLaunchTarget,
+		FallbackURL:       cfg.TaskAutomationFallbackURL,
+		Browser:           cfg.TaskAutomationBrowser,
+		BrowserUserData:   cfg.TaskAutomationBrowserUserDataDir,
+		BrowserProfile:    cfg.TaskAutomationBrowserProfile,
+		PauseBeforeReturn: pauseBeforeReturn,
+	}
+}
+
+func shouldPauseBeforeReturn(cfg config.Config) bool {
+	cfg = config.Normalize(cfg)
+	target := strings.ToLower(strings.TrimSpace(cfg.TaskAutomationLaunchTarget))
+	return cfg.TaskAutomationLaunchMode != config.TaskAutomationLaunchModeLinuxDO &&
+		target != "preset:linuxdo" &&
+		target != "preset:linux-do" &&
+		target != "preset:linux.do"
 }
