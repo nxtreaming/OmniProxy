@@ -13691,8 +13691,8 @@ body.dark .daily-detail-popover {
 .quotas-page-panel .quota-card-grid {
   margin-top: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+  gap: 18px;
   align-items: stretch;
 }
 
@@ -13869,9 +13869,9 @@ body.dark .daily-detail-popover {
   background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
 }
 
-@media (min-width: 1640px) {
+@media (min-width: 2200px) {
   .quotas-page-panel .quota-card-grid {
-    grid-template-columns: repeat(auto-fit, minmax(390px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(540px, 1fr));
   }
 }
 
