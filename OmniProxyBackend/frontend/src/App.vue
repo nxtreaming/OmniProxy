@@ -3302,6 +3302,22 @@ async function refreshQuota(item) {
           <span>{{ appInfo.isDevelopment ? 'Dev' : appInfo.version }} · {{ proxyStatus.running ? '代理运行中' : '代理未启动' }}</span>
         </div>
       </div>
+      <div
+        v-if="lastUpdateInfo?.updateAvailable && !appInfo.isDevelopment"
+        class="window-titlebar-actions"
+        aria-label="应用状态"
+      >
+        <button
+          type="button"
+          class="titlebar-update-button"
+          :title="`发现新版本 ${lastUpdateInfo.latestVersion || ''}`.trim()"
+          @click.stop="selectTab('about')"
+          @dblclick.stop
+        >
+          <span class="titlebar-update-mark" aria-hidden="true"></span>
+          <span>新版本</span>
+        </button>
+      </div>
       <div class="window-controls" aria-label="窗口操作">
         <button type="button" class="window-control minimise" aria-label="最小化" @click.stop="minimiseWindow">
           <span class="control-mark" aria-hidden="true"></span>

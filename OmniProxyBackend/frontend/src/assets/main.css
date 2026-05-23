@@ -162,6 +162,56 @@ button {
   white-space: nowrap;
 }
 
+.window-titlebar-actions {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  --wails-draggable: no-drag;
+}
+
+.titlebar-update-button {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  color: var(--brand-strong);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 14%, transparent);
+  --wails-draggable: no-drag;
+}
+
+.titlebar-update-button:hover {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: color-mix(in srgb, var(--brand) 15%, var(--surface));
+}
+
+.titlebar-update-mark {
+  width: 14px;
+  height: 14px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--brand);
+}
+
+.titlebar-update-mark::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-top: 2px solid var(--on-primary);
+  border-left: 2px solid var(--on-primary);
+  transform: translateY(1px) rotate(45deg);
+}
+
 .window-controls {
   height: 100%;
   display: flex;
@@ -4926,7 +4976,7 @@ tr:last-child td {
 .version-hero {
   margin-top: 18px;
   display: flex;
-  align-items: end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
 }
@@ -4957,8 +5007,10 @@ tr:last-child td {
 }
 
 .about-actions {
+  align-self: flex-start;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }
@@ -15107,7 +15159,22 @@ body.dark .daily-detail-popover {
 .settings-panel .settings-stack {
   margin-top: 0;
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-panel .settings-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-panel .settings-primary-column,
+.settings-panel .settings-side-column {
+  min-width: 0;
+  display: grid;
   gap: 18px;
   align-items: start;
 }
@@ -15124,18 +15191,12 @@ body.dark .daily-detail-popover {
 }
 
 .settings-panel .settings-maintenance-section,
-.settings-panel .settings-outbound-section {
-  grid-column: span 7;
-}
-
 .settings-panel .settings-service-section,
 .settings-panel .settings-scheduling-section,
-.settings-panel .settings-task-automation-section {
-  grid-column: span 5;
-}
-
+.settings-panel .settings-task-automation-section,
+.settings-panel .settings-outbound-section,
 .settings-panel .settings-url-section {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .settings-panel .settings-section-head {
@@ -15516,6 +15577,10 @@ body.dark .daily-detail-popover {
 }
 
 @media (max-width: 1280px) {
+  .settings-panel .settings-columns {
+    grid-template-columns: 1fr;
+  }
+
   .settings-panel .settings-maintenance-section,
   .settings-panel .settings-service-section,
   .settings-panel .settings-outbound-section,
@@ -15538,6 +15603,7 @@ body.dark .daily-detail-popover {
   }
 
   .settings-panel .settings-stack,
+  .settings-panel .settings-columns,
   .settings-panel .settings-grid,
   .settings-panel .settings-maintenance-section .settings-action-list,
   .settings-panel .settings-service-section .settings-grid,
