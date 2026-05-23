@@ -319,6 +319,147 @@ func TestSQLiteStoreSummaryAggregatesAllMatchingHistory(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreSummarySurvivesDetailPrune(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	recorder, err := NewRecorder(store, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseTime := time.Date(2026, 5, 1, 10, 0, 0, 0, time.Local)
+	recorder.Add(Entry{
+		Time:        baseTime,
+		Level:       "error",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "anthropic",
+		ClientKey:   "claude",
+		ClientName:  "Claude Code",
+		Model:       "claude-sonnet",
+		Status:      500,
+		Duration:    40,
+		TokenName:   "old-token",
+		TotalTokens: 10,
+		Message:     "old failure",
+	})
+	recorder.Add(Entry{
+		Time:        baseTime.Add(time.Minute),
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		ClientKey:   "codex",
+		ClientName:  "Codex",
+		Model:       "gpt-5.5",
+		Status:      200,
+		Duration:    20,
+		TokenName:   "primary",
+		TotalTokens: 20,
+		Message:     "request proxied",
+	})
+	recorder.Add(Entry{
+		Time:        baseTime.Add(2 * time.Minute),
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "deepseek",
+		ClientKey:   "opencode",
+		ClientName:  "OpenCode",
+		Model:       "deepseek-v4",
+		Status:      200,
+		Duration:    30,
+		TokenName:   "backup",
+		TotalTokens: 30,
+		Message:     "request proxied",
+	})
+
+	if entries := recorder.List(Filter{}); len(entries) != 2 {
+		t.Fatalf("expected request details to be pruned to latest 2 rows, got %#v", entries)
+	}
+	all, err := store.Summary(Filter{}, 14)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Total != 3 || all.Failed != 1 || all.TotalTokens != 60 || all.AverageDuration != 30 {
+		t.Fatalf("expected summary to include pruned details, got %#v", all)
+	}
+	if row := dailySummaryForDate(all.DailyRows, "2026-05-01"); row.RequestCount != 3 || row.FailedCount != 1 || row.TotalTokens != 60 {
+		t.Fatalf("unexpected daily summary after prune: %#v", row)
+	}
+	filtered, err := store.Summary(Filter{Provider: "anthropic"}, 14)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered.Total != 1 || filtered.Failed != 1 || filtered.TotalTokens != 10 {
+		t.Fatalf("expected filtered summary to include pruned provider, got %#v", filtered)
+	}
+}
+
+func TestSQLiteStoreClearRequestHistoryKeepsDailySummary(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	recorder, err := NewRecorder(store, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseTime := time.Date(2026, 5, 2, 10, 0, 0, 0, time.Local)
+	recorder.Add(Entry{
+		Time:        baseTime,
+		Level:       "info",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		ClientKey:   "codex",
+		ClientName:  "Codex",
+		Model:       "gpt-5.5",
+		Status:      200,
+		Duration:    10,
+		TokenName:   "primary",
+		TotalTokens: 25,
+		Message:     "request proxied",
+	})
+	recorder.Add(Entry{
+		Time:        baseTime.Add(time.Minute),
+		Level:       "warn",
+		Method:      "POST",
+		Path:        "/v1/chat/completions",
+		Provider:    "openai",
+		ClientKey:   "codex",
+		ClientName:  "Codex",
+		Model:       "gpt-5.5",
+		Status:      429,
+		Duration:    30,
+		TokenName:   "backup",
+		TotalTokens: 35,
+		Message:     "rate limited",
+	})
+	if err := recorder.ClearRequestHistory(); err != nil {
+		t.Fatal(err)
+	}
+
+	if entries := recorder.List(Filter{}); len(entries) != 0 {
+		t.Fatalf("expected request details to be cleared, got %#v", entries)
+	}
+	summary, err := store.Summary(Filter{}, 14)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Total != 2 || summary.Failed != 1 || summary.TotalTokens != 60 || summary.AverageDuration != 20 {
+		t.Fatalf("expected daily summary to survive history clear, got %#v", summary)
+	}
+	if row := dailySummaryForDate(summary.DailyRows, "2026-05-02"); row.RequestCount != 2 || row.FailedCount != 1 || row.TotalTokens != 60 {
+		t.Fatalf("unexpected daily summary after history clear: %#v", row)
+	}
+}
+
 func dailySummaryForDate(rows []DailySummary, date string) DailySummary {
 	for _, row := range rows {
 		if row.Date == date {
@@ -377,6 +518,16 @@ func TestRecorderRetentionPrunesHistoryAndDailyUsageByDate(t *testing.T) {
 	}
 	if len(dates) != 1 || dates[0] != recentTime.Format("2006-01-02") {
 		t.Fatalf("expected only recent usage date after retention, got %#v", dates)
+	}
+	summary, err := store.Summary(Filter{}, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Total != 1 || summary.TotalTokens != 200 {
+		t.Fatalf("expected only recent request summary after retention, got %#v", summary)
+	}
+	if row := dailySummaryForDate(summary.DailyRows, oldTime.Format("2006-01-02")); row.RequestCount != 0 {
+		t.Fatalf("expected old request summary to be pruned, got %#v", row)
 	}
 }
 

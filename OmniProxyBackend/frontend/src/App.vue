@@ -2131,7 +2131,7 @@ async function clearBillingUsageData() {
 async function clearRequestHistoryData() {
   try {
     await ElMessageBox.confirm(
-      '将删除本地请求历史明细，已保存的每日账单汇总会保留。此操作无法撤销。',
+      '将删除本地请求历史明细，已保存的每日汇总会保留。此操作无法撤销。',
       '清空请求历史',
       {
         confirmButtonText: '清空历史',
@@ -2142,9 +2142,7 @@ async function clearRequestHistoryData() {
     clearingRequestHistory.value = true
     errorMessage.value = ''
     await clearRequestHistory()
-    requestHistory.value = []
-    requestHistorySummary.value = null
-    await refreshBilling()
+    await Promise.all([refreshHistory(), refreshBilling()])
     successMessage.value = '请求历史已清空'
   } catch (action) {
     if (action instanceof Error) {

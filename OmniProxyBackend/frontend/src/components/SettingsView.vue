@@ -437,8 +437,8 @@ function normalizeOutboundProxyProviders(providers) {
               <div class="data-directory-row maintenance-row">
                 <div>
                   <span>账单与请求历史</span>
-                  <strong>每日账单汇总保留 {{ config.historyRetentionDays || 14 }} 天</strong>
-                  <small>默认保留 14 天；每日汇总只记录最终 Token 用量，不保存完整请求日志。</small>
+                  <strong>每日汇总保留 {{ config.historyRetentionDays || 14 }} 天</strong>
+                  <small>默认保留 14 天；每日汇总记录请求数和最终 Token 用量，完整请求明细可单独清空。</small>
                   <label class="inline-number-field">
                     <span>保留天数</span>
                     <input v-model="config.historyRetentionDays" type="number" min="1" max="365" />
