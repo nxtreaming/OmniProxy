@@ -3,9 +3,9 @@ import { computed, ref } from 'vue'
 import { Lightning, Memo, Refresh, TrendCharts } from '@element-plus/icons-vue'
 
 const CHART_WIDTH = 1000
-const CHART_HEIGHT = 240
-const CHART_TOP = 22
-const CHART_BOTTOM = 202
+const CHART_HEIGHT = 260
+const CHART_TOP = 18
+const CHART_BOTTOM = 230
 const CHART_PLOT_HEIGHT = CHART_BOTTOM - CHART_TOP
 
 const props = defineProps({
@@ -143,9 +143,19 @@ function axisTicks(maxValue) {
   })
 }
 
+function yAxisTickStyle(tick) {
+  return { top: `${(tick.y / CHART_HEIGHT) * 100}%` }
+}
+
 function buildXAxisLabels(rows) {
   if (!rows.length) return []
   if (rows.length === 1) return [{ key: rows[0].date, label: rows[0].date, left: '50%' }]
+  if (rows.length === 2) {
+    return [
+      { key: rows[0].date, label: rows[0].date, left: '0%' },
+      { key: rows[1].date, label: rows[1].date, left: '100%' },
+    ]
+  }
   const middle = rows[Math.floor((rows.length - 1) / 2)]
   return [
     { key: rows[0].date, label: rows[0].date, left: '0%' },
@@ -318,11 +328,19 @@ function isDailyDetailActive(row) {
         </div>
         <p class="token-trend-card-note">{{ tokenDeltaText }}</p>
         <div class="token-trend-chart-frame">
-          <div class="token-trend-y-axis">
-            <span v-for="tick in tokenTicks" :key="`token-tick-${tick.y}`">{{ tick.label }}</span>
+          <div class="token-trend-y-axis" aria-hidden="true">
+            <span v-for="tick in tokenTicks" :key="`token-tick-${tick.y}`" :style="yAxisTickStyle(tick)">
+              {{ tick.label }}
+            </span>
           </div>
           <div class="token-trend-svg-wrap">
-            <svg class="token-trend-svg" viewBox="0 0 1000 240" role="img" aria-label="全部天数 Token 折线图">
+            <svg
+              class="token-trend-svg"
+              :viewBox="`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="全部天数 Token 折线图"
+            >
               <line
                 v-for="tick in tokenTicks"
                 :key="`token-grid-${tick.y}`"
@@ -408,11 +426,19 @@ function isDailyDetailActive(row) {
         </div>
         <p class="token-trend-card-note">{{ requestDeltaText }}</p>
         <div class="token-trend-chart-frame">
-          <div class="token-trend-y-axis">
-            <span v-for="tick in requestTicks" :key="`request-tick-${tick.y}`">{{ tick.label }}</span>
+          <div class="token-trend-y-axis" aria-hidden="true">
+            <span v-for="tick in requestTicks" :key="`request-tick-${tick.y}`" :style="yAxisTickStyle(tick)">
+              {{ tick.label }}
+            </span>
           </div>
           <div class="token-trend-svg-wrap">
-            <svg class="token-trend-svg" viewBox="0 0 1000 240" role="img" aria-label="全部天数请求次数折线图">
+            <svg
+              class="token-trend-svg"
+              :viewBox="`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="全部天数请求次数折线图"
+            >
               <line
                 v-for="tick in requestTicks"
                 :key="`request-grid-${tick.y}`"

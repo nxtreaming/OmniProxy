@@ -3329,20 +3329,26 @@ tr:last-child td {
 .token-trend-chart-frame {
   min-width: 0;
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
 }
 
 .token-trend-y-axis {
-  height: 240px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 17px 0 31px;
+  position: relative;
+  height: 260px;
+  color: var(--text-muted);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.token-trend-y-axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
 }
 
 .token-trend-svg-wrap {
@@ -3352,7 +3358,7 @@ tr:last-child td {
 
 .token-trend-svg {
   width: 100%;
-  height: 240px;
+  height: 260px;
   display: block;
   overflow: visible;
 }
@@ -11946,8 +11952,8 @@ body.dark .contribution-tooltip {
 }
 
 .token-trend-chart-frame {
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 12px;
   padding: 4px 0 0;
   border: 0;
   border-radius: 0;
@@ -11956,10 +11962,8 @@ body.dark .contribution-tooltip {
 }
 
 .token-trend-y-axis {
-  height: 240px;
-  padding: 18px 0 30px;
-  color: var(--text-muted);
-  font-size: 10px;
+  height: 260px;
+  font-size: 12px;
 }
 
 .token-trend-svg-wrap {
@@ -11968,7 +11972,7 @@ body.dark .contribution-tooltip {
 }
 
 .token-trend-svg {
-  height: 240px;
+  height: 260px;
 }
 
 .token-trend-grid-line {
