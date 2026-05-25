@@ -228,6 +228,100 @@ func TestSQLiteStoreDailyUsageSummarizesBillableEntries(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreBillingSummaryKeepsLifetimeUsage(t *testing.T) {
+	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	recorder, err := NewRecorder(store, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recentDay := time.Now()
+	oldDay := recentDay.AddDate(0, 0, -2)
+	recorder.Add(Entry{
+		Time:         oldDay,
+		Level:        "info",
+		Method:       "POST",
+		Path:         "/v1/chat/completions",
+		Provider:     "openai",
+		Protocol:     "openai",
+		ClientKey:    "deleted-account",
+		ClientName:   "Deleted Account",
+		Model:        "gpt-5.5",
+		Status:       200,
+		InputTokens:  1_200_000_000,
+		OutputTokens: 800_000_000,
+		TotalTokens:  2_000_000_000,
+		Message:      "request proxied",
+	})
+	recorder.Add(Entry{
+		Time:         recentDay,
+		Level:        "info",
+		Method:       "POST",
+		Path:         "/v1/chat/completions",
+		Provider:     "openai",
+		Protocol:     "openai",
+		ClientKey:    "active-account",
+		ClientName:   "Active Account",
+		Model:        "gpt-5.5",
+		Status:       200,
+		InputTokens:  70,
+		OutputTokens: 53,
+		TotalTokens:  123,
+		Message:      "request proxied",
+	})
+	recorder.Add(Entry{
+		Time:        recentDay,
+		Level:       "info",
+		Method:      "CHECK",
+		Path:        "/maintenance/current-token-quota-refresh",
+		Provider:    "openai",
+		Protocol:    "quota-refresh",
+		Model:       "codex_auth_json",
+		Status:      200,
+		TotalTokens: 999,
+		Message:     "quota refresh completed",
+	})
+
+	summary := recorder.BillingSummary(30)
+	if summary.RequestCount != 2 || summary.InputTokens != 1_200_000_070 || summary.OutputTokens != 800_000_053 || summary.TotalTokens != 2_000_000_123 {
+		t.Fatalf("unexpected lifetime billing summary: %#v", summary)
+	}
+	if len(summary.DailyRows) != 2 {
+		t.Fatalf("expected recent daily rows, got %#v", summary.DailyRows)
+	}
+
+	if err := recorder.SetRetentionDays(1); err != nil {
+		t.Fatal(err)
+	}
+	summary = recorder.BillingSummary(30)
+	if summary.TotalTokens != 2_000_000_123 {
+		t.Fatalf("expected retention to keep lifetime total, got %#v", summary)
+	}
+	if len(summary.DailyRows) != 1 || summary.DailyRows[0].TotalTokens != 123 {
+		t.Fatalf("expected retention to prune only daily rows, got %#v", summary.DailyRows)
+	}
+
+	if err := recorder.ClearRequestHistory(); err != nil {
+		t.Fatal(err)
+	}
+	summary = recorder.BillingSummary(30)
+	if summary.TotalTokens != 2_000_000_123 {
+		t.Fatalf("expected clearing request history to keep billing total, got %#v", summary)
+	}
+
+	if err := recorder.ClearDailyUsage(); err != nil {
+		t.Fatal(err)
+	}
+	summary = recorder.BillingSummary(30)
+	if summary.RequestCount != 0 || summary.TotalTokens != 0 || len(summary.DailyRows) != 0 {
+		t.Fatalf("expected clearing billing usage to reset billing summary, got %#v", summary)
+	}
+}
+
 func TestSQLiteStoreSummaryAggregatesAllMatchingHistory(t *testing.T) {
 	store, err := NewSQLiteStore(filepath.Join(t.TempDir(), "request_history.db"))
 	if err != nil {

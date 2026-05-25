@@ -14,6 +14,8 @@ export function AutoStartStatus():Promise<Record<string, any>>;
 
 export function BillingDates(arg1:number):Promise<Array<string>>;
 
+export function BillingSummary(arg1:number):Promise<history.BillingSummary>;
+
 export function BillingUsage(arg1:string):Promise<Array<history.DailyUsage>>;
 
 export function CancelUseOnlyToken(arg1:string):Promise<Array<main.tokenResponse>>;

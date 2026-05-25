@@ -30,6 +30,7 @@ type QueryStore interface {
 type UsageStore interface {
 	DailyUsage(string, int) ([]DailyUsage, error)
 	DailyUsageDates(int) ([]string, error)
+	BillingSummary(int) (BillingSummary, error)
 	PruneBeforeDate(string) error
 	ClearDailyUsage() error
 	ClearRequestHistory() error
@@ -105,6 +106,22 @@ type DailySummary struct {
 	RequestCount int    `json:"requestCount"`
 	FailedCount  int    `json:"failedCount"`
 	TotalTokens  int64  `json:"totalTokens"`
+}
+
+type BillingDailySummary struct {
+	Date         string `json:"date"`
+	RequestCount int    `json:"requestCount"`
+	InputTokens  int64  `json:"inputTokens"`
+	OutputTokens int64  `json:"outputTokens"`
+	TotalTokens  int64  `json:"totalTokens"`
+}
+
+type BillingSummary struct {
+	RequestCount int                   `json:"requestCount"`
+	InputTokens  int64                 `json:"inputTokens"`
+	OutputTokens int64                 `json:"outputTokens"`
+	TotalTokens  int64                 `json:"totalTokens"`
+	DailyRows    []BillingDailySummary `json:"dailyRows"`
 }
 
 type Rank struct {
@@ -263,6 +280,43 @@ func (r *Recorder) DailyUsageDates(limit int) []string {
 	if err != nil {
 		return []string{}
 	}
+	return out
+}
+
+func (r *Recorder) BillingSummary(days int) BillingSummary {
+	days = normalizeSummaryDays(days)
+	if r.usageStore != nil {
+		if out, err := r.usageStore.BillingSummary(days); err == nil {
+			return out
+		}
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	out := BillingSummary{DailyRows: []BillingDailySummary{}}
+	daily := map[string]*BillingDailySummary{}
+	for _, entry := range r.entries {
+		if !dailyUsageCandidate(entry) {
+			continue
+		}
+		input, output, total := tokenCounts(entry)
+		out.RequestCount++
+		out.InputTokens += int64(input)
+		out.OutputTokens += int64(output)
+		out.TotalTokens += int64(total)
+		date := entry.Time.Local().Format("2006-01-02")
+		current := daily[date]
+		if current == nil {
+			current = &BillingDailySummary{Date: date}
+			daily[date] = current
+		}
+		current.RequestCount++
+		current.InputTokens += int64(input)
+		current.OutputTokens += int64(output)
+		current.TotalTokens += int64(total)
+	}
+	out.DailyRows = billingDailySummaryWindow(daily, days)
 	return out
 }
 
@@ -470,6 +524,25 @@ func dailySummaryWindow(rows map[string]*DailySummary, days int) []DailySummary 
 			continue
 		}
 		out = append(out, DailySummary{Date: date})
+	}
+	return out
+}
+
+func billingDailySummaryWindow(rows map[string]*BillingDailySummary, days int) []BillingDailySummary {
+	if len(rows) == 0 {
+		return []BillingDailySummary{}
+	}
+	keys := make([]string, 0, len(rows))
+	for key := range rows {
+		keys = append(keys, key)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > days {
+		keys = keys[:days]
+	}
+	out := make([]BillingDailySummary, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, *rows[key])
 	}
 	return out
 }

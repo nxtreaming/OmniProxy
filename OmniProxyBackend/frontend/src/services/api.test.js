@@ -111,3 +111,30 @@ test('HTTP API fallback fetches history summary with filters', async () => {
   )
   delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
 })
+
+test('HTTP API fallback fetches billing summary', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'billing-summary-token'
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    const parsed = new URL(String(url))
+    if (parsed.pathname.endsWith('/billing/summary')) {
+      assert.equal(options.headers['X-OmniProxy-Control-Token'], 'billing-summary-token')
+      assert.equal(parsed.searchParams.get('days'), '30')
+      return jsonResponse(200, { requestCount: 3, totalTokens: 2048, dailyRows: [] })
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const { getBillingSummary } = await import(`./api.js?billing-summary-test=${Date.now()}`)
+  assert.deepEqual(await getBillingSummary(30), {
+    requestCount: 3,
+    totalTokens: 2048,
+    dailyRows: [],
+  })
+  assert.deepEqual(
+    calls.map((call) => new URL(call.url).pathname),
+    ['/api/billing/summary'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})

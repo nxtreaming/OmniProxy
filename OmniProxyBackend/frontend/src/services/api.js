@@ -272,6 +272,16 @@ export function getBillingDates(limit = 30) {
   return request(`/billing/dates?${params.toString()}`)
 }
 
+export function getBillingSummary(days = 30) {
+  const normalizedDays = Number(days || 30)
+  if (useWailsBindings() && DesktopApp.BillingSummary) {
+    return DesktopApp.BillingSummary(normalizedDays)
+  }
+  const params = new URLSearchParams()
+  params.set('days', String(normalizedDays))
+  return request(`/billing/summary?${params.toString()}`)
+}
+
 export function clearBillingUsage() {
   if (useWailsBindings() && DesktopApp.ClearBillingUsage) {
     return DesktopApp.ClearBillingUsage()

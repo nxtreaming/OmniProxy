@@ -159,6 +159,64 @@ export namespace config {
 
 export namespace history {
 
+	export class BillingDailySummary {
+	    date: string;
+	    requestCount: number;
+	    inputTokens: number;
+	    outputTokens: number;
+	    totalTokens: number;
+
+	    static createFrom(source: any = {}) {
+	        return new BillingDailySummary(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.requestCount = source["requestCount"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.totalTokens = source["totalTokens"];
+	    }
+	}
+	export class BillingSummary {
+	    requestCount: number;
+	    inputTokens: number;
+	    outputTokens: number;
+	    totalTokens: number;
+	    dailyRows: BillingDailySummary[];
+
+	    static createFrom(source: any = {}) {
+	        return new BillingSummary(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.requestCount = source["requestCount"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.totalTokens = source["totalTokens"];
+	        this.dailyRows = this.convertValues(source["dailyRows"], BillingDailySummary);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DailySummary {
 	    date: string;
 	    requestCount: number;

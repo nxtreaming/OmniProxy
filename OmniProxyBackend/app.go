@@ -251,6 +251,13 @@ func (a *DesktopApp) BillingDates(limit int) []string {
 	return a.server.history.DailyUsageDates(limit)
 }
 
+func (a *DesktopApp) BillingSummary(days int) history.BillingSummary {
+	if a.server.history == nil {
+		return history.BillingSummary{}
+	}
+	return a.server.history.BillingSummary(days)
+}
+
 func (a *DesktopApp) ClearBillingUsage() error {
 	if a.server.history == nil {
 		return nil

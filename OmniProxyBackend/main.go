@@ -315,6 +315,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/history", a.handleHistory)
 	mux.HandleFunc("/api/history/summary", a.handleHistorySummary)
 	mux.HandleFunc("/api/history/clear", a.handleHistoryClear)
+	mux.HandleFunc("/api/billing/summary", a.handleBillingSummary)
 	mux.HandleFunc("/api/billing/usage", a.handleBillingUsage)
 	mux.HandleFunc("/api/billing/dates", a.handleBillingDates)
 	mux.HandleFunc("/api/billing/clear", a.handleBillingClear)
@@ -1318,6 +1319,27 @@ func (a *appServer) handleBillingUsage(w http.ResponseWriter, r *http.Request) {
 		date = time.Now().Format("2006-01-02")
 	}
 	writeJSON(w, http.StatusOK, recorder.DailyUsage(date))
+}
+
+func (a *appServer) handleBillingSummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		writeJSON(w, http.StatusOK, history.BillingSummary{})
+		return
+	}
+	days := 30
+	if raw := strings.TrimSpace(r.URL.Query().Get("days")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			days = parsed
+		}
+	}
+	writeJSON(w, http.StatusOK, recorder.BillingSummary(days))
 }
 
 func (a *appServer) handleBillingDates(w http.ResponseWriter, r *http.Request) {

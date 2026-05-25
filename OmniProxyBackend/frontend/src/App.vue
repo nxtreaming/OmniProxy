@@ -52,6 +52,7 @@ import {
   getAppInfo,
   getActiveRequests,
   getBillingDates,
+  getBillingSummary,
   getBillingUsage,
   getConfig,
   getDataDirectory,
@@ -215,6 +216,14 @@ const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
 const requestHistorySummary = ref(null)
+const emptyBillingSummary = () => ({
+  requestCount: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+  dailyRows: [],
+})
+const billingSummary = ref(emptyBillingSummary())
 const requestHistoryFilters = ref({})
 const billingUsage = ref([])
 const billingDates = ref([])
@@ -803,19 +812,11 @@ const subscriptionQuotaPageText = computed(() =>
 const apiQuotaPageText = computed(() =>
   quotaOverviewPageText(apiQuotaPage.value, apiOverviewPageCount.value, apiOverviewTokens.value.length),
 )
-const totalProxyRequests = computed(() =>
-  tokens.value.reduce((sum, item) => sum + Number(item.stats?.requestCount || 0), 0),
-)
-const totalProxyTokens = computed(() =>
-  tokens.value.reduce((sum, item) => sum + Number(item.stats?.totalTokens || 0), 0),
-)
-const totalProxyInputTokens = computed(() =>
-  tokens.value.reduce((sum, item) => sum + Number(item.stats?.inputTokens || 0), 0),
-)
-const totalProxyOutputTokens = computed(() =>
-  tokens.value.reduce((sum, item) => sum + Number(item.stats?.outputTokens || 0), 0),
-)
-const dailyUsageRows = computed(() => aggregateDailyUsage(tokens.value))
+const totalProxyRequests = computed(() => Number(billingSummary.value?.requestCount || 0))
+const totalProxyTokens = computed(() => Number(billingSummary.value?.totalTokens || 0))
+const totalProxyInputTokens = computed(() => Number(billingSummary.value?.inputTokens || 0))
+const totalProxyOutputTokens = computed(() => Number(billingSummary.value?.outputTokens || 0))
+const dailyUsageRows = computed(() => normalizeBillingDailyRows(billingSummary.value?.dailyRows || []))
 const todayProxyTokens = computed(
   () => dailyUsageRows.value.find((row) => row.date === localDateKey())?.totalTokens || 0,
 )
@@ -1133,6 +1134,7 @@ async function refreshAll() {
       loadedStatus,
       loadedActiveRequests,
       loadedHistory,
+      loadedBillingSummary,
       loadedDataDirectory,
       loadedAutoStart,
       loadedAppInfo,
@@ -1143,6 +1145,7 @@ async function refreshAll() {
       getProxyStatus(),
       getActiveRequests(),
       getHistory({ limit: 200 }),
+      getBillingSummary(30),
       getDataDirectory(),
       getAutoStartStatus(),
       getAppInfo(),
@@ -1151,6 +1154,7 @@ async function refreshAll() {
     logs.value = loadedLogs
     activeRequests.value = loadedActiveRequests
     requestHistory.value = loadedHistory
+    billingSummary.value = loadedBillingSummary || emptyBillingSummary()
     Object.assign(config, loadedConfig)
     Object.assign(proxyStatus, loadedStatus)
     Object.assign(dataDirectory, loadedDataDirectory, {
@@ -1178,14 +1182,16 @@ async function refreshRealtime() {
       getProxyStatus(),
       getTokens(),
       getActiveRequests(),
+      getBillingSummary(30),
     ]
     if (activeTab.value !== 'history') {
       requests.push(getHistory({ limit: 200 }))
     }
-    const [loadedLogs, loadedStatus, loadedTokens, loadedActiveRequests, loadedHistory] = await Promise.all(requests)
+    const [loadedLogs, loadedStatus, loadedTokens, loadedActiveRequests, loadedBillingSummary, loadedHistory] = await Promise.all(requests)
     logs.value = loadedLogs
     tokens.value = loadedTokens
     activeRequests.value = loadedActiveRequests
+    billingSummary.value = loadedBillingSummary || emptyBillingSummary()
     if (loadedHistory) {
       requestHistory.value = loadedHistory
     }
@@ -1435,12 +1441,14 @@ async function refreshBilling(date = selectedBillingDate.value) {
   try {
     const normalizedDate = String(date || localDateKey()).trim() || localDateKey()
     selectedBillingDate.value = normalizedDate
-    const [usage, dates] = await Promise.all([
+    const [usage, dates, summary] = await Promise.all([
       getBillingUsage(normalizedDate),
       getBillingDates(30),
+      getBillingSummary(30),
     ])
     billingUsage.value = usage || []
     billingDates.value = dates || []
+    billingSummary.value = summary || emptyBillingSummary()
   } catch (error) {
     errorMessage.value = error.message
   }
@@ -2164,7 +2172,7 @@ async function persistConfig() {
 async function clearBillingUsageData() {
   try {
     await ElMessageBox.confirm(
-      '将删除本地每日账单汇总，详细请求历史不会删除。此操作无法撤销。',
+      '将删除本地账单汇总和累计代理 Token 统计，详细请求历史不会删除。此操作无法撤销。',
       '清空账单汇总',
       {
         confirmButtonText: '清空汇总',
@@ -2177,6 +2185,7 @@ async function clearBillingUsageData() {
     await clearBillingUsage()
     billingUsage.value = []
     billingDates.value = []
+    billingSummary.value = emptyBillingSummary()
     successMessage.value = '账单汇总已清空'
   } catch (action) {
     if (action instanceof Error) {
@@ -3218,25 +3227,17 @@ function tokenUsageMetrics(item) {
   return [{ label: 'Token', value: requests > 0 ? '未上报' : '0' }]
 }
 
-function aggregateDailyUsage(items) {
-  const byDate = new Map()
-  for (const item of items) {
-    for (const daily of item.stats?.daily || []) {
-      const current = byDate.get(daily.date) || {
-        date: daily.date,
-        requestCount: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-      }
-      current.requestCount += Number(daily.requestCount || 0)
-      current.inputTokens += Number(daily.inputTokens || 0)
-      current.outputTokens += Number(daily.outputTokens || 0)
-      current.totalTokens += Number(daily.totalTokens || 0)
-      byDate.set(daily.date, current)
-    }
-  }
-  return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date))
+function normalizeBillingDailyRows(rows) {
+  return [...(rows || [])]
+    .map((row) => ({
+      date: String(row.date || ''),
+      requestCount: Number(row.requestCount || 0),
+      inputTokens: Number(row.inputTokens || 0),
+      outputTokens: Number(row.outputTokens || 0),
+      totalTokens: Number(row.totalTokens || 0),
+    }))
+    .filter((row) => row.date)
+    .sort((a, b) => b.date.localeCompare(a.date))
 }
 
 function isCooling(item) {

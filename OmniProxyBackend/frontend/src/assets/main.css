@@ -14633,7 +14633,7 @@ body.dark .daily-detail-popover {
 .shell.dark .tokens-page-panel .openrouter-model-row,
 .shell.dark .tokens-page-panel .account-list-item {
   border-color: color-mix(in srgb, var(--line) 88%, transparent);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-soft) 18%, var(--surface));
   box-shadow: none;
 }
 
@@ -15597,6 +15597,26 @@ body.dark .daily-detail-popover {
   justify-self: end;
   align-self: center;
   white-space: nowrap;
+}
+
+.settings-panel .settings-maintenance-section .update-channel-row {
+  cursor: pointer;
+}
+
+.settings-panel .settings-maintenance-section .compact-toggle-field {
+  width: 64px;
+  min-width: 64px;
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
+  justify-self: end;
+  align-self: center;
+  padding: 0;
+}
+
+.settings-panel .settings-maintenance-section .compact-toggle-field .toggle-switch {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .settings-panel .settings-maintenance-section .maintenance-row,
@@ -16986,6 +17006,42 @@ body.dark .daily-detail-popover {
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--brand) 5%, transparent), transparent),
     #202124;
+}
+
+.danger-confirm-backdrop {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--danger) 8%, transparent), transparent 360px),
+    color-mix(in srgb, var(--bg) 44%, rgba(3, 7, 18, 0.48)) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+.shell.dark .danger-confirm-backdrop {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--danger) 9%, transparent), transparent 380px),
+    rgba(5, 8, 13, 0.5) !important;
+}
+
+.danger-confirm-actions {
+  margin: 2px -4px -4px;
+  padding: 14px 4px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  background: transparent !important;
+}
+
+.shell.dark .danger-confirm {
+  background: #1f2023;
+}
+
+.shell.dark .danger-confirm-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--danger) 8%, transparent), transparent),
+    #25262a;
+}
+
+.shell.dark .danger-confirm-actions {
+  border-top-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: transparent !important;
 }
 
 @media (max-width: 760px) {

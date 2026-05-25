@@ -58,6 +58,9 @@ func (s *SQLiteStore) Save(entries []Entry) error {
 	if _, err := tx.Exec(`DELETE FROM billing_daily_usage`); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(`DELETE FROM billing_lifetime_summary`); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`DELETE FROM request_daily_summary`); err != nil {
 		return err
 	}
@@ -72,6 +75,11 @@ func (s *SQLiteStore) Save(entries []Entry) error {
 		return err
 	}
 	defer usageStmt.Close()
+	lifetimeStmt, err := tx.Prepare(upsertBillingLifetimeSQL)
+	if err != nil {
+		return err
+	}
+	defer lifetimeStmt.Close()
 	summaryStmt, err := tx.Prepare(upsertRequestDailySummarySQL)
 	if err != nil {
 		return err
@@ -83,6 +91,9 @@ func (s *SQLiteStore) Save(entries []Entry) error {
 			return err
 		}
 		if err := upsertDailyUsage(usageStmt, entry); err != nil {
+			return err
+		}
+		if err := upsertBillingLifetime(lifetimeStmt, entry); err != nil {
 			return err
 		}
 		if err := upsertRequestDailySummary(summaryStmt, entry); err != nil {
@@ -106,6 +117,9 @@ func (s *SQLiteStore) Append(entry Entry) error {
 		return err
 	}
 	if err := upsertDailyUsageTx(tx, entry); err != nil {
+		return err
+	}
+	if err := upsertBillingLifetimeTx(tx, entry); err != nil {
 		return err
 	}
 	if err := upsertRequestDailySummaryTx(tx, entry); err != nil {
@@ -191,6 +205,56 @@ LIMIT ?`, limit)
 		dates = append(dates, date)
 	}
 	return dates, rows.Err()
+}
+
+func (s *SQLiteStore) BillingSummary(days int) (BillingSummary, error) {
+	days = normalizeSummaryDays(days)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := BillingSummary{DailyRows: []BillingDailySummary{}}
+	err := s.db.QueryRow(`
+SELECT request_count, input_tokens, output_tokens, total_tokens
+FROM billing_lifetime_summary
+WHERE id = 1`).Scan(&out.RequestCount, &out.InputTokens, &out.OutputTokens, &out.TotalTokens)
+	if err != nil && err != sql.ErrNoRows {
+		return BillingSummary{}, err
+	}
+	if err == sql.ErrNoRows {
+		if err := s.db.QueryRow(`
+SELECT
+  COALESCE(SUM(request_count), 0),
+  COALESCE(SUM(input_tokens), 0),
+  COALESCE(SUM(output_tokens), 0),
+  COALESCE(SUM(total_tokens), 0)
+FROM billing_daily_usage`).Scan(&out.RequestCount, &out.InputTokens, &out.OutputTokens, &out.TotalTokens); err != nil {
+			return BillingSummary{}, err
+		}
+	}
+
+	rows, err := s.db.Query(`
+SELECT
+  date,
+  COALESCE(SUM(request_count), 0) AS request_count,
+  COALESCE(SUM(input_tokens), 0) AS input_tokens,
+  COALESCE(SUM(output_tokens), 0) AS output_tokens,
+  COALESCE(SUM(total_tokens), 0) AS total_tokens
+FROM billing_daily_usage
+GROUP BY date
+ORDER BY date DESC
+LIMIT ?`, days)
+	if err != nil {
+		return BillingSummary{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var row BillingDailySummary
+		if err := rows.Scan(&row.Date, &row.RequestCount, &row.InputTokens, &row.OutputTokens, &row.TotalTokens); err != nil {
+			return BillingSummary{}, err
+		}
+		out.DailyRows = append(out.DailyRows, row)
+	}
+	return out, rows.Err()
 }
 
 func (s *SQLiteStore) Summary(filter Filter, days int) (Summary, error) {
@@ -479,8 +543,19 @@ func (s *SQLiteStore) PruneBeforeDate(cutoffDate string) error {
 func (s *SQLiteStore) ClearDailyUsage() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err := s.db.Exec(`DELETE FROM billing_daily_usage`)
-	return err
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM billing_daily_usage`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM billing_lifetime_summary`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) ClearRequestHistory() error {
@@ -549,6 +624,18 @@ CREATE TABLE IF NOT EXISTS billing_daily_usage (
 		return err
 	}
 	if _, err := s.db.Exec(`
+CREATE TABLE IF NOT EXISTS billing_lifetime_summary (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  request_count INTEGER NOT NULL DEFAULT 0,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  total_tokens INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
+`); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`
 CREATE TABLE IF NOT EXISTS request_daily_summary (
   date TEXT NOT NULL,
   provider TEXT NOT NULL DEFAULT '',
@@ -596,6 +683,9 @@ CREATE INDEX IF NOT EXISTS idx_request_daily_summary_token_name ON request_daily
 		return err
 	}
 	if err := s.rebuildDailyUsageIfEmptyLocked(); err != nil {
+		return err
+	}
+	if err := s.rebuildBillingLifetimeIfEmptyLocked(); err != nil {
 		return err
 	}
 	return s.rebuildRequestDailySummaryIfEmptyLocked()
@@ -685,6 +775,39 @@ WHERE TRIM(COALESCE(model, '')) != ''
   AND LOWER(TRIM(COALESCE(path, ''))) NOT LIKE '/maintenance/%'
   AND LOWER(TRIM(COALESCE(protocol, ''))) NOT IN ('health-check', 'quota-refresh', 'token-validation')
 GROUP BY date, provider, protocol, client_key, model`)
+	return err
+}
+
+func (s *SQLiteStore) rebuildBillingLifetimeIfEmptyLocked() error {
+	var lifetimeCount int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM billing_lifetime_summary`).Scan(&lifetimeCount); err != nil {
+		return err
+	}
+	if lifetimeCount > 0 {
+		return nil
+	}
+	var out BillingSummary
+	if err := s.db.QueryRow(`
+SELECT
+  COALESCE(SUM(request_count), 0),
+  COALESCE(SUM(input_tokens), 0),
+  COALESCE(SUM(output_tokens), 0),
+  COALESCE(SUM(total_tokens), 0)
+FROM billing_daily_usage`).Scan(&out.RequestCount, &out.InputTokens, &out.OutputTokens, &out.TotalTokens); err != nil {
+		return err
+	}
+	if out.RequestCount == 0 && out.TotalTokens == 0 {
+		return nil
+	}
+	_, err := s.db.Exec(`
+INSERT INTO billing_lifetime_summary (id, request_count, input_tokens, output_tokens, total_tokens, updated_at)
+VALUES (1, ?, ?, ?, ?, ?)`,
+		out.RequestCount,
+		out.InputTokens,
+		out.OutputTokens,
+		out.TotalTokens,
+		time.Now().Format(time.RFC3339Nano),
+	)
 	return err
 }
 
@@ -794,6 +917,17 @@ ON CONFLICT(date, provider, protocol, client_key, model) DO UPDATE SET
   total_tokens = billing_daily_usage.total_tokens + excluded.total_tokens,
   updated_at = excluded.updated_at`
 
+const upsertBillingLifetimeSQL = `
+INSERT INTO billing_lifetime_summary (
+  id, request_count, input_tokens, output_tokens, total_tokens, updated_at
+) VALUES (1, 1, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  request_count = billing_lifetime_summary.request_count + excluded.request_count,
+  input_tokens = billing_lifetime_summary.input_tokens + excluded.input_tokens,
+  output_tokens = billing_lifetime_summary.output_tokens + excluded.output_tokens,
+  total_tokens = billing_lifetime_summary.total_tokens + excluded.total_tokens,
+  updated_at = excluded.updated_at`
+
 const upsertRequestDailySummarySQL = `
 INSERT INTO request_daily_summary (
   date, provider, protocol, client_key, client_name, client_label,
@@ -835,6 +969,24 @@ func upsertDailyUsageTx(tx *sql.Tx, entry Entry) error {
 		return nil
 	}
 	_, err := tx.Exec(upsertDailyUsageSQL, values...)
+	return err
+}
+
+func upsertBillingLifetime(stmt *sql.Stmt, entry Entry) error {
+	values, ok := billingLifetimeValues(entry)
+	if !ok {
+		return nil
+	}
+	_, err := stmt.Exec(values...)
+	return err
+}
+
+func upsertBillingLifetimeTx(tx *sql.Tx, entry Entry) error {
+	values, ok := billingLifetimeValues(entry)
+	if !ok {
+		return nil
+	}
+	_, err := tx.Exec(upsertBillingLifetimeSQL, values...)
 	return err
 }
 
@@ -929,6 +1081,19 @@ func dailyUsageValues(entry Entry) ([]any, bool) {
 		strings.TrimSpace(entry.ClientKey),
 		strings.TrimSpace(entry.ClientName),
 		strings.TrimSpace(entry.Model),
+		input,
+		output,
+		total,
+		time.Now().Format(time.RFC3339Nano),
+	}, true
+}
+
+func billingLifetimeValues(entry Entry) ([]any, bool) {
+	if !dailyUsageCandidate(entry) {
+		return nil, false
+	}
+	input, output, total := tokenCounts(entry)
+	return []any{
 		input,
 		output,
 		total,

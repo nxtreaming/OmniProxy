@@ -18,6 +18,10 @@ export function BillingDates(arg1) {
   return window['go']['main']['DesktopApp']['BillingDates'](arg1);
 }
 
+export function BillingSummary(arg1) {
+  return window['go']['main']['DesktopApp']['BillingSummary'](arg1);
+}
+
 export function BillingUsage(arg1) {
   return window['go']['main']['DesktopApp']['BillingUsage'](arg1);
 }
