@@ -40,8 +40,8 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if cfg.TaskAutomationFallbackURL != "https://www.douyin.com" || cfg.TaskAutomationIdleSeconds != 5 || cfg.TaskAutomationReturnDelaySeconds != 3 {
 		t.Fatalf("expected default task automation timing, got fallback=%q idle=%d delay=%d", cfg.TaskAutomationFallbackURL, cfg.TaskAutomationIdleSeconds, cfg.TaskAutomationReturnDelaySeconds)
 	}
-	if cfg.ZhipuBaseURL == "" || cfg.MiniMaxBaseURL == "" || cfg.GeminiBaseURL == "" || cfg.OpenRouterBaseURL == "" || cfg.TokenRouterBaseURL == "" || cfg.Sub2APIBaseURL == "" || cfg.ZoBaseURL == "" {
-		t.Fatalf("expected new provider default base urls, got zhipu=%q minimax=%q gemini=%q openrouter=%q tokenrouter=%q sub2api=%q zo=%q", cfg.ZhipuBaseURL, cfg.MiniMaxBaseURL, cfg.GeminiBaseURL, cfg.OpenRouterBaseURL, cfg.TokenRouterBaseURL, cfg.Sub2APIBaseURL, cfg.ZoBaseURL)
+	if cfg.ZhipuBaseURL == "" || cfg.MiniMaxBaseURL == "" || cfg.GeminiBaseURL == "" || cfg.OpenRouterBaseURL == "" || cfg.TokenRouterBaseURL == "" || cfg.Sub2APIBaseURL == "" || cfg.NewAPIBaseURL == "" || cfg.ZoBaseURL == "" {
+		t.Fatalf("expected new provider default base urls, got zhipu=%q minimax=%q gemini=%q openrouter=%q tokenrouter=%q sub2api=%q newapi=%q zo=%q", cfg.ZhipuBaseURL, cfg.MiniMaxBaseURL, cfg.GeminiBaseURL, cfg.OpenRouterBaseURL, cfg.TokenRouterBaseURL, cfg.Sub2APIBaseURL, cfg.NewAPIBaseURL, cfg.ZoBaseURL)
 	}
 
 	cfg = Normalize(Config{

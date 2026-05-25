@@ -1105,18 +1105,22 @@ func normalizeStoredRegion(provider string, credentialType string, region string
 func NormalizeBaseURL(provider string, baseURL string, required bool) (string, error) {
 	provider = NormalizeProvider(provider)
 	baseURL = strings.TrimSpace(baseURL)
-	if provider != ProviderSub2API {
+	if provider != ProviderSub2API && provider != ProviderNewAPI {
 		return "", nil
+	}
+	label := provider
+	if provider == ProviderNewAPI {
+		label = "new-api"
 	}
 	if baseURL == "" {
 		if required {
-			return "", errors.New("sub2api base url is required")
+			return "", errors.New(label + " base url is required")
 		}
 		return "", nil
 	}
 	parsed, err := url.ParseRequestURI(baseURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", errors.New("sub2api base url must be a valid URL")
+		return "", errors.New(label + " base url must be a valid URL")
 	}
 	return strings.TrimRight(baseURL, "/"), nil
 }
@@ -1165,7 +1169,7 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodingPlan {
 			return "", "", errors.New("zhipu supports API key or Coding Plan key only")
 		}
-	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderTokenRouter, ProviderSub2API, ProviderZo, ProviderCustom:
+	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderTokenRouter, ProviderSub2API, ProviderNewAPI, ProviderZo, ProviderCustom:
 		if credentialType == "" {
 			credentialType = CredentialTypeAPIKey
 		}

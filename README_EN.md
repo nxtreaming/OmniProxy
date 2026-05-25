@@ -69,7 +69,7 @@ flowchart LR
     DeepSeek["DeepSeek"]
     Kimi["Kimi"]
     Mimo["Xiaomi MiMo"]
-    More["Zhipu / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / Zo / Custom"]
+    More["Zhipu / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / new-api / Zo / Custom"]
   end
 
   Clients --> Proxy
@@ -165,6 +165,7 @@ Default data directories:
 | OpenRouter | API Key | Model list, balance check, and desktop chat. |
 | TokenRouter | API Key | OpenAI-compatible routing; API keys usually start with `tr_`. |
 | sub2api | API Key | OpenAI / Anthropic / Gemini-compatible gateway with Codex local setup support. |
+| new-api | API Key | OpenAI / Anthropic / Gemini-compatible gateway; defaults to `http://127.0.0.1:3000` and refreshes key quota via `/api/usage/token/`. |
 | Zo Computer | Access Token | OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, model lists, and client model presets. |
 | Custom Gateway | API Key | OpenAI / Anthropic-compatible gateways. |
 
@@ -172,7 +173,7 @@ Default data directories:
 
 | Client | Supported Setup |
 | --- | --- |
-| Codex | Writes the local Codex backend proxy address, or switches to sub2api / Zo Computer local entrypoints, with backup restore support. |
+| Codex | Writes the local Codex backend proxy address, or switches to sub2api / new-api / Zo Computer local entrypoints, with backup restore support. |
 | Claude Code | Writes the Anthropic router and selected DeepSeek / MiMo / Kimi / GLM / Zo Computer model slots. |
 | Claude Desktop | Writes a 3P Gateway Profile and reuses selected Claude model slots; restart Claude Desktop after configuration. |
 | Gemini CLI | Writes Gemini local proxy configuration. |
@@ -195,7 +196,7 @@ Common endpoints:
 | Config | `GET /api/config`, `PUT /api/config`, `GET /api/data-directory`, `PUT /api/data-directory` |
 | History | `GET /api/logs`, `GET /api/history`, `POST /api/history/clear` |
 | Billing | `GET /api/billing/usage`, `GET /api/billing/dates`, `POST /api/billing/clear` |
-| Client setup | `POST /api/codex/configure`, `POST /api/codex/sub2api/configure`, `POST /api/codex/zo/configure`, `POST /api/claude/models/configure`, `POST /api/claude/desktop/models/configure`, `POST /api/zo/claude/configure`, `POST /api/deepseek-tui/configure`, `POST /api/opencode/configure`, `POST /api/pi/configure` |
+| Client setup | `POST /api/codex/configure`, `POST /api/codex/sub2api/configure`, `POST /api/codex/newapi/configure`, `POST /api/codex/zo/configure`, `POST /api/claude/models/configure`, `POST /api/claude/desktop/models/configure`, `POST /api/zo/claude/configure`, `POST /api/deepseek-tui/configure`, `POST /api/opencode/configure`, `POST /api/pi/configure` |
 | Updates | `POST /api/update/check`, `POST /api/update/download`, `GET /api/update/download/status`, `POST /api/update/install` |
 
 `/selected` adds or removes an account from its provider's scheduling selection set. When a provider has no selected accounts, the scheduler rotates all usable accounts for that provider; once selected accounts exist, rotation is limited to the selected set.

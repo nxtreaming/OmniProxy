@@ -496,6 +496,12 @@ export function configureCodexSub2API() {
     : request('/codex/sub2api/configure', { method: 'POST' })
 }
 
+export function configureCodexNewAPI() {
+  return useWailsBindings() && DesktopApp.ConfigureCodexNewAPI
+    ? DesktopApp.ConfigureCodexNewAPI()
+    : request('/codex/newapi/configure', { method: 'POST' })
+}
+
 export function configureCodexZo() {
   return useWailsBindings() && DesktopApp.ConfigureCodexZo
     ? DesktopApp.ConfigureCodexZo()

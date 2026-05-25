@@ -69,7 +69,7 @@ flowchart LR
     DeepSeek["DeepSeek"]
     Kimi["Kimi"]
     Mimo["Xiaomi MiMo"]
-    More["Zhipu / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / Zo / Custom"]
+    More["Zhipu / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / new-api / Zo / Custom"]
   end
 
   Clients --> Proxy
@@ -165,6 +165,7 @@ C:\Users\mimanchi\go\bin\wails.exe dev
 | OpenRouter | API Key | 模型列表、余额查询、桌面端对话。 |
 | TokenRouter | API Key | OpenAI 兼容路由，API Key 通常以 `tr_` 开头。 |
 | sub2api | API Key | OpenAI / Anthropic / Gemini 兼容网关，支持 Codex 本地配置入口。 |
+| new-api | API Key | OpenAI / Anthropic / Gemini 兼容网关，默认 `http://127.0.0.1:3000`，通过 `/api/usage/token/` 刷新 Key 额度。 |
 | Zo Computer | Access Token | OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、模型列表和客户端模型预设。 |
 | 自定义网关 | API Key | OpenAI / Anthropic 兼容网关。 |
 
@@ -172,7 +173,7 @@ C:\Users\mimanchi\go\bin\wails.exe dev
 
 | 客户端 | 支持内容 |
 | --- | --- |
-| Codex | 写入本地 Codex backend 代理地址，也可切换到 sub2api 或 Zo Computer 本地入口，支持恢复备份。 |
+| Codex | 写入本地 Codex backend 代理地址，也可切换到 sub2api、new-api 或 Zo Computer 本地入口，支持恢复备份。 |
 | Claude Code | 写入 Anthropic router，可选择 DeepSeek / MiMo / Kimi / GLM / Zo Computer 模型槽位。 |
 | Claude Desktop | 写入 3P Gateway Profile，可复用 Claude 模型选择结果，配置后需要重启 Claude Desktop。 |
 | Gemini CLI | 写入 Gemini 本地代理配置。 |
@@ -195,7 +196,7 @@ C:\Users\mimanchi\go\bin\wails.exe dev
 | 配置 | `GET /api/config`、`PUT /api/config`、`GET /api/data-directory`、`PUT /api/data-directory` |
 | 历史 | `GET /api/logs`、`GET /api/history`、`POST /api/history/clear` |
 | 账单 | `GET /api/billing/usage`、`GET /api/billing/dates`、`POST /api/billing/clear` |
-| 客户端配置 | `POST /api/codex/configure`、`POST /api/codex/sub2api/configure`、`POST /api/codex/zo/configure`、`POST /api/claude/models/configure`、`POST /api/claude/desktop/models/configure`、`POST /api/zo/claude/configure`、`POST /api/deepseek-tui/configure`、`POST /api/opencode/configure`、`POST /api/pi/configure` |
+| 客户端配置 | `POST /api/codex/configure`、`POST /api/codex/sub2api/configure`、`POST /api/codex/newapi/configure`、`POST /api/codex/zo/configure`、`POST /api/claude/models/configure`、`POST /api/claude/desktop/models/configure`、`POST /api/zo/claude/configure`、`POST /api/deepseek-tui/configure`、`POST /api/opencode/configure`、`POST /api/pi/configure` |
 | 更新 | `POST /api/update/check`、`POST /api/update/download`、`GET /api/update/download/status`、`POST /api/update/install` |
 
 `/selected` 用于把账号加入或移出所属厂商的调度选择集合。没有已选账号时，调度器默认轮换该厂商全部可用账号；存在已选账号时，只在已选账号内轮换。

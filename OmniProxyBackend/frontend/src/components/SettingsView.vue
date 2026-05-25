@@ -166,7 +166,7 @@ const outboundProxyProviderGroups = [
   },
   {
     title: '取决于你的上游',
-    note: '自定义网关、Sub2API、TokenRouter 是否需要出站，取决于你配置的实际服务地址。',
+    note: '自定义网关、Sub2API、new-api、TokenRouter 是否需要出站，取决于你配置的实际服务地址。',
     items: [
       {
         key: 'tokenrouter',
@@ -179,6 +179,12 @@ const outboundProxyProviderGroups = [
         label: 'Sub2API',
         providers: ['sub2api'],
         description: 'Sub2API OpenAI / Anthropic / Gemini 兼容接口',
+      },
+      {
+        key: 'newapi',
+        label: 'new-api',
+        providers: ['newapi'],
+        description: 'new-api OpenAI / Anthropic / Gemini 兼容接口',
       },
       {
         key: 'custom',
@@ -894,7 +900,7 @@ function normalizeOutboundProxyProviders(providers) {
         <div class="settings-section-head">
           <div>
             <h3>第三方路由</h3>
-            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、Zo Computer、Xiaomi MiMo 和自定义网关入口。</p>
+            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、new-api、Zo Computer、Xiaomi MiMo 和自定义网关入口。</p>
           </div>
           <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
             {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
@@ -945,6 +951,11 @@ function normalizeOutboundProxyProviders(providers) {
             <span>sub2api 默认 Base URL</span>
             <input v-model="config.sub2apiBaseUrl" type="url" />
             <small>仅作为新增 sub2api 账号的默认填充值，以及旧账号未保存 Base URL 时的回退地址；协议由本地路径决定。</small>
+          </label>
+          <label class="wide-field">
+            <span>new-api 默认 Base URL</span>
+            <input v-model="config.newapiBaseUrl" type="url" />
+            <small>仅作为新增 new-api 账号的默认填充值，以及旧账号未保存 Base URL 时的回退地址；协议由本地路径决定。</small>
           </label>
           <label class="wide-field">
             <span>Zo Computer Base URL</span>

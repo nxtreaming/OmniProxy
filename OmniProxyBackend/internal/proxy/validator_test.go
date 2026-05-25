@@ -870,6 +870,81 @@ func TestValidatorUsesSub2APIUsageEndpoint(t *testing.T) {
 	}
 }
 
+func TestValidatorUsesNewAPIUsageEndpoint(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL func(string) string
+	}{
+		{
+			name:    "base without version",
+			baseURL: func(serverURL string) string { return serverURL },
+		},
+		{
+			name:    "base with version",
+			baseURL: func(serverURL string) string { return serverURL + "/v1" },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/usage/token/" {
+					t.Fatalf("unexpected path: %s", r.URL.Path)
+				}
+				if r.Header.Get("Authorization") != "Bearer newapi-api-key-token" {
+					t.Fatalf("unexpected Authorization header: %q", r.Header.Get("Authorization"))
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{
+					"code": true,
+					"message": "ok",
+					"data": {
+						"object": "token_usage",
+						"name": "work",
+						"total_granted": 1000,
+						"total_used": 250,
+						"total_available": 750,
+						"unlimited_quota": false
+					}
+				}`))
+			}))
+			defer upstream.Close()
+
+			validator, err := NewValidator(config.Config{
+				NewAPIBaseURL: tt.baseURL(upstream.URL),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			result, err := validator.Validate(context.Background(), token.Token{
+				Provider:       token.ProviderNewAPI,
+				CredentialType: token.CredentialTypeAPIKey,
+				BaseURL:        tt.baseURL(upstream.URL),
+				TokenValue:     "newapi-api-key-token",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.OK {
+				t.Fatalf("expected new-api validation to pass: %#v", result)
+			}
+			if result.Usage == nil {
+				t.Fatal("expected new-api usage details")
+			}
+			if result.Usage.Source != token.ProviderNewAPI || result.Usage.BalanceUnit != "Quota" {
+				t.Fatalf("unexpected new-api usage source/unit: %#v", result.Usage)
+			}
+			if result.Usage.BalanceTotal != 1000 || result.Usage.BalanceUsed != 250 || result.Usage.BalanceRemaining != 750 {
+				t.Fatalf("unexpected new-api quota usage: %#v", result.Usage)
+			}
+			if result.Remaining == nil || *result.Remaining != 75 {
+				t.Fatalf("expected result remaining 75, got %#v", result.Remaining)
+			}
+		})
+	}
+}
+
 func TestValidatorParsesSub2APIWalletUsage(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/usage" {

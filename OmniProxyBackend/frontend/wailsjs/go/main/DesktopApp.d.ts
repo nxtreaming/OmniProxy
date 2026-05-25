@@ -38,6 +38,8 @@ export function ConfigureCodex():Promise<main.codexConfigureResult>;
 
 export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
 
+export function ConfigureCodexNewAPI():Promise<main.codexConfigureResult>;
+
 export function ConfigureCodexZo():Promise<main.codexConfigureResult>;
 
 export function ConfigureDeepSeekClaude():Promise<main.mimoConfigureResult>;

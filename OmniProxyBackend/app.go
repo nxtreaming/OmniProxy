@@ -500,6 +500,10 @@ func (a *DesktopApp) ConfigureCodexSub2API() (codexConfigureResult, error) {
 	return a.server.configureCodexSub2API()
 }
 
+func (a *DesktopApp) ConfigureCodexNewAPI() (codexConfigureResult, error) {
+	return a.server.configureCodexNewAPI()
+}
+
 func (a *DesktopApp) ConfigureCodexZo() (codexConfigureResult, error) {
 	return a.server.configureCodexZo()
 }

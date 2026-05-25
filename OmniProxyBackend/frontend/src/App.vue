@@ -25,6 +25,7 @@ import {
 } from '../wailsjs/runtime/runtime'
 import {
   configureCodex,
+  configureCodexNewAPI,
   configureCodexSub2API,
   configureCodexZo,
   configureClaudeDesktopModels,
@@ -141,6 +142,7 @@ const workspaceRef = ref(null)
 const workspaceScrollbarVisible = ref(false)
 const codexConfiguring = ref(false)
 const codexSub2APIConfiguring = ref(false)
+const codexNewAPIConfiguring = ref(false)
 const codexZoConfiguring = ref(false)
 const codexRestoring = ref(false)
 const mimoClaudeConfiguring = ref(false)
@@ -276,6 +278,7 @@ const config = reactive({
   openrouterBaseUrl: 'https://openrouter.ai/api/v1',
   tokenrouterBaseUrl: 'https://api.tokenrouter.io',
   sub2apiBaseUrl: 'https://aiapi.aicnio.com',
+  newapiBaseUrl: 'http://127.0.0.1:3000',
   zoBaseUrl: 'https://api.zo.computer',
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
@@ -564,6 +567,14 @@ const thirdPartyEndpointGroups = computed(() => {
           use: '转发到 sub2api OpenAI 兼容网关。',
         },
         {
+          name: 'new-api',
+          protocol: 'OpenAI Chat / Responses',
+          baseUrl: `${base}/newapi/v1`,
+          apiKey: 'omniproxy-local',
+          models: '由 new-api 上游决定',
+          use: '转发到 new-api OpenAI 兼容网关。',
+        },
+        {
           name: '自定义网关',
           protocol: 'OpenAI Chat',
           baseUrl: `${base}/custom/v1`,
@@ -608,6 +619,14 @@ const thirdPartyEndpointGroups = computed(() => {
           apiKey: 'omniproxy-local',
           models: '由 sub2api 上游决定',
           use: '转发到 sub2api Anthropic 兼容入口。',
+        },
+        {
+          name: 'new-api Anthropic',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/newapi/anthropic/v1`,
+          apiKey: 'omniproxy-local',
+          models: '由 new-api 上游决定',
+          use: '转发到 new-api Anthropic 兼容入口。',
         },
         {
           name: '自定义 Anthropic 网关',
@@ -679,6 +698,14 @@ const thirdPartyEndpointGroups = computed(() => {
           models: '由 sub2api 上游决定',
           use: '转发到 sub2api Gemini 兼容入口。',
         },
+        {
+          name: 'new-api Gemini',
+          protocol: 'Gemini API',
+          baseUrl: `${base}/newapi/gemini`,
+          apiKey: 'omniproxy-local',
+          models: '由 new-api 上游决定',
+          use: '转发到 new-api Gemini 兼容入口。',
+        },
       ],
     },
     {
@@ -734,7 +761,7 @@ const helpCredentialGroups = [
   },
   {
     title: '网关类账号',
-    summary: 'sub2api、自定义网关',
+    summary: 'sub2api、new-api、自定义网关',
     detail: '适合把已有兼容网关纳入 OmniProxy 调度，并统一暴露本机 loopback 入口。',
   },
 ]
@@ -1589,6 +1616,38 @@ async function copyEndpointValue(value, label) {
   }
 }
 
+const providerBaseUrlKeys = new Set(['sub2api', 'newapi'])
+
+function providerRequiresBaseUrl(provider) {
+  return providerBaseUrlKeys.has(String(provider || '').trim())
+}
+
+function providerDefaultBaseUrl(provider) {
+  if (provider === 'sub2api') return config.sub2apiBaseUrl
+  if (provider === 'newapi') return config.newapiBaseUrl
+  return ''
+}
+
+function validateProviderBaseUrl(provider, baseUrl) {
+  if (!providerRequiresBaseUrl(provider)) return true
+  const label = providerLabel(provider)
+  if (!baseUrl) {
+    errorMessage.value = `${label} Base URL 不能为空`
+    return false
+  }
+  try {
+    const parsed = new URL(baseUrl)
+    if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host) {
+      errorMessage.value = `${label} Base URL 格式不正确`
+      return false
+    }
+  } catch {
+    errorMessage.value = `${label} Base URL 格式不正确`
+    return false
+  }
+  return true
+}
+
 function openCreateForm(provider = 'openai') {
   Object.assign(form, {
     visible: true,
@@ -1599,7 +1658,7 @@ function openCreateForm(provider = 'openai') {
     credentialType: 'api_key',
     originalCredentialType: 'api_key',
     region: 'cn',
-    baseUrl: provider === 'sub2api' ? config.sub2apiBaseUrl : '',
+    baseUrl: providerDefaultBaseUrl(provider),
     tokenValue: '',
   })
 }
@@ -1631,7 +1690,7 @@ async function submitForm() {
   const provider = form.provider.trim() || 'openai'
   const credentialType = normalizedCredentialType(provider, form.credentialType)
   const region = provider === 'xiaomi' && credentialType === 'mimo_token_plan' ? form.region || 'cn' : ''
-  const baseUrl = provider === 'sub2api' ? form.baseUrl.trim() : ''
+  const baseUrl = providerRequiresBaseUrl(provider) ? form.baseUrl.trim() : ''
   const isEditing = Boolean(form.editingId)
   const replacingCredential = tokenValue !== ''
 
@@ -1658,21 +1717,8 @@ async function submitForm() {
     errorMessage.value = '更改厂商或凭据类型时需要重新填写凭据'
     return
   }
-  if (provider === 'sub2api') {
-    if (!baseUrl) {
-      errorMessage.value = 'sub2api Base URL 不能为空'
-      return
-    }
-    try {
-      const parsed = new URL(baseUrl)
-      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host) {
-        errorMessage.value = 'sub2api Base URL 格式不正确'
-        return
-      }
-    } catch {
-      errorMessage.value = 'sub2api Base URL 格式不正确'
-      return
-    }
+  if (!validateProviderBaseUrl(provider, baseUrl)) {
+    return
   }
   if ((credentialType === 'codex_auth_json' || credentialType === 'claude_oauth_json') && (!isEditing || replacingCredential)) {
     try {
@@ -1736,7 +1782,7 @@ function openBatchImport(provider = 'openai') {
   Object.assign(batchImportForm, {
     visible: true,
     provider,
-    baseUrl: provider === 'sub2api' ? config.sub2apiBaseUrl : '',
+    baseUrl: providerDefaultBaseUrl(provider),
     tokenText: '',
   })
 }
@@ -1747,9 +1793,9 @@ function closeBatchImport() {
 }
 
 function onBatchImportProviderChange() {
-  if (batchImportForm.provider === 'sub2api' && !batchImportForm.baseUrl) {
-    batchImportForm.baseUrl = config.sub2apiBaseUrl
-  } else if (batchImportForm.provider !== 'sub2api') {
+  if (providerRequiresBaseUrl(batchImportForm.provider) && !batchImportForm.baseUrl) {
+    batchImportForm.baseUrl = providerDefaultBaseUrl(batchImportForm.provider)
+  } else if (!providerRequiresBaseUrl(batchImportForm.provider)) {
     batchImportForm.baseUrl = ''
   }
 }
@@ -1772,28 +1818,15 @@ async function submitBatchImport() {
   errorMessage.value = ''
   successMessage.value = ''
   const provider = batchImportForm.provider.trim() || 'openai'
-  const baseUrl = provider === 'sub2api' ? batchImportForm.baseUrl.trim() : ''
+  const baseUrl = providerRequiresBaseUrl(provider) ? batchImportForm.baseUrl.trim() : ''
   const tokenText = batchImportForm.tokenText.trim()
 
   if (!tokenText) {
     errorMessage.value = '请先粘贴要导入的 API Key'
     return
   }
-  if (provider === 'sub2api') {
-    if (!baseUrl) {
-      errorMessage.value = 'sub2api Base URL 不能为空'
-      return
-    }
-    try {
-      const parsed = new URL(baseUrl)
-      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host) {
-        errorMessage.value = 'sub2api Base URL 格式不正确'
-        return
-      }
-    } catch {
-      errorMessage.value = 'sub2api Base URL 格式不正确'
-      return
-    }
+  if (!validateProviderBaseUrl(provider, baseUrl)) {
+    return
   }
 
   batchImporting.value = true
@@ -2144,6 +2177,7 @@ async function persistConfig() {
       openrouterBaseUrl: config.openrouterBaseUrl.trim(),
       tokenrouterBaseUrl: config.tokenrouterBaseUrl.trim(),
       sub2apiBaseUrl: config.sub2apiBaseUrl.trim(),
+      newapiBaseUrl: config.newapiBaseUrl.trim(),
       zoBaseUrl: config.zoBaseUrl.trim(),
       customGatewayBaseUrl: config.customGatewayBaseUrl.trim(),
       customGatewayAnthropicBaseUrl: config.customGatewayAnthropicBaseUrl.trim(),
@@ -2277,6 +2311,21 @@ async function configureLocalCodexSub2API() {
     errorMessage.value = error.message
   } finally {
     codexSub2APIConfiguring.value = false
+  }
+}
+
+async function configureLocalCodexNewAPI() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  codexNewAPIConfiguring.value = true
+  try {
+    const result = await configureCodexNewAPI()
+    await refreshAll()
+    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy new-api'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    codexNewAPIConfiguring.value = false
   }
 }
 
@@ -2722,6 +2771,9 @@ function credentialPlaceholder() {
   if (form.provider === 'sub2api') {
     return '粘贴 sub2api API Key'
   }
+  if (form.provider === 'newapi') {
+    return '粘贴 new-api API Key'
+  }
   if (form.provider === 'zo') {
     return '粘贴 zo_sk_ 开头的 Zo Access Token'
   }
@@ -2771,9 +2823,9 @@ function normalizedCredentialType(provider, credentialType) {
 
 function onProviderChange() {
   form.credentialType = normalizedCredentialType(form.provider, form.credentialType)
-  if (form.provider === 'sub2api' && !form.baseUrl) {
-    form.baseUrl = config.sub2apiBaseUrl
-  } else if (form.provider !== 'sub2api') {
+  if (providerRequiresBaseUrl(form.provider) && !form.baseUrl) {
+    form.baseUrl = providerDefaultBaseUrl(form.provider)
+  } else if (!providerRequiresBaseUrl(form.provider)) {
     form.baseUrl = ''
   }
   if (form.editingId && form.provider !== form.originalProvider) {
@@ -2814,6 +2866,7 @@ const knownClientTools = [
   { key: 'openrouter', label: 'OpenRouter' },
   { key: 'tokenrouter', label: 'TokenRouter' },
   { key: 'sub2api', label: 'sub2api' },
+  { key: 'newapi', label: 'new-api' },
   { key: 'cursor', label: 'Cursor' },
   { key: 'vscode', label: 'VS Code' },
   { key: 'windsurf', label: 'Windsurf' },
@@ -4110,11 +4163,14 @@ async function refreshQuota(item) {
         <div class="help-grid">
           <article class="wide-help">
             <strong>Codex</strong>
-            <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api 使用账号池里的 sub2api API Key。</p>
+            <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api 和 new-api 使用账号池里的 API Key。</p>
             <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex
 sub2api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/sub2api
 sub2api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/sub2api/anthropic
 sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini
+new-api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/newapi
+new-api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/newapi/anthropic
+new-api Gemini: http://127.0.0.1:{{ config.proxyPort }}/newapi/gemini
 Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
             <div class="help-actions">
               <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="configureLocalCodex">
@@ -4122,6 +4178,9 @@ Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
               </el-button>
               <el-button type="primary" plain :icon="MagicStick" :loading="codexSub2APIConfiguring" @click="configureLocalCodexSub2API">
                 {{ codexSub2APIConfiguring ? '配置中' : '配置 Codex sub2api' }}
+              </el-button>
+              <el-button type="primary" plain :icon="MagicStick" :loading="codexNewAPIConfiguring" @click="configureLocalCodexNewAPI">
+                {{ codexNewAPIConfiguring ? '配置中' : '配置 Codex new-api' }}
               </el-button>
               <el-button type="primary" plain :icon="MagicStick" :loading="codexZoConfiguring" @click="configureLocalCodexZo">
                 {{ codexZoConfiguring ? '配置中' : '配置 Codex Zo' }}

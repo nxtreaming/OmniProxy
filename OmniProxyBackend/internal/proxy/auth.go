@@ -69,7 +69,7 @@ func applyAuthWithProtocol(header http.Header, selected token.Token, protocol st
 		header.Set("api-key", secret)
 	case token.ProviderGemini:
 		header.Set("x-goog-api-key", secret)
-	case token.ProviderSub2API:
+	case token.ProviderSub2API, token.ProviderNewAPI:
 		switch protocol {
 		case "anthropic":
 			header.Set("x-api-key", secret)

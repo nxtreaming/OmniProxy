@@ -172,6 +172,61 @@ func (a *appServer) configureCodexSub2API() (codexConfigureResult, error) {
 	return result, nil
 }
 
+func (a *appServer) configureCodexNewAPI() (codexConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/newapi", cfg.ProxyPort)
+	configPath := filepath.Join(codexDir, "config.toml")
+	if err := writeCodexNewAPIConfig(configPath, baseURL); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	result := codexConfigureResult{
+		ConfigPath: configPath,
+		AuthPath:   filepath.Join(codexDir, "auth.json"),
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    baseURL,
+	}
+
+	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+	switch authState {
+	case "created":
+		result.ImportedAuth = true
+	case "updated":
+		result.AuthUpdated = true
+	case "existing":
+		result.AuthAlreadyAdded = true
+	}
+
+	parts := []string{"Codex 已切换到 OmniProxy new-api 本地代理"}
+	if result.ImportedAuth {
+		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
+	} else if result.AuthUpdated {
+		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
+	} else {
+		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
+	}
+	parts = append(parts, "请在 OmniProxy 的 new-api 账号中保存真实 API Key")
+	result.Message = strings.Join(parts, "；")
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy new-api"})
+	return result, nil
+}
+
 func (a *appServer) configureCodexZo() (codexConfigureResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -292,6 +347,10 @@ func writeCodexSub2APIConfig(path string, baseURL string) error {
 	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.4")
 }
 
+func writeCodexNewAPIConfig(path string, baseURL string) error {
+	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.5")
+}
+
 func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) error {
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -319,6 +378,7 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) 
 	lines = removeTomlSection(lines, "[model_providers.OpenAI]")
 	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
 	lines = removeTomlSection(lines, "[model_providers.sub2api]")
+	lines = removeTomlSection(lines, "[model_providers.newapi]")
 	lines = appendTomlSection(lines, []string{
 		"[model_providers.OpenAI]",
 		`name = "OpenAI"`,

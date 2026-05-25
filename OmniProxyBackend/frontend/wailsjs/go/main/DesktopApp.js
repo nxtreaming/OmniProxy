@@ -66,6 +66,10 @@ export function ConfigureCodexSub2API() {
   return window['go']['main']['DesktopApp']['ConfigureCodexSub2API']();
 }
 
+export function ConfigureCodexNewAPI() {
+  return window['go']['main']['DesktopApp']['ConfigureCodexNewAPI']();
+}
+
 export function ConfigureCodexZo() {
   return window['go']['main']['DesktopApp']['ConfigureCodexZo']();
 }

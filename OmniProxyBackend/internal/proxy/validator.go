@@ -129,6 +129,14 @@ func (v *Validator) Validate(ctx context.Context, selected token.Token) (Validat
 			}
 		}
 	}
+	if result.OK && token.NormalizeProvider(selected.Provider) == token.ProviderNewAPI {
+		if usage, remaining, ok := parseNewAPIUsage(body); ok {
+			result.Usage = &usage
+			if remaining != nil {
+				result.Remaining = remaining
+			}
+		}
+	}
 	if result.OK && selected.CredentialType != token.CredentialTypeCodexAuthJSON {
 		if usage, remaining, ok := v.queryProviderQuota(ctx, selected); ok {
 			result.Usage = &usage
@@ -175,6 +183,11 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 		} else {
 			path = "/v1/usage"
 		}
+	case token.ProviderNewAPI:
+		out := *base
+		out.Path = singleJoiningSlash(basePathWithoutVersionSuffix(base.Path), "/api/usage/token/")
+		out.RawQuery = ""
+		return out.String(), nil
 	case token.ProviderZo:
 		path = "/models/available"
 	case token.ProviderXiaomi:
@@ -373,6 +386,60 @@ func parseSub2APIUsage(body []byte) (token.UsageInfo, *int, bool) {
 	}
 
 	return usage, remaining, found
+}
+
+func parseNewAPIUsage(body []byte) (token.UsageInfo, *int, bool) {
+	payload, err := decodeObject(body)
+	if err != nil {
+		return token.UsageInfo{}, nil, false
+	}
+	if valid, ok := boolFromAnyOK(payload["code"]); ok && !valid {
+		return token.UsageInfo{}, nil, false
+	}
+
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		return token.UsageInfo{}, nil, false
+	}
+
+	total, totalOK := floatFromAny(data["total_granted"])
+	used, usedOK := floatFromAny(data["total_used"])
+	remainingValue, remainingOK := floatFromAny(data["total_available"])
+	unlimited := boolFromAny(data["unlimited_quota"], false)
+
+	usage := token.UsageInfo{
+		Source:      token.ProviderNewAPI,
+		PlanType:    "new-api API Key",
+		Message:     "new-api token usage",
+		BalanceUnit: "Quota",
+	}
+	if totalOK {
+		usage.BalanceTotal = total
+	}
+	if usedOK {
+		usage.BalanceUsed = used
+	}
+	if remainingOK {
+		usage.BalanceRemaining = remainingValue
+	}
+	if unlimited {
+		usage.BalanceUnlimited = true
+	}
+
+	var remaining *int
+	switch {
+	case unlimited:
+		value := 100
+		remaining = &value
+	case remainingOK:
+		value := balanceRemainingPercentFromValues(remainingValue, total, totalOK)
+		remaining = &value
+		if remainingValue <= 0 {
+			usage.LimitReached = true
+		}
+	}
+
+	return usage, remaining, totalOK || usedOK || remainingOK || unlimited
 }
 
 func sub2APIBalanceUsage(payload map[string]any, usage *token.UsageInfo) (*int, bool) {
@@ -602,6 +669,22 @@ func amountRemainingPercent(remaining float64) int {
 		return 0
 	}
 	return 100
+}
+
+func basePathWithoutVersionSuffix(path string) string {
+	path = strings.Trim(strings.TrimSpace(path), "/")
+	if path == "" {
+		return ""
+	}
+	parts := strings.Split(path, "/")
+	if !basePathHasVersionSuffix(path) {
+		return "/" + strings.Join(parts, "/")
+	}
+	parts = parts[:len(parts)-1]
+	if len(parts) == 0 {
+		return ""
+	}
+	return "/" + strings.Join(parts, "/")
 }
 
 func minRemainingPercent(values ...*int) *int {

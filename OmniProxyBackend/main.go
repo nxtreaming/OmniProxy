@@ -331,6 +331,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/data-directory", a.handleDataDirectory)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
 	mux.HandleFunc("/api/codex/sub2api/configure", a.handleCodexSub2APIConfigure)
+	mux.HandleFunc("/api/codex/newapi/configure", a.handleCodexNewAPIConfigure)
 	mux.HandleFunc("/api/codex/zo/configure", a.handleCodexZoConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
 	mux.HandleFunc("/api/mimo/claude/configure", a.handleMimoClaudeConfigure)
@@ -1516,6 +1517,19 @@ func (a *appServer) handleCodexSub2APIConfigure(w http.ResponseWriter, r *http.R
 		return
 	}
 	result, err := a.configureCodexSub2API()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleCodexNewAPIConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureCodexNewAPI()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

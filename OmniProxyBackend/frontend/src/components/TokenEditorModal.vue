@@ -68,7 +68,7 @@ function credentialValueLabel(form) {
 }
 
 function credentialHint() {
-  if (props.form.provider === 'sub2api') {
+  if (['sub2api', 'newapi'].includes(props.form.provider)) {
     return 'Base URL 会跟随这个账号保存，支持同一上游的 OpenAI、Anthropic、Gemini 协议入口。'
   }
   if (props.form.provider === 'zo') {
@@ -91,6 +91,22 @@ function autoNameText(form) {
     return 'Claude OAuth JSON 会优先使用 email 作为账号名称。'
   }
   return 'Codex 将自动使用 auth.json 中的邮箱作为账号名称。'
+}
+
+function requiresBaseUrl(form) {
+  return ['sub2api', 'newapi'].includes(form.provider)
+}
+
+function baseUrlPlaceholder(form) {
+  if (form.provider === 'newapi') return 'http://127.0.0.1:3000'
+  return 'https://aiapi.aicnio.com'
+}
+
+function baseUrlHint(form) {
+  if (form.provider === 'newapi') {
+    return '保存到当前账号；/newapi、/newapi/anthropic、/newapi/gemini 会转发到这个上游。'
+  }
+  return '保存到当前账号；/sub2api、/sub2api/anthropic、/sub2api/gemini 会转发到这个上游。'
 }
 </script>
 
@@ -134,16 +150,16 @@ function autoNameText(form) {
         <GeminiSelect v-model="form.region" :options="regionOptions" aria-label="选择 Token Plan 区域" />
         <small>海外账号会使用 token-plan-sgp.xiaomimimo.com。</small>
       </label>
-      <label v-if="form.provider === 'sub2api'">
+      <label v-if="requiresBaseUrl(form)">
         <span>Base URL</span>
         <input
           v-model="form.baseUrl"
           type="url"
-          placeholder="https://aiapi.aicnio.com"
+          :placeholder="baseUrlPlaceholder(form)"
           autocomplete="off"
           spellcheck="false"
         />
-        <small>保存到当前账号；/sub2api、/sub2api/anthropic、/sub2api/gemini 会转发到这个上游。</small>
+        <small>{{ baseUrlHint(form) }}</small>
       </label>
       <label>
         <span>{{ credentialValueLabel(form) }}</span>

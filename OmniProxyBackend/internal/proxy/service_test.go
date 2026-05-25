@@ -2348,6 +2348,137 @@ func TestServiceRoutesSub2APIGeminiRequests(t *testing.T) {
 	}
 }
 
+func TestServiceRoutesNewAPIRequests(t *testing.T) {
+	var upstreamPath string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":9}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "newapi", Provider: token.ProviderNewAPI, BaseURL: upstream.URL, TokenValue: "newapi-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/newapi/responses", stringsReader(`{"model":"gpt-5.5","input":"hi"}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1/responses" || authorization != "Bearer newapi-api-key-token" {
+		t.Fatalf("unexpected new-api route path=%q authorization=%q", upstreamPath, authorization)
+	}
+}
+
+func TestServiceRoutesNewAPIAnthropicRequests(t *testing.T) {
+	var upstreamPath string
+	var apiKey string
+	var authorization string
+	var anthropicVersion string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		apiKey = r.Header.Get("x-api-key")
+		authorization = r.Header.Get("Authorization")
+		anthropicVersion = r.Header.Get("anthropic-version")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":2,"output_tokens":3}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "newapi", Provider: token.ProviderNewAPI, BaseURL: upstream.URL, TokenValue: "newapi-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/newapi/anthropic/v1/messages", stringsReader(`{"model":"claude-sonnet-4-5","messages":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	req.Header.Set("X-Api-Key", "caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1/messages" || apiKey != "newapi-api-key-token" || authorization != "" || anthropicVersion != "2023-06-01" {
+		t.Fatalf("unexpected new-api anthropic route path=%q key=%q authorization=%q version=%q", upstreamPath, apiKey, authorization, anthropicVersion)
+	}
+}
+
+func TestServiceRoutesNewAPIGeminiRequests(t *testing.T) {
+	var upstreamPath string
+	var geminiKey string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		geminiKey = r.Header.Get("x-goog-api-key")
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usageMetadata":{"totalTokenCount":5}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "newapi", Provider: token.ProviderNewAPI, BaseURL: upstream.URL, TokenValue: "newapi-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/newapi/gemini/v1beta/models/gemini-3-pro-preview:generateContent", stringsReader(`{"contents":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	req.Header.Set("X-Goog-Api-Key", "caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1beta/models/gemini-3-pro-preview:generateContent" || geminiKey != "newapi-api-key-token" || authorization != "" {
+		t.Fatalf("unexpected new-api gemini route path=%q key=%q authorization=%q", upstreamPath, geminiKey, authorization)
+	}
+}
+
 func TestServiceAdaptsZoOpenAIChat(t *testing.T) {
 	var askBody map[string]any
 	var modelFetches int

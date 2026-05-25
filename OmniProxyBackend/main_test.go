@@ -1495,6 +1495,45 @@ func TestWriteCodexSub2APIConfig(t *testing.T) {
 	}
 }
 
+func TestWriteCodexNewAPIConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	initial := strings.Join([]string{
+		`model = "old-model"`,
+		`model_provider = "openai"`,
+		`openai_base_url = "http://old.example/v1"`,
+		`[model_providers.OpenAI]`,
+		`base_url = "http://old.example/v1"`,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeCodexNewAPIConfig(path, "http://127.0.0.1:3000/newapi"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`model_provider = "OpenAI"`,
+		`model = "gpt-5.5"`,
+		`review_model = "gpt-5.5"`,
+		`base_url = "http://127.0.0.1:3000/newapi"`,
+		`wire_api = "responses"`,
+		`requires_openai_auth = true`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
+		}
+	}
+	if strings.Contains(text, "old.example") {
+		t.Fatalf("config still contains old base url:\n%s", text)
+	}
+}
+
 func TestWriteCodexZoConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	initial := strings.Join([]string{

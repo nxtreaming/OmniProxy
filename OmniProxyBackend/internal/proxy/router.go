@@ -80,7 +80,7 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 	if len(parts) > 0 {
 		candidate := strings.ToLower(parts[0])
 		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderZo, token.ProviderCustom:
+		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderNewAPI, token.ProviderZo, token.ProviderCustom:
 			provider = candidate
 			if len(parts) == 2 {
 				path = "/" + parts[1]
@@ -101,8 +101,8 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 		credentialType = token.CredentialTypeCodexAuthJSON
 	}
 	protocol := protocolForRoute(provider, &path)
-	if provider == token.ProviderSub2API && protocol == "openai" {
-		path = versionedSub2APIOpenAIPath(path)
+	if gatewayProviderUsesProtocolPrefixes(provider) && protocol == "openai" {
+		path = versionedGatewayOpenAIPath(path)
 	}
 	return routeInfo{Provider: provider, CredentialType: credentialType, Protocol: protocol, Model: model, Path: path, RawQuery: incoming.RawQuery}
 }
@@ -155,7 +155,7 @@ func protocolForRoute(provider string, path *string) string {
 	switch provider {
 	case token.ProviderGemini:
 		protocol = "gemini"
-	case token.ProviderSub2API:
+	case token.ProviderSub2API, token.ProviderNewAPI:
 		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
 		} else if stripProtocolPrefix(path, "/gemini") {
@@ -190,7 +190,11 @@ func stripProtocolPrefix(path *string, prefix string) bool {
 	return false
 }
 
-func versionedSub2APIOpenAIPath(path string) string {
+func gatewayProviderUsesProtocolPrefixes(provider string) bool {
+	return provider == token.ProviderSub2API || provider == token.ProviderNewAPI
+}
+
+func versionedGatewayOpenAIPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" || path == "/" || path == "/v1" || strings.HasPrefix(path, "/v1/") {
 		return path

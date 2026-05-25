@@ -26,6 +26,20 @@ defineEmits(['close', 'submit', 'provider-change'])
 const providerOptions = computed(() =>
   props.providers.map((provider) => ({ value: provider.key, label: provider.label })),
 )
+
+function requiresBaseUrl(form) {
+  return ['sub2api', 'newapi'].includes(form.provider)
+}
+
+function baseUrlPlaceholder(form) {
+  if (form.provider === 'newapi') return 'http://127.0.0.1:3000'
+  return 'https://aiapi.aicnio.com'
+}
+
+function baseUrlLabel(form) {
+  if (form.provider === 'newapi') return 'new-api'
+  return 'sub2api'
+}
 </script>
 
 <template>
@@ -50,17 +64,17 @@ const providerOptions = computed(() =>
         />
       </label>
 
-      <label v-if="form.provider === 'sub2api'">
+      <label v-if="requiresBaseUrl(form)">
         <span>Base URL</span>
         <input
           v-model="form.baseUrl"
           type="url"
-          placeholder="https://aiapi.aicnio.com"
+          :placeholder="baseUrlPlaceholder(form)"
           autocomplete="off"
           spellcheck="false"
           :disabled="importing"
         />
-        <small>同一批导入的 sub2api Key 会保存到这个上游 Base URL。</small>
+        <small>同一批导入的 {{ baseUrlLabel(form) }} Key 会保存到这个上游 Base URL。</small>
       </label>
 
       <label>
