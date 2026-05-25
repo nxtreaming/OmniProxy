@@ -205,7 +205,6 @@ let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
 let updateInstallPromptVersion = ''
-let updateInstallPromptVisible = false
 let historyRefreshSeq = 0
 let taskAutomationBrowserProfileSeq = 0
 const validatingIds = reactive({})
@@ -374,6 +373,13 @@ const titlebarUpdatePrompt = computed(() => {
   const canInstall = downloadState === 'downloaded'
   const canRetryDownload = downloadState === 'failed' && canDownload
   const downloadPercent = Math.max(0, Math.min(100, Math.round(Number(updateDownloadStatus.value?.percent || 0))))
+  const badge = canInstall
+    ? update?.prerelease
+      ? 'Beta 已准备好'
+      : '更新已准备好'
+    : update?.prerelease
+      ? 'Beta 更新可用'
+      : '更新可用'
   return {
     update: updateAvailable ? update : null,
     canDownload,
@@ -381,10 +387,10 @@ const titlebarUpdatePrompt = computed(() => {
     canRetryDownload,
     currentVersion,
     latestVersion,
-    badge: update?.prerelease ? 'Beta 更新可用' : '更新可用',
-    title: `发现${update?.prerelease ? ' Beta' : ''}新版本 ${latestVersion}`,
+    badge,
+    title: canInstall ? `新版本 ${latestVersion} 已准备好` : `发现${update?.prerelease ? ' Beta' : ''}新版本 ${latestVersion}`,
     description: canInstall
-      ? '新版本已准备好，请重启 OmniProxy 以完成更新。'
+      ? '点击重启安装将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。'
       : downloadActive
         ? `正在后台下载更新安装包，当前进度 ${downloadPercent}%。`
         : canRetryDownload
@@ -946,7 +952,7 @@ async function confirmTitlebarUpdatePopover() {
   const prompt = titlebarUpdatePrompt.value
   closeTitlebarUpdatePopover()
   if (prompt.canInstall) {
-    await installReadyUpdate()
+    await installReadyUpdate({ skipConfirm: true })
     return
   }
   if (prompt.canRetryDownload && prompt.update) {
@@ -1448,29 +1454,11 @@ async function promptInstallDownloadedUpdate(status = updateDownloadStatus.value
   const version = String(status?.version || lastUpdateInfo.value?.latestVersion || '').trim()
   const expectedVersion = String(updateInstallPromptVersion || lastUpdateInfo.value?.latestVersion || '').trim()
   const currentVersion = String(appInfo.version || '').trim()
-  if (!version || (expectedVersion && version !== expectedVersion) || version === currentVersion || updateInstallPromptVisible) {
+  if (!version || (expectedVersion && version !== expectedVersion) || version === currentVersion) {
     return
   }
   updateInstallPromptVersion = ''
-  updateInstallPromptVisible = true
-  try {
-    await ElMessageBox.confirm(
-      `更新 ${version} 已下载并校验完成。请重启 OmniProxy 以完成更新。`,
-      '新版本已准备好',
-      {
-        confirmButtonText: '立即重启',
-        cancelButtonText: '稍后',
-        type: 'success',
-      },
-    )
-    await installReadyUpdate({ skipConfirm: true })
-  } catch (action) {
-    if (action instanceof Error) {
-      errorMessage.value = action.message
-    }
-  } finally {
-    updateInstallPromptVisible = false
-  }
+  titlebarUpdatePopoverOpen.value = true
 }
 
 async function installReadyUpdate({ skipConfirm = false } = {}) {
