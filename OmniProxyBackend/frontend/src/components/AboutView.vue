@@ -9,6 +9,7 @@ import {
   Monitor,
   RefreshRight,
   Setting,
+  SwitchButton,
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -97,10 +98,16 @@ const releaseActionLabel = computed(() => {
   if (props.updateInfo?.updateAvailable && (!props.updateInfo?.downloadUrl || !props.updateInfo?.checksumUrl)) return '打开发布页'
   return props.updateInfo?.updateAvailable ? '下载更新' : '打开发布页'
 })
-const releaseActionIcon = computed(() => (props.updateInfo?.updateAvailable ? Download : LinkIcon))
+const releaseActionIcon = computed(() => {
+  if (updateDownloadReady.value || updateDownloadInstalling.value) return SwitchButton
+  return props.updateInfo?.updateAvailable ? Download : LinkIcon
+})
 const updateBadge = computed(() => {
   if (isDevelopmentBuild.value) return { type: 'info', label: '开发版本' }
   if (!props.updateInfo) return { type: 'info', label: '未检查' }
+  if (props.updateInfo.updateAvailable && updateDownloadReady.value) return { type: 'success', label: '已准备好' }
+  if (props.updateInfo.updateAvailable && updateDownloadActive.value) return { type: 'warning', label: '下载中' }
+  if (props.updateInfo.updateAvailable && updateDownloadFailed.value) return { type: 'danger', label: '下载失败' }
   if (props.updateInfo.updateAvailable && props.updateInfo.prerelease) return { type: 'warning', label: 'Beta 可用' }
   if (props.updateInfo.updateAvailable) return { type: 'warning', label: '有新版本' }
   return { type: 'success', label: '已是最新' }
@@ -108,6 +115,9 @@ const updateBadge = computed(() => {
 const updateTitle = computed(() => {
   if (isDevelopmentBuild.value) return '开发版本跳过远端更新检测'
   if (!props.updateInfo) return '尚未进行手动检查'
+  if (props.updateInfo.updateAvailable && updateDownloadReady.value) {
+    return `新版本 ${props.updateInfo.latestVersion || ''} 已准备好`.trim()
+  }
   if (props.updateInfo.updateAvailable) {
     return `发现${props.updateInfo.prerelease ? ' Beta' : ''}新版本 ${props.updateInfo.latestVersion || ''}`.trim()
   }
@@ -118,18 +128,18 @@ const updateDescription = computed(() => {
   if (!props.updateInfo) return '启动后会自动检查一次；也可以在这里立即检查。'
   if (props.updateInfo.updateAvailable) {
     if (updateDownloadReady.value) {
-      return `安装包已下载并校验完成，重启 OmniProxy 即可完成更新：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
+      return `新版本已准备好，请重启 OmniProxy 以完成更新：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
     }
     if (updateDownloadInstalling.value) {
       return '正在启动更新安装器，OmniProxy 将自动退出并在安装完成后重新打开。'
     }
     if (updateDownloadActive.value) {
-      return `正在下载 ${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '安装包'}`
+      return `正在后台下载 ${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '更新安装包'}`
     }
     if (updateDownloadFailed.value) {
       return props.updateDownloadStatus?.error || '更新安装包下载失败。'
     }
-    return `当前版本 ${props.updateInfo.currentVersion || currentVersion.value}，最新版本 ${props.updateInfo.latestVersion || '-'}`
+    return `当前版本 ${props.updateInfo.currentVersion || currentVersion.value}，最新版本 ${props.updateInfo.latestVersion || '-'}，将自动下载安装包。`
   }
   return '未发现可用更新。'
 })
@@ -359,7 +369,18 @@ function formatBytes(value) {
           </div>
         </div>
 
-        <div :class="['update-status-box', updateInfo?.updateAvailable ? 'warning' : '']">
+        <div
+          :class="[
+            'update-status-box',
+            updateInfo?.updateAvailable ? 'warning' : '',
+            {
+              active: updateDownloadActive,
+              ready: updateDownloadReady,
+              failed: updateDownloadFailed,
+              installing: updateDownloadInstalling,
+            },
+          ]"
+        >
           <InfoFilled class="about-status-icon" aria-hidden="true" />
           <div>
             <strong>{{ updateTitle }}</strong>

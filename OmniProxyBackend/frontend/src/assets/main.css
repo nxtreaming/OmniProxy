@@ -1016,6 +1016,59 @@ td .el-tag {
   color: #1d232a;
 }
 
+body.dark .el-overlay.is-message-box {
+  background-color: rgba(2, 6, 23, 0.68);
+}
+
+body.dark .el-message-box {
+  border-color: rgba(148, 163, 184, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+    #111827;
+  color: #cbd5e1;
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.54),
+    0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+}
+
+body.dark .el-message-box__title {
+  color: #f8fafc;
+}
+
+body.dark .el-message-box__message {
+  color: #cbd5e1;
+}
+
+body.dark .el-message-box__headerbtn .el-message-box__close {
+  color: #94a3b8;
+}
+
+body.dark .el-message-box__headerbtn:hover .el-message-box__close,
+body.dark .el-message-box__headerbtn:focus .el-message-box__close {
+  color: #f8fafc;
+}
+
+body.dark .el-message-box .el-button {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+body.dark .el-message-box .el-button:hover,
+body.dark .el-message-box .el-button:focus {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: #273449;
+  color: #f8fafc;
+}
+
+body.dark .el-message-box .el-button--primary,
+body.dark .el-message-box .el-button--primary:hover,
+body.dark .el-message-box .el-button--primary:focus {
+  border-color: #6366f1;
+  background: #6366f1;
+  color: #ffffff;
+}
+
 .toast-message {
   min-width: 0;
   max-height: 8.7em;
@@ -16334,6 +16387,111 @@ body.dark .daily-detail-popover {
 .shell.dark .about-page .update-status-box {
   border-color: color-mix(in srgb, var(--line) 86%, transparent);
   background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .section-heading {
+  padding-bottom: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+}
+
+.about-page .version-hero {
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.about-page .version-hero strong {
+  font-size: clamp(34px, 3.7vw, 46px);
+  letter-spacing: 0;
+}
+
+.about-page .about-actions .el-button {
+  min-height: 36px;
+  border-radius: 999px;
+}
+
+.about-page .update-status-box {
+  position: relative;
+  overflow: hidden;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 13px;
+  border-radius: 18px;
+}
+
+.about-page .update-status-box::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--brand);
+  opacity: 0.72;
+}
+
+.about-page .update-status-box.warning {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--warning) 10%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.active {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand) 11%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.ready {
+  border-color: color-mix(in srgb, var(--success) 32%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--success) 11%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.failed {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--danger) 10%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.warning::before {
+  background: var(--warning);
+}
+
+.about-page .update-status-box.active::before,
+.about-page .update-status-box.installing::before {
+  background: var(--brand);
+}
+
+.about-page .update-status-box.ready::before {
+  background: var(--success);
+}
+
+.about-page .update-status-box.failed::before {
+  background: var(--danger);
+}
+
+.about-page .update-status-box.ready .about-status-icon {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.about-page .update-status-box.failed .about-status-icon {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.about-page .update-status-box > div {
+  position: relative;
+  z-index: 1;
+}
+
+.about-page .update-download-progress .el-progress {
+  max-width: 100%;
 }
 
 /* Dashboard daily usage: flatten nested report cards into a lighter Gemini surface. */

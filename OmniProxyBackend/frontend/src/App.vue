@@ -195,7 +195,6 @@ const quotaRefreshProgress = reactive({
 const deleteCandidate = ref(null)
 const deleteBusy = ref(false)
 const toastAutoCloseMs = 4000
-const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
 const pendingUpdateVersionKey = 'omniproxy.pendingUpdateVersion'
 const appThemeStorageKey = 'omniproxy.appTheme'
 const firstUseGuideStorageKey = 'omniproxy.firstRunGuideModalDismissed'
@@ -370,17 +369,30 @@ const titlebarUpdatePrompt = computed(() => {
   const currentVersion = update?.currentVersion || appInfo.version || '当前版本'
   const latestVersion = update?.latestVersion || '新版本'
   const canDownload = Boolean(updateAvailable && update?.downloadUrl && update?.checksumUrl)
+  const downloadState = updateDownloadMatches(update) ? String(updateDownloadStatus.value?.state || 'idle') : 'idle'
+  const downloadActive = downloadState === 'downloading'
+  const canInstall = downloadState === 'downloaded'
+  const canRetryDownload = downloadState === 'failed' && canDownload
+  const downloadPercent = Math.max(0, Math.min(100, Math.round(Number(updateDownloadStatus.value?.percent || 0))))
   return {
     update: updateAvailable ? update : null,
     canDownload,
+    canInstall,
+    canRetryDownload,
     currentVersion,
     latestVersion,
     badge: update?.prerelease ? 'Beta 更新可用' : '更新可用',
     title: `发现${update?.prerelease ? ' Beta' : ''}新版本 ${latestVersion}`,
-    description: canDownload
-      ? '可在应用内下载并校验更新安装包，下载完成后重启安装。'
-      : '暂未获取到可用安装包，可以打开关于应用查看发布页。',
-    primaryText: canDownload ? '下载更新' : '查看详情',
+    description: canInstall
+      ? '新版本已准备好，请重启 OmniProxy 以完成更新。'
+      : downloadActive
+        ? `正在后台下载更新安装包，当前进度 ${downloadPercent}%。`
+        : canRetryDownload
+          ? '更新安装包下载失败，可以重新下载或打开关于应用查看详情。'
+          : canDownload
+            ? '已发现新版本，OmniProxy 会自动下载安装包，完成后提示重启。'
+            : '暂未获取到可用安装包，可以打开关于应用查看发布页。',
+    primaryText: canInstall ? '重启安装' : canRetryDownload ? '重新下载' : downloadActive ? '查看进度' : '查看详情',
     tooltip: `发现新版本 ${latestVersion}`,
   }
 })
@@ -933,7 +945,11 @@ function toggleTitlebarUpdatePopover() {
 async function confirmTitlebarUpdatePopover() {
   const prompt = titlebarUpdatePrompt.value
   closeTitlebarUpdatePopover()
-  if (prompt.canDownload && prompt.update) {
+  if (prompt.canInstall) {
+    await installReadyUpdate()
+    return
+  }
+  if (prompt.canRetryDownload && prompt.update) {
     await startUpdateDownload(prompt.update)
     return
   }
@@ -1243,8 +1259,25 @@ function notifyCompletedUpdateIfNeeded() {
   successMessage.value = `已更新到 ${currentVersion}`
 }
 
+function updateDownloadMatches(update = lastUpdateInfo.value, status = updateDownloadStatus.value) {
+  if (!update?.updateAvailable || !status) {
+    return false
+  }
+  const latestVersion = String(update.latestVersion || '').trim()
+  const statusVersion = String(status.version || '').trim()
+  const downloadUrl = String(update.downloadUrl || '').trim()
+  const statusDownloadUrl = String(status.downloadUrl || '').trim()
+  return Boolean(
+    (latestVersion && statusVersion && statusVersion === latestVersion) ||
+      (downloadUrl && statusDownloadUrl && statusDownloadUrl === downloadUrl),
+  )
+}
+
+function currentUpdateDownloadState(update = lastUpdateInfo.value) {
+  return updateDownloadMatches(update) ? String(updateDownloadStatus.value?.state || 'idle') : 'idle'
+}
+
 async function checkForAvailableUpdate({ manual = false } = {}) {
-  let promptedVersion = ''
   if (manual) {
     updateChecking.value = true
     errorMessage.value = ''
@@ -1273,30 +1306,41 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
       }
       return
     }
-    promptedVersion = update.latestVersion
-    if (!manual && window.localStorage?.getItem(skippedUpdateVersionKey) === update.latestVersion) {
-      return
-    }
-
     if (!update.downloadUrl || !update.checksumUrl) {
       if (manual) {
         errorMessage.value = `发现新版本 ${update.latestVersion}，但没有可用的安装包或校验文件`
       }
       return
     }
-    const currentVersion = update.currentVersion || '当前版本'
-    const updateKind = update.prerelease ? ' Beta' : ''
-    await ElMessageBox.confirm(
-      `当前版本：${currentVersion}\n最新版本：${update.latestVersion}\n\n是否下载更新安装包？下载完成后会提示重启 OmniProxy 完成安装。`,
-      `发现${updateKind}新版本 ${update.latestVersion}`,
-      {
-        confirmButtonText: '下载更新',
-        cancelButtonText: '跳过此版本',
-        distinguishCancelAndClose: true,
-        type: 'info',
-      },
-    )
+
+    const downloadState = currentUpdateDownloadState(update)
+    if (downloadState === 'downloaded') {
+      updateInstallPromptVersion = update.latestVersion
+      if (manual) {
+        successMessage.value = `新版本 ${update.latestVersion} 已准备好，请重启 OmniProxy 以完成更新`
+      }
+      await promptInstallDownloadedUpdate(updateDownloadStatus.value)
+      return
+    }
+    if (downloadState === 'downloading') {
+      updateInstallPromptVersion = update.latestVersion
+      startUpdateDownloadPolling()
+      if (manual) {
+        successMessage.value = `已在后台下载 ${update.latestVersion} 更新安装包`
+      }
+      return
+    }
+    if (downloadState === 'installing') {
+      if (manual) {
+        successMessage.value = '更新安装器已启动，请按安装器提示完成更新'
+      }
+      return
+    }
+
     await startUpdateDownload(update)
+    if (manual) {
+      successMessage.value = `发现新版本 ${update.latestVersion}，已开始后台下载安装包`
+    }
   } catch (action) {
     if (action instanceof Error) {
       if (manual) {
@@ -1305,9 +1349,7 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
       return
     }
     if (typeof action === 'string') {
-      if (action === 'cancel' && promptedVersion) {
-        window.localStorage?.setItem(skippedUpdateVersionKey, promptedVersion)
-      } else if (manual && action !== 'close') {
+      if (manual && action !== 'close') {
         errorMessage.value = action
       }
       return
@@ -1337,6 +1379,20 @@ function updateDownloadPayload(update = lastUpdateInfo.value) {
 }
 
 async function startUpdateDownload(update = lastUpdateInfo.value) {
+  const currentState = currentUpdateDownloadState(update)
+  if (currentState === 'downloading') {
+    updateInstallPromptVersion = update?.latestVersion || updateDownloadStatus.value?.version || ''
+    startUpdateDownloadPolling()
+    return
+  }
+  if (currentState === 'downloaded') {
+    updateInstallPromptVersion = update?.latestVersion || updateDownloadStatus.value?.version || ''
+    await promptInstallDownloadedUpdate(updateDownloadStatus.value)
+    return
+  }
+  if (currentState === 'installing') {
+    return
+  }
   const payload = updateDownloadPayload(update)
   if (!payload.downloadUrl) {
     errorMessage.value = '没有可用的安装包下载地址'
@@ -1373,15 +1429,14 @@ async function refreshUpdateDownloadStatus() {
   try {
     const status = await getUpdateDownloadStatus()
     if (status) {
-      const previousState = updateDownloadStatus.value?.state || 'idle'
       updateDownloadStatus.value = status
       if (status.state === 'downloading') {
         startUpdateDownloadPolling()
       } else if (['downloaded', 'failed', 'installing', 'idle'].includes(status.state)) {
         stopUpdateDownloadPolling()
       }
-      if (status.state === 'downloaded' && previousState !== 'downloaded') {
-        promptInstallDownloadedUpdate(status)
+      if (status.state === 'downloaded') {
+        await promptInstallDownloadedUpdate(status)
       }
     }
   } catch {
@@ -1390,18 +1445,20 @@ async function refreshUpdateDownloadStatus() {
 }
 
 async function promptInstallDownloadedUpdate(status = updateDownloadStatus.value) {
-  const version = status?.version || lastUpdateInfo.value?.latestVersion || ''
-  if (!version || version !== updateInstallPromptVersion || updateInstallPromptVisible) {
+  const version = String(status?.version || lastUpdateInfo.value?.latestVersion || '').trim()
+  const expectedVersion = String(updateInstallPromptVersion || lastUpdateInfo.value?.latestVersion || '').trim()
+  const currentVersion = String(appInfo.version || '').trim()
+  if (!version || (expectedVersion && version !== expectedVersion) || version === currentVersion || updateInstallPromptVisible) {
     return
   }
   updateInstallPromptVersion = ''
   updateInstallPromptVisible = true
   try {
     await ElMessageBox.confirm(
-      `更新 ${version} 已下载并校验完成。重启 OmniProxy 后会自动安装并重新启动。`,
-      '重启完成更新',
+      `更新 ${version} 已下载并校验完成。请重启 OmniProxy 以完成更新。`,
+      '新版本已准备好',
       {
-        confirmButtonText: '立即重启安装',
+        confirmButtonText: '立即重启',
         cancelButtonText: '稍后',
         type: 'success',
       },
@@ -1421,10 +1478,10 @@ async function installReadyUpdate({ skipConfirm = false } = {}) {
   try {
     if (!skipConfirm) {
       await ElMessageBox.confirm(
-        '将关闭当前 OmniProxy，启动 Windows 安装器，并在安装完成后重新打开应用。',
-        '重启完成更新',
+        '将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。',
+        '新版本已准备好',
         {
-          confirmButtonText: '立即重启安装',
+          confirmButtonText: '立即重启',
           cancelButtonText: '稍后',
           type: 'info',
         },
