@@ -198,11 +198,13 @@ const toastAutoCloseMs = 4000
 const pendingUpdateVersionKey = 'omniproxy.pendingUpdateVersion'
 const appThemeStorageKey = 'omniproxy.appTheme'
 const firstUseGuideStorageKey = 'omniproxy.firstRunGuideModalDismissed'
+const updateCheckIntervalMs = 4 * 60 * 60 * 1000
 let toastTimer = null
 let workspaceScrollbarTimer = null
 let workspaceScrollSavePaused = false
 let realtimeTimer = null
 let updateCheckTimer = null
+let updateCheckInterval = null
 let updateDownloadTimer = null
 let updateInstallPromptVersion = ''
 let historyRefreshSeq = 0
@@ -1069,7 +1071,7 @@ onMounted(async () => {
   await refreshAll()
   notifyCompletedUpdateIfNeeded()
   await refreshUpdateDownloadStatus()
-  updateCheckTimer = window.setTimeout(() => checkForAvailableUpdate(), 2500)
+  updateCheckTimer = window.setTimeout(runScheduledUpdateCheck, 2500)
   realtimeTimer = window.setInterval(refreshRealtime, 3000)
 })
 
@@ -1084,6 +1086,10 @@ onBeforeUnmount(() => {
   if (updateCheckTimer) {
     window.clearTimeout(updateCheckTimer)
     updateCheckTimer = null
+  }
+  if (updateCheckInterval) {
+    window.clearInterval(updateCheckInterval)
+    updateCheckInterval = null
   }
   stopUpdateDownloadPolling()
   if (toastTimer) {
@@ -1374,6 +1380,14 @@ function manualCheckForUpdates() {
   return checkForAvailableUpdate({ manual: true })
 }
 
+async function runScheduledUpdateCheck() {
+  updateCheckTimer = null
+  await checkForAvailableUpdate()
+  if (!updateCheckInterval) {
+    updateCheckInterval = window.setInterval(() => checkForAvailableUpdate(), updateCheckIntervalMs)
+  }
+}
+
 function updateDownloadPayload(update = lastUpdateInfo.value) {
   return {
     version: update?.latestVersion || '',
@@ -1490,6 +1504,10 @@ async function installReadyUpdate({ skipConfirm = false } = {}) {
       errorMessage.value = action.message
     }
   }
+}
+
+function installReadyUpdateFromUpdateSurface() {
+  return installReadyUpdate({ skipConfirm: true })
 }
 
 async function refreshHistory(filters = requestHistoryFilters.value) {
@@ -4200,7 +4218,7 @@ async function refreshQuota(item) {
         :format-time="formatTime"
         @manual-check-for-updates="manualCheckForUpdates"
         @download-update="startUpdateDownload"
-        @install-update="installReadyUpdate"
+        @install-update="installReadyUpdateFromUpdateSurface"
         @open-url="openExternalURL"
       />
 
