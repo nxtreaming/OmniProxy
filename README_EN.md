@@ -252,7 +252,7 @@ The Dev build uses the `omniproxy_dev` build tag. App title, single-instance ID,
 | Channel | Tag Example | GitHub Release Behavior |
 | --- | --- | --- |
 | Stable | `v1.1.7` | Stable release for daily use. |
-| Beta | `v1.1.8-beta.1` | Pre-release for validating new features and regression fixes. |
+| Beta | `v1.1.8-beta.3` | Pre-release for validating new features and regression fixes. |
 | Dev | `dev-*` | Local build version, not published as a public release. |
 
 Release notes live in `docs/releases/`. Beta versions are marked as GitHub Pre-release, while stable versions are reserved for regular public releases.
