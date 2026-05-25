@@ -49,6 +49,7 @@ type Config struct {
 	ControlPort                        int      `json:"controlPort"`
 	SchedulingMode                     string   `json:"schedulingMode"`
 	WebSocketMode                      string   `json:"websocketMode"`
+	CheckBetaUpdates                   bool     `json:"checkBetaUpdates"`
 	TaskAutomationEnabled              bool     `json:"taskAutomationEnabled"`
 	TaskAutomationClients              []string `json:"taskAutomationClients"`
 	TaskAutomationLaunchMode           string   `json:"taskAutomationLaunchMode"`
@@ -102,6 +103,7 @@ func Default() Config {
 		ControlPort:                        DefaultControlPort(),
 		SchedulingMode:                     SchedulingModeQueue,
 		WebSocketMode:                      WebSocketModeEnabled,
+		CheckBetaUpdates:                   false,
 		TaskAutomationEnabled:              false,
 		TaskAutomationClients:              []string{"codex", "claude", "claude-desktop"},
 		TaskAutomationLaunchMode:           TaskAutomationLaunchModeMedia,
@@ -178,6 +180,7 @@ func (s *Store) Load() (Config, error) {
 		ControlPort                        *int      `json:"controlPort"`
 		SchedulingMode                     *string   `json:"schedulingMode"`
 		WebSocketMode                      *string   `json:"websocketMode"`
+		CheckBetaUpdates                   *bool     `json:"checkBetaUpdates"`
 		TaskAutomationEnabled              *bool     `json:"taskAutomationEnabled"`
 		TaskAutomationClients              *[]string `json:"taskAutomationClients"`
 		TaskAutomationLaunchMode           *string   `json:"taskAutomationLaunchMode"`
@@ -239,6 +242,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.WebSocketMode != nil {
 		cfg.WebSocketMode = *saved.WebSocketMode
+	}
+	if saved.CheckBetaUpdates != nil {
+		cfg.CheckBetaUpdates = *saved.CheckBetaUpdates
 	}
 	if saved.TaskAutomationEnabled != nil {
 		cfg.TaskAutomationEnabled = *saved.TaskAutomationEnabled

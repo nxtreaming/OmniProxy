@@ -193,6 +193,7 @@ const deleteCandidate = ref(null)
 const deleteBusy = ref(false)
 const toastAutoCloseMs = 4000
 const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
+const pendingUpdateVersionKey = 'omniproxy.pendingUpdateVersion'
 const appThemeStorageKey = 'omniproxy.appTheme'
 const firstUseGuideStorageKey = 'omniproxy.firstRunGuideModalDismissed'
 let toastTimer = null
@@ -201,6 +202,8 @@ let workspaceScrollSavePaused = false
 let realtimeTimer = null
 let updateCheckTimer = null
 let updateDownloadTimer = null
+let updateInstallPromptVersion = ''
+let updateInstallPromptVisible = false
 let historyRefreshSeq = 0
 let taskAutomationBrowserProfileSeq = 0
 const validatingIds = reactive({})
@@ -234,6 +237,7 @@ const config = reactive({
   controlPort: 3890,
   schedulingMode: 'queue',
   websocketMode: 'enabled',
+  checkBetaUpdates: false,
   taskAutomationEnabled: false,
   taskAutomationClients: ['codex', 'claude', 'claude-desktop'],
   taskAutomationLaunchMode: 'media',
@@ -359,10 +363,10 @@ const titlebarUpdatePrompt = computed(() => {
     canDownload,
     currentVersion,
     latestVersion,
-    badge: '更新可用',
-    title: `发现新版本 ${latestVersion}`,
+    badge: update?.prerelease ? 'Beta 更新可用' : '更新可用',
+    title: `发现${update?.prerelease ? ' Beta' : ''}新版本 ${latestVersion}`,
     description: canDownload
-      ? '可在应用内下载并校验更新安装包。'
+      ? '可在应用内下载并校验更新安装包，下载完成后重启安装。'
       : '暂未获取到可用安装包，可以打开关于应用查看发布页。',
     primaryText: canDownload ? '下载更新' : '查看详情',
     tooltip: `发现新版本 ${latestVersion}`,
@@ -1013,6 +1017,7 @@ onMounted(async () => {
   window.addEventListener('keydown', handleTitlebarUpdateKeydown)
   document.addEventListener('pointerdown', handleTitlebarUpdateOutsidePointer)
   await refreshAll()
+  notifyCompletedUpdateIfNeeded()
   await refreshUpdateDownloadStatus()
   updateCheckTimer = window.setTimeout(() => checkForAvailableUpdate(), 2500)
   realtimeTimer = window.setInterval(refreshRealtime, 3000)
@@ -1195,6 +1200,16 @@ async function refreshRealtime() {
   }
 }
 
+function notifyCompletedUpdateIfNeeded() {
+  const pendingVersion = window.localStorage?.getItem(pendingUpdateVersionKey)
+  const currentVersion = String(appInfo.version || '').trim()
+  if (!pendingVersion || !currentVersion || appInfo.isDevelopment || pendingVersion !== currentVersion) {
+    return
+  }
+  window.localStorage?.removeItem(pendingUpdateVersionKey)
+  successMessage.value = `已更新到 ${currentVersion}`
+}
+
 async function checkForAvailableUpdate({ manual = false } = {}) {
   let promptedVersion = ''
   if (manual) {
@@ -1237,9 +1252,10 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
       return
     }
     const currentVersion = update.currentVersion || '当前版本'
+    const updateKind = update.prerelease ? ' Beta' : ''
     await ElMessageBox.confirm(
-      `当前版本：${currentVersion}\n最新版本：${update.latestVersion}\n\n是否下载更新安装包？`,
-      `发现新版本 ${update.latestVersion}`,
+      `当前版本：${currentVersion}\n最新版本：${update.latestVersion}\n\n是否下载更新安装包？下载完成后会提示重启 OmniProxy 完成安装。`,
+      `发现${updateKind}新版本 ${update.latestVersion}`,
       {
         confirmButtonText: '下载更新',
         cancelButtonText: '跳过此版本',
@@ -1299,6 +1315,7 @@ async function startUpdateDownload(update = lastUpdateInfo.value) {
   }
   errorMessage.value = ''
   successMessage.value = ''
+  updateInstallPromptVersion = payload.version || ''
   const status = await downloadUpdate(payload)
   updateDownloadStatus.value = status || { state: 'downloading' }
   startUpdateDownloadPolling()
@@ -1323,11 +1340,15 @@ async function refreshUpdateDownloadStatus() {
   try {
     const status = await getUpdateDownloadStatus()
     if (status) {
+      const previousState = updateDownloadStatus.value?.state || 'idle'
       updateDownloadStatus.value = status
       if (status.state === 'downloading') {
         startUpdateDownloadPolling()
       } else if (['downloaded', 'failed', 'installing', 'idle'].includes(status.state)) {
         stopUpdateDownloadPolling()
+      }
+      if (status.state === 'downloaded' && previousState !== 'downloaded') {
+        promptInstallDownloadedUpdate(status)
       }
     }
   } catch {
@@ -1335,21 +1356,58 @@ async function refreshUpdateDownloadStatus() {
   }
 }
 
-async function installReadyUpdate() {
+async function promptInstallDownloadedUpdate(status = updateDownloadStatus.value) {
+  const version = status?.version || lastUpdateInfo.value?.latestVersion || ''
+  if (!version || version !== updateInstallPromptVersion || updateInstallPromptVisible) {
+    return
+  }
+  updateInstallPromptVersion = ''
+  updateInstallPromptVisible = true
   try {
     await ElMessageBox.confirm(
-      '安装器将从已校验的本地文件启动。安装过程中可能需要关闭当前 OmniProxy 窗口。',
-      '安装更新',
+      `更新 ${version} 已下载并校验完成。重启 OmniProxy 后会自动安装并重新启动。`,
+      '重启完成更新',
       {
-        confirmButtonText: '立即安装',
+        confirmButtonText: '立即重启安装',
         cancelButtonText: '稍后',
-        type: 'info',
+        type: 'success',
       },
     )
+    await installReadyUpdate({ skipConfirm: true })
+  } catch (action) {
+    if (action instanceof Error) {
+      errorMessage.value = action.message
+    }
+  } finally {
+    updateInstallPromptVisible = false
+  }
+}
+
+async function installReadyUpdate({ skipConfirm = false } = {}) {
+  let pendingVersion = ''
+  try {
+    if (!skipConfirm) {
+      await ElMessageBox.confirm(
+        '将关闭当前 OmniProxy，启动 Windows 安装器，并在安装完成后重新打开应用。',
+        '重启完成更新',
+        {
+          confirmButtonText: '立即重启安装',
+          cancelButtonText: '稍后',
+          type: 'info',
+        },
+      )
+    }
+    pendingVersion = updateDownloadStatus.value?.version || lastUpdateInfo.value?.latestVersion || ''
+    if (pendingVersion) {
+      window.localStorage?.setItem(pendingUpdateVersionKey, pendingVersion)
+    }
     const status = await installDownloadedUpdate()
     updateDownloadStatus.value = status || updateDownloadStatus.value
-    successMessage.value = '更新安装器已启动'
+    successMessage.value = '正在重启并安装更新'
   } catch (action) {
+    if (pendingVersion) {
+      window.localStorage?.removeItem(pendingUpdateVersionKey)
+    }
     if (action instanceof Error) {
       errorMessage.value = action.message
     }
@@ -2048,6 +2106,7 @@ async function persistConfig() {
       controlPort: Number(config.controlPort),
       schedulingMode: config.schedulingMode,
       websocketMode: config.websocketMode,
+      checkBetaUpdates: Boolean(config.checkBetaUpdates),
       taskAutomationEnabled: Boolean(config.taskAutomationEnabled),
       taskAutomationClients: Array.isArray(config.taskAutomationClients) ? config.taskAutomationClients : [],
       taskAutomationLaunchMode: String(config.taskAutomationLaunchMode || '').trim(),

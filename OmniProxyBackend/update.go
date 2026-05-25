@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
 	"strconv"
@@ -22,6 +21,8 @@ var appVersion = "dev"
 var appStartedAt = time.Now()
 
 var latestReleaseURL = "https://api.github.com/repos/mibgb65-cloud/OmniProxy/releases/latest"
+var releasesURL = "https://api.github.com/repos/mibgb65-cloud/OmniProxy/releases"
+var updateInstallerStart = defaultStartUpdateInstaller
 
 const updateCheckTimeout = 5 * time.Second
 
@@ -36,6 +37,7 @@ type updateInfo struct {
 	DownloadSize     int64  `json:"downloadSize,omitempty"`
 	Name             string `json:"name,omitempty"`
 	Body             string `json:"body,omitempty"`
+	Prerelease       bool   `json:"prerelease,omitempty"`
 }
 
 type appInfo struct {
@@ -68,11 +70,13 @@ func currentAppInfo() appInfo {
 }
 
 type githubRelease struct {
-	TagName string               `json:"tag_name"`
-	Name    string               `json:"name"`
-	HTMLURL string               `json:"html_url"`
-	Body    string               `json:"body"`
-	Assets  []githubReleaseAsset `json:"assets"`
+	TagName    string               `json:"tag_name"`
+	Name       string               `json:"name"`
+	HTMLURL    string               `json:"html_url"`
+	Body       string               `json:"body"`
+	Prerelease bool                 `json:"prerelease"`
+	Draft      bool                 `json:"draft"`
+	Assets     []githubReleaseAsset `json:"assets"`
 }
 
 type githubReleaseAsset struct {
@@ -118,7 +122,7 @@ type updateDownloader struct {
 	status updateDownloadStatus
 }
 
-func checkForUpdates(ctx context.Context, client *http.Client) (updateInfo, error) {
+func checkForUpdates(ctx context.Context, client *http.Client, includePrereleases bool) (updateInfo, error) {
 	current := strings.TrimSpace(appVersion)
 	if current == "" {
 		current = "dev"
@@ -134,27 +138,110 @@ func checkForUpdates(ctx context.Context, client *http.Client) (updateInfo, erro
 	ctx, cancel := context.WithTimeout(ctx, updateCheckTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestReleaseURL, nil)
+	var (
+		release githubRelease
+		found   bool
+		err     error
+	)
+	if includePrereleases {
+		release, found, err = fetchCandidateRelease(ctx, client)
+	} else {
+		release, err = fetchLatestRelease(ctx, client)
+		found = err == nil
+	}
 	if err != nil {
 		return info, err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "OmniProxy/"+current)
+	if !found {
+		return info, nil
+	}
 
+	return updateInfoFromRelease(info, release), nil
+}
+
+func fetchLatestRelease(ctx context.Context, client *http.Client) (githubRelease, error) {
+	req, err := newGitHubReleaseRequest(ctx, latestReleaseURL)
+	if err != nil {
+		return githubRelease{}, err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return info, err
+		return githubRelease{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return info, fmt.Errorf("check latest release: github returned %d", resp.StatusCode)
+		return githubRelease{}, fmt.Errorf("check latest release: github returned %d", resp.StatusCode)
 	}
 
 	var release githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return info, err
+		return githubRelease{}, err
 	}
+	return release, nil
+}
+
+func fetchCandidateRelease(ctx context.Context, client *http.Client) (githubRelease, bool, error) {
+	req, err := newGitHubReleaseRequest(ctx, releasesListURL())
+	if err != nil {
+		return githubRelease{}, false, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return githubRelease{}, false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return githubRelease{}, false, fmt.Errorf("check releases: github returned %d", resp.StatusCode)
+	}
+
+	var releases []githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return githubRelease{}, false, err
+	}
+	release, ok := latestVersionedRelease(releases, true)
+	return release, ok, nil
+}
+
+func newGitHubReleaseRequest(ctx context.Context, rawURL string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "OmniProxy/"+strings.TrimSpace(appVersion))
+	return req, nil
+}
+
+func releasesListURL() string {
+	separator := "?"
+	if strings.Contains(releasesURL, "?") {
+		separator = "&"
+	}
+	return releasesURL + separator + "per_page=20"
+}
+
+func latestVersionedRelease(releases []githubRelease, includePrereleases bool) (githubRelease, bool) {
+	var latest githubRelease
+	found := false
+	for _, release := range releases {
+		tag := strings.TrimSpace(release.TagName)
+		if tag == "" || release.Draft || (release.Prerelease && !includePrereleases) {
+			continue
+		}
+		if _, ok := parseVersion(tag); !ok {
+			continue
+		}
+		if !found || compareVersions(tag, latest.TagName) > 0 {
+			latest = release
+			found = true
+		}
+	}
+	return latest, found
+}
+
+func updateInfoFromRelease(info updateInfo, release githubRelease) updateInfo {
 	latest := strings.TrimSpace(release.TagName)
 	info.LatestVersion = latest
 	info.ReleaseURL = release.HTMLURL
@@ -165,8 +252,9 @@ func checkForUpdates(ctx context.Context, client *http.Client) (updateInfo, erro
 	info.DownloadSize = asset.Size
 	info.Name = release.Name
 	info.Body = release.Body
-	info.UpdateAvailable = compareVersions(latest, current) > 0
-	return info, nil
+	info.Prerelease = release.Prerelease
+	info.UpdateAvailable = compareVersions(latest, info.CurrentVersion) > 0
+	return info
 }
 
 func isDevelopmentVersion(version string) bool {
@@ -287,8 +375,7 @@ func (d *updateDownloader) Install() (updateDownloadStatus, error) {
 		return status, fmt.Errorf("update installer is unavailable: %w", err)
 	}
 
-	cmd := exec.Command(status.FilePath)
-	if err := cmd.Start(); err != nil {
+	if err := updateInstallerStart(status.FilePath, updateInstallerArgs()); err != nil {
 		d.fail(fmt.Sprintf("start update installer: %v", err))
 		return d.Status(), err
 	}
@@ -301,6 +388,10 @@ func (d *updateDownloader) Install() (updateDownloadStatus, error) {
 	status = d.status
 	d.mu.Unlock()
 	return status, nil
+}
+
+func updateInstallerArgs() []string {
+	return []string{"/S", "/OMNIPROXY_AUTOUPDATE=1"}
 }
 
 func (d *updateDownloader) download(ctx context.Context, client *http.Client, req updateDownloadRequest, fileName string) {

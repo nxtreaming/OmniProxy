@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -41,7 +42,7 @@ func TestCheckForUpdatesReportsAvailableRelease(t *testing.T) {
 	defer server.Close()
 	latestReleaseURL = server.URL
 
-	info, err := checkForUpdates(context.Background(), server.Client())
+	info, err := checkForUpdates(context.Background(), server.Client(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +54,82 @@ func TestCheckForUpdatesReportsAvailableRelease(t *testing.T) {
 	}
 	if info.ChecksumURL != "https://example.com/installer.exe.sha256" || info.DownloadFileName != "OmniProxy-Setup-v1.0.3-windows-amd64.exe" || info.DownloadSize != 123 {
 		t.Fatalf("unexpected update info: %#v", info)
+	}
+}
+
+func TestCheckForUpdatesReportsPrereleaseWhenEnabled(t *testing.T) {
+	restore := overrideUpdateGlobals("v1.0.2", "")
+	defer restore()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			t.Fatalf("unexpected releases path: %s", r.URL.String())
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{
+				"tag_name":   "v1.0.3",
+				"name":       "OmniProxy v1.0.3",
+				"html_url":   "https://github.com/mibgb65-cloud/OmniProxy/releases/tag/v1.0.3",
+				"body":       "stable notes",
+				"prerelease": false,
+				"assets": []map[string]any{
+					{
+						"name":                 "OmniProxy-Setup-v1.0.3-windows-amd64.exe",
+						"browser_download_url": "https://example.com/stable.exe",
+					},
+					{
+						"name":                 "OmniProxy-Setup-v1.0.3-windows-amd64.exe.sha256",
+						"browser_download_url": "https://example.com/stable.exe.sha256",
+					},
+				},
+			},
+			{
+				"tag_name":   "v1.0.4-beta.1",
+				"name":       "OmniProxy v1.0.4-beta.1",
+				"html_url":   "https://github.com/mibgb65-cloud/OmniProxy/releases/tag/v1.0.4-beta.1",
+				"body":       "beta notes",
+				"prerelease": true,
+				"assets": []map[string]any{
+					{
+						"name":                 "OmniProxy-Setup-v1.0.4-beta.1-windows-amd64.exe",
+						"browser_download_url": "https://example.com/beta.exe",
+						"size":                 456,
+					},
+					{
+						"name":                 "OmniProxy-Setup-v1.0.4-beta.1-windows-amd64.exe.sha256",
+						"browser_download_url": "https://example.com/beta.exe.sha256",
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+	releasesURL = server.URL
+
+	info, err := checkForUpdates(context.Background(), server.Client(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.UpdateAvailable || !info.Prerelease {
+		t.Fatalf("expected prerelease update, got %#v", info)
+	}
+	if info.LatestVersion != "v1.0.4-beta.1" || info.DownloadURL != "https://example.com/beta.exe" {
+		t.Fatalf("unexpected prerelease update info: %#v", info)
+	}
+}
+
+func TestLatestVersionedReleaseSkipsPrereleaseWhenDisabled(t *testing.T) {
+	releases := []githubRelease{
+		{TagName: "v1.0.4-beta.1", Prerelease: true},
+		{TagName: "v1.0.3"},
+	}
+	release, ok := latestVersionedRelease(releases, false)
+	if !ok || release.TagName != "v1.0.3" {
+		t.Fatalf("expected latest stable release, got ok=%v release=%#v", ok, release)
+	}
+	release, ok = latestVersionedRelease(releases, true)
+	if !ok || release.TagName != "v1.0.4-beta.1" {
+		t.Fatalf("expected prerelease candidate when enabled, got ok=%v release=%#v", ok, release)
 	}
 }
 
@@ -128,6 +205,48 @@ func TestUpdateDownloaderDownloadsAndVerifiesInstaller(t *testing.T) {
 	}
 }
 
+func TestUpdateDownloaderInstallStartsSilentAutoUpdate(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "OmniProxy-Setup-test.exe")
+	if err := os.WriteFile(filePath, []byte("fake installer"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStart := updateInstallerStart
+	defer func() {
+		updateInstallerStart = oldStart
+	}()
+
+	var gotPath string
+	var gotArgs []string
+	updateInstallerStart = func(filePath string, args []string) error {
+		gotPath = filePath
+		gotArgs = append([]string(nil), args...)
+		return nil
+	}
+
+	downloader := newUpdateDownloader()
+	downloader.status = updateDownloadStatus{
+		State:    "downloaded",
+		FileName: filepath.Base(filePath),
+		FilePath: filePath,
+		Verified: true,
+	}
+
+	status, err := downloader.Install()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != "installing" {
+		t.Fatalf("expected installing status, got %#v", status)
+	}
+	if gotPath != filePath {
+		t.Fatalf("expected installer path %q, got %q", filePath, gotPath)
+	}
+	if len(gotArgs) != 2 || gotArgs[0] != "/S" || gotArgs[1] != "/OMNIPROXY_AUTOUPDATE=1" {
+		t.Fatalf("unexpected installer args: %#v", gotArgs)
+	}
+}
+
 func TestCheckForUpdatesSkipsDevelopmentVersion(t *testing.T) {
 	restore := overrideUpdateGlobals("dev", "")
 	defer restore()
@@ -140,7 +259,7 @@ func TestCheckForUpdatesSkipsDevelopmentVersion(t *testing.T) {
 	defer server.Close()
 	latestReleaseURL = server.URL
 
-	info, err := checkForUpdates(context.Background(), server.Client())
+	info, err := checkForUpdates(context.Background(), server.Client(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,6 +295,7 @@ func TestCompareVersions(t *testing.T) {
 func overrideUpdateGlobals(version string, releaseURL string) func() {
 	oldVersion := appVersion
 	oldReleaseURL := latestReleaseURL
+	oldReleasesURL := releasesURL
 	appVersion = version
 	if releaseURL != "" {
 		latestReleaseURL = releaseURL
@@ -183,5 +303,6 @@ func overrideUpdateGlobals(version string, releaseURL string) func() {
 	return func() {
 		appVersion = oldVersion
 		latestReleaseURL = oldReleaseURL
+		releasesURL = oldReleasesURL
 	}
 }

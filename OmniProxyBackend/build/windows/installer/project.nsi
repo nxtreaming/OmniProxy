@@ -83,10 +83,20 @@ InstallDirRegKey HKLM "${UNINST_KEY}" "InstallLocation"
 ShowInstDetails show # This will always show the installation details.
 
 Var RemoveUserData
+Var AutoUpdate
 
 Function .onInit
    !insertmacro wails.checkArchitecture
    SetRegView 64
+   StrCpy $AutoUpdate "0"
+   ${GetParameters} $0
+   ClearErrors
+   ${GetOptions} $0 "/OMNIPROXY_AUTOUPDATE=" $1
+   IfErrors noAutoUpdate
+   StrCmp $1 "1" 0 noAutoUpdate
+   StrCpy $AutoUpdate "1"
+
+noAutoUpdate:
 
    ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
    ${If} $0 != ""
@@ -103,6 +113,36 @@ Function .onInit
 FunctionEnd
 
 Function ensureAppNotRunning
+    StrCmp $AutoUpdate "1" autoUpdateCheck interactiveCheck
+
+autoUpdateCheck:
+    StrCpy $2 0
+
+autoUpdateWait:
+    nsExec::ExecToStack 'cmd /C tasklist /FI $\"IMAGENAME eq ${PRODUCT_EXECUTABLE}$\" /NH | find /I $\"${PRODUCT_EXECUTABLE}$\" >NUL'
+    Pop $0
+    Pop $1
+    IntCmp $0 0 autoUpdateRunning autoUpdateDone autoUpdateDone
+
+autoUpdateRunning:
+    IntCmp $2 30 autoUpdateSleep autoUpdateForce autoUpdateForce
+
+autoUpdateSleep:
+    DetailPrint "正在等待 OmniProxy 退出..."
+    Sleep 1000
+    IntOp $2 $2 + 1
+    Goto autoUpdateWait
+
+autoUpdateForce:
+    DetailPrint "OmniProxy 未及时退出，正在强制关闭主进程..."
+    nsExec::ExecToLog 'taskkill /F /IM "${PRODUCT_EXECUTABLE}"'
+    Sleep 1000
+    Goto autoUpdateWait
+
+autoUpdateDone:
+    Return
+
+interactiveCheck:
 check:
     nsExec::ExecToStack 'cmd /C tasklist /FI $\"IMAGENAME eq ${PRODUCT_EXECUTABLE}$\" /NH | find /I $\"${PRODUCT_EXECUTABLE}$\" >NUL'
     Pop $0
@@ -167,6 +207,10 @@ Section
 
     SetRegView 64
     WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+
+    ${If} $AutoUpdate == "1"
+        Exec '"$INSTDIR\${PRODUCT_EXECUTABLE}"'
+    ${EndIf}
 SectionEnd
 
 Section "uninstall"

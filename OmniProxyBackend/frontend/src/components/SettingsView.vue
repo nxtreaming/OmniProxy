@@ -434,6 +434,19 @@ function normalizeOutboundProxyProviders(providers) {
                   {{ autoStartChanging ? '更新中' : autoStartEnabled ? '关闭自启' : '开启自启' }}
                 </button>
               </div>
+              <div class="data-directory-row">
+                <div>
+                  <span>软件更新</span>
+                  <strong>检测 Beta 版本更新</strong>
+                  <small>开启后会把 GitHub Pre-release/Beta 纳入更新提醒；关闭时只提醒正式版。</small>
+                </div>
+                <label class="toggle-field compact-toggle-field">
+                  <input v-model="config.checkBetaUpdates" class="toggle-input" type="checkbox" />
+                  <span class="toggle-switch" aria-hidden="true">
+                    <span class="toggle-thumb"></span>
+                  </span>
+                </label>
+              </div>
               <div class="data-directory-row maintenance-row">
                 <div>
                   <span>账单与请求历史</span>

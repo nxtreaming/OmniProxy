@@ -243,6 +243,12 @@ func (a *appServer) updateManager() *updateDownloader {
 	return a.updates
 }
 
+func (a *appServer) includePrereleaseUpdates() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cfg.CheckBetaUpdates
+}
+
 func (a *appServer) dataDirectoryInfo() config.DataDirectoryInfo {
 	a.mu.Lock()
 	dataDir := a.dataDir
@@ -1406,7 +1412,7 @@ func (a *appServer) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	info, err := checkForUpdates(r.Context(), http.DefaultClient)
+	info, err := checkForUpdates(r.Context(), http.DefaultClient, a.includePrereleaseUpdates())
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return

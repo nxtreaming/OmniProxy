@@ -5,6 +5,7 @@ export namespace config {
 	    controlPort: number;
 	    schedulingMode: string;
 	    websocketMode: string;
+	    checkBetaUpdates: boolean;
 	    taskAutomationEnabled: boolean;
 	    taskAutomationClients: string[];
 	    taskAutomationLaunchMode: string;
@@ -61,6 +62,7 @@ export namespace config {
 	        this.controlPort = source["controlPort"];
 	        this.schedulingMode = source["schedulingMode"];
 	        this.websocketMode = source["websocketMode"];
+	        this.checkBetaUpdates = source["checkBetaUpdates"];
 	        this.taskAutomationEnabled = source["taskAutomationEnabled"];
 	        this.taskAutomationClients = source["taskAutomationClients"];
 	        this.taskAutomationLaunchMode = source["taskAutomationLaunchMode"];
@@ -1207,6 +1209,7 @@ export namespace main {
 	    downloadSize?: number;
 	    name?: string;
 	    body?: string;
+	    prerelease?: boolean;
 
 	    static createFrom(source: any = {}) {
 	        return new updateInfo(source);
@@ -1224,6 +1227,7 @@ export namespace main {
 	        this.downloadSize = source["downloadSize"];
 	        this.name = source["name"];
 	        this.body = source["body"];
+	        this.prerelease = source["prerelease"];
 	    }
 	}
 

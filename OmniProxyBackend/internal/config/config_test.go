@@ -13,6 +13,9 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if cfg.OutboundProxyEnabled {
 		t.Fatal("expected outbound proxy disabled by default")
 	}
+	if cfg.CheckBetaUpdates {
+		t.Fatal("expected beta update checks disabled by default")
+	}
 	if cfg.OutboundProxyURL != "http://127.0.0.1:10808" {
 		t.Fatalf("expected default outbound proxy URL, got %q", cfg.OutboundProxyURL)
 	}

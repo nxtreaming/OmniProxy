@@ -80,6 +80,9 @@ const updateDownloadActive = computed(
 const updateDownloadReady = computed(
   () => downloadMatchesCurrentUpdate.value && updateDownloadState.value === 'downloaded',
 )
+const updateDownloadInstalling = computed(
+  () => downloadMatchesCurrentUpdate.value && updateDownloadState.value === 'installing',
+)
 const updateDownloadFailed = computed(
   () => downloadMatchesCurrentUpdate.value && updateDownloadState.value === 'failed',
 )
@@ -88,7 +91,8 @@ const updateDownloadPercent = computed(() =>
 )
 const releaseActionLabel = computed(() => {
   if (updateDownloadActive.value) return `下载中 ${updateDownloadPercent.value}%`
-  if (updateDownloadReady.value) return '立即安装'
+  if (updateDownloadInstalling.value) return '安装器已启动'
+  if (updateDownloadReady.value) return '重启安装'
   if (updateDownloadFailed.value) return '重新下载'
   if (props.updateInfo?.updateAvailable && (!props.updateInfo?.downloadUrl || !props.updateInfo?.checksumUrl)) return '打开发布页'
   return props.updateInfo?.updateAvailable ? '下载更新' : '打开发布页'
@@ -97,6 +101,7 @@ const releaseActionIcon = computed(() => (props.updateInfo?.updateAvailable ? Do
 const updateBadge = computed(() => {
   if (isDevelopmentBuild.value) return { type: 'info', label: '开发版本' }
   if (!props.updateInfo) return { type: 'info', label: '未检查' }
+  if (props.updateInfo.updateAvailable && props.updateInfo.prerelease) return { type: 'warning', label: 'Beta 可用' }
   if (props.updateInfo.updateAvailable) return { type: 'warning', label: '有新版本' }
   return { type: 'success', label: '已是最新' }
 })
@@ -104,7 +109,7 @@ const updateTitle = computed(() => {
   if (isDevelopmentBuild.value) return '开发版本跳过远端更新检测'
   if (!props.updateInfo) return '尚未进行手动检查'
   if (props.updateInfo.updateAvailable) {
-    return `发现新版本 ${props.updateInfo.latestVersion || ''}`.trim()
+    return `发现${props.updateInfo.prerelease ? ' Beta' : ''}新版本 ${props.updateInfo.latestVersion || ''}`.trim()
   }
   return `当前已是最新版本 ${props.updateInfo.currentVersion || currentVersion.value}`.trim()
 })
@@ -113,7 +118,10 @@ const updateDescription = computed(() => {
   if (!props.updateInfo) return '启动后会自动检查一次；也可以在这里立即检查。'
   if (props.updateInfo.updateAvailable) {
     if (updateDownloadReady.value) {
-      return `安装包已下载并校验完成：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
+      return `安装包已下载并校验完成，重启 OmniProxy 即可完成更新：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
+    }
+    if (updateDownloadInstalling.value) {
+      return '正在启动更新安装器，OmniProxy 将自动退出并在安装完成后重新打开。'
     }
     if (updateDownloadActive.value) {
       return `正在下载 ${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '安装包'}`
@@ -126,7 +134,7 @@ const updateDescription = computed(() => {
   return '未发现可用更新。'
 })
 const updateDownloadDetail = computed(() => {
-  if (!downloadMatchesCurrentUpdate.value || !['downloading', 'downloaded', 'failed'].includes(updateDownloadState.value)) {
+  if (!downloadMatchesCurrentUpdate.value || !['downloading', 'downloaded', 'failed', 'installing'].includes(updateDownloadState.value)) {
     return ''
   }
   const received = formatBytes(props.updateDownloadStatus?.bytesReceived || 0)
@@ -336,7 +344,7 @@ function formatBytes(value) {
               v-if="releaseUrl"
               :icon="releaseActionIcon"
               :loading="updateDownloadActive"
-              :disabled="updateDownloadActive"
+              :disabled="updateDownloadActive || updateDownloadInstalling"
               @click="updateDownloadReady ? $emit('install-update') : updateInfo?.updateAvailable && updateInfo?.downloadUrl && updateInfo?.checksumUrl ? $emit('download-update') : $emit('open-url', releaseUrl)"
             >
               {{ releaseActionLabel }}
@@ -357,10 +365,10 @@ function formatBytes(value) {
             <strong>{{ updateTitle }}</strong>
             <p>{{ updateDescription }}</p>
             <small v-if="updateCheckedAt">上次检查 {{ formatDate(updateCheckedAt) }}</small>
-            <div v-if="updateDownloadActive || updateDownloadReady || updateDownloadFailed" class="update-download-progress">
+            <div v-if="updateDownloadActive || updateDownloadReady || updateDownloadFailed || updateDownloadInstalling" class="update-download-progress">
               <el-progress
                 :percentage="updateDownloadPercent"
-                :status="updateDownloadFailed ? 'exception' : updateDownloadReady ? 'success' : undefined"
+                :status="updateDownloadFailed ? 'exception' : updateDownloadReady || updateDownloadInstalling ? 'success' : undefined"
               />
               <small v-if="updateDownloadDetail">{{ updateDownloadDetail }}</small>
             </div>

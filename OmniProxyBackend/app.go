@@ -433,7 +433,7 @@ func (a *DesktopApp) StopProxy() (map[string]any, error) {
 }
 
 func (a *DesktopApp) CheckForUpdates() (updateInfo, error) {
-	return checkForUpdates(a.callContext(), http.DefaultClient)
+	return checkForUpdates(a.callContext(), http.DefaultClient, a.server.includePrereleaseUpdates())
 }
 
 func (a *DesktopApp) DownloadUpdate(req updateDownloadRequest) (updateDownloadStatus, error) {
@@ -445,7 +445,18 @@ func (a *DesktopApp) UpdateDownloadStatus() updateDownloadStatus {
 }
 
 func (a *DesktopApp) InstallDownloadedUpdate() (updateDownloadStatus, error) {
-	return a.server.updateManager().Install()
+	status, err := a.server.updateManager().Install()
+	if err != nil {
+		return status, err
+	}
+	if a.ctx != nil {
+		ctx := a.ctx
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			runtime.Quit(ctx)
+		}()
+	}
+	return status, nil
 }
 
 func (a *DesktopApp) AppInfo() appInfo {
