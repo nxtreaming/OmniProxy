@@ -15,6 +15,108 @@ permissions:
   contents: write
 
 jobs:
+  macos_preview:
+    name: macOS universal unsigned preview
+    runs-on: macos-latest
+    needs: windows
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.tag }}"
+          if [[ -z "$tag" ]]; then
+            tag="${{ github.ref_name }}"
+          fi
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          prerelease=false
+          if [[ "$tag" == *-* ]]; then
+            prerelease=true
+          fi
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: OmniProxyBackend/go.mod
+          cache-dependency-path: OmniProxyBackend/go.sum
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: OmniProxyBackend/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: OmniProxyBackend/frontend
+        run: npm ci
+
+      - name: Test backend
+        working-directory: OmniProxyBackend
+        run: go test ./...
+
+      - name: Test frontend
+        working-directory: OmniProxyBackend/frontend
+        run: npm test
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Build macOS universal app
+        working-directory: OmniProxyBackend
+        shell: bash
+        run: |
+          version="${{ steps.release.outputs.tag }}"
+          "$(go env GOPATH)/bin/wails" build -clean -platform darwin/universal -ldflags "-X main.appVersion=$version"
+          clean_version="${version#v}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $clean_version" build/bin/OmniProxy.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $clean_version" build/bin/OmniProxy.app/Contents/Info.plist
+          codesign --force --deep --sign - build/bin/OmniProxy.app
+
+      - name: Package unsigned DMG for beta testing
+        working-directory: OmniProxyBackend
+        shell: bash
+        run: |
+          version="${{ steps.release.outputs.tag }}"
+          asset="OmniProxy-$version-darwin-universal-unsigned.dmg"
+          mkdir -p build/dmg-root
+          cp -R build/bin/OmniProxy.app build/dmg-root/
+          ln -s /Applications build/dmg-root/Applications
+          hdiutil create -volname "OmniProxy" -srcfolder build/dmg-root -ov -format UDZO "$asset"
+          shasum -a 256 "$asset" > "$asset.sha256"
+
+      - name: Upload macOS preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned
+          path: |
+            OmniProxyBackend/OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned.dmg
+            OmniProxyBackend/OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned.dmg.sha256
+          retention-days: 14
+
+      - name: Attach macOS unsigned DMG to beta release
+        if: steps.release.outputs.prerelease == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: OmniProxy ${{ steps.release.outputs.tag }}
+          prerelease: true
+          overwrite_files: true
+          files: |
+            OmniProxyBackend/OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned.dmg
+            OmniProxyBackend/OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned.dmg.sha256
+
   windows:
     name: Windows installer
     runs-on: windows-latest

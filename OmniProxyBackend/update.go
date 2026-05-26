@@ -267,22 +267,11 @@ func updateDownloadURL(assets []githubReleaseAsset) string {
 }
 
 func updateDownloadAssetFromAssets(assets []githubReleaseAsset) updateDownloadAsset {
-	installer := githubReleaseAsset{}
-	for _, asset := range assets {
-		name := strings.ToLower(asset.Name)
-		if strings.HasSuffix(name, ".exe") && strings.Contains(name, "windows") && strings.Contains(name, "amd64") {
-			installer = asset
-			break
-		}
-	}
-	if installer.BrowserDownloadURL == "" {
-		for _, asset := range assets {
-			if strings.HasSuffix(strings.ToLower(asset.Name), ".exe") {
-				installer = asset
-				break
-			}
-		}
-	}
+	return updateDownloadAssetFromAssetsForPlatform(assets, goruntime.GOOS, goruntime.GOARCH)
+}
+
+func updateDownloadAssetFromAssetsForPlatform(assets []githubReleaseAsset, goos string, goarch string) updateDownloadAsset {
+	installer := selectUpdateInstallerAsset(assets, goos, goarch)
 	if installer.BrowserDownloadURL == "" {
 		return updateDownloadAsset{}
 	}
@@ -293,6 +282,14 @@ func updateDownloadAssetFromAssets(assets []githubReleaseAsset) updateDownloadAs
 		if strings.ToLower(asset.Name) == wantChecksumName {
 			checksumURL = asset.BrowserDownloadURL
 			break
+		}
+	}
+	if checksumURL == "" {
+		for _, asset := range assets {
+			if updateChecksumMatchesPlatform(asset.Name, goos, goarch) {
+				checksumURL = asset.BrowserDownloadURL
+				break
+			}
 		}
 	}
 	if checksumURL == "" {
@@ -309,6 +306,99 @@ func updateDownloadAssetFromAssets(assets []githubReleaseAsset) updateDownloadAs
 		ChecksumURL: checksumURL,
 		FileName:    installer.Name,
 		Size:        installer.Size,
+	}
+}
+
+func selectUpdateInstallerAsset(assets []githubReleaseAsset, goos string, goarch string) githubReleaseAsset {
+	switch strings.ToLower(strings.TrimSpace(goos)) {
+	case "darwin":
+		for _, asset := range assets {
+			name := strings.ToLower(asset.Name)
+			if strings.HasSuffix(name, ".dmg") && (strings.Contains(name, "darwin") || strings.Contains(name, "macos")) && strings.Contains(name, "universal") {
+				return asset
+			}
+		}
+		for _, asset := range assets {
+			name := strings.ToLower(asset.Name)
+			if strings.HasSuffix(name, ".dmg") && (strings.Contains(name, "darwin") || strings.Contains(name, "macos")) && updateAssetNameContainsArch(name, goarch) {
+				return asset
+			}
+		}
+		for _, asset := range assets {
+			name := strings.ToLower(asset.Name)
+			if strings.HasSuffix(name, ".dmg") && (strings.Contains(name, "darwin") || strings.Contains(name, "macos")) {
+				return asset
+			}
+		}
+		for _, asset := range assets {
+			if strings.HasSuffix(strings.ToLower(asset.Name), ".dmg") {
+				return asset
+			}
+		}
+	case "windows":
+		return selectWindowsUpdateInstallerAsset(assets, goarch)
+	default:
+		for _, asset := range assets {
+			name := strings.ToLower(asset.Name)
+			if strings.Contains(name, strings.ToLower(goos)) && updateAssetNameContainsArch(name, goarch) {
+				return asset
+			}
+		}
+	}
+	return githubReleaseAsset{}
+}
+
+func selectWindowsUpdateInstallerAsset(assets []githubReleaseAsset, goarch string) githubReleaseAsset {
+	installer := githubReleaseAsset{}
+	for _, asset := range assets {
+		name := strings.ToLower(asset.Name)
+		if strings.HasSuffix(name, ".exe") && strings.Contains(name, "windows") && updateAssetNameContainsArch(name, goarch) {
+			installer = asset
+			break
+		}
+	}
+	if installer.BrowserDownloadURL == "" {
+		for _, asset := range assets {
+			if strings.HasSuffix(strings.ToLower(asset.Name), ".exe") {
+				installer = asset
+				break
+			}
+		}
+	}
+	return installer
+}
+
+func updateChecksumMatchesPlatform(name string, goos string, goarch string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if !strings.HasSuffix(lower, ".sha256") {
+		return false
+	}
+	lower = strings.TrimSuffix(lower, ".sha256")
+	switch strings.ToLower(strings.TrimSpace(goos)) {
+	case "darwin":
+		return strings.HasSuffix(lower, ".dmg") &&
+			(strings.Contains(lower, "darwin") || strings.Contains(lower, "macos")) &&
+			(strings.Contains(lower, "universal") || updateAssetNameContainsArch(lower, goarch))
+	case "windows":
+		return strings.HasSuffix(lower, ".exe") &&
+			strings.Contains(lower, "windows") &&
+			updateAssetNameContainsArch(lower, goarch)
+	default:
+		return strings.Contains(lower, strings.ToLower(goos)) && updateAssetNameContainsArch(lower, goarch)
+	}
+}
+
+func updateAssetNameContainsArch(name string, goarch string) bool {
+	name = strings.ToLower(name)
+	switch strings.ToLower(strings.TrimSpace(goarch)) {
+	case "amd64":
+		return strings.Contains(name, "amd64") || strings.Contains(name, "x64") || strings.Contains(name, "x86_64")
+	case "arm64":
+		return strings.Contains(name, "arm64") || strings.Contains(name, "aarch64") || strings.Contains(name, "universal")
+	case "":
+		return true
+	default:
+		return strings.Contains(name, strings.ToLower(goarch))
 	}
 }
 
@@ -391,7 +481,14 @@ func (d *updateDownloader) Install() (updateDownloadStatus, error) {
 }
 
 func updateInstallerArgs() []string {
-	return []string{"/S", "/OMNIPROXY_AUTOUPDATE=1"}
+	if goruntime.GOOS == "windows" {
+		return []string{"/S", "/OMNIPROXY_AUTOUPDATE=1"}
+	}
+	return nil
+}
+
+func shouldQuitAfterUpdateInstall() bool {
+	return goruntime.GOOS == "windows"
 }
 
 func (d *updateDownloader) download(ctx context.Context, client *http.Client, req updateDownloadRequest, fileName string) {
@@ -557,21 +654,55 @@ func isHexString(value string) bool {
 }
 
 func updateInstallerFileName(req updateDownloadRequest) (string, error) {
+	return updateInstallerFileNameForPlatform(req, goruntime.GOOS)
+}
+
+func updateInstallerFileNameForPlatform(req updateDownloadRequest, goos string) (string, error) {
 	name := strings.TrimSpace(req.FileName)
 	if name == "" {
 		name = fileNameFromURL(req.DownloadURL)
 	}
 	if name == "" {
-		name = "OmniProxy-Setup.exe"
+		name = defaultUpdateInstallerFileName(goos)
 	}
 	name = filepath.Base(strings.ReplaceAll(name, "\\", "/"))
-	if !strings.HasSuffix(strings.ToLower(name), ".exe") {
-		return "", fmt.Errorf("update installer must be an .exe file")
+	if !validUpdateInstallerExtension(name, goos) {
+		return "", fmt.Errorf("update installer must be a %s file", strings.Join(updateInstallerExtensions(goos), " or "))
 	}
-	if strings.ContainsAny(name, `<>:"|?*`) {
+	if strings.ToLower(strings.TrimSpace(goos)) == "windows" && strings.ContainsAny(name, `<>:"|?*`) {
 		return "", fmt.Errorf("update installer file name contains invalid characters")
 	}
 	return name, nil
+}
+
+func defaultUpdateInstallerFileName(goos string) string {
+	switch strings.ToLower(strings.TrimSpace(goos)) {
+	case "darwin":
+		return "OmniProxy.dmg"
+	default:
+		return "OmniProxy-Setup.exe"
+	}
+}
+
+func validUpdateInstallerExtension(name string, goos string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	for _, ext := range updateInstallerExtensions(goos) {
+		if strings.HasSuffix(lower, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func updateInstallerExtensions(goos string) []string {
+	switch strings.ToLower(strings.TrimSpace(goos)) {
+	case "darwin":
+		return []string{".dmg"}
+	case "windows":
+		return []string{".exe"}
+	default:
+		return []string{".exe"}
+	}
 }
 
 func fileNameFromURL(rawURL string) string {

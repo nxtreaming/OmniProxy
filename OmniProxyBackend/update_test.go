@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -36,6 +38,15 @@ func TestCheckForUpdatesReportsAvailableRelease(t *testing.T) {
 					"name":                 "OmniProxy-Setup-v1.0.3-windows-amd64.exe.sha256",
 					"browser_download_url": "https://example.com/installer.exe.sha256",
 				},
+				{
+					"name":                 "OmniProxy-v1.0.3-darwin-universal.dmg",
+					"browser_download_url": "https://example.com/installer.dmg",
+					"size":                 456,
+				},
+				{
+					"name":                 "OmniProxy-v1.0.3-darwin-universal.dmg.sha256",
+					"browser_download_url": "https://example.com/installer.dmg.sha256",
+				},
 			},
 		})
 	}))
@@ -49,10 +60,11 @@ func TestCheckForUpdatesReportsAvailableRelease(t *testing.T) {
 	if !info.UpdateAvailable {
 		t.Fatalf("expected update to be available, got %#v", info)
 	}
-	if info.CurrentVersion != "v1.0.2" || info.LatestVersion != "v1.0.3" || info.DownloadURL != "https://example.com/installer.exe" {
+	wantName, wantURL, wantChecksum, wantSize := expectedUpdateAsset("v1.0.3", "installer")
+	if info.CurrentVersion != "v1.0.2" || info.LatestVersion != "v1.0.3" || info.DownloadURL != wantURL {
 		t.Fatalf("unexpected update info: %#v", info)
 	}
-	if info.ChecksumURL != "https://example.com/installer.exe.sha256" || info.DownloadFileName != "OmniProxy-Setup-v1.0.3-windows-amd64.exe" || info.DownloadSize != 123 {
+	if info.ChecksumURL != wantChecksum || info.DownloadFileName != wantName || info.DownloadSize != wantSize {
 		t.Fatalf("unexpected update info: %#v", info)
 	}
 }
@@ -81,6 +93,14 @@ func TestCheckForUpdatesReportsPrereleaseWhenEnabled(t *testing.T) {
 						"name":                 "OmniProxy-Setup-v1.0.3-windows-amd64.exe.sha256",
 						"browser_download_url": "https://example.com/stable.exe.sha256",
 					},
+					{
+						"name":                 "OmniProxy-v1.0.3-darwin-universal.dmg",
+						"browser_download_url": "https://example.com/stable.dmg",
+					},
+					{
+						"name":                 "OmniProxy-v1.0.3-darwin-universal.dmg.sha256",
+						"browser_download_url": "https://example.com/stable.dmg.sha256",
+					},
 				},
 			},
 			{
@@ -99,6 +119,15 @@ func TestCheckForUpdatesReportsPrereleaseWhenEnabled(t *testing.T) {
 						"name":                 "OmniProxy-Setup-v1.0.4-beta.1-windows-amd64.exe.sha256",
 						"browser_download_url": "https://example.com/beta.exe.sha256",
 					},
+					{
+						"name":                 "OmniProxy-v1.0.4-beta.1-darwin-universal.dmg",
+						"browser_download_url": "https://example.com/beta.dmg",
+						"size":                 789,
+					},
+					{
+						"name":                 "OmniProxy-v1.0.4-beta.1-darwin-universal.dmg.sha256",
+						"browser_download_url": "https://example.com/beta.dmg.sha256",
+					},
 				},
 			},
 		})
@@ -113,7 +142,8 @@ func TestCheckForUpdatesReportsPrereleaseWhenEnabled(t *testing.T) {
 	if !info.UpdateAvailable || !info.Prerelease {
 		t.Fatalf("expected prerelease update, got %#v", info)
 	}
-	if info.LatestVersion != "v1.0.4-beta.1" || info.DownloadURL != "https://example.com/beta.exe" {
+	_, wantURL, _, _ := expectedUpdateAsset("v1.0.4-beta.1", "beta")
+	if info.LatestVersion != "v1.0.4-beta.1" || info.DownloadURL != wantURL {
 		t.Fatalf("unexpected prerelease update info: %#v", info)
 	}
 }
@@ -134,20 +164,32 @@ func TestLatestVersionedReleaseSkipsPrereleaseWhenDisabled(t *testing.T) {
 }
 
 func TestUpdateDownloadAssetFromAssetsSelectsInstallerAndChecksum(t *testing.T) {
-	asset := updateDownloadAssetFromAssets([]githubReleaseAsset{
+	asset := updateDownloadAssetFromAssetsForPlatform([]githubReleaseAsset{
 		{Name: "source.zip", BrowserDownloadURL: "https://example.com/source.zip"},
 		{Name: "OmniProxy-Setup-v1.2.3-windows-amd64.exe.sha256", BrowserDownloadURL: "https://example.com/setup.exe.sha256"},
 		{Name: "OmniProxy-Setup-v1.2.3-windows-amd64.exe", BrowserDownloadURL: "https://example.com/setup.exe", Size: 42},
-	})
+	}, "windows", "amd64")
 	if asset.URL != "https://example.com/setup.exe" || asset.ChecksumURL != "https://example.com/setup.exe.sha256" || asset.FileName != "OmniProxy-Setup-v1.2.3-windows-amd64.exe" || asset.Size != 42 {
 		t.Fatalf("unexpected asset selection: %#v", asset)
+	}
+}
+
+func TestUpdateDownloadAssetFromAssetsSelectsDarwinUniversal(t *testing.T) {
+	asset := updateDownloadAssetFromAssetsForPlatform([]githubReleaseAsset{
+		{Name: "OmniProxy-Setup-v1.2.3-windows-amd64.exe", BrowserDownloadURL: "https://example.com/setup.exe"},
+		{Name: "OmniProxy-v1.2.3-darwin-arm64.dmg", BrowserDownloadURL: "https://example.com/arm64.dmg"},
+		{Name: "OmniProxy-v1.2.3-darwin-universal.dmg.sha256", BrowserDownloadURL: "https://example.com/universal.dmg.sha256"},
+		{Name: "OmniProxy-v1.2.3-darwin-universal.dmg", BrowserDownloadURL: "https://example.com/universal.dmg", Size: 84},
+	}, "darwin", "arm64")
+	if asset.URL != "https://example.com/universal.dmg" || asset.ChecksumURL != "https://example.com/universal.dmg.sha256" || asset.FileName != "OmniProxy-v1.2.3-darwin-universal.dmg" || asset.Size != 84 {
+		t.Fatalf("unexpected darwin asset selection: %#v", asset)
 	}
 }
 
 func TestUpdateDownloaderDownloadsAndVerifiesInstaller(t *testing.T) {
 	content := []byte("fake installer bytes")
 	sum := sha256.Sum256(content)
-	fileName := fmt.Sprintf("OmniProxy-Setup-test-%d.exe", time.Now().UnixNano())
+	fileName := testInstallerFileName()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -242,8 +284,17 @@ func TestUpdateDownloaderInstallStartsSilentAutoUpdate(t *testing.T) {
 	if gotPath != filePath {
 		t.Fatalf("expected installer path %q, got %q", filePath, gotPath)
 	}
-	if len(gotArgs) != 2 || gotArgs[0] != "/S" || gotArgs[1] != "/OMNIPROXY_AUTOUPDATE=1" {
+	if !reflect.DeepEqual(gotArgs, updateInstallerArgs()) {
 		t.Fatalf("unexpected installer args: %#v", gotArgs)
+	}
+}
+
+func TestUpdateInstallerFileNameValidatesPlatformExtensions(t *testing.T) {
+	if name, err := updateInstallerFileNameForPlatform(updateDownloadRequest{FileName: "OmniProxy-v1.2.3-darwin-universal.dmg"}, "darwin"); err != nil || name != "OmniProxy-v1.2.3-darwin-universal.dmg" {
+		t.Fatalf("expected darwin dmg to be accepted, name=%q err=%v", name, err)
+	}
+	if _, err := updateInstallerFileNameForPlatform(updateDownloadRequest{FileName: "OmniProxy-v1.2.3-darwin-universal.dmg"}, "windows"); err == nil {
+		t.Fatal("expected windows updater to reject dmg installer")
 	}
 }
 
@@ -305,4 +356,20 @@ func overrideUpdateGlobals(version string, releaseURL string) func() {
 		latestReleaseURL = oldReleaseURL
 		releasesURL = oldReleasesURL
 	}
+}
+
+func expectedUpdateAsset(version string, stem string) (string, string, string, int64) {
+	if runtime.GOOS == "darwin" {
+		name := fmt.Sprintf("OmniProxy-%s-darwin-universal.dmg", version)
+		return name, fmt.Sprintf("https://example.com/%s.dmg", stem), fmt.Sprintf("https://example.com/%s.dmg.sha256", stem), 456
+	}
+	name := fmt.Sprintf("OmniProxy-Setup-%s-windows-amd64.exe", version)
+	return name, fmt.Sprintf("https://example.com/%s.exe", stem), fmt.Sprintf("https://example.com/%s.exe.sha256", stem), 123
+}
+
+func testInstallerFileName() string {
+	if runtime.GOOS == "darwin" {
+		return fmt.Sprintf("OmniProxy-test-%d.dmg", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("OmniProxy-Setup-test-%d.exe", time.Now().UnixNano())
 }

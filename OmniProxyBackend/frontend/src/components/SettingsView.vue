@@ -428,8 +428,8 @@ function normalizeOutboundProxyProviders(providers) {
               <div class="data-directory-row startup-row">
                 <div>
                   <span>常驻后台</span>
-                  <strong>系统托盘与开机自启</strong>
-                  <small>关闭主窗口时保留托盘入口，可从托盘启动/停止代理、查看端口、打开主界面或退出。</small>
+                  <strong>系统托盘 / 菜单栏与开机自启</strong>
+                  <small>关闭主窗口时保留后台入口，可从托盘或 macOS 菜单栏启动/停止代理、查看端口、打开主界面或退出。</small>
                 </div>
                 <button
                   type="button"
@@ -639,7 +639,7 @@ function normalizeOutboundProxyProviders(providers) {
                 <input
                   v-model="config.taskAutomationLaunchTarget"
                   type="text"
-                  placeholder="选择预设，或填 exe / lnk 路径、网址"
+                  placeholder="选择预设，或填应用路径、快捷方式、网址"
                   :disabled="isTaskAutomationLinuxDO()"
                 />
                 <small v-if="isTaskAutomationLinuxDO()">Linux.do 模式固定打开 https://linux.do/，浏览器登录态由下方用户资料决定。</small>

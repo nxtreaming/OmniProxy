@@ -363,6 +363,7 @@ const appInfo = reactive({
   executablePath: '',
   startedAt: '',
 })
+const isMacOSPlatform = computed(() => String(appInfo.platform || '').toLowerCase().startsWith('darwin/'))
 const titlebarUpdateVisible = computed(() => Boolean(lastUpdateInfo.value?.updateAvailable && !appInfo.isDevelopment))
 const titlebarUpdatePrompt = computed(() => {
   const update = lastUpdateInfo.value || {}
@@ -392,15 +393,17 @@ const titlebarUpdatePrompt = computed(() => {
     badge,
     title: canInstall ? `新版本 ${latestVersion} 已准备好` : `发现${update?.prerelease ? ' Beta' : ''}新版本 ${latestVersion}`,
     description: canInstall
-      ? '点击重启安装将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。'
+      ? isMacOSPlatform.value
+        ? '点击打开安装包后，将 OmniProxy 拖入 Applications 以完成更新。'
+        : '点击重启安装将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。'
       : downloadActive
         ? `正在后台下载更新安装包，当前进度 ${downloadPercent}%。`
         : canRetryDownload
           ? '更新安装包下载失败，可以重新下载或打开关于应用查看详情。'
           : canDownload
-            ? '已发现新版本，OmniProxy 会自动下载安装包，完成后提示重启。'
+            ? `已发现新版本，OmniProxy 会自动下载安装包，完成后提示${isMacOSPlatform.value ? '打开' : '重启'}。`
             : '暂未获取到可用安装包，可以打开关于应用查看发布页。',
-    primaryText: canInstall ? '重启安装' : canRetryDownload ? '重新下载' : downloadActive ? '查看进度' : '查看详情',
+    primaryText: canInstall ? (isMacOSPlatform.value ? '打开安装包' : '重启安装') : canRetryDownload ? '重新下载' : downloadActive ? '查看进度' : '查看详情',
     tooltip: `发现新版本 ${latestVersion}`,
   }
 })
@@ -1329,7 +1332,9 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
     if (downloadState === 'downloaded') {
       updateInstallPromptVersion = update.latestVersion
       if (manual) {
-        successMessage.value = `新版本 ${update.latestVersion} 已准备好，请重启 OmniProxy 以完成更新`
+        successMessage.value = isMacOSPlatform.value
+          ? `新版本 ${update.latestVersion} 已准备好，请打开安装包完成更新`
+          : `新版本 ${update.latestVersion} 已准备好，请重启 OmniProxy 以完成更新`
       }
       await promptInstallDownloadedUpdate(updateDownloadStatus.value)
       return
@@ -1344,7 +1349,7 @@ async function checkForAvailableUpdate({ manual = false } = {}) {
     }
     if (downloadState === 'installing') {
       if (manual) {
-        successMessage.value = '更新安装器已启动，请按安装器提示完成更新'
+        successMessage.value = isMacOSPlatform.value ? '更新安装包已打开，请按安装提示完成更新' : '更新安装器已启动，请按安装器提示完成更新'
       }
       return
     }
@@ -1480,22 +1485,24 @@ async function installReadyUpdate({ skipConfirm = false } = {}) {
   try {
     if (!skipConfirm) {
       await ElMessageBox.confirm(
-        '将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。',
+        isMacOSPlatform.value
+          ? '将打开已下载的 DMG 安装包，请将 OmniProxy 拖入 Applications 以完成更新。'
+          : '将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。',
         '新版本已准备好',
         {
-          confirmButtonText: '立即重启',
+          confirmButtonText: isMacOSPlatform.value ? '打开安装包' : '立即重启',
           cancelButtonText: '稍后',
           type: 'info',
         },
       )
     }
-    pendingVersion = updateDownloadStatus.value?.version || lastUpdateInfo.value?.latestVersion || ''
+    pendingVersion = isMacOSPlatform.value ? '' : updateDownloadStatus.value?.version || lastUpdateInfo.value?.latestVersion || ''
     if (pendingVersion) {
       window.localStorage?.setItem(pendingUpdateVersionKey, pendingVersion)
     }
     const status = await installDownloadedUpdate()
     updateDownloadStatus.value = status || updateDownloadStatus.value
-    successMessage.value = '正在重启并安装更新'
+    successMessage.value = isMacOSPlatform.value ? '已打开更新安装包，请完成应用替换' : '正在重启并安装更新'
   } catch (action) {
     if (pendingVersion) {
       window.localStorage?.removeItem(pendingUpdateVersionKey)

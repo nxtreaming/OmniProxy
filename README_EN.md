@@ -9,7 +9,7 @@ Connect Codex, Claude Code, Claude Desktop, OpenCode, Pi Coding Agent, DeepSeek-
 [中文](README.md) · [Release Notes](docs/releases) · [Releases](https://github.com/mibgb65-cloud/OmniProxy/releases)
 
 ![Release](https://img.shields.io/github/v/release/mibgb65-cloud/OmniProxy?include_prereleases&label=release)
-![Platform](https://img.shields.io/badge/platform-Windows-0078D4)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-0078D4)
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8)
 ![Vue](https://img.shields.io/badge/Vue-3-42B883)
 ![Wails](https://img.shields.io/badge/Wails-v2-DF0000)
@@ -40,7 +40,7 @@ OmniProxy is not a cloud relay service. It is built for personal local developme
 | Modern desktop console | Gemini-style light / dark themes with consistent cards, dialogs, dropdowns, scrolling, and snackbars for long-running local proxy monitoring. |
 | Claude model slots | Writes up to 4 selected DeepSeek, MiMo, Kimi, GLM, or Zo Computer model slots into Claude Code / Claude Desktop. |
 | Zo Computer gateway | Adapts OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and model lists through local `/zo` and `/zo/v1` entrypoints. |
-| Local secure storage | On Windows, account credentials are encrypted with the current user's DPAPI profile; exported backups remain explicit and user-controlled. |
+| Local secure storage | On Windows, credentials are encrypted with the current user's DPAPI profile. On macOS, OmniProxy stores a master key in Keychain and encrypts account credentials locally; exported backups remain explicit and user-controlled. |
 
 ## Architecture
 
@@ -102,7 +102,7 @@ flowchart LR
 
 ### Download and Use
 
-1. Download the Windows installer from [GitHub Releases](https://github.com/mibgb65-cloud/OmniProxy/releases).
+1. Download installers from [GitHub Releases](https://github.com/mibgb65-cloud/OmniProxy/releases). Beta releases may provide unsigned macOS DMGs for testing; daily use should prefer the Windows installer or a signed build.
 2. Start OmniProxy and add at least one upstream account in **Account Management**.
 3. Confirm proxy port and provider Base URLs in **Global Settings**.
 4. Start the local proxy.
@@ -144,8 +144,8 @@ Default data directories:
 
 | Version | Data Directory | Bootstrap File |
 | --- | --- | --- |
-| Production | `%USERPROFILE%\.omniproxy` | `%USERPROFILE%\.omniproxy-bootstrap.json` |
-| Dev | `%USERPROFILE%\.omniproxy-dev` | `%USERPROFILE%\.omniproxy-dev-bootstrap.json` |
+| Production | `~/.omniproxy` | Windows: `%APPDATA%\OmniProxy\bootstrap.json`; macOS: `~/Library/Application Support/OmniProxy/bootstrap.json` |
+| Dev | `~/.omniproxy-dev` | Windows: `%APPDATA%\OmniProxyDev\bootstrap.json`; macOS: `~/Library/Application Support/OmniProxyDev/bootstrap.json` |
 
 ## Support Matrix
 
@@ -221,6 +221,15 @@ cd .\OmniProxyBackend
 C:\Users\mimanchi\go\bin\wails.exe build
 ```
 
+macOS universal builds must run on a macOS runner or a Mac. Wails Darwin apps cannot be cross-compiled from Windows:
+
+```bash
+cd OmniProxyBackend
+wails build -clean -platform darwin/universal -ldflags "-X main.appVersion=v1.1.9"
+```
+
+The current beta release workflow creates an ad-hoc signed `OmniProxy-<tag>-darwin-universal-unsigned.dmg` testing asset. Without Apple Developer ID signing and notarization, this DMG is for testing only and macOS may show Gatekeeper warnings.
+
 Coexisting Dev build:
 
 ```powershell
@@ -251,8 +260,8 @@ The Dev build uses the `omniproxy_dev` build tag. App title, single-instance ID,
 
 | Channel | Tag Example | GitHub Release Behavior |
 | --- | --- | --- |
-| Stable | `v1.1.8` | Stable release for daily use. |
-| Beta | `v1.1.8-beta.7` | Pre-release for validating new features and regression fixes. |
+| Stable | `v1.1.8` | Stable release for daily use; public assets currently remain Windows-first. |
+| Beta | `v1.2.0-beta.1` | Pre-release for validating new features and regression fixes; unsigned macOS DMGs may be attached for testing. |
 | Dev | `dev-*` | Local build version, not published as a public release. |
 
 Release notes live in `docs/releases/`. Beta versions are marked as GitHub Pre-release, while stable versions are reserved for regular public releases.
@@ -261,7 +270,7 @@ Release notes live in `docs/releases/`. Beta versions are marked as GitHub Pre-r
 
 - Binds only to `127.0.0.1` by default and does not expose itself to public networks or LANs.
 - The control API is protected by a local control token that the desktop app fetches and sends automatically.
-- On Windows, account credentials are encrypted with the current user's DPAPI profile before being written to the local data directory.
+- On Windows, account credentials are encrypted with the current user's DPAPI profile before being written to the local data directory. On macOS, OmniProxy stores a master key in Keychain and writes credentials through a local encrypted envelope.
 - Exported account-pool backups, Codex `auth.json`, and client configuration backups may contain real credentials; store them only in trusted directories.
 - Before sharing logs, screenshots, or Issues, check for account names, paths, request IDs, Base URLs, and provider metadata.
 

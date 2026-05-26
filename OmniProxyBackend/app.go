@@ -458,10 +458,12 @@ func (a *DesktopApp) InstallDownloadedUpdate() (updateDownloadStatus, error) {
 	}
 	if a.ctx != nil {
 		ctx := a.ctx
-		go func() {
-			time.Sleep(300 * time.Millisecond)
-			runtime.Quit(ctx)
-		}()
+		if shouldQuitAfterUpdateInstall() {
+			go func() {
+				time.Sleep(300 * time.Millisecond)
+				runtime.Quit(ctx)
+			}()
+		}
 	}
 	return status, nil
 }
