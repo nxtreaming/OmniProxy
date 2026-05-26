@@ -97,7 +97,11 @@ func TestDevRuntimeProfileUsesSeparateDefaults(t *testing.T) {
 	if !samePath(DefaultDataDir(), filepath.Join(home, ".omniproxy-dev")) {
 		t.Fatalf("unexpected dev default data dir: %q", DefaultDataDir())
 	}
-	if want := filepath.Join(appData, "OmniProxyDev", "bootstrap.json"); !samePath(BootstrapPath(), want) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(configDir, "OmniProxyDev", "bootstrap.json"); !samePath(BootstrapPath(), want) {
 		t.Fatalf("expected dev bootstrap path %q, got %q", want, BootstrapPath())
 	}
 
