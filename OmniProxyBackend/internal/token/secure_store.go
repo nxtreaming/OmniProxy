@@ -2,6 +2,11 @@ package token
 
 import "OmniProxyBackend/internal/securestore"
 
+var (
+	protectTokenValue   = securestore.ProtectString
+	unprotectTokenValue = securestore.UnprotectString
+)
+
 type secureStore struct {
 	inner Store
 }
@@ -25,7 +30,7 @@ func (s secureStore) Load() ([]Token, error) {
 		if !securestore.IsProtectedString(value) {
 			needsMigration = true
 		}
-		plain, err := securestore.UnprotectString(value)
+		plain, err := unprotectTokenValue(value)
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +52,7 @@ func (s secureStore) Save(items []Token) error {
 		if value == "" {
 			continue
 		}
-		protected, err := securestore.ProtectString(value)
+		protected, err := protectTokenValue(value)
 		if err != nil {
 			return err
 		}

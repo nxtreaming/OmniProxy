@@ -765,6 +765,8 @@ func TestManagerBatchesUsagePersistenceUntilFlush(t *testing.T) {
 }
 
 func TestSecureStoreProtectsTokenValuesAndMigratesPlaintext(t *testing.T) {
+	useTestSecureStoreCodec(t)
+
 	path := filepath.Join(t.TempDir(), "tokens.json")
 	rawStore := storage.NewJSONStore[[]Token](path)
 	store := NewSecureStore(rawStore)
@@ -829,6 +831,36 @@ func TestSecureStoreProtectsTokenValuesAndMigratesPlaintext(t *testing.T) {
 	if strings.Contains(string(raw), "sk-legacy-token") {
 		t.Fatalf("legacy token was not migrated to protected storage: %s", string(raw))
 	}
+}
+
+func useTestSecureStoreCodec(t *testing.T) {
+	t.Helper()
+
+	const prefix = "omniproxy-secret:v1:test:"
+	oldProtect := protectTokenValue
+	oldUnprotect := unprotectTokenValue
+
+	protectTokenValue = func(value string) (string, error) {
+		if value == "" || strings.HasPrefix(value, prefix) {
+			return value, nil
+		}
+		return prefix + base64.RawURLEncoding.EncodeToString([]byte(value)), nil
+	}
+	unprotectTokenValue = func(value string) (string, error) {
+		if !strings.HasPrefix(value, prefix) {
+			return value, nil
+		}
+		plain, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(value, prefix))
+		if err != nil {
+			return "", err
+		}
+		return string(plain), nil
+	}
+
+	t.Cleanup(func() {
+		protectTokenValue = oldProtect
+		unprotectTokenValue = oldUnprotect
+	})
 }
 
 func TestManagerHealthCooldownCandidatesAndRecovery(t *testing.T) {
