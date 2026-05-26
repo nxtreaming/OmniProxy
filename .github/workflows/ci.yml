@@ -27,11 +27,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: OmniProxyBackend/go.mod
-          cache-dependency-path: OmniProxyBackend/go.sum
+      - name: Prepare Go toolchain
+        working-directory: OmniProxyBackend
+        run: |
+          go env -w GOTOOLCHAIN=auto
+          go version
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -73,11 +73,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: OmniProxyBackend/go.mod
-          cache-dependency-path: OmniProxyBackend/go.sum
+      - name: Prepare Go toolchain
+        working-directory: OmniProxyBackend
+        run: |
+          go env -w GOTOOLCHAIN=auto
+          go version
 
       - name: Setup Node
         uses: actions/setup-node@v4
