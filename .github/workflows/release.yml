@@ -14,9 +14,6 @@ on:
 permissions:
   contents: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   macos_preview:
     name: macOS universal unsigned preview
@@ -44,7 +41,7 @@ jobs:
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.release.outputs.tag }}
 
@@ -66,7 +63,7 @@ jobs:
           go version
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -111,7 +108,7 @@ jobs:
           shasum -a 256 "$asset" > "$asset.sha256"
 
       - name: Upload macOS preview artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned
           path: |
@@ -176,7 +173,7 @@ jobs:
           "prerelease=$($isPrerelease.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.release.outputs.tag }}
           fetch-depth: 0
@@ -188,7 +185,7 @@ jobs:
           go version
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
