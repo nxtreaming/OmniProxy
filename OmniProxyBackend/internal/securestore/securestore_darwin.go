@@ -22,8 +22,9 @@ const (
 )
 
 var (
-	darwinKeyMu     sync.Mutex
-	darwinCachedKey []byte
+	darwinKeyMu            sync.Mutex
+	darwinCachedKey        []byte
+	darwinMasterKeyForTest func() []byte
 )
 
 func protectBytes(value []byte) ([]byte, error) {
@@ -77,6 +78,14 @@ func unprotectBytes(value []byte) ([]byte, error) {
 }
 
 func darwinMasterKey() ([]byte, error) {
+	if darwinMasterKeyForTest != nil {
+		key := darwinMasterKeyForTest()
+		if len(key) != 32 {
+			return nil, fmt.Errorf("test credentials key has invalid length")
+		}
+		return append([]byte(nil), key...), nil
+	}
+
 	darwinKeyMu.Lock()
 	defer darwinKeyMu.Unlock()
 
