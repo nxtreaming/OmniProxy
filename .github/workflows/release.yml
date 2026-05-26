@@ -49,7 +49,7 @@ jobs:
           ref: ${{ steps.release.outputs.tag }}
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: OmniProxyBackend/go.mod
           cache-dependency-path: OmniProxyBackend/go.sum
@@ -150,7 +150,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: OmniProxyBackend/go.mod
           cache-dependency-path: OmniProxyBackend/go.sum
