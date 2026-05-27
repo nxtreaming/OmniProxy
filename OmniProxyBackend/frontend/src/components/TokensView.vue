@@ -416,3 +416,5 @@ function apiBalanceSummaryMeta(summary) {
     </div>
   </section>
 </template>
+
+<style src="./TokensView.css"></style>

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build && node -e \"require('fs').writeFileSync('dist/.gitkeep','\\n')\"",
     "preview": "vite preview",
-    "test": "node --test src/utils/format.test.js src/utils/quota.test.js src/services/api.test.js"
+    "test": "node --test src/utils/format.test.js src/utils/quota.test.js src/utils/tokenDisplay.test.js src/utils/appUpdate.test.js src/utils/helpContent.test.js src/services/api.test.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

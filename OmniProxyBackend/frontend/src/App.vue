@@ -1,22 +1,37 @@
 ﻿<script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import AboutView from './components/AboutView.vue'
-import BillingView from './components/BillingView.vue'
 import DashboardView from './components/DashboardView.vue'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
-import HistoryView from './components/HistoryView.vue'
-import LogsView from './components/LogsView.vue'
-import OpenRouterChatView from './components/OpenRouterChatView.vue'
-import SettingsView from './components/SettingsView.vue'
 import TokenBatchImportModal from './components/TokenBatchImportModal.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
-import TokenTrendView from './components/TokenTrendView.vue'
-import TokensView from './components/TokensView.vue'
 import appIconUrl from './assets/appicon.png'
-import { credentialTypes, providers, statusMeta, tabs } from './constants/app'
-import { formatDuration, formatNumber, formatResetTime, formatTime, localDateKey } from './utils/format'
+import { credentialTypes, providers, tabs } from './constants/app'
+import { claudeModelOptions, claudeModelSelectionLimit } from './constants/claudeModels'
+import { knownClientTools } from './constants/clientTools'
+import { useAppUpdate } from './composables/useAppUpdate'
+import { useWorkspaceScroll } from './composables/useWorkspaceScroll'
+import { formatDuration, formatNumber, formatTime, localDateKey } from './utils/format'
 import { aggregateAPIBalanceSummaries } from './utils/quota'
+import {
+  apiQuotaDisplay,
+  apiQuotaMeta,
+  displayStatusClass,
+  displayStatusLabel,
+  displayStatusType,
+  formatBalance,
+  healthSummary,
+  isCodexToken,
+  isCooling,
+  normalizeBillingDailyRows,
+  quotaDisplay,
+  quotaPercentText,
+  quotaPercentValue,
+  quotaPrimaryLabel,
+  showQuotaWindows,
+  validationSuccessMessage,
+  weeklyLimitReached,
+} from './utils/tokenDisplay'
 import {
   WindowHide,
   WindowIsMaximised,
@@ -41,11 +56,9 @@ import {
   configureZoClaude,
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
-  checkForUpdates,
   clearBillingUsage,
   clearRequestHistory,
   deleteToken,
-  downloadUpdate,
   exportCodexAuthFiles,
   exportHistory,
   exportTokens,
@@ -64,8 +77,6 @@ import {
   getProxyStatus,
   getTaskAutomationBrowserProfiles,
   getTokens,
-  getUpdateDownloadStatus,
-  installDownloadedUpdate,
   importAPIKeys,
   openExternalURL,
   refreshTokenAuth,
@@ -87,29 +98,35 @@ import {
   restoreZhipuClaude,
 } from './services/api'
 import {
-  ArrowLeft,
-  ArrowRight,
   Coin,
-  CircleCheckFilled,
   Clock,
   DataBoard,
   HelpFilled,
   InfoFilled,
   Key,
-  Lightning,
   MagicStick,
   Memo,
   Monitor,
   Money,
   Moon,
-  Plus,
-  Refresh,
-  RefreshRight,
   Setting,
   Sunny,
   SwitchButton,
   TrendCharts,
 } from '@element-plus/icons-vue'
+
+const AboutView = defineAsyncComponent(() => import('./components/AboutView.vue'))
+const BillingView = defineAsyncComponent(() => import('./components/BillingView.vue'))
+const FirstUseGuideModal = defineAsyncComponent(() => import('./components/FirstUseGuideModal.vue'))
+const HistoryView = defineAsyncComponent(() => import('./components/HistoryView.vue'))
+const HelpView = defineAsyncComponent(() => import('./components/HelpView.vue'))
+const LogsView = defineAsyncComponent(() => import('./components/LogsView.vue'))
+const OpenRouterChatView = defineAsyncComponent(() => import('./components/OpenRouterChatView.vue'))
+const QuickstartView = defineAsyncComponent(() => import('./components/QuickstartView.vue'))
+const QuotasView = defineAsyncComponent(() => import('./components/QuotasView.vue'))
+const SettingsView = defineAsyncComponent(() => import('./components/SettingsView.vue'))
+const TokenTrendView = defineAsyncComponent(() => import('./components/TokenTrendView.vue'))
+const TokensView = defineAsyncComponent(() => import('./components/TokensView.vue'))
 
 const activeTab = ref('dashboard')
 const activeProvider = ref('openai')
@@ -138,8 +155,6 @@ const tabKeys = new Set(tabs.map((tab) => tab.key))
 const isDark = ref(false)
 const windowMaximised = ref(false)
 const loading = ref(false)
-const workspaceRef = ref(null)
-const workspaceScrollbarVisible = ref(false)
 const codexConfiguring = ref(false)
 const codexSub2APIConfiguring = ref(false)
 const codexNewAPIConfiguring = ref(false)
@@ -169,11 +184,6 @@ const autoStartEnabled = ref(false)
 const taskAutomationBrowserProfiles = ref([])
 const taskAutomationBrowserProfilesLoading = ref(false)
 const taskAutomationBrowserProfilesError = ref('')
-const updateChecking = ref(false)
-const lastUpdateInfo = ref(null)
-const lastUpdateCheckedAt = ref('')
-const titlebarUpdatePopoverOpen = ref(false)
-const updateDownloadStatus = ref({ state: 'idle', percent: 0, bytesReceived: 0 })
 const exportingHistory = ref('')
 const exportingTokens = ref(false)
 const exportingCodexAuth = ref(false)
@@ -195,25 +205,16 @@ const quotaRefreshProgress = reactive({
 const deleteCandidate = ref(null)
 const deleteBusy = ref(false)
 const toastAutoCloseMs = 4000
-const pendingUpdateVersionKey = 'omniproxy.pendingUpdateVersion'
 const appThemeStorageKey = 'omniproxy.appTheme'
 const firstUseGuideStorageKey = 'omniproxy.firstRunGuideModalDismissed'
-const updateCheckIntervalMs = 4 * 60 * 60 * 1000
 let toastTimer = null
-let workspaceScrollbarTimer = null
-let workspaceScrollSavePaused = false
 let realtimeTimer = null
-let updateCheckTimer = null
-let updateCheckInterval = null
-let updateDownloadTimer = null
-let updateInstallPromptVersion = ''
 let historyRefreshSeq = 0
 let taskAutomationBrowserProfileSeq = 0
 const validatingIds = reactive({})
 const refreshingTokenIds = reactive({})
 const togglingTokenIds = reactive({})
 const switchingOnlyTokenIds = reactive({})
-const workspaceScrollPositions = reactive({})
 const tokens = ref([])
 const logs = ref([])
 const requestHistory = ref([])
@@ -304,54 +305,6 @@ const dataDirectory = reactive({
   pendingDataDir: '',
   restartRequired: false,
 })
-const claudeModelSelectionLimit = 4
-const claudeModelOptions = [
-  {
-    id: 'deepseek-v4-pro[1m]',
-    label: 'DeepSeek V4 Pro',
-    description: 'deepseek-v4-pro[1m]',
-  },
-  {
-    id: 'deepseek-v4-flash',
-    label: 'DeepSeek V4 Flash',
-    description: 'deepseek-v4-flash',
-  },
-  {
-    id: 'mimo-v2.5-pro[1m]',
-    label: 'MiMo V2.5 Pro 1M',
-    description: 'mimo-v2.5-pro[1m]',
-  },
-  {
-    id: 'mimo-v2.5-pro',
-    label: 'MiMo V2.5 Pro',
-    description: 'mimo-v2.5-pro',
-  },
-  {
-    id: 'mimo-v2.5',
-    label: 'MiMo V2.5',
-    description: 'mimo-v2.5',
-  },
-  {
-    id: 'kimi-for-coding',
-    label: 'Kimi for Coding',
-    description: 'kimi-for-coding',
-  },
-  {
-    id: 'glm-5.1',
-    label: 'GLM-5.1',
-    description: 'glm-5.1',
-  },
-  {
-    id: 'claude-opus-4-7',
-    label: 'Zo Claude Opus 4.7',
-    description: 'claude-opus-4-7',
-  },
-  {
-    id: 'claude-sonnet-4-6',
-    label: 'Zo Claude Sonnet 4.6',
-    description: 'claude-sonnet-4-6',
-  },
-]
 const selectedClaudeModels = ref([])
 const appInfo = reactive({
   name: 'OmniProxy',
@@ -364,49 +317,45 @@ const appInfo = reactive({
   startedAt: '',
 })
 const isMacOSPlatform = computed(() => String(appInfo.platform || '').toLowerCase().startsWith('darwin/'))
-const titlebarUpdateVisible = computed(() => Boolean(lastUpdateInfo.value?.updateAvailable && !appInfo.isDevelopment))
-const titlebarUpdatePrompt = computed(() => {
-  const update = lastUpdateInfo.value || {}
-  const updateAvailable = Boolean(update?.updateAvailable)
-  const currentVersion = update?.currentVersion || appInfo.version || '当前版本'
-  const latestVersion = update?.latestVersion || '新版本'
-  const canDownload = Boolean(updateAvailable && update?.downloadUrl && update?.checksumUrl)
-  const downloadState = updateDownloadMatches(update) ? String(updateDownloadStatus.value?.state || 'idle') : 'idle'
-  const downloadActive = downloadState === 'downloading'
-  const canInstall = downloadState === 'downloaded'
-  const canRetryDownload = downloadState === 'failed' && canDownload
-  const downloadPercent = Math.max(0, Math.min(100, Math.round(Number(updateDownloadStatus.value?.percent || 0))))
-  const badge = canInstall
-    ? update?.prerelease
-      ? 'Beta 已准备好'
-      : '更新已准备好'
-    : update?.prerelease
-      ? 'Beta 更新可用'
-      : '更新可用'
-  return {
-    update: updateAvailable ? update : null,
-    canDownload,
-    canInstall,
-    canRetryDownload,
-    currentVersion,
-    latestVersion,
-    badge,
-    title: canInstall ? `新版本 ${latestVersion} 已准备好` : `发现${update?.prerelease ? ' Beta' : ''}新版本 ${latestVersion}`,
-    description: canInstall
-      ? isMacOSPlatform.value
-        ? '点击打开安装包后，将 OmniProxy 拖入 Applications 以完成更新。'
-        : '点击重启安装将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。'
-      : downloadActive
-        ? `正在后台下载更新安装包，当前进度 ${downloadPercent}%。`
-        : canRetryDownload
-          ? '更新安装包下载失败，可以重新下载或打开关于应用查看详情。'
-          : canDownload
-            ? `已发现新版本，OmniProxy 会自动下载安装包，完成后提示${isMacOSPlatform.value ? '打开' : '重启'}。`
-            : '暂未获取到可用安装包，可以打开关于应用查看发布页。',
-    primaryText: canInstall ? (isMacOSPlatform.value ? '打开安装包' : '重启安装') : canRetryDownload ? '重新下载' : downloadActive ? '查看进度' : '查看详情',
-    tooltip: `发现新版本 ${latestVersion}`,
-  }
+const {
+  updateChecking,
+  lastUpdateInfo,
+  lastUpdateCheckedAt,
+  titlebarUpdatePopoverOpen,
+  updateDownloadStatus,
+  titlebarUpdateVisible,
+  titlebarUpdatePrompt,
+  closeTitlebarUpdatePopover,
+  toggleTitlebarUpdatePopover,
+  confirmTitlebarUpdatePopover,
+  handleTitlebarUpdateOutsidePointer,
+  handleTitlebarUpdateKeydown,
+  notifyCompletedUpdateIfNeeded,
+  manualCheckForUpdates,
+  scheduleUpdateChecks,
+  startUpdateDownload,
+  refreshUpdateDownloadStatus,
+  installReadyUpdateFromUpdateSurface,
+  stopAppUpdateTimers,
+} = useAppUpdate({
+  appInfo,
+  isMacOSPlatform,
+  errorMessage,
+  successMessage,
+  showUpdateDetails: () => selectTab('about'),
 })
+const {
+  workspaceRef,
+  workspaceScrollbarVisible,
+  saveWorkspaceScrollPosition,
+  restoreActiveWorkspaceScroll,
+  handleWorkspaceScroll,
+  pauseWorkspaceScrollSaving,
+  afterPageEnter,
+  hideWorkspaceScrollbar,
+  handleWorkspacePointerMove,
+  disposeWorkspaceScroll,
+} = useWorkspaceScroll(activeTab)
 const form = reactive({
   visible: false,
   editingId: '',
@@ -504,345 +453,6 @@ const dashboardSignals = computed(() => [
     meta: `${formatNumber(todayProxyTokens.value)} Token`,
   },
 ])
-const helpReadinessCards = computed(() => [
-  {
-    label: '本地代理',
-    value: proxyStatus.running ? '运行中' : '未启动',
-    detail: `入口 ${proxyEndpoint.value}`,
-    state: proxyStatus.running ? 'ok' : 'warning',
-    icon: SwitchButton,
-  },
-  {
-    label: '可用账号',
-    value: `${activeTokens.value.length} / ${tokens.value.length}`,
-    detail: tokens.value.length ? `${lowTokens.value.length} 个低额度，${invalidTokens.value.length} 个无效` : '先添加至少一个上游账号',
-    state: activeTokens.value.length ? 'ok' : 'warning',
-    icon: Key,
-  },
-  {
-    label: '调度策略',
-    value: schedulingModeText(config.schedulingMode),
-    detail: `低于 ${config.switchThreshold}% 跳过，最多重试 ${config.maxRetries} 次`,
-    state: 'muted',
-    icon: TrendCharts,
-  },
-  {
-    label: '请求追踪',
-    value: `${formatNumber(todayProxyRequests.value)} 次`,
-    detail: `保留 ${config.historyRetentionDays} 天历史，当前 ${activeRequests.value.length} 个实时请求`,
-    state: activeRequests.value.length ? 'ok' : 'muted',
-    icon: Memo,
-  },
-])
-const thirdPartyEndpointGroups = computed(() => {
-  const base = `http://127.0.0.1:${proxyStatus.port || config.proxyPort}`
-  return [
-    {
-      title: 'OpenAI 兼容客户端',
-      note: 'Cherry Studio、Open WebUI、Continue、Chatbox 等支持 OpenAI-compatible 的客户端优先看这里。',
-      endpoints: [
-        {
-          name: 'OmniProxy OpenAI',
-          protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/v1`,
-          apiKey: 'omniproxy-local',
-          models: '使用 OpenAI 账号池里的模型名，例如 gpt-5.4',
-          use: '通用 OpenAI 兼容入口，适合自定义客户端直接接入。',
-        },
-        {
-          name: 'Codex Chat',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/codex/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'gpt-5.5 / gpt-5.4',
-          use: '用 Codex auth.json 账号承接 Chat Completions 请求。',
-        },
-        {
-          name: 'Zo Computer',
-          protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/zo/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'gpt-5.5 / gpt-5.4 / claude-opus-4-7 / gemini-3.1-pro / glm-5',
-          use: '适合把 Zo Token 暴露给 Cherry Studio 这类 OpenAI-compatible 客户端。',
-        },
-        {
-          name: 'OpenRouter',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/openrouter/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'openrouter/auto 或 OpenRouter 模型 ID',
-          use: '使用 OpenRouter API Key 账号池。',
-        },
-        {
-          name: 'TokenRouter',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/tokenrouter/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'auto:balance / auto:quality / auto:speed / auto:cost',
-          use: '使用 TokenRouter API Key 账号池和自动路由模型。',
-        },
-        {
-          name: 'sub2api',
-          protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/sub2api/v1`,
-          apiKey: 'omniproxy-local',
-          models: '由 sub2api 上游决定',
-          use: '转发到 sub2api OpenAI 兼容网关。',
-        },
-        {
-          name: 'new-api',
-          protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/newapi/v1`,
-          apiKey: 'omniproxy-local',
-          models: '由 new-api 上游决定',
-          use: '转发到 new-api OpenAI 兼容网关。',
-        },
-        {
-          name: '自定义网关',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/custom/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'custom-model 或上游支持的模型名',
-          use: '转发到设置页填写的自定义 OpenAI 兼容网关。',
-        },
-      ],
-    },
-    {
-      title: 'Anthropic / Claude 兼容客户端',
-      note: '适合支持 Anthropic Messages API 的客户端。Claude Desktop 建议用一键配置写入 3P Gateway Profile。',
-      endpoints: [
-        {
-          name: 'Claude Router',
-          protocol: 'Anthropic Messages',
-          baseUrl: `${base}/anthropic-router`,
-          apiKey: 'omniproxy',
-          models: 'deepseek-v4-pro[1m] / kimi-for-coding / glm-5.1 / claude-opus-4-7',
-          use: '按模型分流到 DeepSeek、MiMo、Kimi、GLM、Zo 或 Anthropic。',
-        },
-        {
-          name: 'Anthropic 官方账号池',
-          protocol: 'Anthropic Messages',
-          baseUrl: `${base}/anthropic/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'Claude 模型名',
-          use: '使用 Anthropic API Key 或 Claude OAuth JSON 账号池。',
-        },
-        {
-          name: 'Zo Anthropic',
-          protocol: 'Anthropic Messages',
-          baseUrl: `${base}/zo/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'claude-opus-4-7 / claude-sonnet-4-6',
-          use: '用 Zo Token 适配 Anthropic Messages 请求。',
-        },
-        {
-          name: 'sub2api Anthropic',
-          protocol: 'Anthropic Messages',
-          baseUrl: `${base}/sub2api/anthropic/v1`,
-          apiKey: 'omniproxy-local',
-          models: '由 sub2api 上游决定',
-          use: '转发到 sub2api Anthropic 兼容入口。',
-        },
-        {
-          name: 'new-api Anthropic',
-          protocol: 'Anthropic Messages',
-          baseUrl: `${base}/newapi/anthropic/v1`,
-          apiKey: 'omniproxy-local',
-          models: '由 new-api 上游决定',
-          use: '转发到 new-api Anthropic 兼容入口。',
-        },
-        {
-          name: '自定义 Anthropic 网关',
-          protocol: 'Anthropic Messages',
-          baseUrl: `${base}/custom/anthropic/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'custom-model 或上游支持的模型名',
-          use: '转发到设置页填写的自定义 Anthropic 兼容网关。',
-        },
-      ],
-    },
-    {
-      title: '厂商直连与原生协议',
-      note: '当客户端明确支持某个厂商协议，或你想固定走某个账号池时使用。',
-      endpoints: [
-        {
-          name: 'DeepSeek',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/deepseek/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'deepseek-v4-pro / deepseek-v4-flash',
-          use: '固定使用 DeepSeek API Key 账号池。',
-        },
-        {
-          name: 'Kimi',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/kimi/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'kimi-for-coding',
-          use: '固定使用 Kimi API Key 账号池。',
-        },
-        {
-          name: 'Xiaomi MiMo',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/xiaomi/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'mimo-v2.5-pro / mimo-v2.5',
-          use: '固定使用 MiMo API Key 或 Token Plan 账号池。',
-        },
-        {
-          name: 'Zhipu GLM',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/zhipu/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'glm-5.1',
-          use: '固定使用 Zhipu GLM 账号池。',
-        },
-        {
-          name: 'MiniMax',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/minimax/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'MiniMax-M2.7',
-          use: '固定使用 MiniMax API Key 账号池。',
-        },
-        {
-          name: 'Gemini Native',
-          protocol: 'Gemini API',
-          baseUrl: `${base}/gemini`,
-          apiKey: 'omniproxy-local',
-          models: 'gemini-3-pro-preview / gemini-3-flash-preview',
-          use: '用于支持 Gemini 原生 API 的客户端。',
-        },
-        {
-          name: 'sub2api Gemini',
-          protocol: 'Gemini API',
-          baseUrl: `${base}/sub2api/gemini`,
-          apiKey: 'omniproxy-local',
-          models: '由 sub2api 上游决定',
-          use: '转发到 sub2api Gemini 兼容入口。',
-        },
-        {
-          name: 'new-api Gemini',
-          protocol: 'Gemini API',
-          baseUrl: `${base}/newapi/gemini`,
-          apiKey: 'omniproxy-local',
-          models: '由 new-api 上游决定',
-          use: '转发到 new-api Gemini 兼容入口。',
-        },
-      ],
-    },
-    {
-      title: '编程工具路由',
-      note: '这些入口也可手动配置，但通常优先使用“一键配置”。',
-      endpoints: [
-        {
-          name: 'Codex backend',
-          protocol: 'Codex backend',
-          baseUrl: `${base}/backend-api/codex`,
-          apiKey: 'omniproxy-local',
-          models: 'gpt-5.5 / gpt-5.4',
-          use: 'Codex CLI backend API，使用 OpenAI Codex auth.json 账号。',
-        },
-        {
-          name: 'OpenCode Router',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/opencode-router/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'gpt-5.4 / deepseek-v4-pro / glm-5.1 / mimo-v2.5-pro',
-          use: 'OpenCode 按模型自动分流。',
-        },
-        {
-          name: 'Pi Router',
-          protocol: 'OpenAI Chat',
-          baseUrl: `${base}/pi-router/v1`,
-          apiKey: 'omniproxy-local',
-          models: 'gpt-5.4 / auto:balance / openrouter/auto / custom-model',
-          use: 'Pi Coding Agent 按 provider 和模型自动分流。',
-        },
-        {
-          name: 'Claude Desktop Gateway',
-          protocol: 'Claude Desktop 3P Gateway',
-          baseUrl: `${base}/claude-desktop`,
-          apiKey: 'omniproxy-claude-desktop',
-          models: '由 Claude Desktop Profile 映射决定',
-          use: '仅用于 Claude Desktop 3P Gateway；建议通过一键配置写入。',
-        },
-      ],
-    },
-  ]
-})
-const helpCredentialGroups = [
-  {
-    title: '订阅与 OAuth 账号',
-    summary: 'Codex auth.json、Claude OAuth JSON、MiMo Token Plan、GLM Coding Plan',
-    detail: '适合需要订阅额度窗口、自动刷新额度或客户端专用鉴权的场景。',
-  },
-  {
-    title: '按量 API Key',
-    summary: 'OpenAI、Anthropic、DeepSeek、Kimi、MiMo、Gemini、OpenRouter、TokenRouter、Zo Computer',
-    detail: '适合 OpenAI / Anthropic 兼容接口转发，额度页会展示余额、剩余额度或最近统计。',
-  },
-  {
-    title: '网关类账号',
-    summary: 'sub2api、new-api、自定义网关',
-    detail: '适合把已有兼容网关纳入 OmniProxy 调度，并统一暴露本机 loopback 入口。',
-  },
-]
-const helpWorkflowSteps = [
-  {
-    step: '01',
-    title: '准备账号池',
-    description: '在账号管理中按厂商添加凭据。Codex auth.json 会自动解析账号名；API Key 可以批量导入，适合密集账号池。',
-    actions: [
-      { label: '账号管理', tab: 'tokens' },
-      { label: '一键配置', tab: 'quickstart' },
-    ],
-  },
-  {
-    step: '02',
-    title: '确认路由和策略',
-    description: '在全局设置确认本地端口、上游 Base URL、调度模式、低额度跳过阈值和自动重试次数。',
-    actions: [{ label: '全局设置', tab: 'settings' }],
-  },
-  {
-    step: '03',
-    title: '启动本地代理',
-    description: '客户端只连 127.0.0.1，真实上游 Token 留在本机。代理会根据账号状态、选择范围和并发占用自动挑选账号。',
-    actions: [{ label: '回到仪表盘', tab: 'dashboard' }],
-  },
-  {
-    step: '04',
-    title: '观察额度与请求',
-    description: '额度页看账号是否低额度、耗尽或无效；请求历史和实时日志用于定位失败原因、模型、Token 消耗和重试路径。',
-    actions: [
-      { label: '额度', tab: 'quotas' },
-      { label: '请求历史', tab: 'history' },
-      { label: '实时日志', tab: 'logs' },
-    ],
-  },
-]
-const helpTroubleshootingItems = [
-  {
-    problem: '客户端没有请求进入 OmniProxy',
-    action: '先确认本地代理已启动，Base URL 使用 127.0.0.1 对应端口；如果使用一键配置，重新写入并检查客户端配置文件路径。',
-  },
-  {
-    problem: '账号返回 401、鉴权失败或显示无效',
-    action: '在账号管理中验证该账号。订阅类账号优先刷新认证，API Key 类账号检查上游 Base URL 和 Key 类型是否匹配。',
-  },
-  {
-    problem: '频繁 429 或额度过低',
-    action: '到额度页查看每个账号窗口和余额。需要临时隔离时，只选择可用账号；需要自动避让时调高低额度跳过阈值。',
-  },
-  {
-    problem: 'Claude Code 模型不符合预期',
-    action: '在一键配置中重新选择最多 4 个 Claude 模型槽位，并注意 DeepSeek、MiMo、Kimi、GLM 的模型名差异。',
-  },
-  {
-    problem: '响应慢或并发被占用',
-    action: '看仪表盘实时连接和请求历史。优先平衡使用会避开并发占用更高的账号，队列模式更适合固定优先级。',
-  },
-]
 const subscriptionOverviewTokens = computed(() => tokens.value.filter((item) => showQuotaWindows(item)))
 const apiOverviewTokens = computed(() => tokens.value.filter((item) => !showQuotaWindows(item)))
 const quotaOverviewPageSize = 4
@@ -945,112 +555,6 @@ function selectTab(tabKey) {
   mobileSidebarOpen.value = false
 }
 
-function closeTitlebarUpdatePopover() {
-  titlebarUpdatePopoverOpen.value = false
-}
-
-function toggleTitlebarUpdatePopover() {
-  titlebarUpdatePopoverOpen.value = !titlebarUpdatePopoverOpen.value
-}
-
-async function confirmTitlebarUpdatePopover() {
-  const prompt = titlebarUpdatePrompt.value
-  closeTitlebarUpdatePopover()
-  if (prompt.canInstall) {
-    await installReadyUpdate({ skipConfirm: true })
-    return
-  }
-  if (prompt.canRetryDownload && prompt.update) {
-    await startUpdateDownload(prompt.update)
-    return
-  }
-  selectTab('about')
-}
-
-function handleTitlebarUpdateOutsidePointer() {
-  closeTitlebarUpdatePopover()
-}
-
-function handleTitlebarUpdateKeydown(event) {
-  if (event.key === 'Escape') {
-    closeTitlebarUpdatePopover()
-  }
-}
-
-function saveWorkspaceScrollPosition(tabKey = activeTab.value) {
-  const target = workspaceRef.value
-  if (!target || !tabKey) return
-  workspaceScrollPositions[tabKey] = target.scrollTop || 0
-}
-
-function restoreWorkspaceScrollPosition(tabKey = activeTab.value) {
-  const target = workspaceRef.value
-  if (!target || !tabKey) return
-  const savedTop = Number(workspaceScrollPositions[tabKey] || 0)
-  const maxTop = Math.max(0, target.scrollHeight - target.clientHeight)
-  target.scrollTop = Math.min(savedTop, maxTop)
-}
-
-function restoreActiveWorkspaceScroll() {
-  nextTick(() => {
-    restoreWorkspaceScrollPosition(activeTab.value)
-  })
-}
-
-function handleWorkspaceScroll(event) {
-  if (workspaceScrollSavePaused) return
-  if (event?.currentTarget !== workspaceRef.value) return
-  saveWorkspaceScrollPosition(activeTab.value)
-}
-
-function pauseWorkspaceScrollSaving() {
-  workspaceScrollSavePaused = true
-}
-
-function resumeWorkspaceScrollSaving() {
-  workspaceScrollSavePaused = false
-}
-
-function afterPageEnter() {
-  restoreActiveWorkspaceScroll()
-  resumeWorkspaceScrollSaving()
-}
-
-function clearWorkspaceScrollbarTimer() {
-  if (workspaceScrollbarTimer) {
-    window.clearTimeout(workspaceScrollbarTimer)
-    workspaceScrollbarTimer = null
-  }
-}
-
-function hideWorkspaceScrollbar() {
-  clearWorkspaceScrollbarTimer()
-  workspaceScrollbarVisible.value = false
-}
-
-function handleWorkspacePointerMove(event) {
-  const target = event.currentTarget
-  if (!target || target.scrollHeight <= target.clientHeight) {
-    hideWorkspaceScrollbar()
-    return
-  }
-
-  const rect = target.getBoundingClientRect()
-  const scrollbarHotZone = 14
-  const inScrollbarArea = event.clientX >= rect.right - scrollbarHotZone && event.clientX <= rect.right
-
-  if (!inScrollbarArea) {
-    hideWorkspaceScrollbar()
-    return
-  }
-
-  if (workspaceScrollbarVisible.value || workspaceScrollbarTimer) return
-  workspaceScrollbarTimer = window.setTimeout(() => {
-    workspaceScrollbarVisible.value = true
-    workspaceScrollbarTimer = null
-  }, 500)
-}
-
 function syncDocumentTheme(value) {
   if (typeof document === 'undefined') {
     return
@@ -1074,7 +578,7 @@ onMounted(async () => {
   await refreshAll()
   notifyCompletedUpdateIfNeeded()
   await refreshUpdateDownloadStatus()
-  updateCheckTimer = window.setTimeout(runScheduledUpdateCheck, 2500)
+  scheduleUpdateChecks()
   realtimeTimer = window.setInterval(refreshRealtime, 3000)
 })
 
@@ -1086,21 +590,12 @@ onBeforeUnmount(() => {
     window.clearInterval(realtimeTimer)
     realtimeTimer = null
   }
-  if (updateCheckTimer) {
-    window.clearTimeout(updateCheckTimer)
-    updateCheckTimer = null
-  }
-  if (updateCheckInterval) {
-    window.clearInterval(updateCheckInterval)
-    updateCheckInterval = null
-  }
-  stopUpdateDownloadPolling()
+  stopAppUpdateTimers()
   if (toastTimer) {
     window.clearTimeout(toastTimer)
     toastTimer = null
   }
-  saveWorkspaceScrollPosition()
-  clearWorkspaceScrollbarTimer()
+  disposeWorkspaceScroll()
 })
 
 watch([errorMessage, successMessage], ([error, success]) => {
@@ -1262,259 +757,6 @@ async function refreshRealtime() {
   } catch (error) {
     errorMessage.value = error.message
   }
-}
-
-function notifyCompletedUpdateIfNeeded() {
-  const pendingVersion = window.localStorage?.getItem(pendingUpdateVersionKey)
-  const currentVersion = String(appInfo.version || '').trim()
-  if (!pendingVersion || !currentVersion || appInfo.isDevelopment || pendingVersion !== currentVersion) {
-    return
-  }
-  window.localStorage?.removeItem(pendingUpdateVersionKey)
-  successMessage.value = `已更新到 ${currentVersion}`
-}
-
-function updateDownloadMatches(update = lastUpdateInfo.value, status = updateDownloadStatus.value) {
-  if (!update?.updateAvailable || !status) {
-    return false
-  }
-  const latestVersion = String(update.latestVersion || '').trim()
-  const statusVersion = String(status.version || '').trim()
-  const downloadUrl = String(update.downloadUrl || '').trim()
-  const statusDownloadUrl = String(status.downloadUrl || '').trim()
-  return Boolean(
-    (latestVersion && statusVersion && statusVersion === latestVersion) ||
-      (downloadUrl && statusDownloadUrl && statusDownloadUrl === downloadUrl),
-  )
-}
-
-function currentUpdateDownloadState(update = lastUpdateInfo.value) {
-  return updateDownloadMatches(update) ? String(updateDownloadStatus.value?.state || 'idle') : 'idle'
-}
-
-async function checkForAvailableUpdate({ manual = false } = {}) {
-  if (manual) {
-    updateChecking.value = true
-    errorMessage.value = ''
-    successMessage.value = ''
-  }
-  try {
-    const update = await checkForUpdates()
-    lastUpdateInfo.value = update
-    lastUpdateCheckedAt.value = new Date().toISOString()
-    if (update?.currentVersion) {
-      appInfo.version = update.currentVersion
-      const normalizedVersion = String(update.currentVersion).trim().toLowerCase()
-      appInfo.isDevelopment = normalizedVersion === 'dev' || normalizedVersion === 'development'
-    }
-    if (appInfo.isDevelopment) {
-      if (manual) {
-        successMessage.value = '开发版本不会请求远端更新接口'
-      }
-      return
-    }
-    if (!update?.updateAvailable || !update.latestVersion) {
-      if (manual) {
-        successMessage.value = update?.currentVersion
-          ? `当前已是最新版本（${update.currentVersion}）`
-          : '当前已是最新版本'
-      }
-      return
-    }
-    if (!update.downloadUrl || !update.checksumUrl) {
-      if (manual) {
-        errorMessage.value = `发现新版本 ${update.latestVersion}，但没有可用的安装包或校验文件`
-      }
-      return
-    }
-
-    const downloadState = currentUpdateDownloadState(update)
-    if (downloadState === 'downloaded') {
-      updateInstallPromptVersion = update.latestVersion
-      if (manual) {
-        successMessage.value = isMacOSPlatform.value
-          ? `新版本 ${update.latestVersion} 已准备好，请打开安装包完成更新`
-          : `新版本 ${update.latestVersion} 已准备好，请重启 OmniProxy 以完成更新`
-      }
-      await promptInstallDownloadedUpdate(updateDownloadStatus.value)
-      return
-    }
-    if (downloadState === 'downloading') {
-      updateInstallPromptVersion = update.latestVersion
-      startUpdateDownloadPolling()
-      if (manual) {
-        successMessage.value = `已在后台下载 ${update.latestVersion} 更新安装包`
-      }
-      return
-    }
-    if (downloadState === 'installing') {
-      if (manual) {
-        successMessage.value = isMacOSPlatform.value ? '更新安装包已打开，请按安装提示完成更新' : '更新安装器已启动，请按安装器提示完成更新'
-      }
-      return
-    }
-
-    await startUpdateDownload(update)
-    if (manual) {
-      successMessage.value = `发现新版本 ${update.latestVersion}，已开始后台下载安装包`
-    }
-  } catch (action) {
-    if (action instanceof Error) {
-      if (manual) {
-        errorMessage.value = action.message
-      }
-      return
-    }
-    if (typeof action === 'string') {
-      if (manual && action !== 'close') {
-        errorMessage.value = action
-      }
-      return
-    }
-    if (manual && action) {
-      errorMessage.value = String(action)
-    }
-  } finally {
-    if (manual) {
-      updateChecking.value = false
-    }
-  }
-}
-
-function manualCheckForUpdates() {
-  return checkForAvailableUpdate({ manual: true })
-}
-
-async function runScheduledUpdateCheck() {
-  updateCheckTimer = null
-  await checkForAvailableUpdate()
-  if (!updateCheckInterval) {
-    updateCheckInterval = window.setInterval(() => checkForAvailableUpdate(), updateCheckIntervalMs)
-  }
-}
-
-function updateDownloadPayload(update = lastUpdateInfo.value) {
-  return {
-    version: update?.latestVersion || '',
-    downloadUrl: update?.downloadUrl || '',
-    checksumUrl: update?.checksumUrl || '',
-    fileName: update?.downloadFileName || '',
-    expectedSize: Number(update?.downloadSize || 0),
-  }
-}
-
-async function startUpdateDownload(update = lastUpdateInfo.value) {
-  const currentState = currentUpdateDownloadState(update)
-  if (currentState === 'downloading') {
-    updateInstallPromptVersion = update?.latestVersion || updateDownloadStatus.value?.version || ''
-    startUpdateDownloadPolling()
-    return
-  }
-  if (currentState === 'downloaded') {
-    updateInstallPromptVersion = update?.latestVersion || updateDownloadStatus.value?.version || ''
-    await promptInstallDownloadedUpdate(updateDownloadStatus.value)
-    return
-  }
-  if (currentState === 'installing') {
-    return
-  }
-  const payload = updateDownloadPayload(update)
-  if (!payload.downloadUrl) {
-    errorMessage.value = '没有可用的安装包下载地址'
-    return
-  }
-  if (!payload.checksumUrl) {
-    errorMessage.value = '没有可用的 SHA256 校验文件，已取消应用内下载'
-    return
-  }
-  errorMessage.value = ''
-  successMessage.value = ''
-  updateInstallPromptVersion = payload.version || ''
-  const status = await downloadUpdate(payload)
-  updateDownloadStatus.value = status || { state: 'downloading' }
-  startUpdateDownloadPolling()
-}
-
-function startUpdateDownloadPolling() {
-  if (updateDownloadTimer) {
-    return
-  }
-  updateDownloadTimer = window.setInterval(refreshUpdateDownloadStatus, 1000)
-}
-
-function stopUpdateDownloadPolling() {
-  if (!updateDownloadTimer) {
-    return
-  }
-  window.clearInterval(updateDownloadTimer)
-  updateDownloadTimer = null
-}
-
-async function refreshUpdateDownloadStatus() {
-  try {
-    const status = await getUpdateDownloadStatus()
-    if (status) {
-      updateDownloadStatus.value = status
-      if (status.state === 'downloading') {
-        startUpdateDownloadPolling()
-      } else if (['downloaded', 'failed', 'installing', 'idle'].includes(status.state)) {
-        stopUpdateDownloadPolling()
-      }
-      if (status.state === 'downloaded') {
-        await promptInstallDownloadedUpdate(status)
-      }
-    }
-  } catch {
-    stopUpdateDownloadPolling()
-  }
-}
-
-async function promptInstallDownloadedUpdate(status = updateDownloadStatus.value) {
-  const version = String(status?.version || lastUpdateInfo.value?.latestVersion || '').trim()
-  const expectedVersion = String(updateInstallPromptVersion || lastUpdateInfo.value?.latestVersion || '').trim()
-  const currentVersion = String(appInfo.version || '').trim()
-  if (!version || (expectedVersion && version !== expectedVersion) || version === currentVersion) {
-    return
-  }
-  updateInstallPromptVersion = ''
-  titlebarUpdatePopoverOpen.value = true
-}
-
-async function installReadyUpdate({ skipConfirm = false } = {}) {
-  let pendingVersion = ''
-  try {
-    if (!skipConfirm) {
-      await ElMessageBox.confirm(
-        isMacOSPlatform.value
-          ? '将打开已下载的 DMG 安装包，请将 OmniProxy 拖入 Applications 以完成更新。'
-          : '将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。',
-        '新版本已准备好',
-        {
-          confirmButtonText: isMacOSPlatform.value ? '打开安装包' : '立即重启',
-          cancelButtonText: '稍后',
-          type: 'info',
-        },
-      )
-    }
-    pendingVersion = isMacOSPlatform.value ? '' : updateDownloadStatus.value?.version || lastUpdateInfo.value?.latestVersion || ''
-    if (pendingVersion) {
-      window.localStorage?.setItem(pendingUpdateVersionKey, pendingVersion)
-    }
-    const status = await installDownloadedUpdate()
-    updateDownloadStatus.value = status || updateDownloadStatus.value
-    successMessage.value = isMacOSPlatform.value ? '已打开更新安装包，请完成应用替换' : '正在重启并安装更新'
-  } catch (action) {
-    if (pendingVersion) {
-      window.localStorage?.removeItem(pendingUpdateVersionKey)
-    }
-    if (action instanceof Error) {
-      errorMessage.value = action.message
-    }
-  }
-}
-
-function installReadyUpdateFromUpdateSurface() {
-  return installReadyUpdate({ skipConfirm: true })
 }
 
 async function refreshHistory(filters = requestHistoryFilters.value) {
@@ -2853,12 +2095,6 @@ function credentialPlaceholder() {
   return '粘贴 API Key'
 }
 
-function schedulingModeText(value) {
-  if (value === 'balanced') return '优先平衡使用'
-  if (value === 'queue') return '队列模式'
-  return value || '-'
-}
-
 function providerTokens(provider) {
   return tokens.value.filter((item) => item.provider === provider)
 }
@@ -2903,48 +2139,9 @@ function onProviderChange() {
   }
 }
 
-function statusLabel(status) {
-  return statusMeta[status]?.label || status
-}
-
-function statusClass(status) {
-  return statusMeta[status]?.className || 'muted'
-}
-
-function statusType(status) {
-  const types = {
-    active: 'success',
-    low: 'warning',
-    exhausted: 'info',
-    invalid: 'danger',
-  }
-  return types[status] || 'info'
-}
-
 function providerLabel(providerKey) {
   return providers.find((item) => item.key === providerKey)?.label || providerKey
 }
-
-const knownClientTools = [
-  { key: 'codex', label: 'Codex' },
-  { key: 'claude', label: 'Claude Code' },
-  { key: 'claude-desktop', label: 'Claude Code Desktop' },
-  { key: 'gemini', label: 'Gemini CLI' },
-  { key: 'opencode', label: 'OpenCode' },
-  { key: 'pi', label: 'Pi Coding Agent' },
-  { key: 'deepseek-tui', label: 'DeepSeek-TUI' },
-  { key: 'openrouter', label: 'OpenRouter' },
-  { key: 'tokenrouter', label: 'TokenRouter' },
-  { key: 'sub2api', label: 'sub2api' },
-  { key: 'newapi', label: 'new-api' },
-  { key: 'cursor', label: 'Cursor' },
-  { key: 'vscode', label: 'VS Code' },
-  { key: 'windsurf', label: 'Windsurf' },
-  { key: 'aider', label: 'Aider' },
-  { key: 'continue', label: 'Continue' },
-  { key: 'custom', label: '自定义网关' },
-  { key: 'api', label: 'API Client' },
-]
 
 function clientToolLabel(key, fallback = '') {
   return knownClientTools.find((item) => item.key === key)?.label || fallback || key || '未知工具'
@@ -3031,372 +2228,6 @@ function toolUsageDuration(row) {
 
 function isTokenActiveNow(item) {
   return activeTokenIds.value.has(item.id)
-}
-
-function planLabel(plan) {
-  const normalized = String(plan || '').toLowerCase()
-  const labels = {
-    team: 'Team',
-    pro: 'Pro',
-    plus: 'Plus',
-    free: 'Free',
-    enterprise: 'Enterprise',
-  }
-  return labels[normalized] || plan || '未知'
-}
-
-function usageUpdatedAt(item) {
-  return item.usage?.updatedAt ? formatTime(item.usage.updatedAt) : '-'
-}
-
-function quotaPercentValue(item, field) {
-  if (!item?.usage?.subscriptionQuotaAvailable) return 0
-  const value = Number(item.usage?.[field])
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.min(100, Math.round(value)))
-}
-
-function quotaPercentText(item, field) {
-  return item?.usage?.subscriptionQuotaAvailable ? `${quotaPercentValue(item, field)}%` : '-'
-}
-
-function formatBalance(value) {
-  const number = Number(value || 0)
-  const fractionDigits = Math.abs(number) > 0 && Math.abs(number) < 1 ? 4 : 2
-  return new Intl.NumberFormat('zh-CN', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  }).format(number)
-}
-
-function apiBalanceSummaryMeta(summary) {
-  const parts = [`${formatNumber(summary.count)} 个 API Key`]
-  if (Number(summary.total || 0) > 0) {
-    parts.push(`总额 ${formatBalance(summary.total)} ${summary.unit}`)
-  }
-  if (Number(summary.used || 0) > 0) {
-    parts.push(`已用 ${formatBalance(summary.used)} ${summary.unit}`)
-  }
-  return parts.join(' · ')
-}
-
-function hasBalanceUsage(item) {
-  return Boolean(item.usage?.balanceUnit)
-}
-
-function hasOpenRouterQuotaUsage(item) {
-  if (item?.provider !== 'openrouter') return false
-  return hasBalanceUsage(item) || Boolean(item.usage?.balanceUnlimited)
-}
-
-function quotaDisplay(item) {
-  if (item.usage?.balanceUnlimited) {
-    return '不限制'
-  }
-  if (hasBalanceUsage(item)) {
-    return `${formatBalance(item.usage.balanceRemaining)} ${item.usage.balanceUnit}`
-  }
-  return `${item.remaining}%`
-}
-
-function quotaStatLabel(item) {
-  return hasBalanceUsage(item) ? '账户余额' : 'API 剩余额度'
-}
-
-function quotaStatMeta(item) {
-  if (hasBalanceUsage(item)) {
-    const parts = []
-    if (item.usage?.balanceUnlimited) {
-      parts.push('未设置消费上限')
-    }
-    if (Number(item.usage?.balanceTotal || 0) > 0) {
-      parts.push(`总额 ${formatBalance(item.usage.balanceTotal)} ${item.usage.balanceUnit}`)
-    }
-    if (Number(item.usage?.balanceUsed || 0) > 0) {
-      parts.push(`已用 ${formatBalance(item.usage.balanceUsed)} ${item.usage.balanceUnit}`)
-    }
-    parts.push(`最后更新 ${usageUpdatedAt(item)}`)
-    return parts.join(' · ')
-  }
-  return `最后更新 ${usageUpdatedAt(item)}`
-}
-
-function openRouterQuotaValue(item, field) {
-  if (!hasOpenRouterQuotaUsage(item)) {
-    return '-'
-  }
-  return `${formatBalance(item.usage?.[field])} ${item.usage.balanceUnit}`
-}
-
-function openRouterQuotaRemaining(item) {
-  if (!hasOpenRouterQuotaUsage(item)) {
-    return '待刷新'
-  }
-  if (item.usage?.balanceUnlimited) {
-    return '不限制'
-  }
-  if (Number(item.usage?.balanceTotal || 0) <= 0 && Number(item.usage?.balanceRemaining || 0) <= 0) {
-    return '未返回'
-  }
-  return openRouterQuotaValue(item, 'balanceRemaining')
-}
-
-function openRouterQuotaLimit(item) {
-  if (!hasOpenRouterQuotaUsage(item)) {
-    return '-'
-  }
-  if (item.usage?.balanceUnlimited) {
-    return '不限制'
-  }
-  if (Number(item.usage?.balanceTotal || 0) <= 0) {
-    return '未设置'
-  }
-  return openRouterQuotaValue(item, 'balanceTotal')
-}
-
-function openRouterQuotaMeta(item) {
-  if (!hasOpenRouterQuotaUsage(item)) {
-    return item?.disabled ? '已停用，启用后可刷新额度' : '点击刷新额度获取 OpenRouter /key 余额'
-  }
-  const parts = []
-  if (item?.usage?.planType) {
-    parts.push(item.usage.planType)
-  }
-  if (item?.usage?.message) {
-    parts.push(item.usage.message)
-  }
-  parts.push(`最后更新 ${usageUpdatedAt(item)}`)
-  return parts.join(' · ')
-}
-
-function validationSuccessMessage(token, result) {
-  if (token?.provider === 'openrouter' && result?.usage) {
-    const usage = result.usage
-    if (usage.balanceUnlimited) {
-      const used = usage.balanceUnit ? `${formatBalance(usage.balanceUsed)} ${usage.balanceUnit}` : '-'
-      return `OpenRouter 额度已刷新：消费上限不限制，已用 ${used}`
-    }
-    if (usage.balanceUnit) {
-      const remaining = `${formatBalance(usage.balanceRemaining)} ${usage.balanceUnit}`
-      const used = `${formatBalance(usage.balanceUsed)} ${usage.balanceUnit}`
-      return `OpenRouter 额度已刷新：剩余 ${remaining}，已用 ${used}`
-    }
-  }
-  return `验证通过：${result.status}，耗时 ${result.durationMs}ms`
-}
-
-function balancePackages(item) {
-  return Array.isArray(item?.usage?.balancePackages) ? item.usage.balancePackages : []
-}
-
-function balancePackageCounts(pkg) {
-  const status = String(pkg?.status || '').toUpperCase()
-  const type = String(pkg?.consumeType || '').toUpperCase()
-  return (!status || status === 'EFFECTIVE') && (!type || type === 'TOKENS')
-}
-
-function balancePackageTypeLabel(pkg) {
-  const type = String(pkg?.consumeType || '').toUpperCase()
-  if (type === 'TIMES') return '次数包'
-  if (type === 'TOKENS' || !type) return 'Token 包'
-  return type
-}
-
-function balancePackageAmount(pkg) {
-  const unit = pkg?.unit || (String(pkg?.consumeType || '').toUpperCase() === 'TIMES' ? '次' : 'Token')
-  return `${formatNumber(pkg?.balanceRemaining)} ${unit}`
-}
-
-function balancePackageMeta(pkg) {
-  const parts = []
-  if (pkg?.balanceTotal && Number(pkg.balanceTotal) !== Number(pkg.balanceRemaining || 0)) {
-    parts.push(`总量 ${formatNumber(pkg.balanceTotal)}`)
-  }
-  if (pkg?.status && pkg.status !== 'EFFECTIVE') {
-    parts.push(pkg.status)
-  }
-  if (pkg?.expirationTime) {
-    parts.push(`到期 ${formatPackageExpiration(pkg.expirationTime)}`)
-  }
-  if (pkg?.suitableModel) {
-    parts.push(pkg.suitableModel)
-  }
-  return parts.join(' · ') || (balancePackageCounts(pkg) ? '计入 Token 余额' : '仅展示，不计入 Token 余额')
-}
-
-function formatPackageExpiration(value) {
-  if (!value) return '-'
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
-function apiQuotaDisplay(item) {
-  if (hasBalanceUsage(item)) {
-    return quotaDisplay(item)
-  }
-  const remaining = Number(item.usage?.apiRemaining || 0)
-  if (remaining > 0) {
-    return `余量 ${formatNumber(remaining)}`
-  }
-  return displayStatusLabel(item)
-}
-
-function apiQuotaMeta(item) {
-  if (hasBalanceUsage(item)) {
-    return quotaStatMeta(item)
-  }
-  if (Number(item.usage?.apiRemaining || 0) > 0) {
-    return `来自上游 rate-limit header · 最后更新 ${usageUpdatedAt(item)}`
-  }
-  return healthSummary(item)
-}
-
-function isCodexToken(item) {
-  return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
-}
-
-function isClaudeOAuthToken(item) {
-  return item?.provider === 'anthropic' && item?.credentialType === 'claude_oauth_json'
-}
-
-function isMimoTokenPlan(item) {
-  return item?.provider === 'xiaomi' && item?.credentialType === 'mimo_token_plan'
-}
-
-function isZhipuCodingPlan(item) {
-  return item?.provider === 'zhipu' && item?.credentialType === 'coding_plan'
-}
-
-function showQuotaWindows(item) {
-  return isCodexToken(item) || isMimoTokenPlan(item) || Boolean(item?.usage?.subscriptionQuotaAvailable)
-}
-
-function quotaWindowAvailable(item, windowName) {
-  if (!item?.usage?.subscriptionQuotaAvailable) return false
-  const prefix = windowName === 'secondary' ? 'secondary' : 'primary'
-  return ['UsedPercent', 'RemainingPercent', 'ResetAt'].some((suffix) => {
-    const value = Number(item.usage?.[`${prefix}${suffix}`])
-    return Number.isFinite(value) && value > 0
-  })
-}
-
-function isCodexFreePlan(item) {
-  return isCodexToken(item) && String(item?.usage?.planType || '').trim().toLowerCase() === 'free'
-}
-
-function showPrimaryQuotaWindow(item) {
-  if (!showQuotaWindows(item)) return false
-  if (!item?.usage?.subscriptionQuotaAvailable) return true
-  if (isCodexFreePlan(item) && quotaWindowAvailable(item, 'secondary')) return false
-  return quotaWindowAvailable(item, 'primary')
-}
-
-function showSecondaryQuotaWindow(item) {
-  if (!showQuotaWindows(item)) return false
-  if (!item?.usage?.subscriptionQuotaAvailable) return true
-  if (isCodexFreePlan(item) && quotaWindowAvailable(item, 'primary')) return false
-  return quotaWindowAvailable(item, 'secondary')
-}
-
-function quotaWindowCount(item) {
-  return Number(showPrimaryQuotaWindow(item)) + Number(showSecondaryQuotaWindow(item))
-}
-
-function quotaPrimaryLabel(item) {
-  if (isZhipuCodingPlan(item)) return '窗口额度'
-  if (isCodexFreePlan(item)) return '1 周额度'
-  return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
-}
-
-function quotaSecondaryLabel(item) {
-  if (isZhipuCodingPlan(item)) return '周额度'
-  return isMimoTokenPlan(item) ? '套餐额度' : '1 周额度'
-}
-
-function quotaResetLabel(item) {
-  return isMimoTokenPlan(item) ? '到期' : '重置'
-}
-
-function quotaUnavailableText(item) {
-  if (isCodexToken(item)) return '点击刷新额度获取'
-  if (isMimoTokenPlan(item)) return 'Token Plan 暂无订阅额度'
-  return '暂无订阅额度'
-}
-
-function weeklyLimitReached(item) {
-  if (!item?.usage?.subscriptionQuotaAvailable) return false
-  if (!isZhipuCodingPlan(item) && !isCodexToken(item) && !isMimoTokenPlan(item)) return false
-  const remaining = Number(item.usage?.secondaryRemainingPercent)
-  const used = Number(item.usage?.secondaryUsedPercent)
-  return Number.isFinite(remaining) && remaining <= 0 && Number.isFinite(used) && used > 0
-}
-
-function tokenUsageMetrics(item) {
-  const total = Number(item.stats?.totalTokens || 0)
-  const input = Number(item.stats?.inputTokens || 0)
-  const output = Number(item.stats?.outputTokens || 0)
-  const requests = Number(item.stats?.requestCount || 0)
-  if (total > 0) {
-    return [
-      { label: 'Token', value: formatNumber(total) },
-      { label: '入', value: formatNumber(input) },
-      { label: '出', value: formatNumber(output) },
-    ]
-  }
-  return [{ label: 'Token', value: requests > 0 ? '未上报' : '0' }]
-}
-
-function normalizeBillingDailyRows(rows) {
-  return [...(rows || [])]
-    .map((row) => ({
-      date: String(row.date || ''),
-      requestCount: Number(row.requestCount || 0),
-      inputTokens: Number(row.inputTokens || 0),
-      outputTokens: Number(row.outputTokens || 0),
-      totalTokens: Number(row.totalTokens || 0),
-    }))
-    .filter((row) => row.date)
-    .sort((a, b) => b.date.localeCompare(a.date))
-}
-
-function isCooling(item) {
-  return item?.cooldownUntil && new Date(item.cooldownUntil).getTime() > Date.now()
-}
-
-function displayStatusLabel(item) {
-  if (item?.disabled) return '已停用'
-  if (isCooling(item)) return '冷却中'
-  return statusLabel(item.status)
-}
-
-function displayStatusClass(item) {
-  if (item?.disabled) return 'muted'
-  if (isCooling(item)) return 'warning'
-  return statusClass(item.status)
-}
-
-function displayStatusType(item) {
-  if (item?.disabled) return 'info'
-  if (isCooling(item)) return 'warning'
-  return statusType(item.status)
-}
-
-function healthSummary(item) {
-  if (item?.disabled) {
-    return '已停用，不参与调度和自动检查'
-  }
-  if (isCooling(item)) {
-    return `冷却到 ${formatTime(item.cooldownUntil)} 后自动复检`
-  }
-  if (item.health?.lastCheckedAt) {
-    const status = item.health.lastStatus ? ` · ${item.health.lastStatus}` : ''
-    return `健康检查 ${formatTime(item.health.lastCheckedAt)}${status}`
-  }
-  return '等待健康检查'
 }
 
 function trendHeight(row) {
@@ -3895,211 +2726,27 @@ async function refreshQuota(item) {
         @refresh="refreshBilling"
       />
 
-      <section v-else-if="activeTab === 'quotas'" key="quotas" class="panel quotas-page-panel">
-        <div class="section-heading">
-          <div>
-            <h2>账号状态</h2>
-            <p>按厂商查看订阅额度、API 剩余额度和代理用量</p>
-          </div>
-          <div class="section-actions">
-            <el-button :icon="Refresh" @click="refreshAll">刷新列表</el-button>
-            <el-button type="primary" plain :icon="RefreshRight" :loading="refreshingProvider" @click="refreshProviderQuotas">
-              全部刷新
-            </el-button>
-          </div>
-        </div>
-
-        <div class="provider-switch" aria-label="厂商选择">
-          <button
-            v-for="provider in providers"
-            :key="provider.key"
-            type="button"
-            :class="{ active: activeProvider === provider.key }"
-            @click="selectProvider(provider.key)"
-          >
-            {{ provider.label }}
-            <span>{{ providerTokens(provider.key).length }}</span>
-          </button>
-        </div>
-
-        <div class="provider-summary">
-          <div>
-            <h3>{{ activeProviderInfo.label }}</h3>
-            <p>{{ activeProviderEnabledCount }} 启用 / {{ activeProviderTokens.length }} 总数 · {{ activeProviderInfo.note }}</p>
-          </div>
-          <div
-            v-if="activeProvider === 'openrouter' && activeProviderTokens.length"
-            class="provider-api-balance-summary openrouter-provider-summary"
-            aria-label="OpenRouter 额度"
-          >
-            <article v-for="item in activeProviderTokens" :key="`openrouter-provider-summary-${item.id}`">
-              <span>{{ item.name }}</span>
-              <strong>{{ openRouterQuotaRemaining(item) }}</strong>
-              <small>{{ openRouterQuotaMeta(item) }}</small>
-              <small>已用 {{ openRouterQuotaValue(item, 'balanceUsed') }} · 上限 {{ openRouterQuotaLimit(item) }}</small>
-            </article>
-          </div>
-          <div
-            v-else-if="activeProviderAPIBalanceSummaries.length"
-            class="provider-api-balance-summary"
-            aria-label="API Key 总额度"
-          >
-            <article v-for="summary in activeProviderAPIBalanceSummaries" :key="summary.unit">
-              <span>API Key 总额度 · {{ summary.unit }}</span>
-              <strong>{{ formatBalance(summary.remaining) }} {{ summary.unit }}</strong>
-              <small>{{ apiBalanceSummaryMeta(summary) }}</small>
-            </article>
-          </div>
-        </div>
-
-        <div class="quota-card-grid">
-          <el-card
-            v-for="item in activeProviderTokens"
-            :key="item.id"
-            :class="['quota-card', { 'quota-card-disabled': item.disabled }]"
-            shadow="hover"
-            :body-style="{ padding: '0' }"
-          >
-            <div class="quota-card-inner">
-              <div class="quota-card-head">
-                <div class="quota-card-title-row">
-                  <strong class="account-name">{{ item.name }}</strong>
-                  <div class="quota-status-tags">
-                    <el-tag
-                      v-if="item.usage?.subscriptionQuotaAvailable && item.usage?.planType"
-                      type="primary"
-                      effect="plain"
-                      class="quota-chip"
-                    >
-                      {{ planLabel(item.usage?.planType) }}
-                    </el-tag>
-                    <el-tag v-if="weeklyLimitReached(item)" type="danger" effect="light">周限额已达</el-tag>
-                    <el-tag :type="displayStatusType(item)" effect="light" class="status-tag quota-chip">{{ displayStatusLabel(item) }}</el-tag>
-                  </div>
-                </div>
-                <div class="quota-card-meta-row">
-                  <span>{{ isCodexToken(item) ? 'Codex auth.json' : credentialLabel(item) }} · {{ providerLabel(item.provider) }}</span>
-                  <div class="quota-card-actions">
-                    <el-button
-                      size="small"
-                      :class="['account-action-button', 'account-select-button', { selected: item.selected }]"
-                      :type="item.selected ? 'primary' : ''"
-                      :plain="!item.selected"
-                      :icon="item.selected ? CircleCheckFilled : Plus"
-                      :loading="switchingOnlyTokenIds[item.id]"
-                      :disabled="item.disabled"
-                      @click="toggleTokenSelected(item)"
-                    >
-                      {{ item.selected ? '已选' : '选择' }}
-                    </el-button>
-                    <el-tooltip content="刷新额度" placement="top">
-                      <el-button
-                        size="small"
-                        class="account-action-button"
-                        plain
-                        :icon="Refresh"
-                        :loading="validatingIds[item.id]"
-                        @click="refreshQuota(item)"
-                      >
-                        刷新
-                      </el-button>
-                    </el-tooltip>
-                  </div>
-                </div>
-                <small class="health-line">{{ healthSummary(item) }}</small>
-              </div>
-
-              <div
-                :class="[
-                  'quota-layout',
-                  {
-                    'codex-layout': isCodexToken(item),
-                    'single-window-layout': quotaWindowCount(item) === 1,
-                    'api-only-layout': !isCodexToken(item) && quotaWindowCount(item) === 0,
-                  },
-                ]"
-              >
-                <div v-if="showPrimaryQuotaWindow(item)" class="quota-limit">
-                  <div class="quota-limit-title">
-                    <span>{{ quotaPrimaryLabel(item) }}</span>
-                    <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ quotaPercentText(item, 'primaryRemainingPercent') }}</strong>
-                    <strong v-else>-</strong>
-                  </div>
-                  <el-progress
-                    :percentage="quotaPercentValue(item, 'primaryRemainingPercent')"
-                    :show-text="false"
-                    :stroke-width="8"
-                  />
-                  <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
-                    <span>已用 <strong>{{ quotaPercentText(item, 'primaryUsedPercent') }}</strong></span>
-                    <span>{{ quotaResetLabel(item) }} <strong>{{ formatResetTime(item.usage.primaryResetAt) }}</strong></span>
-                  </small>
-                  <small v-else>{{ quotaUnavailableText(item) }}</small>
-                </div>
-
-                <div v-if="showSecondaryQuotaWindow(item)" class="quota-limit">
-                  <div class="quota-limit-title">
-                    <span>{{ quotaSecondaryLabel(item) }}</span>
-                    <strong v-if="item.usage?.subscriptionQuotaAvailable">{{ quotaPercentText(item, 'secondaryRemainingPercent') }}</strong>
-                    <strong v-else>-</strong>
-                  </div>
-                  <el-progress
-                    :percentage="quotaPercentValue(item, 'secondaryRemainingPercent')"
-                    :show-text="false"
-                    :stroke-width="8"
-                  />
-                  <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
-                    <span>已用 <strong>{{ quotaPercentText(item, 'secondaryUsedPercent') }}</strong></span>
-                    <span>{{ quotaResetLabel(item) }} <strong>{{ formatResetTime(item.usage.secondaryResetAt) }}</strong></span>
-                  </small>
-                  <small v-else>{{ quotaUnavailableText(item) }}</small>
-                </div>
-
-                <div v-if="!isCodexToken(item)" class="quota-stat quota-stat-balance">
-                  <span>{{ quotaStatLabel(item) }}</span>
-                  <strong>{{ hasBalanceUsage(item) ? quotaDisplay(item) : `${item.usage?.apiRemaining || item.remaining}%` }}</strong>
-                  <small>{{ quotaStatMeta(item) }}</small>
-                </div>
-
-                <div class="quota-stat quota-stat-usage">
-                  <span>代理请求</span>
-                  <strong>{{ formatNumber(item.stats?.requestCount) }} 次</strong>
-                  <small class="quota-detail token-usage-detail">
-                    <span v-for="metric in tokenUsageMetrics(item)" :key="metric.label">
-                      {{ metric.label }} <strong>{{ metric.value }}</strong>
-                    </span>
-                  </small>
-                </div>
-              </div>
-
-              <div v-if="balancePackages(item).length" class="balance-package-list">
-                <div class="balance-package-head">
-                  <span>资源包明细</span>
-                  <small>Token 包计入余额，次数包仅展示</small>
-                </div>
-                <div
-                  v-for="(pkg, index) in balancePackages(item)"
-                  :key="`${pkg.name || 'package'}-${pkg.consumeType || 'token'}-${pkg.expirationTime || ''}-${index}`"
-                  :class="['balance-package-row', { muted: !balancePackageCounts(pkg) }]"
-                  :title="pkg.suitableScene || pkg.suitableModel || pkg.name"
-                >
-                  <div>
-                    <strong>{{ pkg.name || balancePackageTypeLabel(pkg) }}</strong>
-                    <small>{{ balancePackageMeta(pkg) }}</small>
-                  </div>
-                  <div>
-                    <span class="package-type">{{ balancePackageTypeLabel(pkg) }}</span>
-                    <strong>{{ balancePackageAmount(pkg) }}</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </el-card>
-          <div v-if="!activeProviderTokens.length" class="empty">
-            暂无 {{ activeProviderInfo.label }} 账号
-          </div>
-        </div>
-      </section>
+      <QuotasView
+        v-else-if="activeTab === 'quotas'"
+        key="quotas"
+        :providers="providers"
+        :active-provider="activeProvider"
+        :active-provider-info="activeProviderInfo"
+        :active-provider-tokens="activeProviderTokens"
+        :active-provider-enabled-count="activeProviderEnabledCount"
+        :api-balance-summaries="activeProviderAPIBalanceSummaries"
+        :refreshing-provider="refreshingProvider"
+        :switching-only-token-ids="switchingOnlyTokenIds"
+        :validating-ids="validatingIds"
+        :provider-tokens="providerTokens"
+        :credential-label="credentialLabel"
+        :provider-label="providerLabel"
+        @refresh="refreshAll"
+        @refresh-provider-quotas="refreshProviderQuotas"
+        @select-provider="selectProvider"
+        @toggle-token-selected="toggleTokenSelected"
+        @refresh-quota="refreshQuota"
+      />
 
       <TokensView
         v-else-if="activeTab === 'tokens'"
@@ -4229,352 +2876,77 @@ async function refreshQuota(item) {
         @open-url="openExternalURL"
       />
 
-      <section v-else-if="activeTab === 'quickstart'" key="quickstart" class="help-panel quickstart-panel">
-        <div class="help-grid">
-          <article class="wide-help">
-            <strong>Codex</strong>
-            <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api 和 new-api 使用账号池里的 API Key。</p>
-            <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex
-sub2api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/sub2api
-sub2api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/sub2api/anthropic
-sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini
-new-api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/newapi
-new-api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/newapi/anthropic
-new-api Gemini: http://127.0.0.1:{{ config.proxyPort }}/newapi/gemini
-Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
-            <div class="help-actions">
-              <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="configureLocalCodex">
-                {{ codexConfiguring ? '配置中' : '配置 Codex OpenAI' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="codexSub2APIConfiguring" @click="configureLocalCodexSub2API">
-                {{ codexSub2APIConfiguring ? '配置中' : '配置 Codex sub2api' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="codexNewAPIConfiguring" @click="configureLocalCodexNewAPI">
-                {{ codexNewAPIConfiguring ? '配置中' : '配置 Codex new-api' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="codexZoConfiguring" @click="configureLocalCodexZo">
-                {{ codexZoConfiguring ? '配置中' : '配置 Codex Zo' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="codexRestoring" @click="restoreLocalCodex">
-                {{ codexRestoring ? '恢复中' : '恢复 Codex 配置' }}
-              </el-button>
-            </div>
-          </article>
+      <QuickstartView
+        v-else-if="activeTab === 'quickstart'"
+        key="quickstart"
+        v-model:selected-claude-models="selectedClaudeModels"
+        :config="config"
+        :claude-model-options="claudeModelOptions"
+        :claude-model-selection-limit="claudeModelSelectionLimit"
+        :selected-claude-model-labels="selectedClaudeModelLabels"
+        :can-configure-claude-models="canConfigureClaudeModels"
+        :is-claude-model-option-disabled="isClaudeModelOptionDisabled"
+        :codex-configuring="codexConfiguring"
+        :codex-sub2api-configuring="codexSub2APIConfiguring"
+        :codex-newapi-configuring="codexNewAPIConfiguring"
+        :codex-zo-configuring="codexZoConfiguring"
+        :codex-restoring="codexRestoring"
+        :claude-models-configuring="claudeModelsConfiguring"
+        :claude-desktop-configuring="claudeDesktopConfiguring"
+        :claude-desktop-restoring="claudeDesktopRestoring"
+        :deep-seek-claude-configuring="deepSeekClaudeConfiguring"
+        :mimo-claude-configuring="mimoClaudeConfiguring"
+        :kimi-claude-configuring="kimiClaudeConfiguring"
+        :zhipu-claude-configuring="zhipuClaudeConfiguring"
+        :zo-claude-configuring="zoClaudeConfiguring"
+        :mimo-claude-restoring="mimoClaudeRestoring"
+        :gemini-configuring="geminiConfiguring"
+        :gemini-restoring="geminiRestoring"
+        :opencode-configuring="opencodeConfiguring"
+        :opencode-restoring="opencodeRestoring"
+        :pi-configuring="piConfiguring"
+        :pi-restoring="piRestoring"
+        :deep-seek-tui-configuring="deepSeekTUIConfiguring"
+        :deep-seek-tui-restoring="deepSeekTUIRestoring"
+        @configure-codex="configureLocalCodex"
+        @configure-codex-sub2api="configureLocalCodexSub2API"
+        @configure-codex-newapi="configureLocalCodexNewAPI"
+        @configure-codex-zo="configureLocalCodexZo"
+        @restore-codex="restoreLocalCodex"
+        @configure-claude-models="configureLocalClaudeModels"
+        @configure-claude-desktop-models="configureLocalClaudeDesktopModels"
+        @restore-claude-desktop="restoreLocalClaudeDesktop"
+        @configure-deepseek-claude="configureLocalDeepSeekClaude"
+        @configure-mimo-claude="configureLocalMimoClaude"
+        @configure-kimi-claude="configureLocalKimiClaude"
+        @configure-zhipu-claude="configureLocalZhipuClaude"
+        @configure-zo-claude="configureLocalZoClaude"
+        @restore-mimo-claude="restoreLocalMimoClaude"
+        @configure-gemini="configureLocalGemini"
+        @restore-gemini="restoreLocalGemini"
+        @configure-opencode="configureLocalOpenCode"
+        @restore-opencode="restoreLocalOpenCode"
+        @configure-pi="configureLocalPi"
+        @restore-pi="restoreLocalPi"
+        @configure-deepseek-tui="configureLocalDeepSeekTUI"
+        @restore-deepseek-tui="restoreLocalDeepSeekTUI"
+      />
 
-          <article class="wide-help">
-            <strong>Claude Code</strong>
-            <p>每次只接入一个 Claude Code 上游，也可以按需选择最多 4 个模型写入模型槽位，并清理 OmniProxy 旧配置。</p>
-            <pre class="help-code"><code>Claude Router URL: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
-DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
-MiMo: MiMo-V2.5-Pro / MiMo-V2.5
-Kimi model: kimi-for-coding
-GLM model: glm-5.1
-Zo models: claude-opus-4-7 / claude-sonnet-4-6</code></pre>
-            <div class="claude-model-config">
-              <div class="claude-model-config-head">
-                <span>可选模型</span>
-                <small>{{ selectedClaudeModels.length }} / {{ claudeModelSelectionLimit }}</small>
-              </div>
-              <div class="claude-model-picker" role="group" aria-label="Claude Code 可选模型">
-                <label
-                  v-for="option in claudeModelOptions"
-                  :key="option.id"
-                  :class="[
-                    'claude-model-choice',
-                    {
-                      selected: selectedClaudeModels.includes(option.id),
-                      disabled: isClaudeModelOptionDisabled(option.id),
-                    },
-                  ]"
-                >
-                  <input
-                    v-model="selectedClaudeModels"
-                    type="checkbox"
-                    :value="option.id"
-                    :disabled="isClaudeModelOptionDisabled(option.id)"
-                  />
-                  <span>
-                    <strong>{{ option.label }}</strong>
-                    <small>{{ option.description }}</small>
-                  </span>
-                </label>
-              </div>
-              <small class="claude-model-selection">
-                已选：{{ selectedClaudeModelLabels.length ? selectedClaudeModelLabels.join('、') : '未选择' }}
-              </small>
-              <small class="claude-model-selection">
-                CLI 写入 <code>%USERPROFILE%\.claude\settings.json</code>；Desktop 写入 Claude 3P Gateway Profile，配置后请完全退出并重启 Claude Desktop。
-              </small>
-            </div>
-            <div class="claude-action-panel">
-              <div class="claude-action-row">
-                <span>按当前选择写入</span>
-                <div class="help-actions claude-actions">
-                  <el-button
-                    type="success"
-                    :icon="MagicStick"
-                    :loading="claudeModelsConfiguring"
-                    :disabled="!canConfigureClaudeModels"
-                    @click="configureLocalClaudeModels"
-                  >
-                    {{ claudeModelsConfiguring ? '配置中' : 'Claude CLI' }}
-                  </el-button>
-                  <el-button
-                    type="success"
-                    plain
-                    :icon="Monitor"
-                    :loading="claudeDesktopConfiguring"
-                    :disabled="!canConfigureClaudeModels"
-                    @click="configureLocalClaudeDesktopModels"
-                  >
-                    {{ claudeDesktopConfiguring ? '配置中' : 'Claude Desktop' }}
-                  </el-button>
-                  <el-button :icon="RefreshRight" :loading="claudeDesktopRestoring" @click="restoreLocalClaudeDesktop">
-                    {{ claudeDesktopRestoring ? '恢复中' : '恢复 Desktop' }}
-                  </el-button>
-                </div>
-              </div>
-              <div class="claude-action-row">
-                <span>快捷单模型</span>
-                <div class="help-actions claude-actions">
-                  <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="configureLocalDeepSeekClaude">
-                    {{ deepSeekClaudeConfiguring ? '配置中' : 'DeepSeek' }}
-                  </el-button>
-                  <el-button type="primary" plain :icon="MagicStick" :loading="mimoClaudeConfiguring" @click="configureLocalMimoClaude">
-                    {{ mimoClaudeConfiguring ? '配置中' : 'MiMo' }}
-                  </el-button>
-                  <el-button type="primary" plain :icon="MagicStick" :loading="kimiClaudeConfiguring" @click="configureLocalKimiClaude">
-                    {{ kimiClaudeConfiguring ? '配置中' : 'Kimi' }}
-                  </el-button>
-                  <el-button type="primary" plain :icon="MagicStick" :loading="zhipuClaudeConfiguring" @click="configureLocalZhipuClaude">
-                    {{ zhipuClaudeConfiguring ? '配置中' : 'GLM' }}
-                  </el-button>
-                  <el-button type="primary" plain :icon="MagicStick" :loading="zoClaudeConfiguring" @click="configureLocalZoClaude">
-                    {{ zoClaudeConfiguring ? '配置中' : 'Zo' }}
-                  </el-button>
-                  <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="restoreLocalMimoClaude">
-                    {{ mimoClaudeRestoring ? '恢复中' : '恢复 CLI' }}
-                  </el-button>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article class="wide-help">
-            <strong>Gemini CLI</strong>
-            <p>写入 <code>%USERPROFILE%\.gemini\.env</code> 和 <code>settings.json</code>，使用账号池里的 Gemini API Key。</p>
-            <pre class="help-code"><code>GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:{{ config.proxyPort }}/gemini
-GEMINI_MODEL=gemini-3-pro-preview</code></pre>
-            <div class="help-actions">
-              <el-button type="primary" :icon="MagicStick" :loading="geminiConfiguring" @click="configureLocalGemini">
-                {{ geminiConfiguring ? '配置中' : '配置 Gemini CLI' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="geminiRestoring" @click="restoreLocalGemini">
-                {{ geminiRestoring ? '恢复中' : '恢复 Gemini 配置' }}
-              </el-button>
-            </div>
-          </article>
-
-          <article class="wide-help">
-            <strong>OpenCode</strong>
-            <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini、OpenRouter、TokenRouter、Zo Computer 和自定义网关 provider。</p>
-            <pre class="help-code"><code>OpenAI-compatible Router: http://127.0.0.1:{{ config.proxyPort }}/opencode-router/v1
-Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini
-OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
-TokenRouter: http://127.0.0.1:{{ config.proxyPort }}/tokenrouter/v1
-Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo/v1
-Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
-            <div class="help-actions">
-              <el-button type="primary" :icon="MagicStick" :loading="opencodeConfiguring" @click="configureLocalOpenCode">
-                {{ opencodeConfiguring ? '配置中' : '配置 OpenCode' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="opencodeRestoring" @click="restoreLocalOpenCode">
-                {{ opencodeRestoring ? '恢复中' : '恢复 OpenCode 配置' }}
-              </el-button>
-            </div>
-          </article>
-
-          <article class="wide-help">
-            <strong>Pi Coding Agent</strong>
-            <p>写入 <code>%USERPROFILE%\.pi\agent\models.json</code>，添加 OmniProxy 和 Zo Computer provider，可通过 <code>pi --provider omniproxy --model gpt-5.4</code> 使用。</p>
-            <pre class="help-code"><code>Pi Router: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1
-Anthropic Router: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
-Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini/v1beta
-OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
-TokenRouter auto: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1 + model auto:balance
-Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo/v1
-Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
-            <div class="help-actions">
-              <el-button type="primary" :icon="MagicStick" :loading="piConfiguring" @click="configureLocalPi">
-                {{ piConfiguring ? '配置中' : '配置 Pi Coding Agent' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="piRestoring" @click="restoreLocalPi">
-                {{ piRestoring ? '恢复中' : '恢复 Pi 配置' }}
-              </el-button>
-            </div>
-          </article>
-
-          <article class="wide-help">
-            <strong>DeepSeek-TUI</strong>
-            <p>写入 <code>%USERPROFILE%\.deepseek\config.toml</code>，使用 DeepSeek-TUI 内置 DeepSeek provider 连接 OmniProxy 的 DeepSeek 账号池。</p>
-            <pre class="help-code"><code>provider = "deepseek"
-default_text_model = "deepseek-v4-pro"
-[providers.deepseek]
-base_url = "http://127.0.0.1:{{ config.proxyPort }}/deepseek/v1"
-api_key = "omniproxy-local"</code></pre>
-            <div class="help-actions">
-              <el-button type="primary" :icon="MagicStick" :loading="deepSeekTUIConfiguring" @click="configureLocalDeepSeekTUI">
-                {{ deepSeekTUIConfiguring ? '配置中' : '配置 DeepSeek-TUI' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="deepSeekTUIRestoring" @click="restoreLocalDeepSeekTUI">
-                {{ deepSeekTUIRestoring ? '恢复中' : '恢复 DeepSeek-TUI 配置' }}
-              </el-button>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section v-else-if="activeTab === 'help'" key="help" class="help-page">
-        <div class="help-guide">
-          <div class="help-readiness-grid" aria-label="当前接入状态">
-            <article
-              v-for="card in helpReadinessCards"
-              :key="card.label"
-              :class="['help-readiness-card', card.state]"
-            >
-              <component :is="card.icon" class="help-card-icon" aria-hidden="true" />
-              <div>
-                <span>{{ card.label }}</span>
-                <strong>{{ card.value }}</strong>
-                <small>{{ card.detail }}</small>
-              </div>
-            </article>
-          </div>
-
-          <div class="help-section-block">
-            <div class="help-section-title">
-              <Lightning class="help-section-icon" aria-hidden="true" />
-              <div>
-                <strong>推荐工作流</strong>
-                <p>从账号准备到请求诊断，按顺序检查更容易定位问题。</p>
-              </div>
-            </div>
-            <div class="help-flow">
-              <article v-for="item in helpWorkflowSteps" :key="item.step" class="help-flow-step">
-                <span class="help-step-index">{{ item.step }}</span>
-                <div>
-                  <strong>{{ item.title }}</strong>
-                  <p>{{ item.description }}</p>
-                  <div class="help-step-actions">
-                    <el-button
-                      v-for="action in item.actions"
-                      :key="action.label"
-                      size="small"
-                      text
-                      type="primary"
-                      @click="selectTab(action.tab)"
-                    >
-                      {{ action.label }}
-                    </el-button>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </div>
-
-          <div class="help-section-block">
-            <div class="help-section-title">
-              <Key class="help-section-icon" aria-hidden="true" />
-              <div>
-                <strong>账号类型怎么选</strong>
-                <p>不同凭据会影响可用路由、额度展示和刷新方式。</p>
-              </div>
-            </div>
-            <div class="help-credential-grid">
-              <article v-for="group in helpCredentialGroups" :key="group.title">
-                <strong>{{ group.title }}</strong>
-                <code>{{ group.summary }}</code>
-                <p>{{ group.detail }}</p>
-              </article>
-            </div>
-          </div>
-
-          <div class="help-section-block">
-            <div class="help-section-title">
-              <Monitor class="help-section-icon" aria-hidden="true" />
-              <div>
-                <strong>第三方客户端接口</strong>
-                <p>Cherry Studio 这类客户端一般选择 OpenAI-compatible provider，填写 Base URL、任意非空 API Key 和模型名即可。</p>
-              </div>
-            </div>
-            <div class="endpoint-reference">
-              <div class="endpoint-reference-note">
-                <strong>Cherry Studio 推荐</strong>
-                <p>OpenAI 兼容：Base URL 填 <code>http://127.0.0.1:{{ proxyStatus.port || config.proxyPort }}/v1</code>；Zo Computer 填 <code>http://127.0.0.1:{{ proxyStatus.port || config.proxyPort }}/zo/v1</code>；API Key 填 <code>omniproxy-local</code>。</p>
-              </div>
-              <section v-for="group in thirdPartyEndpointGroups" :key="group.title" class="endpoint-group">
-                <div class="endpoint-group-head">
-                  <div>
-                    <strong>{{ group.title }}</strong>
-                    <p>{{ group.note }}</p>
-                  </div>
-                </div>
-                <div class="endpoint-table">
-                  <article v-for="endpoint in group.endpoints" :key="`${group.title}-${endpoint.name}`" class="endpoint-row">
-                    <div class="endpoint-main">
-                      <span class="tag muted">{{ endpoint.protocol }}</span>
-                      <strong>{{ endpoint.name }}</strong>
-                      <p>{{ endpoint.use }}</p>
-                    </div>
-                    <div class="endpoint-fields">
-                      <div>
-                        <span>Base URL</span>
-                        <code>{{ endpoint.baseUrl }}</code>
-                        <button type="button" class="ghost-button compact-button" @click="copyEndpointValue(endpoint.baseUrl, 'Base URL')">
-                          复制
-                        </button>
-                      </div>
-                      <div>
-                        <span>API Key</span>
-                        <code>{{ endpoint.apiKey }}</code>
-                        <button type="button" class="ghost-button compact-button" @click="copyEndpointValue(endpoint.apiKey, 'API Key')">
-                          复制
-                        </button>
-                      </div>
-                      <div>
-                        <span>模型</span>
-                        <code>{{ endpoint.models }}</code>
-                        <button type="button" class="ghost-button compact-button" @click="copyEndpointValue(endpoint.models, '模型')">
-                          复制
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                </div>
-              </section>
-            </div>
-          </div>
-
-          <div class="help-section-block">
-            <div class="help-section-title">
-              <RefreshRight class="help-section-icon" aria-hidden="true" />
-              <div>
-                <strong>常见排查路径</strong>
-                <p>先确认请求是否进入本机代理，再判断账号、额度、模型和上游响应。</p>
-              </div>
-            </div>
-            <div class="help-troubleshooting-list">
-              <article v-for="item in helpTroubleshootingItems" :key="item.problem">
-                <CircleCheckFilled class="help-check-icon" aria-hidden="true" />
-                <div>
-                  <strong>{{ item.problem }}</strong>
-                  <p>{{ item.action }}</p>
-                </div>
-              </article>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HelpView
+        v-else-if="activeTab === 'help'"
+        key="help"
+        :proxy-status="proxyStatus"
+        :config="config"
+        :active-tokens-count="activeTokens.length"
+        :token-count="tokens.length"
+        :low-tokens-count="lowTokens.length"
+        :invalid-tokens-count="invalidTokens.length"
+        :active-requests-count="activeRequests.length"
+        :today-proxy-requests="todayProxyRequests"
+        :format-number="formatNumber"
+        @select-tab="selectTab"
+        @copy-endpoint="copyEndpointValue"
+      />
       </Transition>
 
       <DiagnosticDrawer
@@ -4586,66 +2958,17 @@ api_key = "omniproxy-local"</code></pre>
       />
 
       <Transition name="modal-pop" appear>
-        <div v-if="firstUseGuideVisible" class="first-run-backdrop" @click.self="closeFirstUseGuide">
-          <section class="first-run-dialog" role="dialog" aria-modal="true" aria-labelledby="first-run-title">
-            <div class="first-run-head">
-              <div>
-                <span class="section-kicker">首次使用</span>
-                <h2 id="first-run-title">3 步完成 OmniProxy 接入</h2>
-                <p>这个向导只会自动显示一次；后续可以在“使用说明”和“一键配置”里查看同样的入口。</p>
-              </div>
-              <button type="button" class="ghost-button" @click="closeFirstUseGuide">跳过</button>
-            </div>
-
-            <div class="first-run-progress" aria-label="引导进度">
-              <button
-                v-for="(step, index) in firstUseGuideSteps"
-                :key="step.step"
-                type="button"
-                :class="{ active: index === firstUseGuideStepIndex, done: index < firstUseGuideStepIndex }"
-                @click="firstUseGuideStepIndex = index"
-              >
-                <span>{{ step.step }}</span>
-                <strong>{{ step.title }}</strong>
-              </button>
-            </div>
-
-            <div class="first-run-body">
-              <div class="first-run-icon">
-                <component :is="currentFirstUseGuideStep.icon" aria-hidden="true" />
-              </div>
-              <div>
-                <span class="first-run-step">{{ currentFirstUseGuideStep.step }} / 03</span>
-                <h3>{{ currentFirstUseGuideStep.title }}</h3>
-                <p>{{ currentFirstUseGuideStep.description }}</p>
-                <div class="first-run-endpoint">
-                  <span>当前本地入口</span>
-                  <code>{{ proxyEndpoint }}</code>
-                </div>
-              </div>
-            </div>
-
-            <div class="first-run-actions">
-              <button type="button" class="ghost-button" @click="closeFirstUseGuide">跳过向导</button>
-              <div>
-                <button
-                  type="button"
-                  class="ghost-button"
-                  :disabled="firstUseGuideStepIndex === 0"
-                  @click="previousFirstUseGuideStep"
-                >
-                  上一步
-                </button>
-                <button type="button" class="ghost-button" @click="runFirstUseGuideAction">
-                  {{ currentFirstUseGuideStep.actionLabel }}
-                </button>
-                <button type="button" class="primary-button" @click="nextFirstUseGuideStep">
-                  {{ firstUseGuideStepIndex >= firstUseGuideSteps.length - 1 ? '完成' : '下一步' }}
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
+        <FirstUseGuideModal
+          v-if="firstUseGuideVisible"
+          v-model:step-index="firstUseGuideStepIndex"
+          :steps="firstUseGuideSteps"
+          :current-step="currentFirstUseGuideStep"
+          :proxy-endpoint="proxyEndpoint"
+          @close="closeFirstUseGuide"
+          @previous="previousFirstUseGuideStep"
+          @run-action="runFirstUseGuideAction"
+          @next="nextFirstUseGuideStep"
+        />
       </Transition>
 
       <Transition name="modal-pop" appear>

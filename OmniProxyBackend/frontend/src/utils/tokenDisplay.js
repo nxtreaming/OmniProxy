@@ -1,0 +1,380 @@
+import { statusMeta } from '../constants/app.js'
+import { formatNumber, formatTime } from './format.js'
+
+export function statusLabel(status) {
+  return statusMeta[status]?.label || status
+}
+
+export function statusClass(status) {
+  return statusMeta[status]?.className || 'muted'
+}
+
+export function statusType(status) {
+  const className = statusClass(status)
+  if (className === 'success') return 'success'
+  if (className === 'warning') return 'warning'
+  if (className === 'danger') return 'danger'
+  return 'info'
+}
+
+export function planLabel(plan) {
+  const normalized = String(plan || '').toLowerCase()
+  const labels = {
+    team: 'Team',
+    pro: 'Pro',
+    plus: 'Plus',
+    free: 'Free',
+    enterprise: 'Enterprise',
+  }
+  return labels[normalized] || plan || '未知'
+}
+
+export function usageUpdatedAt(item) {
+  return item.usage?.updatedAt ? formatTime(item.usage.updatedAt) : '-'
+}
+
+export function quotaPercentValue(item, field) {
+  if (!item?.usage?.subscriptionQuotaAvailable) return 0
+  const value = Number(item.usage?.[field])
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+export function quotaPercentText(item, field) {
+  return item?.usage?.subscriptionQuotaAvailable ? `${quotaPercentValue(item, field)}%` : '-'
+}
+
+export function formatBalance(value) {
+  const number = Number(value || 0)
+  const fractionDigits = Math.abs(number) > 0 && Math.abs(number) < 1 ? 4 : 2
+  return new Intl.NumberFormat('zh-CN', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(number)
+}
+
+export function apiBalanceSummaryMeta(summary) {
+  const parts = [`${formatNumber(summary.count)} 个 API Key`]
+  if (Number(summary.total || 0) > 0) {
+    parts.push(`总额 ${formatBalance(summary.total)} ${summary.unit}`)
+  }
+  if (Number(summary.used || 0) > 0) {
+    parts.push(`已用 ${formatBalance(summary.used)} ${summary.unit}`)
+  }
+  return parts.join(' · ')
+}
+
+export function hasBalanceUsage(item) {
+  return Boolean(item.usage?.balanceUnit)
+}
+
+export function hasOpenRouterQuotaUsage(item) {
+  if (item?.provider !== 'openrouter') return false
+  return hasBalanceUsage(item) || Boolean(item.usage?.balanceUnlimited)
+}
+
+export function quotaDisplay(item) {
+  if (item.usage?.balanceUnlimited) {
+    return '不限制'
+  }
+  if (hasBalanceUsage(item)) {
+    return `${formatBalance(item.usage.balanceRemaining)} ${item.usage.balanceUnit}`
+  }
+  return `${item.remaining}%`
+}
+
+export function quotaStatLabel(item) {
+  return hasBalanceUsage(item) ? '账户余额' : 'API 剩余额度'
+}
+
+export function quotaStatMeta(item) {
+  if (hasBalanceUsage(item)) {
+    const parts = []
+    if (item.usage?.balanceUnlimited) {
+      parts.push('未设置消费上限')
+    }
+    if (Number(item.usage?.balanceTotal || 0) > 0) {
+      parts.push(`总额 ${formatBalance(item.usage.balanceTotal)} ${item.usage.balanceUnit}`)
+    }
+    if (Number(item.usage?.balanceUsed || 0) > 0) {
+      parts.push(`已用 ${formatBalance(item.usage.balanceUsed)} ${item.usage.balanceUnit}`)
+    }
+    parts.push(`最后更新 ${usageUpdatedAt(item)}`)
+    return parts.join(' · ')
+  }
+  return `最后更新 ${usageUpdatedAt(item)}`
+}
+
+export function openRouterQuotaValue(item, field) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return '-'
+  }
+  return `${formatBalance(item.usage?.[field])} ${item.usage.balanceUnit}`
+}
+
+export function openRouterQuotaRemaining(item) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return '待刷新'
+  }
+  if (item.usage?.balanceUnlimited) {
+    return '不限制'
+  }
+  if (Number(item.usage?.balanceTotal || 0) <= 0 && Number(item.usage?.balanceRemaining || 0) <= 0) {
+    return '未返回'
+  }
+  return openRouterQuotaValue(item, 'balanceRemaining')
+}
+
+export function openRouterQuotaLimit(item) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return '-'
+  }
+  if (item.usage?.balanceUnlimited) {
+    return '不限制'
+  }
+  if (Number(item.usage?.balanceTotal || 0) <= 0) {
+    return '未设置'
+  }
+  return openRouterQuotaValue(item, 'balanceTotal')
+}
+
+export function openRouterQuotaMeta(item) {
+  if (!hasOpenRouterQuotaUsage(item)) {
+    return item?.disabled ? '已停用，启用后可刷新额度' : '点击刷新额度获取 OpenRouter /key 余额'
+  }
+  const parts = []
+  if (item?.usage?.planType) {
+    parts.push(item.usage.planType)
+  }
+  if (item?.usage?.message) {
+    parts.push(item.usage.message)
+  }
+  parts.push(`最后更新 ${usageUpdatedAt(item)}`)
+  return parts.join(' · ')
+}
+
+export function validationSuccessMessage(token, result) {
+  if (token?.provider === 'openrouter' && result?.usage) {
+    const usage = result.usage
+    if (usage.balanceUnlimited) {
+      const used = usage.balanceUnit ? `${formatBalance(usage.balanceUsed)} ${usage.balanceUnit}` : '-'
+      return `OpenRouter 额度已刷新：消费上限不限制，已用 ${used}`
+    }
+    if (usage.balanceUnit) {
+      const remaining = `${formatBalance(usage.balanceRemaining)} ${usage.balanceUnit}`
+      const used = `${formatBalance(usage.balanceUsed)} ${usage.balanceUnit}`
+      return `OpenRouter 额度已刷新：剩余 ${remaining}，已用 ${used}`
+    }
+  }
+  return `验证通过：${result.status}，耗时 ${result.durationMs}ms`
+}
+
+export function balancePackages(item) {
+  return Array.isArray(item?.usage?.balancePackages) ? item.usage.balancePackages : []
+}
+
+export function balancePackageCounts(pkg) {
+  const status = String(pkg?.status || '').toUpperCase()
+  const type = String(pkg?.consumeType || '').toUpperCase()
+  return (!status || status === 'EFFECTIVE') && (!type || type === 'TOKENS')
+}
+
+export function balancePackageTypeLabel(pkg) {
+  const type = String(pkg?.consumeType || '').toUpperCase()
+  if (type === 'TIMES') return '次数包'
+  if (type === 'TOKENS' || !type) return 'Token 包'
+  return type
+}
+
+export function balancePackageAmount(pkg) {
+  const unit = pkg?.unit || (String(pkg?.consumeType || '').toUpperCase() === 'TIMES' ? '次' : 'Token')
+  return `${formatNumber(pkg?.balanceRemaining)} ${unit}`
+}
+
+export function balancePackageMeta(pkg) {
+  const parts = []
+  if (pkg?.balanceTotal && Number(pkg.balanceTotal) !== Number(pkg.balanceRemaining || 0)) {
+    parts.push(`总量 ${formatNumber(pkg.balanceTotal)}`)
+  }
+  if (pkg?.status && pkg.status !== 'EFFECTIVE') {
+    parts.push(pkg.status)
+  }
+  if (pkg?.expirationTime) {
+    parts.push(`到期 ${formatPackageExpiration(pkg.expirationTime)}`)
+  }
+  if (pkg?.suitableModel) {
+    parts.push(pkg.suitableModel)
+  }
+  return parts.join(' · ') || (balancePackageCounts(pkg) ? '计入 Token 余额' : '仅展示，不计入 Token 余额')
+}
+
+function formatPackageExpiration(value) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+export function apiQuotaDisplay(item) {
+  if (hasBalanceUsage(item)) {
+    return quotaDisplay(item)
+  }
+  const remaining = Number(item.usage?.apiRemaining || 0)
+  if (remaining > 0) {
+    return `余量 ${formatNumber(remaining)}`
+  }
+  return displayStatusLabel(item)
+}
+
+export function apiQuotaMeta(item) {
+  if (hasBalanceUsage(item)) {
+    return quotaStatMeta(item)
+  }
+  if (Number(item.usage?.apiRemaining || 0) > 0) {
+    return `来自上游 rate-limit header · 最后更新 ${usageUpdatedAt(item)}`
+  }
+  return healthSummary(item)
+}
+
+export function isCodexToken(item) {
+  return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
+}
+
+export function isMimoTokenPlan(item) {
+  return item?.provider === 'xiaomi' && item?.credentialType === 'mimo_token_plan'
+}
+
+export function isZhipuCodingPlan(item) {
+  return item?.provider === 'zhipu' && item?.credentialType === 'coding_plan'
+}
+
+export function showQuotaWindows(item) {
+  return isCodexToken(item) || isMimoTokenPlan(item) || Boolean(item?.usage?.subscriptionQuotaAvailable)
+}
+
+export function quotaWindowAvailable(item, windowName) {
+  if (!item?.usage?.subscriptionQuotaAvailable) return false
+  const prefix = windowName === 'secondary' ? 'secondary' : 'primary'
+  return ['UsedPercent', 'RemainingPercent', 'ResetAt'].some((suffix) => {
+    const value = Number(item.usage?.[`${prefix}${suffix}`])
+    return Number.isFinite(value) && value > 0
+  })
+}
+
+export function isCodexFreePlan(item) {
+  return isCodexToken(item) && String(item?.usage?.planType || '').trim().toLowerCase() === 'free'
+}
+
+export function showPrimaryQuotaWindow(item) {
+  if (!showQuotaWindows(item)) return false
+  if (!item?.usage?.subscriptionQuotaAvailable) return true
+  if (isCodexFreePlan(item) && quotaWindowAvailable(item, 'secondary')) return false
+  return quotaWindowAvailable(item, 'primary')
+}
+
+export function showSecondaryQuotaWindow(item) {
+  if (!showQuotaWindows(item)) return false
+  if (!item?.usage?.subscriptionQuotaAvailable) return true
+  if (isCodexFreePlan(item) && quotaWindowAvailable(item, 'primary')) return false
+  return quotaWindowAvailable(item, 'secondary')
+}
+
+export function quotaWindowCount(item) {
+  return Number(showPrimaryQuotaWindow(item)) + Number(showSecondaryQuotaWindow(item))
+}
+
+export function quotaPrimaryLabel(item) {
+  if (isZhipuCodingPlan(item)) return '窗口额度'
+  if (isCodexFreePlan(item)) return '1 周额度'
+  return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
+}
+
+export function quotaSecondaryLabel(item) {
+  if (isZhipuCodingPlan(item)) return '周额度'
+  return isMimoTokenPlan(item) ? '套餐额度' : '1 周额度'
+}
+
+export function quotaResetLabel(item) {
+  return isMimoTokenPlan(item) ? '到期' : '重置'
+}
+
+export function quotaUnavailableText(item) {
+  if (isCodexToken(item)) return '点击刷新额度获取'
+  if (isMimoTokenPlan(item)) return 'Token Plan 暂无订阅额度'
+  return '暂无订阅额度'
+}
+
+export function weeklyLimitReached(item) {
+  if (!item?.usage?.subscriptionQuotaAvailable) return false
+  if (!isZhipuCodingPlan(item) && !isCodexToken(item) && !isMimoTokenPlan(item)) return false
+  const remaining = Number(item.usage?.secondaryRemainingPercent)
+  const used = Number(item.usage?.secondaryUsedPercent)
+  return Number.isFinite(remaining) && remaining <= 0 && Number.isFinite(used) && used > 0
+}
+
+export function tokenUsageMetrics(item) {
+  const total = Number(item.stats?.totalTokens || 0)
+  const input = Number(item.stats?.inputTokens || 0)
+  const output = Number(item.stats?.outputTokens || 0)
+  const requests = Number(item.stats?.requestCount || 0)
+  if (total > 0) {
+    return [
+      { label: 'Token', value: formatNumber(total) },
+      { label: '入', value: formatNumber(input) },
+      { label: '出', value: formatNumber(output) },
+    ]
+  }
+  return [{ label: 'Token', value: requests > 0 ? '未上报' : '0' }]
+}
+
+export function normalizeBillingDailyRows(rows) {
+  return [...(rows || [])]
+    .map((row) => ({
+      date: String(row.date || ''),
+      requestCount: Number(row.requestCount || 0),
+      inputTokens: Number(row.inputTokens || 0),
+      outputTokens: Number(row.outputTokens || 0),
+      totalTokens: Number(row.totalTokens || 0),
+    }))
+    .filter((row) => row.date)
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+export function isCooling(item) {
+  return item?.cooldownUntil && new Date(item.cooldownUntil).getTime() > Date.now()
+}
+
+export function displayStatusLabel(item) {
+  if (item?.disabled) return '已停用'
+  if (isCooling(item)) return '冷却中'
+  return statusLabel(item.status)
+}
+
+export function displayStatusClass(item) {
+  if (item?.disabled) return 'muted'
+  if (isCooling(item)) return 'warning'
+  return statusClass(item.status)
+}
+
+export function displayStatusType(item) {
+  if (item?.disabled) return 'info'
+  if (isCooling(item)) return 'warning'
+  return statusType(item.status)
+}
+
+export function healthSummary(item) {
+  if (item?.disabled) {
+    return '已停用，不参与调度和自动检查'
+  }
+  if (isCooling(item)) {
+    return `冷却到 ${formatTime(item.cooldownUntil)} 后自动复检`
+  }
+  if (item.health?.lastCheckedAt) {
+    const status = item.health.lastStatus ? ` · ${item.health.lastStatus}` : ''
+    return `健康检查 ${formatTime(item.health.lastCheckedAt)}${status}`
+  }
+  return '等待健康检查'
+}
