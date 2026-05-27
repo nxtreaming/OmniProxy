@@ -999,3 +999,5 @@ function normalizeOutboundProxyProviders(providers) {
     </div>
   </section>
 </template>
+
+<style src="./SettingsView.css"></style>
