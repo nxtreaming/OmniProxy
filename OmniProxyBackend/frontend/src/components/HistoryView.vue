@@ -835,3 +835,5 @@ function isFailedHistory(entry) {
     </div>
   </section>
 </template>
+
+<style src="./HistoryView.css"></style>
