@@ -1526,3 +1526,5 @@ function truncateText(ctx, text, maxWidth) {
     </Transition>
   </section>
 </template>
+
+<style src="./BillingView.css"></style>
