@@ -226,3 +226,5 @@ function copyEndpointValue(value, label) {
     </div>
   </section>
 </template>
+
+<style src="./HelpView.css"></style>

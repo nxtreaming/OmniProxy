@@ -272,3 +272,5 @@ api_key = "omniproxy-local"</code></pre>
     </div>
   </section>
 </template>
+
+<style src="./QuickstartView.css"></style>
