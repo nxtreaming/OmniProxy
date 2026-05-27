@@ -438,6 +438,19 @@ func TestManagerValidatesXiaomiCredentialFormats(t *testing.T) {
 	if planSGP.Region != MimoRegionSGP {
 		t.Fatalf("expected MiMo Token Plan region sgp, got %q", planSGP.Region)
 	}
+	planAMS, err := manager.Add(UpsertRequest{
+		Name:           "plan-ams",
+		Provider:       ProviderXiaomi,
+		CredentialType: CredentialTypeMimoTokenPlan,
+		Region:         MimoRegionAMS,
+		TokenValue:     "tp-xiaomi-token-plan-ams",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planAMS.Region != MimoRegionAMS {
+		t.Fatalf("expected MiMo Token Plan region ams, got %q", planAMS.Region)
+	}
 	if _, err := manager.Add(UpsertRequest{Name: "bad-paygo", Provider: ProviderXiaomi, TokenValue: "tp-wrong-kind"}); err == nil {
 		t.Fatal("expected xiaomi pay-as-you-go key format error")
 	}
@@ -521,12 +534,12 @@ func TestManagerUpdateAllowsMimoTokenPlanRegionChangeWithoutTokenValue(t *testin
 		Name:           "plan",
 		Provider:       ProviderXiaomi,
 		CredentialType: CredentialTypeMimoTokenPlan,
-		Region:         MimoRegionSGP,
+		Region:         MimoRegionAMS,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Region != MimoRegionSGP || updated.TokenValue != "tp-xiaomi-token-plan" {
+	if updated.Region != MimoRegionAMS || updated.TokenValue != "tp-xiaomi-token-plan" {
 		t.Fatalf("expected region update with preserved token, got %#v", updated)
 	}
 }

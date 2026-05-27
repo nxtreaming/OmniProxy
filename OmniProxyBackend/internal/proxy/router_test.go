@@ -287,8 +287,10 @@ func TestRouterTargetsXiaomiTokenPlanAnthropicSGPBaseURL(t *testing.T) {
 	router := NewRouter(config.Config{
 		XiaomiTokenPlanBaseURL:             "https://token-plan-cn.xiaomimimo.com/v1",
 		XiaomiTokenPlanSGPBaseURL:          "https://token-plan-sgp.xiaomimimo.com/v1",
+		XiaomiTokenPlanAMSBaseURL:          "https://token-plan-ams.xiaomimimo.com/v1",
 		XiaomiTokenPlanAnthropicBaseURL:    "https://token-plan-cn.xiaomimimo.com/anthropic",
 		XiaomiTokenPlanSGPAnthropicBaseURL: "https://token-plan-sgp.xiaomimimo.com/anthropic",
+		XiaomiTokenPlanAMSAnthropicBaseURL: "https://token-plan-ams.xiaomimimo.com/anthropic",
 	})
 	selected := token.Token{Provider: token.ProviderXiaomi, CredentialType: token.CredentialTypeMimoTokenPlan, Region: token.MimoRegionSGP}
 	cases := []struct {
@@ -327,6 +329,34 @@ func TestRouterTargetsXiaomiTokenPlanAnthropicSGPBaseURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if target != "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions" {
+		t.Fatalf("unexpected openai-compatible target url: %s", target)
+	}
+}
+
+func TestRouterTargetsXiaomiTokenPlanAMSBaseURL(t *testing.T) {
+	router := NewRouter(config.Config{
+		XiaomiTokenPlanBaseURL:             "https://token-plan-cn.xiaomimimo.com/v1",
+		XiaomiTokenPlanAMSBaseURL:          "https://token-plan-ams.xiaomimimo.com/v1",
+		XiaomiTokenPlanAnthropicBaseURL:    "https://token-plan-cn.xiaomimimo.com/anthropic",
+		XiaomiTokenPlanAMSAnthropicBaseURL: "https://token-plan-ams.xiaomimimo.com/anthropic",
+	})
+	selected := token.Token{Provider: token.ProviderXiaomi, CredentialType: token.CredentialTypeMimoTokenPlan, Region: token.MimoRegionAMS}
+
+	route := router.Route(mustRouterTestURL(t, "/anthropic-router/v1/messages"), []byte(`{"model":"mimo-v2.5"}`))
+	target, err := router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://token-plan-ams.xiaomimimo.com/anthropic/v1/messages" {
+		t.Fatalf("unexpected anthropic-compatible target url: %s", target)
+	}
+
+	route = router.Route(mustRouterTestURL(t, "/xiaomi/v1/chat/completions"), []byte(`{}`))
+	target, err = router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://token-plan-ams.xiaomimimo.com/v1/chat/completions" {
 		t.Fatalf("unexpected openai-compatible target url: %s", target)
 	}
 }

@@ -28,6 +28,9 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if cfg.XiaomiCredentialPriority != MimoCredentialPriorityTokenPlan {
 		t.Fatalf("expected default MiMo token plan priority, got %q", cfg.XiaomiCredentialPriority)
 	}
+	if cfg.XiaomiTokenPlanAMSBaseURL != "https://token-plan-ams.xiaomimimo.com/v1" || cfg.XiaomiTokenPlanAMSAnthropicBaseURL != "https://token-plan-ams.xiaomimimo.com/anthropic" {
+		t.Fatalf("expected default MiMo AMS token plan urls, got openai=%q anthropic=%q", cfg.XiaomiTokenPlanAMSBaseURL, cfg.XiaomiTokenPlanAMSAnthropicBaseURL)
+	}
 	if cfg.TaskAutomationEnabled {
 		t.Fatal("expected task automation disabled by default")
 	}

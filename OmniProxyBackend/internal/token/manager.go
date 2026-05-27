@@ -1084,7 +1084,11 @@ func NormalizeRegion(provider string, credentialType string, region string) (str
 	switch strings.ToLower(strings.TrimSpace(region)) {
 	case "", MimoRegionCN, "china", "cn-mainland", "mainland":
 		return MimoRegionCN, nil
-	case MimoRegionSGP, "global", "overseas", "foreign", "international", "intl":
+	case MimoRegionSGP, "singapore":
+		return MimoRegionSGP, nil
+	case MimoRegionAMS, "eu", "europe", "european", "amsterdam":
+		return MimoRegionAMS, nil
+	case "global", "overseas", "foreign", "international", "intl":
 		return MimoRegionSGP, nil
 	default:
 		return "", errors.New("unsupported xiaomi token plan region")

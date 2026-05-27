@@ -46,6 +46,8 @@ export namespace config {
 	    xiaomiTokenPlanAnthropicBaseUrl: string;
 	    xiaomiTokenPlanSgpBaseUrl: string;
 	    xiaomiTokenPlanSgpAnthropicBaseUrl: string;
+	    xiaomiTokenPlanAmsBaseUrl: string;
+	    xiaomiTokenPlanAmsAnthropicBaseUrl: string;
 	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
 	    switchThreshold: number;
@@ -104,6 +106,8 @@ export namespace config {
 	        this.xiaomiTokenPlanAnthropicBaseUrl = source["xiaomiTokenPlanAnthropicBaseUrl"];
 	        this.xiaomiTokenPlanSgpBaseUrl = source["xiaomiTokenPlanSgpBaseUrl"];
 	        this.xiaomiTokenPlanSgpAnthropicBaseUrl = source["xiaomiTokenPlanSgpAnthropicBaseUrl"];
+	        this.xiaomiTokenPlanAmsBaseUrl = source["xiaomiTokenPlanAmsBaseUrl"];
+	        this.xiaomiTokenPlanAmsAnthropicBaseUrl = source["xiaomiTokenPlanAmsAnthropicBaseUrl"];
 	        this.xiaomiCredentialPriority = source["xiaomiCredentialPriority"];
 	        this.codexBaseUrl = source["codexBaseUrl"];
 	        this.switchThreshold = source["switchThreshold"];

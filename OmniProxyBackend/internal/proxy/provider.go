@@ -42,6 +42,8 @@ func proxyBaseURLFields(cfg config.Config) []providerURLField {
 		{Name: "xiaomi_token_plan_anthropic", Value: cfg.XiaomiTokenPlanAnthropicBaseURL},
 		{Name: "xiaomi_token_plan_sgp", Value: cfg.XiaomiTokenPlanSGPBaseURL},
 		{Name: "xiaomi_token_plan_sgp_anthropic", Value: cfg.XiaomiTokenPlanSGPAnthropicBaseURL},
+		{Name: "xiaomi_token_plan_ams", Value: cfg.XiaomiTokenPlanAMSBaseURL},
+		{Name: "xiaomi_token_plan_ams_anthropic", Value: cfg.XiaomiTokenPlanAMSAnthropicBaseURL},
 		{Name: "codex", Value: cfg.CodexBaseURL},
 	}
 }
@@ -178,13 +180,19 @@ func validationBaseURL(cfg config.Config, selected token.Token) string {
 func xiaomiBaseURL(cfg config.Config, protocol string, selected token.Token) string {
 	if selected.CredentialType == token.CredentialTypeMimoTokenPlan {
 		if protocol == "anthropic" {
-			if selected.Region == token.MimoRegionSGP {
+			switch selected.Region {
+			case token.MimoRegionSGP:
 				return cfg.XiaomiTokenPlanSGPAnthropicBaseURL
+			case token.MimoRegionAMS:
+				return cfg.XiaomiTokenPlanAMSAnthropicBaseURL
 			}
 			return cfg.XiaomiTokenPlanAnthropicBaseURL
 		}
-		if selected.Region == token.MimoRegionSGP {
+		switch selected.Region {
+		case token.MimoRegionSGP:
 			return cfg.XiaomiTokenPlanSGPBaseURL
+		case token.MimoRegionAMS:
+			return cfg.XiaomiTokenPlanAMSBaseURL
 		}
 		return cfg.XiaomiTokenPlanBaseURL
 	}

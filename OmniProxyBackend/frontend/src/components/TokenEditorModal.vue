@@ -48,7 +48,8 @@ const credentialTypeOptions = computed(() => {
 
 const regionOptions = [
   { value: 'cn', label: '中国区' },
-  { value: 'sgp', label: '海外 SGP' },
+  { value: 'sgp', label: '新加坡 SGP' },
+  { value: 'ams', label: '欧洲 AMS' },
 ]
 
 function credentialTypeLocked(form) {
@@ -148,7 +149,7 @@ function baseUrlHint(form) {
       <label v-if="form.provider === 'xiaomi' && form.credentialType === 'mimo_token_plan'">
         <span>Token Plan 区域</span>
         <GeminiSelect v-model="form.region" :options="regionOptions" aria-label="选择 Token Plan 区域" />
-        <small>海外账号会使用 token-plan-sgp.xiaomimimo.com。</small>
+        <small>请选择 Token Plan 账号所属服务中心。</small>
       </label>
       <label v-if="requiresBaseUrl(form)">
         <span>Base URL</span>

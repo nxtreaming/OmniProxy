@@ -290,6 +290,8 @@ const config = reactive({
   xiaomiTokenPlanAnthropicBaseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
   xiaomiTokenPlanSgpBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1',
   xiaomiTokenPlanSgpAnthropicBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/anthropic',
+  xiaomiTokenPlanAmsBaseUrl: 'https://token-plan-ams.xiaomimimo.com/v1',
+  xiaomiTokenPlanAmsAnthropicBaseUrl: 'https://token-plan-ams.xiaomimimo.com/anthropic',
   xiaomiCredentialPriority: 'mimo_token_plan',
   codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
   codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
@@ -1500,6 +1502,8 @@ async function persistConfig() {
       xiaomiTokenPlanAnthropicBaseUrl: config.xiaomiTokenPlanAnthropicBaseUrl.trim(),
       xiaomiTokenPlanSgpBaseUrl: config.xiaomiTokenPlanSgpBaseUrl.trim(),
       xiaomiTokenPlanSgpAnthropicBaseUrl: config.xiaomiTokenPlanSgpAnthropicBaseUrl.trim(),
+      xiaomiTokenPlanAmsBaseUrl: config.xiaomiTokenPlanAmsBaseUrl.trim(),
+      xiaomiTokenPlanAmsAnthropicBaseUrl: config.xiaomiTokenPlanAmsAnthropicBaseUrl.trim(),
       xiaomiCredentialPriority: config.xiaomiCredentialPriority,
       codexBaseUrl: config.codexBaseUrl.trim(),
       codexUsageEndpoint: config.codexUsageEndpoint.trim(),
@@ -2106,7 +2110,12 @@ function selectProvider(provider) {
 function credentialLabel(item) {
   const label = credentialTypes[item.credentialType || 'api_key'] || item.credentialType || 'API Key'
   if (item.provider === 'xiaomi' && item.credentialType === 'mimo_token_plan') {
-    return `${label} · ${item.region === 'sgp' ? '海外 SGP' : '中国区'}`
+    const regionLabels = {
+      cn: '中国区',
+      sgp: '新加坡 SGP',
+      ams: '欧洲 AMS',
+    }
+    return `${label} · ${regionLabels[item.region] || '中国区'}`
   }
   return label
 }

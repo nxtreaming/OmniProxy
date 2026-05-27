@@ -39,6 +39,7 @@ const (
 const (
 	MimoRegionCN  = "cn"
 	MimoRegionSGP = "sgp"
+	MimoRegionAMS = "ams"
 )
 
 type Token struct {

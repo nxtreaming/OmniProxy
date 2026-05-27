@@ -987,12 +987,20 @@ function normalizeOutboundProxyProviders(providers) {
             <input v-model="config.xiaomiTokenPlanAnthropicBaseUrl" type="url" />
           </label>
           <label class="wide-field">
-            <span>Xiaomi MiMo Token Plan OpenAI Base URL（海外 SGP）</span>
+            <span>Xiaomi MiMo Token Plan OpenAI Base URL（新加坡 SGP）</span>
             <input v-model="config.xiaomiTokenPlanSgpBaseUrl" type="url" />
           </label>
           <label class="wide-field">
-            <span>Xiaomi MiMo Token Plan Anthropic Base URL（海外 SGP）</span>
+            <span>Xiaomi MiMo Token Plan Anthropic Base URL（新加坡 SGP）</span>
             <input v-model="config.xiaomiTokenPlanSgpAnthropicBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Xiaomi MiMo Token Plan OpenAI Base URL（欧洲 AMS）</span>
+            <input v-model="config.xiaomiTokenPlanAmsBaseUrl" type="url" />
+          </label>
+          <label class="wide-field">
+            <span>Xiaomi MiMo Token Plan Anthropic Base URL（欧洲 AMS）</span>
+            <input v-model="config.xiaomiTokenPlanAmsAnthropicBaseUrl" type="url" />
           </label>
         </div>
       </section>
