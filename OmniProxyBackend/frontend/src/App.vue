@@ -1,7 +1,6 @@
 ﻿<script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import DashboardView from './components/DashboardView.vue'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
 import TokenBatchImportModal from './components/TokenBatchImportModal.vue'
 import TokenEditorModal from './components/TokenEditorModal.vue'
@@ -115,6 +114,7 @@ import {
   TrendCharts,
 } from '@element-plus/icons-vue'
 
+const DashboardView = defineAsyncComponent(() => import('./components/DashboardView.vue'))
 const AboutView = defineAsyncComponent(() => import('./components/AboutView.vue'))
 const BillingView = defineAsyncComponent(() => import('./components/BillingView.vue'))
 const FirstUseGuideModal = defineAsyncComponent(() => import('./components/FirstUseGuideModal.vue'))

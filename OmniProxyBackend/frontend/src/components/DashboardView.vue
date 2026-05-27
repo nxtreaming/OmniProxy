@@ -662,3 +662,5 @@ function localDateKeyFromDate(value) {
         </section>
       </section>
 </template>
+
+<style src="./DashboardView.css"></style>
