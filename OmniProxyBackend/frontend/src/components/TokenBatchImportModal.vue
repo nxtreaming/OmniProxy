@@ -98,3 +98,6 @@ function baseUrlLabel(form) {
     </form>
   </div>
 </template>
+
+<style src="./TokenEditorModal.css"></style>
+<style src="./TokenBatchImportModal.css"></style>

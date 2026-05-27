@@ -178,3 +178,5 @@ function baseUrlHint(form) {
     </form>
   </div>
 </template>
+
+<style src="./TokenEditorModal.css"></style>

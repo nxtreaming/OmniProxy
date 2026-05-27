@@ -1,0 +1,142 @@
+/* Batch import modal: provider-specific overrides over the shared token editor surface. */
+
+/* Batch import modal uses the same Gemini surface as account editing. */
+.batch-import-backdrop.modal-backdrop {
+  background:
+    radial-gradient(circle at 50% 16%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 380px),
+    color-mix(in srgb, var(--bg) 52%, rgba(3, 7, 18, 0.66));
+}
+
+.batch-import-modal.modal {
+  width: min(520px, calc(100vw - 48px));
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  background: var(--surface);
+}
+
+.batch-import-modal .section-heading {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.batch-import-modal label {
+  gap: 8px;
+}
+
+.batch-import-modal input,
+.batch-import-modal textarea {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+}
+
+.batch-import-modal textarea {
+  min-height: 214px;
+  border-radius: 20px;
+}
+
+.batch-import-modal input:hover,
+.batch-import-modal textarea:hover {
+  background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.batch-import-modal input:focus,
+.batch-import-modal input:focus-visible,
+.batch-import-modal textarea:focus,
+.batch-import-modal textarea:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 54%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 30%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
+}
+
+.batch-import-modal .modal-actions {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.shell.dark .batch-import-backdrop.modal-backdrop {
+  background:
+    radial-gradient(circle at 50% 16%, color-mix(in srgb, var(--brand) 12%, transparent), transparent 380px),
+    rgba(5, 8, 13, 0.66);
+}
+
+.shell.dark .batch-import-modal.modal {
+  border-color: color-mix(in srgb, var(--line) 90%, transparent);
+  background: #1e1e20;
+}
+
+.shell.dark .batch-import-modal input,
+.shell.dark .batch-import-modal textarea {
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  background: #2a2b2f;
+}
+
+.shell.dark .batch-import-modal input:hover,
+.shell.dark .batch-import-modal textarea:hover {
+  background: #26272b;
+}
+
+.shell.dark .batch-import-modal input:focus,
+.shell.dark .batch-import-modal input:focus-visible,
+.shell.dark .batch-import-modal textarea:focus,
+.shell.dark .batch-import-modal textarea:focus-visible {
+  background: #25262a;
+}
+
+.shell.dark .batch-import-modal .gemini-select-trigger {
+  background: #2a2b2f;
+}
+
+.shell.dark .batch-import-modal .gemini-select-menu {
+  background: color-mix(in srgb, #1e1e20 94%, transparent);
+}
+
+.shell.dark .batch-import-modal .modal-actions {
+  background: color-mix(in srgb, #1e1e20 94%, transparent);
+}
+
+/* Hard override for every provider's batch import dialog. It shares the account editor surface. */
+.batch-import-modal.token-editor-modal.modal {
+  background: var(--surface) !important;
+}
+
+.batch-import-modal.token-editor-modal .gemini-select-trigger,
+.batch-import-modal.token-editor-modal input,
+.batch-import-modal.token-editor-modal textarea {
+  background: color-mix(in srgb, var(--surface-soft) 50%, var(--surface)) !important;
+}
+
+.batch-import-modal.token-editor-modal .modal-actions {
+  background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+}
+
+.shell.dark .batch-import-backdrop.token-editor-backdrop.modal-backdrop {
+  background: rgba(19, 19, 20, 0.46) !important;
+}
+
+.shell.dark .batch-import-modal.token-editor-modal.modal {
+  background: #1e1e20 !important;
+}
+
+.shell.dark .batch-import-modal.token-editor-modal .gemini-select-trigger,
+.shell.dark .batch-import-modal.token-editor-modal input,
+.shell.dark .batch-import-modal.token-editor-modal textarea {
+  background: #2a2b2f !important;
+}
+
+.shell.dark .batch-import-modal.token-editor-modal .gemini-select-trigger:hover,
+.shell.dark .batch-import-modal.token-editor-modal input:hover,
+.shell.dark .batch-import-modal.token-editor-modal textarea:hover {
+  background: #26272b !important;
+}
+
+.shell.dark .batch-import-modal.token-editor-modal .gemini-select.open .gemini-select-trigger,
+.shell.dark .batch-import-modal.token-editor-modal .gemini-select-trigger:focus-visible,
+.shell.dark .batch-import-modal.token-editor-modal input:focus,
+.shell.dark .batch-import-modal.token-editor-modal input:focus-visible,
+.shell.dark .batch-import-modal.token-editor-modal textarea:focus,
+.shell.dark .batch-import-modal.token-editor-modal textarea:focus-visible {
+  background: #25262a !important;
+}
+
+.shell.dark .batch-import-modal.token-editor-modal .modal-actions {
+  background: color-mix(in srgb, #1e1e20 92%, transparent) !important;
+}

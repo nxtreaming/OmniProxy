@@ -2,8 +2,6 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import DiagnosticDrawer from './components/DiagnosticDrawer.vue'
-import TokenBatchImportModal from './components/TokenBatchImportModal.vue'
-import TokenEditorModal from './components/TokenEditorModal.vue'
 import appIconUrl from './assets/appicon.png'
 import { credentialTypes, providers, tabs } from './constants/app'
 import { claudeModelOptions, claudeModelSelectionLimit } from './constants/claudeModels'
@@ -125,6 +123,8 @@ const OpenRouterChatView = defineAsyncComponent(() => import('./components/OpenR
 const QuickstartView = defineAsyncComponent(() => import('./components/QuickstartView.vue'))
 const QuotasView = defineAsyncComponent(() => import('./components/QuotasView.vue'))
 const SettingsView = defineAsyncComponent(() => import('./components/SettingsView.vue'))
+const TokenBatchImportModal = defineAsyncComponent(() => import('./components/TokenBatchImportModal.vue'))
+const TokenEditorModal = defineAsyncComponent(() => import('./components/TokenEditorModal.vue'))
 const TokenTrendView = defineAsyncComponent(() => import('./components/TokenTrendView.vue'))
 const TokensView = defineAsyncComponent(() => import('./components/TokensView.vue'))
 

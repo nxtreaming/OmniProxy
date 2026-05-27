@@ -1,0 +1,181 @@
+/* Token editor modal: account editor surface shared by single and batch account dialogs. */
+
+/* Token editor modal polish. */
+.token-editor-backdrop.modal-backdrop {
+  top: 36px;
+  background: color-mix(in srgb, var(--bg) 44%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.token-editor-modal.modal {
+  width: min(500px, calc(100vw - 40px));
+  max-height: min(760px, calc(100vh - 88px));
+  overflow: hidden auto;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: 0 28px 80px color-mix(in srgb, #000 24%, transparent);
+}
+
+.token-editor-modal .section-heading {
+  margin: -2px 0 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.token-editor-modal .section-heading h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.token-editor-modal .section-heading p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.token-editor-modal .icon-button {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.token-editor-modal .icon-button:hover {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 56%, var(--surface));
+  color: var(--text-strong);
+}
+
+.token-editor-modal label {
+  gap: 8px;
+}
+
+.token-editor-modal label > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.token-editor-modal input,
+.token-editor-modal select,
+.token-editor-modal textarea {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 50%, var(--surface));
+  color: var(--text-strong);
+  box-shadow: none;
+}
+
+.token-editor-modal input,
+.token-editor-modal select {
+  min-height: 42px;
+  border-radius: 999px;
+}
+
+.token-editor-modal textarea {
+  min-height: 92px;
+  border-radius: 20px;
+  resize: vertical;
+}
+
+.token-editor-modal input:hover,
+.token-editor-modal select:hover,
+.token-editor-modal textarea:hover {
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.token-editor-modal input:focus,
+.token-editor-modal select:focus,
+.token-editor-modal textarea:focus {
+  border-color: color-mix(in srgb, var(--brand) 52%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 28%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
+}
+
+.token-editor-modal small {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.token-editor-modal .form-hint {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.token-editor-modal .modal-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 1;
+  margin: 4px -20px -20px;
+  padding: 14px 20px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.token-editor-modal .ghost-button,
+.token-editor-modal .primary-button {
+  min-height: 38px;
+  min-width: 76px;
+  border-radius: 999px;
+}
+
+.token-editor-modal .ghost-button {
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.token-editor-modal .ghost-button:hover {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+  color: var(--text-strong);
+}
+
+.shell.dark .token-editor-backdrop.modal-backdrop {
+  background: rgba(19, 19, 20, 0.46);
+}
+
+.shell.dark .token-editor-modal.modal {
+  border-color: color-mix(in srgb, var(--line) 92%, transparent);
+  background: #1e1e20;
+  box-shadow: 0 28px 86px rgba(0, 0, 0, 0.46);
+}
+
+.shell.dark .token-editor-modal input,
+.shell.dark .token-editor-modal select,
+.shell.dark .token-editor-modal textarea {
+  border-color: color-mix(in srgb, var(--line) 90%, transparent);
+  background: #2a2b2f;
+}
+
+.shell.dark .token-editor-modal input:focus,
+.shell.dark .token-editor-modal select:focus,
+.shell.dark .token-editor-modal textarea:focus {
+  background: #25262a;
+}
+
+.shell.dark .token-editor-modal .modal-actions {
+  background: color-mix(in srgb, #1e1e20 92%, transparent);
+}
+
+@media (max-height: 720px) {
+  .token-editor-modal.modal {
+    max-height: calc(100vh - 64px);
+  }
+}
