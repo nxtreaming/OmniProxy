@@ -1,0 +1,542 @@
+/* OpenRouter chat page: workspace, model list, transcript, quota strip, and composer. */
+
+/* OpenRouter chat workspace polish. */
+.openrouter-chat-view {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+}
+
+.openrouter-chat-layout {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(300px, 350px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.openrouter-chat-side,
+.openrouter-chat-main {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.openrouter-chat-side {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 16px;
+}
+
+.openrouter-chat-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.openrouter-chat-search input {
+  height: 42px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--surface));
+}
+
+.openrouter-chat-filter-button {
+  min-height: 42px;
+  padding: 0 15px;
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--surface));
+  color: var(--text-strong);
+  box-shadow: none;
+}
+
+.openrouter-chat-filter-button:hover,
+.openrouter-chat-filter-button.active {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+.openrouter-chat-model-box {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.openrouter-chat-model-count {
+  min-height: 32px;
+  padding: 0 4px;
+}
+
+.openrouter-chat-model-count-text {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.openrouter-chat-model-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 0 4px 2px 0;
+}
+
+.openrouter-chat-model-button {
+  min-height: 64px;
+  padding: 12px 14px;
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+  box-shadow: none;
+}
+
+.openrouter-chat-model-button:hover,
+.openrouter-chat-model-button:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  background: color-mix(in srgb, var(--brand) 6%, var(--surface));
+  box-shadow: none;
+  transform: none;
+}
+
+.openrouter-chat-model-button.active {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: var(--brand-soft);
+  box-shadow: none;
+}
+
+.openrouter-chat-model-button.active::before {
+  display: none;
+}
+
+.openrouter-chat-model-button strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.openrouter-chat-model-button small {
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.openrouter-chat-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-soft) 38%, var(--surface));
+}
+
+.openrouter-chat-field {
+  gap: 7px;
+}
+
+.openrouter-chat-field > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.openrouter-chat-number {
+  min-height: 40px;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.openrouter-chat-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  padding: 16px;
+  border-left: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+}
+
+.openrouter-chat-toolbar {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 0 0 12px;
+  border-bottom: 0;
+}
+
+.openrouter-chat-current {
+  gap: 4px;
+}
+
+.openrouter-chat-current strong {
+  color: var(--text-strong);
+  font-size: 18px;
+  font-weight: 760;
+}
+
+.openrouter-chat-current span {
+  color: var(--text-muted);
+}
+
+.openrouter-chat-metrics {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  order: 3;
+}
+
+.openrouter-chat-metrics span {
+  max-width: min(100%, 360px);
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 50%, transparent);
+  color: var(--text-muted);
+}
+
+.openrouter-chat-actions {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.openrouter-chat-quota-strip {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(96px, 0.6fr)) auto;
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-soft) 36%, var(--surface));
+  box-shadow: none;
+}
+
+.openrouter-chat-quota-strip > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.openrouter-chat-quota-title {
+  align-content: center;
+}
+
+.openrouter-chat-quota-strip span,
+.openrouter-chat-quota-strip small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.openrouter-chat-quota-strip strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.openrouter-chat-quota-strip .el-button {
+  align-self: center;
+  min-height: 38px;
+}
+
+.openrouter-chat-transcript {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 32%, transparent), transparent 120px),
+    color-mix(in srgb, var(--bg) 42%, var(--surface));
+  box-shadow: none;
+}
+
+.openrouter-chat-empty {
+  min-width: min(100%, 280px);
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.openrouter-chat-empty strong {
+  color: var(--text-strong);
+}
+
+.openrouter-chat-message {
+  max-width: min(780px, 88%);
+}
+
+.openrouter-chat-role {
+  padding-inline: 4px;
+}
+
+.openrouter-chat-role strong {
+  color: var(--text-strong);
+}
+
+.openrouter-chat-bubble {
+  padding: 13px 15px;
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.openrouter-chat-message.user .openrouter-chat-bubble {
+  border-color: color-mix(in srgb, var(--brand) 26%, var(--line));
+  background: var(--brand-soft);
+  color: var(--text-strong);
+  box-shadow: none;
+}
+
+.openrouter-chat-message.user .openrouter-chat-bubble small {
+  color: var(--text-muted);
+}
+
+.openrouter-chat-message.pending .openrouter-chat-bubble,
+.openrouter-chat-message.streaming .openrouter-chat-bubble {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  box-shadow: none;
+}
+
+.openrouter-generation {
+  padding: 2px;
+}
+
+.openrouter-chat-composer {
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--surface-soft) 36%, var(--surface));
+  box-shadow: none;
+}
+
+.openrouter-chat-composer textarea {
+  min-height: 86px;
+  max-height: 180px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.openrouter-chat-composer textarea:focus,
+.openrouter-chat-composer textarea:focus-visible {
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+.openrouter-chat-composer-actions {
+  padding-inline: 2px;
+}
+
+.openrouter-chat-send-button.el-button {
+  min-width: 100px;
+  box-shadow: none;
+}
+
+.shell.dark .openrouter-chat-side,
+.shell.dark .openrouter-chat-main,
+.shell.dark .openrouter-chat-transcript,
+.shell.dark .openrouter-chat-composer,
+.shell.dark .openrouter-chat-controls,
+.shell.dark .openrouter-chat-quota-strip {
+  border-color: color-mix(in srgb, var(--line) 92%, transparent);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.shell.dark .openrouter-chat-transcript {
+  background: color-mix(in srgb, var(--bg) 48%, var(--surface));
+}
+
+.shell.dark .openrouter-chat-model-button,
+.shell.dark .openrouter-chat-quota-strip > div,
+.shell.dark .openrouter-chat-empty,
+.shell.dark .openrouter-chat-bubble,
+.shell.dark .openrouter-chat-composer textarea {
+  background: color-mix(in srgb, var(--surface-soft) 46%, var(--surface));
+  box-shadow: none;
+}
+
+.shell.dark .openrouter-chat-message.user .openrouter-chat-bubble {
+  background: color-mix(in srgb, var(--brand) 18%, var(--surface));
+}
+
+/* OpenRouter chat: compact header and keep responses visible. */
+.workspace.openrouter-workspace {
+  padding-top: 18px;
+}
+
+.workspace.openrouter-workspace .topbar {
+  min-height: 0;
+  margin-bottom: 12px;
+}
+
+.workspace.openrouter-workspace .topbar-title {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.workspace.openrouter-workspace .eyebrow {
+  display: none;
+}
+
+.workspace.openrouter-workspace h1 {
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.workspace.openrouter-workspace .topbar-subtitle {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.openrouter-chat-main {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.openrouter-chat-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding-bottom: 8px;
+}
+
+.openrouter-chat-current {
+  gap: 2px;
+}
+
+.openrouter-chat-current strong {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.openrouter-chat-current span {
+  font-size: 12px;
+}
+
+.openrouter-chat-metrics {
+  grid-column: 1 / -1;
+  gap: 6px;
+}
+
+.openrouter-chat-metrics span {
+  max-width: min(100%, 300px);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.openrouter-chat-actions {
+  gap: 6px;
+}
+
+.openrouter-chat-actions .el-button {
+  min-height: 34px;
+  padding-inline: 12px;
+}
+
+.openrouter-chat-quota-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 20px;
+}
+
+.openrouter-chat-quota-strip > div {
+  padding: 8px 10px;
+  border-radius: 15px;
+}
+
+.openrouter-chat-quota-strip strong {
+  font-size: 14px;
+}
+
+.openrouter-chat-transcript {
+  gap: 12px;
+  padding: 14px;
+  border-radius: 22px;
+}
+
+.openrouter-chat-empty {
+  box-shadow: none;
+}
+
+.openrouter-chat-composer {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 22px;
+}
+
+.openrouter-chat-composer textarea {
+  min-height: 72px;
+  padding: 12px 14px;
+}
+
+@media (max-width: 1180px) {
+  .openrouter-chat-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .openrouter-chat-view,
+  .openrouter-chat-layout,
+  .openrouter-chat-main {
+    min-height: 720px;
+  }
+
+  .openrouter-chat-side {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 760px) {
+  .openrouter-chat-toolbar,
+  .openrouter-chat-quota-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .openrouter-chat-actions {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+
+  .openrouter-chat-metrics {
+    grid-column: 1;
+  }
+}

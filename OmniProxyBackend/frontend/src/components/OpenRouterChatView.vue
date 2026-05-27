@@ -843,3 +843,5 @@ async function sendMessage() {
     </div>
   </section>
 </template>
+
+<style src="./OpenRouterChatView.css"></style>
