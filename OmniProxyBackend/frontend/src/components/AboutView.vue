@@ -520,3 +520,5 @@ function formatBytes(value) {
     </article>
   </section>
 </template>
+
+<style src="./AboutView.css"></style>

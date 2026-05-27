@@ -1,0 +1,562 @@
+.about-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.about-release-panel {
+  grid-column: 1 / -1;
+  padding: 0;
+  overflow: hidden;
+}
+
+.about-page-column {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.version-hero {
+  margin-top: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.version-hero > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.version-hero span,
+.version-hero small,
+.about-info-grid span,
+.about-row-list span,
+.about-row-list small,
+.about-path-row span,
+.about-path-row small,
+.release-notes-label,
+.release-notes-header small {
+  color: var(--text-muted);
+}
+
+.version-hero strong {
+  font-size: 42px;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.about-actions {
+  align-self: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.about-check-update-button.el-button {
+  --el-button-text-color: #ffffff;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-text-color: #ffffff;
+  color: #ffffff !important;
+}
+
+.about-check-update-button.el-button span,
+.about-check-update-button.el-button .el-icon {
+  color: currentColor !important;
+}
+
+.about-check-update-button.el-button.is-disabled,
+.about-check-update-button.el-button.is-disabled:hover,
+.about-check-update-button.el-button.is-disabled:focus {
+  --el-button-disabled-text-color: #ffffff;
+  --el-button-disabled-bg-color: color-mix(in srgb, var(--brand) 28%, var(--surface));
+  --el-button-disabled-border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  color: var(--el-button-disabled-text-color);
+  background-color: var(--el-button-disabled-bg-color);
+  border-color: var(--el-button-disabled-border-color);
+  box-shadow: none;
+}
+
+.update-status-box {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.update-status-box p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.update-status-box small {
+  display: block;
+  margin-top: 7px;
+  color: var(--text-muted);
+}
+
+.update-download-progress {
+  margin-top: 12px;
+}
+
+.update-download-progress .el-progress {
+  max-width: 420px;
+}
+
+.about-status-icon,
+.about-info-icon,
+.about-inline-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--brand-strong);
+}
+
+.about-info-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.about-info-grid > div,
+.about-row-list > div,
+.about-path-row {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.about-info-grid > div {
+  min-height: 108px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 13px;
+}
+
+.about-info-grid strong,
+.about-row-list strong,
+.about-path-row strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.about-row-list {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.about-row-list.compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.about-row-list > div {
+  min-height: 84px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 13px;
+}
+
+.about-row-list small {
+  line-height: 1.45;
+}
+
+.about-path-row {
+  margin-top: 18px;
+  display: grid;
+  gap: 6px;
+  padding: 13px;
+}
+
+.about-inline-icon {
+  margin-bottom: 2px;
+}
+
+.release-notes {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(180deg, var(--surface-raised) 0, var(--surface-soft) 100%);
+  box-shadow: none;
+}
+
+.release-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.release-notes-header > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.release-notes-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.release-notes-header strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.release-notes-header small {
+  font-size: 12px;
+}
+
+.release-notes-body {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  padding: 16px 18px 18px;
+}
+
+.release-note-heading {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.release-note-heading.level-1 {
+  font-size: 18px;
+}
+
+.release-note-heading.level-2 {
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  font-size: 16px;
+}
+
+.release-note-heading.level-3 {
+  font-size: 15px;
+}
+
+.release-note-paragraph {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.release-note-list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+
+.release-note-list li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--text);
+  line-height: 1.66;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.release-note-list li::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0.72em;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand-strong);
+}
+
+.release-note-code {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface));
+  color: var(--brand-strong);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92em;
+  line-height: 1.45;
+}
+
+.about-footer-link {
+  margin-top: 10px;
+}
+
+/* About page: softer Gemini-style information cells. */
+.about-page .about-info-panel,
+.about-page .about-version-panel {
+  border-radius: 28px;
+}
+
+.about-page .about-info-grid,
+.about-page .about-row-list {
+  gap: 12px;
+}
+
+.about-page .about-info-grid > div,
+.about-page .about-row-list > div,
+.about-page .about-path-row,
+.about-page .update-status-box {
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+  box-shadow: none;
+}
+
+.about-page .about-info-grid > div,
+.about-page .about-row-list > div {
+  min-height: 92px;
+  padding: 14px;
+}
+
+.about-page .about-path-row,
+.about-page .update-status-box {
+  padding: 15px;
+}
+
+.about-page .about-info-grid > div {
+  align-content: start;
+  gap: 9px;
+}
+
+.about-page .about-row-list > div {
+  gap: 7px;
+}
+
+.about-page .about-row-list.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.about-page .about-row-list.compact > div:nth-child(4) {
+  grid-column: 1 / -1;
+  min-height: 72px;
+}
+
+.about-page .about-info-grid span,
+.about-page .about-row-list span,
+.about-page .about-path-row span {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.about-page .about-info-grid strong,
+.about-page .about-row-list strong,
+.about-page .about-path-row strong {
+  color: var(--text-strong);
+  line-height: 1.45;
+}
+
+.about-page .about-info-icon,
+.about-page .about-inline-icon,
+.about-page .about-status-icon {
+  width: 24px;
+  height: 24px;
+  padding: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  box-shadow: none;
+}
+
+.about-page .about-path-row .mono,
+.about-page .about-row-list .mono {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.shell.dark .about-page .about-info-grid > div,
+.shell.dark .about-page .about-row-list > div,
+.shell.dark .about-page .about-path-row,
+.shell.dark .about-page .update-status-box {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .section-heading {
+  padding-bottom: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+}
+
+.about-page .version-hero {
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.about-page .version-hero strong {
+  font-size: clamp(34px, 3.7vw, 46px);
+  letter-spacing: 0;
+}
+
+.about-page .about-actions .el-button {
+  min-height: 36px;
+  border-radius: 999px;
+}
+
+.about-page .update-status-box {
+  position: relative;
+  overflow: hidden;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 13px;
+  border-radius: 18px;
+}
+
+.about-page .update-status-box::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--brand);
+  opacity: 0.72;
+}
+
+.about-page .update-status-box.warning {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--warning) 10%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.active {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand) 11%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.ready {
+  border-color: color-mix(in srgb, var(--success) 32%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--success) 11%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.failed {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--danger) 10%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.about-page .update-status-box.warning::before {
+  background: var(--warning);
+}
+
+.about-page .update-status-box.active::before,
+.about-page .update-status-box.installing::before {
+  background: var(--brand);
+}
+
+.about-page .update-status-box.ready::before {
+  background: var(--success);
+}
+
+.about-page .update-status-box.failed::before {
+  background: var(--danger);
+}
+
+.about-page .update-status-box.ready .about-status-icon {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.about-page .update-status-box.failed .about-status-icon {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.about-page .update-status-box > div {
+  position: relative;
+  z-index: 1;
+}
+
+.about-page .update-download-progress .el-progress {
+  max-width: 100%;
+}
+
+/* About page action buttons: roomier link chip and readable disabled primary state. */
+.about-footer-link .el-button.is-link {
+  min-height: 34px;
+  padding: 0 14px !important;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  color: var(--brand-strong);
+  font-weight: 680;
+  text-decoration: none;
+}
+
+.about-footer-link .el-button.is-link:hover,
+.about-footer-link .el-button.is-link:focus {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: var(--brand-strong);
+}
+
+.about-footer-link .el-button.is-link span,
+.about-footer-link .el-button.is-link .el-icon {
+  color: currentColor !important;
+}
+
+.about-footer-link .el-button.is-link .el-icon {
+  margin-right: 6px;
+}
+
+.shell:not(.dark) .about-check-update-button.el-button.is-disabled,
+.shell:not(.dark) .about-check-update-button.el-button.is-disabled:hover,
+.shell:not(.dark) .about-check-update-button.el-button.is-disabled:focus {
+  --el-button-disabled-bg-color: var(--brand);
+  --el-button-disabled-border-color: var(--brand);
+  --el-button-disabled-text-color: #ffffff;
+  border-color: var(--el-button-disabled-border-color) !important;
+  background: var(--el-button-disabled-bg-color) !important;
+  color: var(--el-button-disabled-text-color) !important;
+  opacity: 0.84 !important;
+}
+
+.shell:not(.dark) .about-check-update-button.el-button,
+.shell:not(.dark) .about-check-update-button.el-button:hover,
+.shell:not(.dark) .about-check-update-button.el-button:focus,
+.shell:not(.dark) .about-check-update-button.el-button.is-disabled span,
+.shell:not(.dark) .about-check-update-button.el-button span,
+.shell:not(.dark) .about-check-update-button.el-button .el-icon,
+.shell:not(.dark) .about-check-update-button.el-button.is-disabled .el-icon {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}

@@ -91,3 +91,5 @@ onBeforeUnmount(() => {
     </div>
   </section>
 </template>
+
+<style src="./LogsView.css"></style>
