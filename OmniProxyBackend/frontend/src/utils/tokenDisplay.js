@@ -268,6 +268,10 @@ export function isCodexFreePlan(item) {
   return isCodexToken(item) && String(item?.usage?.planType || '').trim().toLowerCase() === 'free'
 }
 
+export function isCodexTeamPlan(item) {
+  return isCodexToken(item) && String(item?.usage?.planType || '').trim().toLowerCase() === 'team'
+}
+
 export function showPrimaryQuotaWindow(item) {
   if (!showQuotaWindows(item)) return false
   if (!item?.usage?.subscriptionQuotaAvailable) return true
@@ -289,6 +293,7 @@ export function quotaWindowCount(item) {
 export function quotaPrimaryLabel(item) {
   if (isZhipuCodingPlan(item)) return '窗口额度'
   if (isCodexFreePlan(item)) return '1 周额度'
+  if (isCodexTeamPlan(item)) return '本月额度'
   return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
 }
 

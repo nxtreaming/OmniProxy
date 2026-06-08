@@ -5,6 +5,7 @@ import {
   displayStatusClass,
   normalizeBillingDailyRows,
   openRouterQuotaRemaining,
+  quotaPrimaryLabel,
   showPrimaryQuotaWindow,
   showSecondaryQuotaWindow,
   validationSuccessMessage,
@@ -68,6 +69,25 @@ test('subscription quota helpers keep Codex free plan window rules', () => {
   assert.equal(showPrimaryQuotaWindow(weeklyToken), false)
   assert.equal(showSecondaryQuotaWindow(weeklyToken), true)
   assert.equal(weeklyLimitReached(weeklyToken), true)
+})
+
+test('Codex team plan shows the monthly quota label', () => {
+  assert.equal(
+    quotaPrimaryLabel({
+      provider: 'openai',
+      credentialType: 'codex_auth_json',
+      usage: { planType: 'team' },
+    }),
+    '本月额度',
+  )
+  assert.equal(
+    quotaPrimaryLabel({
+      provider: 'openai',
+      credentialType: 'codex_auth_json',
+      usage: { planType: 'plus' },
+    }),
+    '5h额度',
+  )
 })
 
 test('cooling tokens report warning status class', () => {
