@@ -113,8 +113,8 @@ test('Codex weekly quota estimate uses current weekly tokens and remaining perce
     },
   }
 
-  assert.equal(codexWeeklyQuotaEstimateText(token), '$2.00 / 周')
-  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 110,000 Token 和已用 20% 估算 · OpenAI GPT-5.4')
+  assert.equal(codexWeeklyQuotaEstimateText(token), '$4.00 / 周')
+  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 110,000 Token 和已用 20% 估算 · OpenAI GPT-5.5')
 })
 
 test('Codex weekly quota estimate stays hidden without consumed weekly quota', () => {

@@ -801,20 +801,22 @@ func (m *Manager) reserveLocked(item Token) Token {
 
 func (m *Manager) bestBalancedLocked(provider string, credentialType string, status Status, excluded map[string]bool, selectedIDs map[string]bool, hasSelection bool) (Token, bool) {
 	var selected Token
+	selectedIndex := -1
 	found := false
-	for _, item := range m.tokens {
+	for index, item := range m.tokens {
 		if !usableTokenMatches(item, provider, credentialType, status, excluded, selectedIDs, hasSelection) {
 			continue
 		}
-		if !found || m.balancedTokenLessLocked(item, selected) {
+		if !found || m.balancedTokenLessLocked(item, selected, index, selectedIndex) {
 			selected = item
+			selectedIndex = index
 			found = true
 		}
 	}
 	return selected, found
 }
 
-func (m *Manager) balancedTokenLessLocked(left Token, right Token) bool {
+func (m *Manager) balancedTokenLessLocked(left Token, right Token, leftIndex int, rightIndex int) bool {
 	leftInFlight := m.inFlight[left.ID]
 	rightInFlight := m.inFlight[right.ID]
 	if leftInFlight != rightInFlight {
@@ -835,7 +837,10 @@ func (m *Manager) balancedTokenLessLocked(left Token, right Token) bool {
 	if left.Stats.RequestCount != right.Stats.RequestCount {
 		return left.Stats.RequestCount < right.Stats.RequestCount
 	}
-	return left.CreatedAt.Before(right.CreatedAt)
+	if !left.CreatedAt.Equal(right.CreatedAt) {
+		return left.CreatedAt.Before(right.CreatedAt)
+	}
+	return leftIndex > rightIndex
 }
 
 func (m *Manager) nameExistsLocked(name string, provider string, exceptID string) bool {

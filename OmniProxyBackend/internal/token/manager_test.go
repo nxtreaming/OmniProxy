@@ -237,6 +237,13 @@ func TestManagerAcquireBalancedRotatesAcrossAccounts(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	sameCreatedAt := time.Unix(1000, 0)
+	manager.mu.Lock()
+	for i := range manager.tokens {
+		manager.tokens[i].CreatedAt = sameCreatedAt
+	}
+	manager.mu.Unlock()
+
 	selected, err := manager.AcquireBalancedMatching(ProviderOpenAI, CredentialTypeAPIKey, nil)
 	if err != nil {
 		t.Fatal(err)
