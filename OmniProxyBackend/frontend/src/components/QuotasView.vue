@@ -8,6 +8,8 @@ import {
   balancePackageMeta,
   balancePackages,
   balancePackageTypeLabel,
+  codexWeeklyQuotaEstimateMeta,
+  codexWeeklyQuotaEstimateText,
   displayStatusLabel,
   displayStatusType,
   formatBalance,
@@ -218,6 +220,9 @@ defineEmits(['refresh', 'refresh-provider-quotas', 'select-provider', 'toggle-to
               <small v-if="item.usage?.subscriptionQuotaAvailable" class="quota-detail quota-reset-detail">
                 <span>已用 <strong>{{ quotaPercentText(item, 'secondaryUsedPercent') }}</strong></span>
                 <span>{{ quotaResetLabel(item) }} <strong>{{ formatResetTime(item.usage.secondaryResetAt) }}</strong></span>
+                <span v-if="codexWeeklyQuotaEstimateText(item)" :title="codexWeeklyQuotaEstimateMeta(item)">
+                  预估 <strong>{{ codexWeeklyQuotaEstimateText(item) }}</strong>
+                </span>
               </small>
               <small v-else>{{ quotaUnavailableText(item) }}</small>
             </div>

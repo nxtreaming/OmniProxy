@@ -1,5 +1,10 @@
 import { statusMeta } from '../constants/app.js'
+import { resolvePrice } from '../billing/pricing.js'
 import { formatNumber, formatTime } from './format.js'
+
+const DAY_MS = 24 * 60 * 60 * 1000
+const WEEK_MS = 7 * DAY_MS
+const CODEX_WEEKLY_ESTIMATE_MODEL = 'gpt-5.4'
 
 export function statusLabel(status) {
   return statusMeta[status]?.label || status
@@ -268,10 +273,6 @@ export function isCodexFreePlan(item) {
   return isCodexToken(item) && String(item?.usage?.planType || '').trim().toLowerCase() === 'free'
 }
 
-export function isCodexTeamPlan(item) {
-  return isCodexToken(item) && String(item?.usage?.planType || '').trim().toLowerCase() === 'team'
-}
-
 export function showPrimaryQuotaWindow(item) {
   if (!showQuotaWindows(item)) return false
   if (!item?.usage?.subscriptionQuotaAvailable) return true
@@ -293,13 +294,61 @@ export function quotaWindowCount(item) {
 export function quotaPrimaryLabel(item) {
   if (isZhipuCodingPlan(item)) return '窗口额度'
   if (isCodexFreePlan(item)) return '1 周额度'
-  if (isCodexTeamPlan(item)) return '本月额度'
   return isMimoTokenPlan(item) ? '本月额度' : '5h额度'
 }
 
 export function quotaSecondaryLabel(item) {
   if (isZhipuCodingPlan(item)) return '周额度'
   return isMimoTokenPlan(item) ? '套餐额度' : '1 周额度'
+}
+
+export function codexWeeklyQuotaEstimate(item) {
+  if (!isCodexToken(item) || !quotaWindowAvailable(item, 'secondary')) return null
+  const remainingPercent = quotaPercentValue(item, 'secondaryRemainingPercent')
+  const usedPercent = 100 - remainingPercent
+  if (usedPercent <= 0) return null
+
+  const usage = weeklyEstimateUsageStats(item)
+  if (usage.totalTokens <= 0) return null
+
+  const price = resolvePrice(CODEX_WEEKLY_ESTIMATE_MODEL)
+  if (!price || price.currency !== 'USD') return null
+
+  const scale = 100 / usedPercent
+  let inputTokens = usage.inputTokens
+  const outputTokens = usage.outputTokens
+  if (inputTokens <= 0 && outputTokens <= 0) {
+    inputTokens = usage.totalTokens
+  } else if (inputTokens <= 0 && usage.totalTokens > outputTokens) {
+    inputTokens = usage.totalTokens - outputTokens
+  }
+
+  const estimatedInputTokens = inputTokens * scale
+  const estimatedOutputTokens = outputTokens * scale
+  const amount =
+    (estimatedInputTokens / 1_000_000) * price.input +
+    (estimatedOutputTokens / 1_000_000) * price.output
+  if (!Number.isFinite(amount) || amount <= 0) return null
+
+  return {
+    amount,
+    amountText: formatUSD(amount),
+    priceLabel: price.label,
+    totalTokens: Math.round(usage.totalTokens * scale),
+    usedPercent,
+    usedTokens: usage.totalTokens,
+  }
+}
+
+export function codexWeeklyQuotaEstimateText(item) {
+  const estimate = codexWeeklyQuotaEstimate(item)
+  return estimate ? `${estimate.amountText} / 周` : ''
+}
+
+export function codexWeeklyQuotaEstimateMeta(item) {
+  const estimate = codexWeeklyQuotaEstimate(item)
+  if (!estimate) return ''
+  return `按 ${formatNumber(estimate.usedTokens)} Token 和已用 ${estimate.usedPercent}% 估算 · ${estimate.priceLabel}`
 }
 
 export function quotaResetLabel(item) {
@@ -333,6 +382,71 @@ export function tokenUsageMetrics(item) {
     ]
   }
   return [{ label: 'Token', value: requests > 0 ? '未上报' : '0' }]
+}
+
+function weeklyEstimateUsageStats(item) {
+  const resetAt = numberValue(item?.usage?.secondaryResetAt)
+  const daily = Array.isArray(item?.stats?.daily) ? item.stats.daily : []
+  if (resetAt > 0 && daily.length) {
+    const resetMs = resetAt * 1000
+    const startMs = resetMs - WEEK_MS
+    const windowStats = daily.reduce((sum, row) => {
+      if (!dailyRowOverlapsWindow(row, startMs, resetMs)) return sum
+      return addTokenStats(sum, normalizeTokenStats(row))
+    }, emptyTokenStats())
+    if (windowStats.totalTokens > 0) return windowStats
+  }
+  return normalizeTokenStats(item?.stats)
+}
+
+function dailyRowOverlapsWindow(row, startMs, resetMs) {
+  const dayStart = localDateStartMs(row?.date)
+  if (!Number.isFinite(dayStart)) return false
+  const dayEnd = dayStart + DAY_MS
+  return dayEnd > startMs && dayStart <= resetMs
+}
+
+function localDateStartMs(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''))
+  if (!match) return NaN
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).getTime()
+}
+
+function normalizeTokenStats(value) {
+  const inputTokens = numberValue(value?.inputTokens)
+  const outputTokens = numberValue(value?.outputTokens)
+  const totalTokens = numberValue(value?.totalTokens) || inputTokens + outputTokens
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+  }
+}
+
+function addTokenStats(left, right) {
+  return {
+    inputTokens: left.inputTokens + right.inputTokens,
+    outputTokens: left.outputTokens + right.outputTokens,
+    totalTokens: left.totalTokens + right.totalTokens,
+  }
+}
+
+function emptyTokenStats() {
+  return { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+}
+
+function numberValue(value) {
+  const number = Number(value || 0)
+  return Number.isFinite(number) && number > 0 ? number : 0
+}
+
+function formatUSD(value) {
+  const number = Number(value || 0)
+  const fractionDigits = Math.abs(number) > 0 && Math.abs(number) < 1 ? 4 : 2
+  return `$${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(number)}`
 }
 
 export function normalizeBillingDailyRows(rows) {

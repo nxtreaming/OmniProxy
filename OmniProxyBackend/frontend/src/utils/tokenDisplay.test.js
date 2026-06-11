@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  codexWeeklyQuotaEstimateMeta,
+  codexWeeklyQuotaEstimateText,
   displayStatusClass,
   normalizeBillingDailyRows,
   openRouterQuotaRemaining,
@@ -71,14 +73,14 @@ test('subscription quota helpers keep Codex free plan window rules', () => {
   assert.equal(weeklyLimitReached(weeklyToken), true)
 })
 
-test('Codex team plan shows the monthly quota label', () => {
+test('Codex team plan shows the 5h quota label', () => {
   assert.equal(
     quotaPrimaryLabel({
       provider: 'openai',
       credentialType: 'codex_auth_json',
       usage: { planType: 'team' },
     }),
-    '本月额度',
+    '5h额度',
   )
   assert.equal(
     quotaPrimaryLabel({
@@ -87,6 +89,48 @@ test('Codex team plan shows the monthly quota label', () => {
       usage: { planType: 'plus' },
     }),
     '5h额度',
+  )
+})
+
+test('Codex weekly quota estimate uses current weekly tokens and remaining percent', () => {
+  const resetAt = Math.floor(Date.parse('2026-06-18T00:00:00+08:00') / 1000)
+  const token = {
+    provider: 'openai',
+    credentialType: 'codex_auth_json',
+    usage: {
+      subscriptionQuotaAvailable: true,
+      secondaryRemainingPercent: 80,
+      secondaryResetAt: resetAt,
+    },
+    stats: {
+      inputTokens: 900000,
+      outputTokens: 900000,
+      totalTokens: 1800000,
+      daily: [
+        { date: '2026-06-01', inputTokens: 900000, outputTokens: 900000, totalTokens: 1800000 },
+        { date: '2026-06-12', inputTokens: 100000, outputTokens: 10000, totalTokens: 110000 },
+      ],
+    },
+  }
+
+  assert.equal(codexWeeklyQuotaEstimateText(token), '$2.00 / 周')
+  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 110,000 Token 和已用 20% 估算 · OpenAI GPT-5.4')
+})
+
+test('Codex weekly quota estimate stays hidden without consumed weekly quota', () => {
+  assert.equal(
+    codexWeeklyQuotaEstimateText({
+      provider: 'openai',
+      credentialType: 'codex_auth_json',
+      usage: {
+        subscriptionQuotaAvailable: true,
+        secondaryRemainingPercent: 100,
+      },
+      stats: {
+        totalTokens: 1000,
+      },
+    }),
+    '',
   )
 })
 
