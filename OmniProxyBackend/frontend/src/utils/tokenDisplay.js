@@ -315,19 +315,8 @@ export function codexWeeklyQuotaEstimate(item) {
   if (!price || price.currency !== 'USD') return null
 
   const scale = 100 / usedPercent
-  let inputTokens = usage.inputTokens
-  const outputTokens = usage.outputTokens
-  if (inputTokens <= 0 && outputTokens <= 0) {
-    inputTokens = usage.totalTokens
-  } else if (inputTokens <= 0 && usage.totalTokens > outputTokens) {
-    inputTokens = usage.totalTokens - outputTokens
-  }
-
-  const estimatedInputTokens = inputTokens * scale
-  const estimatedOutputTokens = outputTokens * scale
-  const amount =
-    (estimatedInputTokens / 1_000_000) * price.input +
-    (estimatedOutputTokens / 1_000_000) * price.output
+  const usedCost = usageCostUSD(usage, price)
+  const amount = usedCost * scale
   if (!Number.isFinite(amount) || amount <= 0) return null
 
   return {
@@ -336,6 +325,8 @@ export function codexWeeklyQuotaEstimate(item) {
     priceLabel: price.label,
     totalTokens: Math.round(usage.totalTokens * scale),
     usedPercent,
+    usedCost,
+    usedCostText: formatUSD(usedCost),
     usedTokens: usage.totalTokens,
   }
 }
@@ -348,7 +339,7 @@ export function codexWeeklyQuotaEstimateText(item) {
 export function codexWeeklyQuotaEstimateMeta(item) {
   const estimate = codexWeeklyQuotaEstimate(item)
   if (!estimate) return ''
-  return `按 ${formatNumber(estimate.usedTokens)} Token 和已用 ${estimate.usedPercent}% 估算 · ${estimate.priceLabel}`
+  return `按 ${formatNumber(estimate.usedTokens)} Token、已用成本 ${estimate.usedCostText} 和已用 ${estimate.usedPercent}% 估算 · ${estimate.priceLabel}`
 }
 
 export function quotaResetLabel(item) {
@@ -416,10 +407,14 @@ function normalizeTokenStats(value) {
   const inputTokens = numberValue(value?.inputTokens)
   const outputTokens = numberValue(value?.outputTokens)
   const totalTokens = numberValue(value?.totalTokens) || inputTokens + outputTokens
+  const cacheCreationTokens = numberValue(value?.cacheCreationTokens)
+  const cacheReadTokens = numberValue(value?.cacheReadTokens)
   return {
     inputTokens,
     outputTokens,
     totalTokens,
+    cacheCreationTokens,
+    cacheReadTokens,
   }
 }
 
@@ -428,11 +423,36 @@ function addTokenStats(left, right) {
     inputTokens: left.inputTokens + right.inputTokens,
     outputTokens: left.outputTokens + right.outputTokens,
     totalTokens: left.totalTokens + right.totalTokens,
+    cacheCreationTokens: left.cacheCreationTokens + right.cacheCreationTokens,
+    cacheReadTokens: left.cacheReadTokens + right.cacheReadTokens,
   }
 }
 
 function emptyTokenStats() {
-  return { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  return { inputTokens: 0, outputTokens: 0, totalTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 }
+}
+
+function usageCostUSD(usage, price) {
+  let inputTokens = usage.inputTokens
+  const outputTokens = usage.outputTokens
+  const cacheCreationTokens = usage.cacheCreationTokens
+  const cacheReadTokens = usage.cacheReadTokens
+
+  if (inputTokens <= 0 && outputTokens <= 0) {
+    inputTokens = usage.totalTokens
+  } else if (inputTokens <= 0 && usage.totalTokens > outputTokens) {
+    inputTokens = usage.totalTokens - outputTokens
+  }
+
+  const billableInputTokens = Math.max(0, inputTokens - cacheReadTokens)
+  const cacheCreationPrice = numberValue(price.cacheCreation) || price.input
+  const cacheReadPrice = numberValue(price.cacheRead) || price.input
+  return (
+    (billableInputTokens / 1_000_000) * price.input +
+    (outputTokens / 1_000_000) * price.output +
+    (cacheCreationTokens / 1_000_000) * cacheCreationPrice +
+    (cacheReadTokens / 1_000_000) * cacheReadPrice
+  )
 }
 
 function numberValue(value) {
@@ -457,6 +477,8 @@ export function normalizeBillingDailyRows(rows) {
       inputTokens: Number(row.inputTokens || 0),
       outputTokens: Number(row.outputTokens || 0),
       totalTokens: Number(row.totalTokens || 0),
+      cacheCreationTokens: Number(row.cacheCreationTokens || 0),
+      cacheReadTokens: Number(row.cacheReadTokens || 0),
     }))
     .filter((row) => row.date)
     .sort((a, b) => b.date.localeCompare(a.date))

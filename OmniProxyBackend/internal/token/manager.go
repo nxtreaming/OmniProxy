@@ -573,9 +573,13 @@ func (m *Manager) RecordProxyUsage(id string, consumption TokenConsumption) erro
 		m.tokens[i].Stats.InputTokens += int64(consumption.InputTokens)
 		m.tokens[i].Stats.OutputTokens += int64(consumption.OutputTokens)
 		m.tokens[i].Stats.TotalTokens += int64(consumption.TotalTokens)
+		m.tokens[i].Stats.CacheCreationTokens += int64(consumption.CacheCreationTokens)
+		m.tokens[i].Stats.CacheReadTokens += int64(consumption.CacheReadTokens)
 		m.tokens[i].Stats.LastInputTokens = consumption.InputTokens
 		m.tokens[i].Stats.LastOutputTokens = consumption.OutputTokens
 		m.tokens[i].Stats.LastTotalTokens = consumption.TotalTokens
+		m.tokens[i].Stats.LastCacheCreationTokens = consumption.CacheCreationTokens
+		m.tokens[i].Stats.LastCacheReadTokens = consumption.CacheReadTokens
 		m.tokens[i].Stats.UpdatedAt = &now
 		m.tokens[i].Stats.Daily = recordDailyUsage(m.tokens[i].Stats.Daily, now, consumption)
 
@@ -892,8 +896,17 @@ func normalizeConsumption(consumption TokenConsumption) TokenConsumption {
 	if consumption.TotalTokens < 0 {
 		consumption.TotalTokens = 0
 	}
+	if consumption.CacheCreationTokens < 0 {
+		consumption.CacheCreationTokens = 0
+	}
+	if consumption.CacheReadTokens < 0 {
+		consumption.CacheReadTokens = 0
+	}
 	if consumption.TotalTokens == 0 && (consumption.InputTokens > 0 || consumption.OutputTokens > 0) {
 		consumption.TotalTokens = consumption.InputTokens + consumption.OutputTokens
+	}
+	if consumption.TotalTokens == 0 && (consumption.CacheCreationTokens > 0 || consumption.CacheReadTokens > 0) {
+		consumption.TotalTokens = consumption.CacheCreationTokens + consumption.CacheReadTokens
 	}
 	return consumption
 }
@@ -908,15 +921,19 @@ func recordDailyUsage(existing []DailyTokenUsage, now time.Time, consumption Tok
 		existing[i].InputTokens += int64(consumption.InputTokens)
 		existing[i].OutputTokens += int64(consumption.OutputTokens)
 		existing[i].TotalTokens += int64(consumption.TotalTokens)
+		existing[i].CacheCreationTokens += int64(consumption.CacheCreationTokens)
+		existing[i].CacheReadTokens += int64(consumption.CacheReadTokens)
 		return trimDailyUsage(existing)
 	}
 
 	next := append(existing, DailyTokenUsage{
-		Date:         day,
-		RequestCount: 1,
-		InputTokens:  int64(consumption.InputTokens),
-		OutputTokens: int64(consumption.OutputTokens),
-		TotalTokens:  int64(consumption.TotalTokens),
+		Date:                day,
+		RequestCount:        1,
+		InputTokens:         int64(consumption.InputTokens),
+		OutputTokens:        int64(consumption.OutputTokens),
+		TotalTokens:         int64(consumption.TotalTokens),
+		CacheCreationTokens: int64(consumption.CacheCreationTokens),
+		CacheReadTokens:     int64(consumption.CacheReadTokens),
 	})
 	return trimDailyUsage(next)
 }

@@ -349,7 +349,7 @@ func TestServiceRecordsTokenUsageFromJSONResponse(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"usage":{"input_tokens":120,"output_tokens":45,"total_tokens":165}}`))
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":120,"output_tokens":45,"total_tokens":165,"input_tokens_details":{"cached_tokens":80},"cache_creation_input_tokens":6}}`))
 	}))
 	defer upstream.Close()
 
@@ -386,6 +386,9 @@ func TestServiceRecordsTokenUsageFromJSONResponse(t *testing.T) {
 	}
 	if updated.Stats.TotalTokens != 165 || updated.Stats.InputTokens != 120 || updated.Stats.OutputTokens != 45 {
 		t.Fatalf("unexpected stats: %#v", updated.Stats)
+	}
+	if updated.Stats.CacheCreationTokens != 6 || updated.Stats.CacheReadTokens != 80 {
+		t.Fatalf("unexpected cache stats: %#v", updated.Stats)
 	}
 	if updated.Stats.RequestCount != 1 {
 		t.Fatalf("expected request count 1, got %d", updated.Stats.RequestCount)
@@ -2931,7 +2934,7 @@ func TestParseTokenConsumptionFromSSE(t *testing.T) {
 		`data: {"type":"response.output_text.delta","delta":"hello"}`,
 		``,
 		`event: response.completed`,
-		`data: {"type":"response.completed","response":{"model":"gpt-5.5","usage":{"input_tokens":20,"output_tokens":8,"total_tokens":28}}}`,
+		`data: {"type":"response.completed","response":{"model":"gpt-5.5","usage":{"input_tokens":20,"output_tokens":8,"total_tokens":28,"input_tokens_details":{"cached_tokens":12},"cache_creation_input_tokens":3}}}`,
 		``,
 		`data: [DONE]`,
 	}, "\n"))
@@ -2939,6 +2942,9 @@ func TestParseTokenConsumptionFromSSE(t *testing.T) {
 	usage := parseTokenConsumption(http.Header{"Content-Type": []string{"text/event-stream"}}, body)
 	if usage.TotalTokens != 28 || usage.InputTokens != 20 || usage.OutputTokens != 8 {
 		t.Fatalf("unexpected usage: %#v", usage)
+	}
+	if usage.CacheReadTokens != 12 || usage.CacheCreationTokens != 3 {
+		t.Fatalf("unexpected cache usage: %#v", usage)
 	}
 	if model := parseResponseModel(http.Header{"Content-Type": []string{"text/event-stream"}}, body); model != "gpt-5.5" {
 		t.Fatalf("expected response model gpt-5.5, got %q", model)

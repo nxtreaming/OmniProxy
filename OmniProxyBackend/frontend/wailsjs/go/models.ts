@@ -1028,9 +1028,13 @@ export namespace main {
 	    inputTokens: number;
 	    outputTokens: number;
 	    totalTokens: number;
+	    cacheCreationTokens?: number;
+	    cacheReadTokens?: number;
 	    lastInputTokens?: number;
 	    lastOutputTokens?: number;
 	    lastTotalTokens?: number;
+	    lastCacheCreationTokens?: number;
+	    lastCacheReadTokens?: number;
 	    daily?: token.DailyTokenUsage[];
 	    updatedAt?: string;
 
@@ -1044,9 +1048,13 @@ export namespace main {
 	        this.inputTokens = source["inputTokens"];
 	        this.outputTokens = source["outputTokens"];
 	        this.totalTokens = source["totalTokens"];
+	        this.cacheCreationTokens = source["cacheCreationTokens"];
+	        this.cacheReadTokens = source["cacheReadTokens"];
 	        this.lastInputTokens = source["lastInputTokens"];
 	        this.lastOutputTokens = source["lastOutputTokens"];
 	        this.lastTotalTokens = source["lastTotalTokens"];
+	        this.lastCacheCreationTokens = source["lastCacheCreationTokens"];
+	        this.lastCacheReadTokens = source["lastCacheReadTokens"];
 	        this.daily = this.convertValues(source["daily"], token.DailyTokenUsage);
 	        this.updatedAt = source["updatedAt"];
 	    }
@@ -1381,6 +1389,8 @@ export namespace token {
 	    inputTokens: number;
 	    outputTokens: number;
 	    totalTokens: number;
+	    cacheCreationTokens?: number;
+	    cacheReadTokens?: number;
 
 	    static createFrom(source: any = {}) {
 	        return new DailyTokenUsage(source);
@@ -1393,6 +1403,8 @@ export namespace token {
 	        this.inputTokens = source["inputTokens"];
 	        this.outputTokens = source["outputTokens"];
 	        this.totalTokens = source["totalTokens"];
+	        this.cacheCreationTokens = source["cacheCreationTokens"];
+	        this.cacheReadTokens = source["cacheReadTokens"];
 	    }
 	}
 	export class UpsertRequest {

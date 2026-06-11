@@ -1049,6 +1049,54 @@ func TestValidatorParsesCodexUsage(t *testing.T) {
 	}
 }
 
+func TestValidatorParsesCodexUsageByWindowMinutes(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"plan_type": "team",
+			"rate_limit": {
+				"limit_reached": false,
+				"primary_window": {"used_percent": 34, "reset_at": 1760500000, "window_minutes": 10080},
+				"secondary_window": {"used_percent": 12, "reset_at": 1760000000, "window_minutes": 300}
+			}
+		}`))
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		ProxyPort:          3000,
+		ControlPort:        3890,
+		OpenAIBaseURL:      "https://api.openai.com",
+		CodexUsageEndpoint: upstream.URL,
+		SwitchThreshold:    15,
+		MaxRetries:         1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(t.Context(), token.Token{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     `{"tokens":{"access_token":"codex-access-token"}}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Usage == nil {
+		t.Fatal("expected usage details")
+	}
+	if result.Usage.PrimaryRemainingPercent != 88 || result.Usage.PrimaryResetAt != 1760000000 {
+		t.Fatalf("expected 5h window to map to primary quota, got %#v", result.Usage)
+	}
+	if result.Usage.SecondaryRemainingPercent != 66 || result.Usage.SecondaryResetAt != 1760500000 {
+		t.Fatalf("expected 7d window to map to secondary quota, got %#v", result.Usage)
+	}
+	if result.Remaining == nil || *result.Remaining != 88 {
+		t.Fatalf("expected result remaining 88 from 5h quota, got %#v", result.Remaining)
+	}
+}
+
 func TestValidatorParsesCodexFreeUsageWithoutPrimaryWindow(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer codex-access-token" {

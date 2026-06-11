@@ -647,7 +647,7 @@ func TestManagerRecordsProxyUsageTotalsAndDailyStats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := manager.RecordProxyUsage(item.ID, TokenConsumption{InputTokens: 100, OutputTokens: 40, TotalTokens: 140}); err != nil {
+	if err := manager.RecordProxyUsage(item.ID, TokenConsumption{InputTokens: 100, OutputTokens: 40, TotalTokens: 140, CacheCreationTokens: 7, CacheReadTokens: 80}); err != nil {
 		t.Fatal(err)
 	}
 	if err := manager.RecordProxyUsage(item.ID, TokenConsumption{InputTokens: 10, OutputTokens: 5}); err != nil {
@@ -667,8 +667,14 @@ func TestManagerRecordsProxyUsageTotalsAndDailyStats(t *testing.T) {
 	if updated.Stats.InputTokens != 110 || updated.Stats.OutputTokens != 45 {
 		t.Fatalf("unexpected input/output tokens: %#v", updated.Stats)
 	}
+	if updated.Stats.CacheCreationTokens != 7 || updated.Stats.CacheReadTokens != 80 {
+		t.Fatalf("unexpected cache token stats: %#v", updated.Stats)
+	}
 	if len(updated.Stats.Daily) != 1 || updated.Stats.Daily[0].TotalTokens != 155 {
 		t.Fatalf("unexpected daily stats: %#v", updated.Stats.Daily)
+	}
+	if updated.Stats.Daily[0].CacheCreationTokens != 7 || updated.Stats.Daily[0].CacheReadTokens != 80 {
+		t.Fatalf("unexpected daily cache stats: %#v", updated.Stats.Daily)
 	}
 }
 

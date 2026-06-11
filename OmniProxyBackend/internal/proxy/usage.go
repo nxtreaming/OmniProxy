@@ -215,17 +215,46 @@ func consumeUsageMap(value map[string]any) (token.TokenConsumption, bool) {
 	input := intFromKeys(value, "input_tokens", "prompt_tokens", "promptTokenCount")
 	output := intFromKeys(value, "output_tokens", "completion_tokens", "candidatesTokenCount")
 	total := intFromKeys(value, "total_tokens", "totalTokenCount")
+	cacheCreation := cacheCreationTokensFromUsage(value)
+	cacheRead := cacheReadTokensFromUsage(value)
 	if total == 0 && (input > 0 || output > 0) {
 		total = input + output
 	}
-	if input == 0 && output == 0 && total == 0 {
+	if total == 0 && (cacheCreation > 0 || cacheRead > 0) {
+		total = cacheCreation + cacheRead
+	}
+	if input == 0 && output == 0 && total == 0 && cacheCreation == 0 && cacheRead == 0 {
 		return token.TokenConsumption{}, false
 	}
 	return token.TokenConsumption{
-		InputTokens:  input,
-		OutputTokens: output,
-		TotalTokens:  total,
+		InputTokens:         input,
+		OutputTokens:        output,
+		TotalTokens:         total,
+		CacheCreationTokens: cacheCreation,
+		CacheReadTokens:     cacheRead,
 	}, true
+}
+
+func cacheCreationTokensFromUsage(value map[string]any) int {
+	total := intFromKeys(value, "cache_creation_input_tokens", "cache_creation_tokens")
+	if cacheCreation, ok := mapFromAny(value["cache_creation"]); ok {
+		total += sumIntFromKeys(cacheCreation, "ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
+	}
+	return total
+}
+
+func cacheReadTokensFromUsage(value map[string]any) int {
+	if parsed := intFromKeys(value, "cache_read_input_tokens", "cache_read_tokens"); parsed > 0 {
+		return parsed
+	}
+	for _, key := range []string{"input_tokens_details", "prompt_tokens_details", "inputTokenDetails", "promptTokenDetails"} {
+		if details, ok := mapFromAny(value[key]); ok {
+			if parsed := intFromKeys(details, "cached_tokens", "cachedTokens"); parsed > 0 {
+				return parsed
+			}
+		}
+	}
+	return 0
 }
 
 func intFromKeys(value map[string]any, keys ...string) int {
@@ -235,6 +264,21 @@ func intFromKeys(value map[string]any, keys ...string) int {
 		}
 	}
 	return 0
+}
+
+func sumIntFromKeys(value map[string]any, keys ...string) int {
+	total := 0
+	for _, key := range keys {
+		if parsed, ok := intFromAny(value[key]); ok {
+			total += parsed
+		}
+	}
+	return total
+}
+
+func mapFromAny(value any) (map[string]any, bool) {
+	typed, ok := value.(map[string]any)
+	return typed, ok
 }
 
 func intFromAny(value any) (int, bool) {

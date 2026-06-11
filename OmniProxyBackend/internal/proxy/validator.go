@@ -213,19 +213,19 @@ func (v *Validator) clientForToken(selected token.Token) *http.Client {
 	return v.client
 }
 
+type codexRateLimitWindow struct {
+	UsedPercent   float64 `json:"used_percent"`
+	ResetAt       int64   `json:"reset_at"`
+	WindowMinutes int     `json:"window_minutes"`
+}
+
 func parseCodexUsage(body []byte) (token.UsageInfo, bool) {
 	var payload struct {
 		PlanType  string `json:"plan_type"`
 		RateLimit struct {
-			LimitReached  bool `json:"limit_reached"`
-			PrimaryWindow *struct {
-				UsedPercent float64 `json:"used_percent"`
-				ResetAt     int64   `json:"reset_at"`
-			} `json:"primary_window"`
-			SecondaryWindow *struct {
-				UsedPercent float64 `json:"used_percent"`
-				ResetAt     int64   `json:"reset_at"`
-			} `json:"secondary_window"`
+			LimitReached    bool                  `json:"limit_reached"`
+			PrimaryWindow   *codexRateLimitWindow `json:"primary_window"`
+			SecondaryWindow *codexRateLimitWindow `json:"secondary_window"`
 		} `json:"rate_limit"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -240,28 +240,63 @@ func parseCodexUsage(body []byte) (token.UsageInfo, bool) {
 	}
 
 	freePlan := strings.EqualFold(strings.TrimSpace(payload.PlanType), "free")
-	if payload.RateLimit.PrimaryWindow != nil {
-		used := percent(payload.RateLimit.PrimaryWindow.UsedPercent)
-		if freePlan {
-			usage.SecondaryUsedPercent = used
-			usage.SecondaryRemainingPercent = 100 - used
-			usage.SecondaryResetAt = payload.RateLimit.PrimaryWindow.ResetAt
+	primaryWindow := payload.RateLimit.PrimaryWindow
+	secondaryWindow := payload.RateLimit.SecondaryWindow
+	switch {
+	case primaryWindow != nil && secondaryWindow != nil && primaryWindow.WindowMinutes > 0 && secondaryWindow.WindowMinutes > 0:
+		if primaryWindow.WindowMinutes <= secondaryWindow.WindowMinutes {
+			assignCodexUsageWindow(&usage, "primary", primaryWindow)
+			assignCodexUsageWindow(&usage, "secondary", secondaryWindow)
 		} else {
-			usage.PrimaryUsedPercent = used
-			usage.PrimaryRemainingPercent = 100 - used
-			usage.PrimaryResetAt = payload.RateLimit.PrimaryWindow.ResetAt
+			assignCodexUsageWindow(&usage, "secondary", primaryWindow)
+			assignCodexUsageWindow(&usage, "primary", secondaryWindow)
 		}
-		usage.SubscriptionQuotaAvailable = true
-	}
-	if payload.RateLimit.SecondaryWindow != nil {
-		used := percent(payload.RateLimit.SecondaryWindow.UsedPercent)
-		usage.SecondaryUsedPercent = used
-		usage.SecondaryRemainingPercent = 100 - used
-		usage.SecondaryResetAt = payload.RateLimit.SecondaryWindow.ResetAt
-		usage.SubscriptionQuotaAvailable = true
+	default:
+		if primaryWindow != nil {
+			kind := codexQuotaKindFromWindowMinutes(primaryWindow.WindowMinutes, "primary")
+			if freePlan && primaryWindow.WindowMinutes <= 0 {
+				kind = "secondary"
+			}
+			assignCodexUsageWindow(&usage, kind, primaryWindow)
+		}
+		if secondaryWindow != nil {
+			assignCodexUsageWindow(&usage, codexQuotaKindFromWindowMinutes(secondaryWindow.WindowMinutes, "secondary"), secondaryWindow)
+		}
 	}
 
 	return usage, usage.PlanType != "" || usage.SubscriptionQuotaAvailable
+}
+
+func codexQuotaKindFromWindowMinutes(windowMinutes int, fallback string) string {
+	if windowMinutes <= 0 {
+		return fallback
+	}
+	if windowMinutes <= 360 {
+		return "primary"
+	}
+	return "secondary"
+}
+
+func assignCodexUsageWindow(usage *token.UsageInfo, kind string, window *codexRateLimitWindow) {
+	if usage == nil || window == nil {
+		return
+	}
+	used := percent(window.UsedPercent)
+	remaining := 100 - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	switch kind {
+	case "secondary":
+		usage.SecondaryUsedPercent = used
+		usage.SecondaryRemainingPercent = remaining
+		usage.SecondaryResetAt = window.ResetAt
+	default:
+		usage.PrimaryUsedPercent = used
+		usage.PrimaryRemainingPercent = remaining
+		usage.PrimaryResetAt = window.ResetAt
+	}
+	usage.SubscriptionQuotaAvailable = true
 }
 
 func parseOpenRouterKeyUsage(body []byte) (token.UsageInfo, *int, bool) {

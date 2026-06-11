@@ -22,8 +22,8 @@ test('normalizeBillingDailyRows sorts and normalizes usage rows', () => {
       { date: '2026-05-27', inputTokens: '4', outputTokens: '6' },
     ]),
     [
-      { date: '2026-05-27', requestCount: 0, inputTokens: 4, outputTokens: 6, totalTokens: 0 },
-      { date: '2026-05-26', requestCount: 2, inputTokens: 0, outputTokens: 0, totalTokens: 30 },
+      { date: '2026-05-27', requestCount: 0, inputTokens: 4, outputTokens: 6, totalTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 },
+      { date: '2026-05-26', requestCount: 2, inputTokens: 0, outputTokens: 0, totalTokens: 30, cacheCreationTokens: 0, cacheReadTokens: 0 },
     ],
   )
 })
@@ -113,8 +113,36 @@ test('Codex weekly quota estimate uses current weekly tokens and remaining perce
     },
   }
 
-  assert.equal(codexWeeklyQuotaEstimateText(token), '$4.00 / 周')
-  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 110,000 Token 和已用 20% 估算 · OpenAI GPT-5.5')
+  assert.equal(codexWeeklyQuotaEstimateText(token), '$2.00 / 周')
+  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 110,000 Token、已用成本 $0.4000 和已用 20% 估算 · OpenAI GPT-5.5')
+})
+
+test('Codex weekly quota estimate prices cache tokens like sub2api', () => {
+  const resetAt = Math.floor(Date.parse('2026-06-18T00:00:00+08:00') / 1000)
+  const token = {
+    provider: 'openai',
+    credentialType: 'codex_auth_json',
+    usage: {
+      subscriptionQuotaAvailable: true,
+      secondaryRemainingPercent: 80,
+      secondaryResetAt: resetAt,
+    },
+    stats: {
+      daily: [
+        {
+          date: '2026-06-12',
+          inputTokens: 120000,
+          outputTokens: 10000,
+          totalTokens: 130000,
+          cacheCreationTokens: 5000,
+          cacheReadTokens: 100000,
+        },
+      ],
+    },
+  }
+
+  assert.equal(codexWeeklyQuotaEstimateText(token), '$1.19 / 周')
+  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 130,000 Token、已用成本 $0.2375 和已用 20% 估算 · OpenAI GPT-5.5')
 })
 
 test('Codex weekly quota estimate stays hidden without consumed weekly quota', () => {

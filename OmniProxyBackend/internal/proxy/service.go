@@ -1179,9 +1179,11 @@ func copyWebSocketMessages(dst *websocket.Conn, src *websocket.Conn, captureUsag
 
 func addTokenConsumption(left token.TokenConsumption, right token.TokenConsumption) token.TokenConsumption {
 	return token.TokenConsumption{
-		InputTokens:  left.InputTokens + right.InputTokens,
-		OutputTokens: left.OutputTokens + right.OutputTokens,
-		TotalTokens:  left.TotalTokens + right.TotalTokens,
+		InputTokens:         left.InputTokens + right.InputTokens,
+		OutputTokens:        left.OutputTokens + right.OutputTokens,
+		TotalTokens:         left.TotalTokens + right.TotalTokens,
+		CacheCreationTokens: left.CacheCreationTokens + right.CacheCreationTokens,
+		CacheReadTokens:     left.CacheReadTokens + right.CacheReadTokens,
 	}
 }
 
