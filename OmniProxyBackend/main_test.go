@@ -1394,6 +1394,7 @@ func TestWriteCodexOmniProxyConfig(t *testing.T) {
 		`model = "gpt-5.5"`,
 		`model_provider = "openai"`,
 		`chatgpt_base_url = "http://127.0.0.1:3000/backend-api/"`,
+		`disable_response_storage = true`,
 		``,
 		`[projects.'E:\go\OmniProxy']`,
 		`trust_level = "trusted"`,
@@ -1435,6 +1436,9 @@ func TestWriteCodexOmniProxyConfig(t *testing.T) {
 	if strings.Contains(text, "chatgpt_base_url") {
 		t.Fatalf("chatgpt_base_url should not be used for the model proxy:\n%s", text)
 	}
+	if strings.Contains(text, "disable_response_storage") {
+		t.Fatalf("disable_response_storage should not be kept for Codex history:\n%s", text)
+	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
 		t.Fatalf("expected backup file: %v", err)
 	}
@@ -1447,6 +1451,7 @@ func TestWriteCodexSub2APIConfig(t *testing.T) {
 		`model_provider = "openai"`,
 		`openai_base_url = "http://old.example/v1"`,
 		`chatgpt_base_url = "http://127.0.0.1:3000/backend-api/"`,
+		`disable_response_storage = true`,
 		``,
 		`[projects.'E:\go\OmniProxy']`,
 		`trust_level = "trusted"`,
@@ -1472,7 +1477,6 @@ func TestWriteCodexSub2APIConfig(t *testing.T) {
 		`model = "gpt-5.4"`,
 		`review_model = "gpt-5.4"`,
 		`model_reasoning_effort = "xhigh"`,
-		`disable_response_storage = true`,
 		`network_access = "enabled"`,
 		`windows_wsl_setup_acknowledged = true`,
 		`model_context_window = 1000000`,
@@ -1488,7 +1492,7 @@ func TestWriteCodexSub2APIConfig(t *testing.T) {
 			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
 		}
 	}
-	for _, unexpected := range []string{"old.example", "openai_base_url", "chatgpt_base_url"} {
+	for _, unexpected := range []string{"old.example", "openai_base_url", "chatgpt_base_url", "disable_response_storage"} {
 		if strings.Contains(text, unexpected) {
 			t.Fatalf("config still contains %q:\n%s", unexpected, text)
 		}
@@ -1501,6 +1505,7 @@ func TestWriteCodexNewAPIConfig(t *testing.T) {
 		`model = "old-model"`,
 		`model_provider = "openai"`,
 		`openai_base_url = "http://old.example/v1"`,
+		`disable_response_storage = true`,
 		`[model_providers.OpenAI]`,
 		`base_url = "http://old.example/v1"`,
 	}, "\n")
@@ -1531,6 +1536,9 @@ func TestWriteCodexNewAPIConfig(t *testing.T) {
 	}
 	if strings.Contains(text, "old.example") {
 		t.Fatalf("config still contains old base url:\n%s", text)
+	}
+	if strings.Contains(text, "disable_response_storage") {
+		t.Fatalf("config still disables Codex history:\n%s", text)
 	}
 }
 

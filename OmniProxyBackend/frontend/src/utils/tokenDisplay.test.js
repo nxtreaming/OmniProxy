@@ -114,7 +114,7 @@ test('Codex weekly quota estimate uses current weekly tokens and remaining perce
   }
 
   assert.equal(codexWeeklyQuotaEstimateText(token), '$2.00 / 周')
-  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 110,000 Token、已用成本 $0.4000 和已用 20% 估算 · OpenAI GPT-5.5')
+  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按当前周窗口 110,000 Token、已用成本 $0.4000 和已用 20% 估算 · OpenAI GPT-5.5')
 })
 
 test('Codex weekly quota estimate prices cache tokens like sub2api', () => {
@@ -142,7 +142,33 @@ test('Codex weekly quota estimate prices cache tokens like sub2api', () => {
   }
 
   assert.equal(codexWeeklyQuotaEstimateText(token), '$1.19 / 周')
-  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按 130,000 Token、已用成本 $0.2375 和已用 20% 估算 · OpenAI GPT-5.5')
+  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按当前周窗口 130,000 Token、已用成本 $0.2375 和已用 20% 估算 · OpenAI GPT-5.5')
+})
+
+test('Codex weekly quota estimate applies sub2api GPT-5.4 long-context pricing', () => {
+  const resetAt = Math.floor(Date.parse('2026-06-18T00:00:00+08:00') / 1000)
+  const token = {
+    provider: 'openai',
+    credentialType: 'codex_auth_json',
+    usage: {
+      subscriptionQuotaAvailable: true,
+      secondaryRemainingPercent: 80,
+      secondaryResetAt: resetAt,
+    },
+    stats: {
+      daily: [
+        {
+          date: '2026-06-12',
+          inputTokens: 300000,
+          outputTokens: 50000,
+          totalTokens: 350000,
+        },
+      ],
+    },
+  }
+
+  assert.equal(codexWeeklyQuotaEstimateText(token), '$13.13 / 周')
+  assert.equal(codexWeeklyQuotaEstimateMeta(token), '按当前周窗口 350,000 Token、已用成本 $2.63 和已用 20% 估算 · OpenAI GPT-5.5')
 })
 
 test('Codex weekly quota estimate stays hidden without consumed weekly quota', () => {
@@ -156,6 +182,25 @@ test('Codex weekly quota estimate stays hidden without consumed weekly quota', (
       },
       stats: {
         totalTokens: 1000,
+      },
+    }),
+    '',
+  )
+})
+
+test('Codex weekly quota estimate stays hidden without current weekly usage rows', () => {
+  assert.equal(
+    codexWeeklyQuotaEstimateText({
+      provider: 'openai',
+      credentialType: 'codex_auth_json',
+      usage: {
+        subscriptionQuotaAvailable: true,
+        secondaryRemainingPercent: 80,
+      },
+      stats: {
+        inputTokens: 900000,
+        outputTokens: 900000,
+        totalTokens: 1800000,
       },
     }),
     '',

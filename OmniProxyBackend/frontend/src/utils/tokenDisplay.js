@@ -339,7 +339,7 @@ export function codexWeeklyQuotaEstimateText(item) {
 export function codexWeeklyQuotaEstimateMeta(item) {
   const estimate = codexWeeklyQuotaEstimate(item)
   if (!estimate) return ''
-  return `按 ${formatNumber(estimate.usedTokens)} Token、已用成本 ${estimate.usedCostText} 和已用 ${estimate.usedPercent}% 估算 · ${estimate.priceLabel}`
+  return `按当前周窗口 ${formatNumber(estimate.usedTokens)} Token、已用成本 ${estimate.usedCostText} 和已用 ${estimate.usedPercent}% 估算 · ${estimate.priceLabel}`
 }
 
 export function quotaResetLabel(item) {
@@ -378,16 +378,15 @@ export function tokenUsageMetrics(item) {
 function weeklyEstimateUsageStats(item) {
   const resetAt = numberValue(item?.usage?.secondaryResetAt)
   const daily = Array.isArray(item?.stats?.daily) ? item.stats.daily : []
-  if (resetAt > 0 && daily.length) {
-    const resetMs = resetAt * 1000
-    const startMs = resetMs - WEEK_MS
-    const windowStats = daily.reduce((sum, row) => {
-      if (!dailyRowOverlapsWindow(row, startMs, resetMs)) return sum
-      return addTokenStats(sum, normalizeTokenStats(row))
-    }, emptyTokenStats())
-    if (windowStats.totalTokens > 0) return windowStats
-  }
-  return normalizeTokenStats(item?.stats)
+  if (resetAt <= 0 || !daily.length) return emptyTokenStats()
+
+  const resetMs = resetAt * 1000
+  const startMs = resetMs - WEEK_MS
+  const windowStats = daily.reduce((sum, row) => {
+    if (!dailyRowOverlapsWindow(row, startMs, resetMs)) return sum
+    return addTokenStats(sum, normalizeTokenStats(row))
+  }, emptyTokenStats())
+  return windowStats.totalTokens > 0 ? windowStats : emptyTokenStats()
 }
 
 function dailyRowOverlapsWindow(row, startMs, resetMs) {
@@ -445,14 +444,25 @@ function usageCostUSD(usage, price) {
   }
 
   const billableInputTokens = Math.max(0, inputTokens - cacheReadTokens)
-  const cacheCreationPrice = numberValue(price.cacheCreation) || price.input
-  const cacheReadPrice = numberValue(price.cacheRead) || price.input
+  const totalInputTokens = billableInputTokens + cacheReadTokens
+  const useLongContext =
+    price.longContextInputThreshold > 0 &&
+    totalInputTokens > price.longContextInputThreshold
+  const inputPrice = useLongContext ? price.input * priceValue(price.longContextInputMultiplier, 1) : price.input
+  const outputPrice = useLongContext ? price.output * priceValue(price.longContextOutputMultiplier, 1) : price.output
+  const cacheCreationPrice = priceValue(price.cacheCreation, price.input)
+  const cacheReadPrice = priceValue(price.cacheRead, price.input)
   return (
-    (billableInputTokens / 1_000_000) * price.input +
-    (outputTokens / 1_000_000) * price.output +
+    (billableInputTokens / 1_000_000) * inputPrice +
+    (outputTokens / 1_000_000) * outputPrice +
     (cacheCreationTokens / 1_000_000) * cacheCreationPrice +
     (cacheReadTokens / 1_000_000) * cacheReadPrice
   )
+}
+
+function priceValue(value, fallback) {
+  const number = Number(value)
+  return Number.isFinite(number) && number >= 0 ? number : fallback
 }
 
 function numberValue(value) {
