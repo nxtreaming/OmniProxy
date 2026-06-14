@@ -50,6 +50,10 @@ export function Config() {
   return window['go']['main']['DesktopApp']['Config']();
 }
 
+export function ConfigureAnyRouterClaude() {
+  return window['go']['main']['DesktopApp']['ConfigureAnyRouterClaude']();
+}
+
 export function ConfigureClaudeDesktopModels(arg1) {
   return window['go']['main']['DesktopApp']['ConfigureClaudeDesktopModels'](arg1);
 }
@@ -62,12 +66,16 @@ export function ConfigureCodex() {
   return window['go']['main']['DesktopApp']['ConfigureCodex']();
 }
 
-export function ConfigureCodexSub2API() {
-  return window['go']['main']['DesktopApp']['ConfigureCodexSub2API']();
+export function ConfigureCodexAnyRouter() {
+  return window['go']['main']['DesktopApp']['ConfigureCodexAnyRouter']();
 }
 
 export function ConfigureCodexNewAPI() {
   return window['go']['main']['DesktopApp']['ConfigureCodexNewAPI']();
+}
+
+export function ConfigureCodexSub2API() {
+  return window['go']['main']['DesktopApp']['ConfigureCodexSub2API']();
 }
 
 export function ConfigureCodexZo() {

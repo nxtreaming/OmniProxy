@@ -36,7 +36,9 @@ import {
   WindowToggleMaximise,
 } from '../wailsjs/runtime/runtime'
 import {
+  configureAnyRouterClaude,
   configureCodex,
+  configureCodexAnyRouter,
   configureCodexNewAPI,
   configureCodexSub2API,
   configureCodexZo,
@@ -158,12 +160,14 @@ const loading = ref(false)
 const codexConfiguring = ref(false)
 const codexSub2APIConfiguring = ref(false)
 const codexNewAPIConfiguring = ref(false)
+const codexAnyRouterConfiguring = ref(false)
 const codexZoConfiguring = ref(false)
 const codexRestoring = ref(false)
 const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
 const kimiClaudeConfiguring = ref(false)
 const zhipuClaudeConfiguring = ref(false)
+const anyRouterClaudeConfiguring = ref(false)
 const zoClaudeConfiguring = ref(false)
 const claudeModelsConfiguring = ref(false)
 const claudeDesktopConfiguring = ref(false)
@@ -280,6 +284,7 @@ const config = reactive({
   tokenrouterBaseUrl: 'https://api.tokenrouter.io',
   sub2apiBaseUrl: 'https://aiapi.aicnio.com',
   newapiBaseUrl: 'http://127.0.0.1:3000',
+  anyrouterBaseUrl: 'https://anyrouter.top',
   zoBaseUrl: 'https://api.zo.computer',
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
@@ -930,7 +935,7 @@ async function copyEndpointValue(value, label) {
   }
 }
 
-const providerBaseUrlKeys = new Set(['sub2api', 'newapi'])
+const providerBaseUrlKeys = new Set(['sub2api', 'newapi', 'anyrouter'])
 
 function providerRequiresBaseUrl(provider) {
   return providerBaseUrlKeys.has(String(provider || '').trim())
@@ -939,6 +944,7 @@ function providerRequiresBaseUrl(provider) {
 function providerDefaultBaseUrl(provider) {
   if (provider === 'sub2api') return config.sub2apiBaseUrl
   if (provider === 'newapi') return config.newapiBaseUrl
+  if (provider === 'anyrouter') return config.anyrouterBaseUrl
   return ''
 }
 
@@ -1645,6 +1651,21 @@ async function configureLocalCodexNewAPI() {
   }
 }
 
+async function configureLocalCodexAnyRouter() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  codexAnyRouterConfiguring.value = true
+  try {
+    const result = await configureCodexAnyRouter()
+    await refreshAll()
+    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy AnyRouter'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    codexAnyRouterConfiguring.value = false
+  }
+}
+
 async function configureLocalCodexZo() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -1727,6 +1748,20 @@ async function configureLocalZhipuClaude() {
     errorMessage.value = error.message
   } finally {
     zhipuClaudeConfiguring.value = false
+  }
+}
+
+async function configureLocalAnyRouterClaude() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  anyRouterClaudeConfiguring.value = true
+  try {
+    const result = await configureAnyRouterClaude()
+    successMessage.value = result.message || 'Claude Code 已配置为使用 AnyRouter'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    anyRouterClaudeConfiguring.value = false
   }
 }
 
@@ -2089,6 +2124,9 @@ function credentialPlaceholder() {
   }
   if (form.provider === 'newapi') {
     return '粘贴 new-api API Key'
+  }
+  if (form.provider === 'anyrouter') {
+    return '粘贴 sk- 开头的 AnyRouter API Key'
   }
   if (form.provider === 'zo') {
     return '粘贴 zo_sk_ 开头的 Zo Access Token'
@@ -2898,6 +2936,7 @@ async function refreshQuota(item) {
         :codex-configuring="codexConfiguring"
         :codex-sub2api-configuring="codexSub2APIConfiguring"
         :codex-newapi-configuring="codexNewAPIConfiguring"
+        :codex-anyrouter-configuring="codexAnyRouterConfiguring"
         :codex-zo-configuring="codexZoConfiguring"
         :codex-restoring="codexRestoring"
         :claude-models-configuring="claudeModelsConfiguring"
@@ -2907,6 +2946,7 @@ async function refreshQuota(item) {
         :mimo-claude-configuring="mimoClaudeConfiguring"
         :kimi-claude-configuring="kimiClaudeConfiguring"
         :zhipu-claude-configuring="zhipuClaudeConfiguring"
+        :any-router-claude-configuring="anyRouterClaudeConfiguring"
         :zo-claude-configuring="zoClaudeConfiguring"
         :mimo-claude-restoring="mimoClaudeRestoring"
         :gemini-configuring="geminiConfiguring"
@@ -2920,6 +2960,7 @@ async function refreshQuota(item) {
         @configure-codex="configureLocalCodex"
         @configure-codex-sub2api="configureLocalCodexSub2API"
         @configure-codex-newapi="configureLocalCodexNewAPI"
+        @configure-codex-anyrouter="configureLocalCodexAnyRouter"
         @configure-codex-zo="configureLocalCodexZo"
         @restore-codex="restoreLocalCodex"
         @configure-claude-models="configureLocalClaudeModels"
@@ -2929,6 +2970,7 @@ async function refreshQuota(item) {
         @configure-mimo-claude="configureLocalMimoClaude"
         @configure-kimi-claude="configureLocalKimiClaude"
         @configure-zhipu-claude="configureLocalZhipuClaude"
+        @configure-anyrouter-claude="configureLocalAnyRouterClaude"
         @configure-zo-claude="configureLocalZoClaude"
         @restore-mimo-claude="restoreLocalMimoClaude"
         @configure-gemini="configureLocalGemini"

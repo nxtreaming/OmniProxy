@@ -80,7 +80,7 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 	if len(parts) > 0 {
 		candidate := strings.ToLower(parts[0])
 		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderNewAPI, token.ProviderZo, token.ProviderCustom:
+		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderNewAPI, token.ProviderAnyRouter, token.ProviderZo, token.ProviderCustom:
 			provider = candidate
 			if len(parts) == 2 {
 				path = "/" + parts[1]
@@ -161,6 +161,10 @@ func protocolForRoute(provider string, path *string) string {
 		} else if stripProtocolPrefix(path, "/gemini") {
 			protocol = "gemini"
 		}
+	case token.ProviderAnyRouter:
+		if stripProtocolPrefix(path, "/anthropic") {
+			protocol = "anthropic"
+		}
 	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderZo, token.ProviderCustom:
 		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
@@ -191,7 +195,7 @@ func stripProtocolPrefix(path *string, prefix string) bool {
 }
 
 func gatewayProviderUsesProtocolPrefixes(provider string) bool {
-	return provider == token.ProviderSub2API || provider == token.ProviderNewAPI
+	return provider == token.ProviderSub2API || provider == token.ProviderNewAPI || provider == token.ProviderAnyRouter
 }
 
 func versionedGatewayOpenAIPath(path string) string {
@@ -386,7 +390,7 @@ func upstreamPath(path string, selected token.Token) string {
 
 func upstreamPathForBase(basePath string, route routeInfo, selected token.Token) string {
 	path := upstreamPath(route.Path, selected)
-	if route.Protocol == "openai" && basePathHasVersionSuffix(basePath) && strings.HasPrefix(path, "/v1/") {
+	if basePathHasVersionSuffix(basePath) && strings.HasPrefix(path, "/v1/") && (route.Protocol == "openai" || token.NormalizeProvider(route.Provider) == token.ProviderAnyRouter) {
 		return "/" + strings.TrimPrefix(path, "/v1/")
 	}
 	return path

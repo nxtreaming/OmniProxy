@@ -30,15 +30,19 @@ export function ClearRequestHistory():Promise<void>;
 
 export function Config():Promise<config.Config>;
 
+export function ConfigureAnyRouterClaude():Promise<main.mimoConfigureResult>;
+
 export function ConfigureClaudeDesktopModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
 
 export function ConfigureClaudeModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
 
 export function ConfigureCodex():Promise<main.codexConfigureResult>;
 
-export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
+export function ConfigureCodexAnyRouter():Promise<main.codexConfigureResult>;
 
 export function ConfigureCodexNewAPI():Promise<main.codexConfigureResult>;
+
+export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
 
 export function ConfigureCodexZo():Promise<main.codexConfigureResult>;
 

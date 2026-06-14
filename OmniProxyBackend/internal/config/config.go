@@ -80,6 +80,7 @@ type Config struct {
 	TokenRouterBaseURL                 string   `json:"tokenrouterBaseUrl"`
 	Sub2APIBaseURL                     string   `json:"sub2apiBaseUrl"`
 	NewAPIBaseURL                      string   `json:"newapiBaseUrl"`
+	AnyRouterBaseURL                   string   `json:"anyrouterBaseUrl"`
 	ZoBaseURL                          string   `json:"zoBaseUrl"`
 	CustomGatewayBaseURL               string   `json:"customGatewayBaseUrl"`
 	CustomGatewayAnthropicBaseURL      string   `json:"customGatewayAnthropicBaseUrl"`
@@ -137,6 +138,7 @@ func Default() Config {
 		TokenRouterBaseURL:                 "https://api.tokenrouter.io",
 		Sub2APIBaseURL:                     "https://aiapi.aicnio.com",
 		NewAPIBaseURL:                      "http://127.0.0.1:3000",
+		AnyRouterBaseURL:                   "https://anyrouter.top",
 		ZoBaseURL:                          "https://api.zo.computer",
 		CustomGatewayBaseURL:               "",
 		CustomGatewayAnthropicBaseURL:      "",
@@ -217,6 +219,7 @@ func (s *Store) Load() (Config, error) {
 		TokenRouterBaseURL                 *string   `json:"tokenrouterBaseUrl"`
 		Sub2APIBaseURL                     *string   `json:"sub2apiBaseUrl"`
 		NewAPIBaseURL                      *string   `json:"newapiBaseUrl"`
+		AnyRouterBaseURL                   *string   `json:"anyrouterBaseUrl"`
 		ZoBaseURL                          *string   `json:"zoBaseUrl"`
 		CustomGatewayBaseURL               *string   `json:"customGatewayBaseUrl"`
 		CustomGatewayAnthropicBaseURL      *string   `json:"customGatewayAnthropicBaseUrl"`
@@ -346,6 +349,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.NewAPIBaseURL != nil && *saved.NewAPIBaseURL != "" {
 		cfg.NewAPIBaseURL = *saved.NewAPIBaseURL
+	}
+	if saved.AnyRouterBaseURL != nil && *saved.AnyRouterBaseURL != "" {
+		cfg.AnyRouterBaseURL = *saved.AnyRouterBaseURL
 	}
 	if saved.ZoBaseURL != nil && *saved.ZoBaseURL != "" {
 		cfg.ZoBaseURL = *saved.ZoBaseURL
@@ -518,6 +524,9 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.NewAPIBaseURL == "" {
 		cfg.NewAPIBaseURL = defaults.NewAPIBaseURL
+	}
+	if cfg.AnyRouterBaseURL == "" {
+		cfg.AnyRouterBaseURL = defaults.AnyRouterBaseURL
 	}
 	if cfg.ZoBaseURL == "" {
 		cfg.ZoBaseURL = defaults.ZoBaseURL
@@ -734,6 +743,8 @@ func normalizeOutboundProxyProvider(provider string) string {
 		return "sub2api"
 	case "newapi", "new-api", "new api":
 		return "newapi"
+	case "anyrouter", "any-router", "any router":
+		return "anyrouter"
 	case "zo", "zocomputer", "zo-computer":
 		return "zo"
 	case "custom":

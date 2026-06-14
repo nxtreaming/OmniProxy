@@ -332,6 +332,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
 	mux.HandleFunc("/api/codex/sub2api/configure", a.handleCodexSub2APIConfigure)
 	mux.HandleFunc("/api/codex/newapi/configure", a.handleCodexNewAPIConfigure)
+	mux.HandleFunc("/api/codex/anyrouter/configure", a.handleCodexAnyRouterConfigure)
 	mux.HandleFunc("/api/codex/zo/configure", a.handleCodexZoConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
 	mux.HandleFunc("/api/mimo/claude/configure", a.handleMimoClaudeConfigure)
@@ -342,6 +343,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/kimi/claude/restore", a.handleKimiClaudeRestore)
 	mux.HandleFunc("/api/zhipu/claude/configure", a.handleZhipuClaudeConfigure)
 	mux.HandleFunc("/api/zhipu/claude/restore", a.handleZhipuClaudeRestore)
+	mux.HandleFunc("/api/anyrouter/claude/configure", a.handleAnyRouterClaudeConfigure)
 	mux.HandleFunc("/api/zo/claude/configure", a.handleZoClaudeConfigure)
 	mux.HandleFunc("/api/claude/models/configure", a.handleClaudeModelsConfigure)
 	mux.HandleFunc("/api/claude/desktop/models/configure", a.handleClaudeDesktopModelsConfigure)
@@ -1537,6 +1539,19 @@ func (a *appServer) handleCodexNewAPIConfigure(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (a *appServer) handleCodexAnyRouterConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureCodexAnyRouter()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (a *appServer) handleCodexZoConfigure(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -1660,6 +1675,19 @@ func (a *appServer) handleZhipuClaudeRestore(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	result, err := a.restoreZhipuClaudeConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleAnyRouterClaudeConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureAnyRouterClaude()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

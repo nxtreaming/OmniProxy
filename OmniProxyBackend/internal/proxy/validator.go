@@ -188,6 +188,10 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 		out.Path = singleJoiningSlash(basePathWithoutVersionSuffix(base.Path), "/api/usage/token/")
 		out.RawQuery = ""
 		return out.String(), nil
+	case token.ProviderAnyRouter:
+		if basePathHasVersionSuffix(base.Path) {
+			path = "/models"
+		}
 	case token.ProviderZo:
 		path = "/models/available"
 	case token.ProviderXiaomi:

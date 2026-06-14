@@ -26,6 +26,7 @@ export const providers = [
   { key: 'tokenrouter', label: 'TokenRouter', note: 'TokenRouter API Key，OpenAI 兼容路由' },
   { key: 'sub2api', label: 'sub2api', note: 'sub2api OpenAI / Anthropic / Gemini 兼容网关 API Key' },
   { key: 'newapi', label: 'new-api', note: 'new-api OpenAI / Anthropic / Gemini 兼容网关 API Key' },
+  { key: 'anyrouter', label: 'AnyRouter', note: 'AnyRouter API Key，Codex / Claude Code 兼容网关' },
   { key: 'zo', label: 'Zo Computer', note: 'Zo Access Token，OpenAI / Anthropic 兼容适配' },
   { key: 'custom', label: '自定义网关', note: 'OpenAI / Anthropic 兼容网关 API Key' },
 ]

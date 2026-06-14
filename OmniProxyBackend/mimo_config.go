@@ -21,6 +21,7 @@ const (
 	deepSeekFastModel    = "deepseek-v4-flash"
 	kimiCodingModel      = "kimi-for-coding"
 	zhipuGLMModel        = "glm-5.1"
+	anyRouterClaudeModel = "claude-opus-4-5-20251101"
 	zoClaudeModel        = "claude-opus-4-7"
 	zoClaudeSonnetModel  = "claude-sonnet-4-6"
 	omniProxyMimoAuth    = "omniproxy"
@@ -80,6 +81,13 @@ var (
 		LogMessage:  "zhipu claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Zhipu GLM",
 	}
+	claudeAnyRouterTarget = claudeModelTarget{
+		Model:       anyRouterClaudeModel,
+		Name:        "Claude Opus 4.5",
+		Description: "Claude Opus 4.5 routed through OmniProxy AnyRouter",
+		LogMessage:  "anyrouter claude configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 AnyRouter",
+	}
 	claudeZoTarget = claudeModelTarget{
 		Model:       zoClaudeModel,
 		Name:        "Zo Claude Opus 4.7",
@@ -123,6 +131,16 @@ func (a *appServer) configureKimiClaude() (mimoConfigureResult, error) {
 func (a *appServer) configureZhipuClaude() (mimoConfigureResult, error) {
 	return a.configureClaudeWithWriter(claudeZhipuTarget, func(path string, baseURL string) error {
 		return writeZhipuClaudeSettings(path, baseURL)
+	})
+}
+
+func (a *appServer) configureAnyRouterClaude() (mimoConfigureResult, error) {
+	a.mu.Lock()
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/anyrouter/anthropic", a.cfg.ProxyPort)
+	a.mu.Unlock()
+
+	return a.configureClaudeWithBaseURL(claudeAnyRouterTarget, baseURL, func(path string, baseURL string) error {
+		return writeAnyRouterClaudeSettings(path, baseURL)
 	})
 }
 
@@ -362,6 +380,10 @@ func writeKimiClaudeSettings(path string, baseURL string) error {
 
 func writeZhipuClaudeSettings(path string, baseURL string) error {
 	return writeClaudeSingleModelSettings(path, baseURL, claudeZhipuTarget)
+}
+
+func writeAnyRouterClaudeSettings(path string, baseURL string) error {
+	return writeClaudeSingleModelSettings(path, baseURL, claudeAnyRouterTarget)
 }
 
 func writeZoClaudeSettings(path string, baseURL string) error {
@@ -805,6 +827,7 @@ func isKnownRouterDefaultModel(value string) bool {
 		strings.EqualFold(model, deepSeekFastModel) ||
 		strings.EqualFold(model, kimiCodingModel) ||
 		strings.EqualFold(model, zhipuGLMModel) ||
+		strings.EqualFold(model, anyRouterClaudeModel) ||
 		strings.EqualFold(model, zoClaudeModel) ||
 		strings.EqualFold(model, zoClaudeSonnetModel)
 }

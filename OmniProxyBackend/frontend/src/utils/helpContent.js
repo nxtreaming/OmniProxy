@@ -64,6 +64,14 @@ export function buildThirdPartyEndpointGroups(port) {
           use: '转发到 new-api OpenAI 兼容网关。',
         },
         {
+          name: 'AnyRouter',
+          protocol: 'OpenAI Responses',
+          baseUrl: `${base}/anyrouter/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'gpt-5-codex / gpt-5.5',
+          use: '转发到 AnyRouter 的 OpenAI/Codex 兼容入口。',
+        },
+        {
           name: '自定义网关',
           protocol: 'OpenAI Chat',
           baseUrl: `${base}/custom/v1`,
@@ -116,6 +124,14 @@ export function buildThirdPartyEndpointGroups(port) {
           apiKey: 'omniproxy-local',
           models: '由 new-api 上游决定',
           use: '转发到 new-api Anthropic 兼容入口。',
+        },
+        {
+          name: 'AnyRouter Anthropic',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/anyrouter/anthropic/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'claude-opus-4-5-20251101',
+          use: '转发到 AnyRouter 的 Claude Code/Anthropic 兼容入口。',
         },
         {
           name: '自定义 Anthropic 网关',

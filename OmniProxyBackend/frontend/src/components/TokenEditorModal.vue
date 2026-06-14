@@ -69,6 +69,9 @@ function credentialValueLabel(form) {
 }
 
 function credentialHint() {
+  if (props.form.provider === 'anyrouter') {
+    return 'Base URL 会跟随这个账号保存，支持 AnyRouter 的 Codex/OpenAI 和 Claude Code/Anthropic 入口。'
+  }
   if (['sub2api', 'newapi'].includes(props.form.provider)) {
     return 'Base URL 会跟随这个账号保存，支持同一上游的 OpenAI、Anthropic、Gemini 协议入口。'
   }
@@ -95,11 +98,12 @@ function autoNameText(form) {
 }
 
 function requiresBaseUrl(form) {
-  return ['sub2api', 'newapi'].includes(form.provider)
+  return ['sub2api', 'newapi', 'anyrouter'].includes(form.provider)
 }
 
 function baseUrlPlaceholder(form) {
   if (form.provider === 'newapi') return 'http://127.0.0.1:3000'
+  if (form.provider === 'anyrouter') return 'https://anyrouter.top'
   return 'https://aiapi.aicnio.com'
 }
 

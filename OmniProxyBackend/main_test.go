@@ -1581,6 +1581,57 @@ func TestWriteCodexZoConfig(t *testing.T) {
 	}
 }
 
+func TestWriteCodexAnyRouterConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	initial := strings.Join([]string{
+		`model = "old-model"`,
+		`model_provider = "OpenAI"`,
+		`openai_base_url = "http://old.example/v1"`,
+		`disable_response_storage = true`,
+		`preferred_auth_method = "oauth"`,
+		``,
+		`[projects.'E:\go\OmniProxy']`,
+		`trust_level = "trusted"`,
+		``,
+		`[model_providers.OpenAI]`,
+		`base_url = "http://old.example/v1"`,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeCodexAnyRouterConfig(path, "http://127.0.0.1:3000/anyrouter/v1"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`model_provider = "anyrouter"`,
+		`model = "gpt-5-codex"`,
+		`review_model = "gpt-5-codex"`,
+		`preferred_auth_method = "apikey"`,
+		`[model_providers.anyrouter]`,
+		`name = "Any Router"`,
+		`base_url = "http://127.0.0.1:3000/anyrouter/v1"`,
+		`wire_api = "responses"`,
+		`[projects.'E:\go\OmniProxy']`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
+		}
+	}
+	if strings.Contains(text, "old.example") || strings.Contains(text, "[model_providers.OpenAI]") {
+		t.Fatalf("old provider config was not removed:\n%s", text)
+	}
+	if strings.Contains(text, "openai_base_url") || strings.Contains(text, "disable_response_storage") {
+		t.Fatalf("legacy Codex keys should not be kept:\n%s", text)
+	}
+}
+
 func TestEnsureCodexOpenAIAPIKeyPreservesExistingAuth(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "auth.json")
 	initial := `{"tokens":{"access_token":"keep-token"}}`

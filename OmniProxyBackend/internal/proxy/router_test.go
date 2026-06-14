@@ -227,6 +227,30 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			outPath:  "/v1beta/models/gemini-3-pro-preview:generateContent",
 		},
 		{
+			name:     "anyrouter direct",
+			path:     "/anyrouter/v1/responses",
+			body:     `{"model":"gpt-5-codex"}`,
+			provider: token.ProviderAnyRouter,
+			protocol: "openai",
+			outPath:  "/v1/responses",
+		},
+		{
+			name:     "anyrouter responses without version",
+			path:     "/anyrouter/responses",
+			body:     `{"model":"gpt-5-codex"}`,
+			provider: token.ProviderAnyRouter,
+			protocol: "openai",
+			outPath:  "/v1/responses",
+		},
+		{
+			name:     "anyrouter anthropic direct",
+			path:     "/anyrouter/anthropic/v1/messages",
+			body:     `{"model":"claude-opus-4-5-20251101"}`,
+			provider: token.ProviderAnyRouter,
+			protocol: "anthropic",
+			outPath:  "/v1/messages",
+		},
+		{
 			name:     "zo openai direct",
 			path:     "/zo/v1/chat/completions",
 			body:     `{"model":"gpt-5.5"}`,
@@ -266,6 +290,32 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 				t.Fatalf("unexpected route: %#v", route)
 			}
 		})
+	}
+}
+
+func TestRouterTargetsAnyRouterBaseURL(t *testing.T) {
+	router := NewRouter(config.Config{
+		AnyRouterBaseURL: "https://anyrouter.top",
+	})
+	selected := token.Token{Provider: token.ProviderAnyRouter, CredentialType: token.CredentialTypeAPIKey}
+
+	route := router.Route(mustRouterTestURL(t, "/anyrouter/v1/responses"), []byte(`{"model":"gpt-5-codex"}`))
+	target, err := router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://anyrouter.top/v1/responses" {
+		t.Fatalf("unexpected AnyRouter OpenAI-compatible target url: %s", target)
+	}
+
+	selected.BaseURL = "https://mirror.example/v1"
+	route = router.Route(mustRouterTestURL(t, "/anyrouter/anthropic/v1/messages"), []byte(`{"model":"claude-opus-4-5-20251101"}`))
+	target, err = router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://mirror.example/v1/messages" {
+		t.Fatalf("unexpected AnyRouter Anthropic-compatible target url: %s", target)
 	}
 }
 

@@ -2438,6 +2438,93 @@ func TestServiceRoutesNewAPIAnthropicRequests(t *testing.T) {
 	}
 }
 
+func TestServiceRoutesAnyRouterRequests(t *testing.T) {
+	var upstreamPath string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":9}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "anyrouter", Provider: token.ProviderAnyRouter, BaseURL: upstream.URL, TokenValue: "anyrouter-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/anyrouter/responses", stringsReader(`{"model":"gpt-5-codex","input":"hi"}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1/responses" || authorization != "Bearer anyrouter-api-key-token" {
+		t.Fatalf("unexpected anyrouter route path=%q authorization=%q", upstreamPath, authorization)
+	}
+}
+
+func TestServiceRoutesAnyRouterAnthropicRequests(t *testing.T) {
+	var upstreamPath string
+	var apiKey string
+	var authorization string
+	var anthropicVersion string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		apiKey = r.Header.Get("x-api-key")
+		authorization = r.Header.Get("Authorization")
+		anthropicVersion = r.Header.Get("anthropic-version")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":2,"output_tokens":3}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "anyrouter", Provider: token.ProviderAnyRouter, BaseURL: upstream.URL, TokenValue: "anyrouter-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/anyrouter/anthropic/v1/messages", stringsReader(`{"model":"claude-opus-4-5-20251101","messages":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	req.Header.Set("X-Api-Key", "caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/v1/messages" || apiKey != "anyrouter-api-key-token" || authorization != "" || anthropicVersion != "2023-06-01" {
+		t.Fatalf("unexpected anyrouter anthropic route path=%q key=%q authorization=%q version=%q", upstreamPath, apiKey, authorization, anthropicVersion)
+	}
+}
+
 func TestServiceRoutesNewAPIGeminiRequests(t *testing.T) {
 	var upstreamPath string
 	var geminiKey string

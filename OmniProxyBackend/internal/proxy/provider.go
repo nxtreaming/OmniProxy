@@ -33,6 +33,7 @@ func proxyBaseURLFields(cfg config.Config) []providerURLField {
 		{Name: token.ProviderTokenRouter, Value: cfg.TokenRouterBaseURL},
 		{Name: token.ProviderSub2API, Value: cfg.Sub2APIBaseURL},
 		{Name: token.ProviderNewAPI, Value: cfg.NewAPIBaseURL},
+		{Name: token.ProviderAnyRouter, Value: cfg.AnyRouterBaseURL},
 		{Name: token.ProviderZo, Value: cfg.ZoBaseURL},
 		{Name: "custom_gateway", Value: cfg.CustomGatewayBaseURL},
 		{Name: "custom_gateway_anthropic", Value: cfg.CustomGatewayAnthropicBaseURL},
@@ -117,6 +118,11 @@ func routeBaseURL(cfg config.Config, route routeInfo, selected token.Token) stri
 			return selected.BaseURL
 		}
 		return cfg.NewAPIBaseURL
+	case token.ProviderAnyRouter:
+		if strings.TrimSpace(selected.BaseURL) != "" {
+			return selected.BaseURL
+		}
+		return cfg.AnyRouterBaseURL
 	case token.ProviderZo:
 		return cfg.ZoBaseURL
 	case token.ProviderCustom:
@@ -163,6 +169,11 @@ func validationBaseURL(cfg config.Config, selected token.Token) string {
 			return selected.BaseURL
 		}
 		return cfg.NewAPIBaseURL
+	case token.ProviderAnyRouter:
+		if strings.TrimSpace(selected.BaseURL) != "" {
+			return selected.BaseURL
+		}
+		return cfg.AnyRouterBaseURL
 	case token.ProviderZo:
 		return cfg.ZoBaseURL
 	case token.ProviderCustom:

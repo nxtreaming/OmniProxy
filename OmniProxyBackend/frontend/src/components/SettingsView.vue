@@ -187,6 +187,12 @@ const outboundProxyProviderGroups = [
         description: 'new-api OpenAI / Anthropic / Gemini 兼容接口',
       },
       {
+        key: 'anyrouter',
+        label: 'AnyRouter',
+        providers: ['anyrouter'],
+        description: 'AnyRouter Codex/OpenAI 与 Claude Code/Anthropic 兼容接口',
+      },
+      {
         key: 'custom',
         label: '自定义网关',
         providers: ['custom'],
@@ -900,7 +906,7 @@ function normalizeOutboundProxyProviders(providers) {
         <div class="settings-section-head">
           <div>
             <h3>第三方路由</h3>
-            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、new-api、Zo Computer、Xiaomi MiMo 和自定义网关入口。</p>
+            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、new-api、AnyRouter、Zo Computer、Xiaomi MiMo 和自定义网关入口。</p>
           </div>
           <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
             {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
@@ -956,6 +962,11 @@ function normalizeOutboundProxyProviders(providers) {
             <span>new-api 默认 Base URL</span>
             <input v-model="config.newapiBaseUrl" type="url" />
             <small>仅作为新增 new-api 账号的默认填充值，以及旧账号未保存 Base URL 时的回退地址；协议由本地路径决定。</small>
+          </label>
+          <label class="wide-field">
+            <span>AnyRouter 默认 Base URL</span>
+            <input v-model="config.anyrouterBaseUrl" type="url" />
+            <small>仅作为新增 AnyRouter 账号的默认填充值，以及旧账号未保存 Base URL 时的回退地址；OpenAI/Codex 会走 /v1，Claude Code 会走 Anthropic 路径。</small>
           </label>
           <label class="wide-field">
             <span>Zo Computer Base URL</span>

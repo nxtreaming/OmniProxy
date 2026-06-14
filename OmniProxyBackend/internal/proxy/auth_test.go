@@ -156,7 +156,7 @@ func TestApplyAuthUsesClaudeOAuthBearerHeaders(t *testing.T) {
 }
 
 func TestApplyAuthUsesAnthropicHeadersForCompatibleProviders(t *testing.T) {
-	for _, provider := range []string{token.ProviderZhipu, token.ProviderMiniMax, token.ProviderCustom} {
+	for _, provider := range []string{token.ProviderZhipu, token.ProviderMiniMax, token.ProviderAnyRouter, token.ProviderCustom} {
 		t.Run(provider, func(t *testing.T) {
 			header := http.Header{}
 			selected := token.Token{

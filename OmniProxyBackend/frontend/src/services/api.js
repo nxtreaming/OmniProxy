@@ -502,6 +502,12 @@ export function configureCodexNewAPI() {
     : request('/codex/newapi/configure', { method: 'POST' })
 }
 
+export function configureCodexAnyRouter() {
+  return useWailsBindings() && DesktopApp.ConfigureCodexAnyRouter
+    ? DesktopApp.ConfigureCodexAnyRouter()
+    : request('/codex/anyrouter/configure', { method: 'POST' })
+}
+
 export function configureCodexZo() {
   return useWailsBindings() && DesktopApp.ConfigureCodexZo
     ? DesktopApp.ConfigureCodexZo()
@@ -548,6 +554,12 @@ export function configureZhipuClaude() {
   return useWailsBindings()
     ? DesktopApp.ConfigureZhipuClaude()
     : request('/zhipu/claude/configure', { method: 'POST' })
+}
+
+export function configureAnyRouterClaude() {
+  return useWailsBindings() && DesktopApp.ConfigureAnyRouterClaude
+    ? DesktopApp.ConfigureAnyRouterClaude()
+    : request('/anyrouter/claude/configure', { method: 'POST' })
 }
 
 export function configureZoClaude() {

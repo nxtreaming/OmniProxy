@@ -227,6 +227,61 @@ func (a *appServer) configureCodexNewAPI() (codexConfigureResult, error) {
 	return result, nil
 }
 
+func (a *appServer) configureCodexAnyRouter() (codexConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/anyrouter/v1", cfg.ProxyPort)
+	configPath := filepath.Join(codexDir, "config.toml")
+	if err := writeCodexAnyRouterConfig(configPath, baseURL); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	result := codexConfigureResult{
+		ConfigPath: configPath,
+		AuthPath:   filepath.Join(codexDir, "auth.json"),
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    baseURL,
+	}
+
+	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+	switch authState {
+	case "created":
+		result.ImportedAuth = true
+	case "updated":
+		result.AuthUpdated = true
+	case "existing":
+		result.AuthAlreadyAdded = true
+	}
+
+	parts := []string{"Codex 已切换到 OmniProxy AnyRouter 本地代理"}
+	if result.ImportedAuth {
+		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
+	} else if result.AuthUpdated {
+		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
+	} else {
+		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
+	}
+	parts = append(parts, "请在 OmniProxy 的 AnyRouter 账号中保存真实 API Key")
+	result.Message = strings.Join(parts, "；")
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy anyrouter"})
+	return result, nil
+}
+
 func (a *appServer) configureCodexZo() (codexConfigureResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -325,10 +380,12 @@ func writeCodexOmniProxyConfig(path string, baseURL string) error {
 
 	lines = setRootStringKey(lines, "model_provider", "openai")
 	lines = setRootStringKey(lines, "openai_base_url", baseURL)
+	lines = removeRootKey(lines, "preferred_auth_method")
 	lines = removeRootKey(lines, "chatgpt_base_url")
 	lines = removeRootKey(lines, "disable_response_storage")
 	lines = removeTomlSection(lines, "[model_providers.openai]")
 	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
+	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
 
 	next := strings.Join(lines, "\n") + "\n"
 	if len(content) > 0 {
@@ -352,6 +409,54 @@ func writeCodexNewAPIConfig(path string, baseURL string) error {
 	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.5")
 }
 
+func writeCodexAnyRouterConfig(path string, baseURL string) error {
+	content, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	lines := []string{}
+	if text != "" {
+		lines = strings.Split(strings.TrimRight(text, "\n"), "\n")
+	}
+
+	lines = setRootStringKey(lines, "model_provider", "anyrouter")
+	lines = setRootStringKey(lines, "model", "gpt-5-codex")
+	lines = setRootStringKey(lines, "review_model", "gpt-5-codex")
+	lines = setRootStringKey(lines, "preferred_auth_method", "apikey")
+	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
+	lines = setRootStringKey(lines, "network_access", "enabled")
+	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
+	lines = setRootRawKey(lines, "model_context_window", "1000000")
+	lines = setRootRawKey(lines, "model_auto_compact_token_limit", "900000")
+	lines = removeRootKey(lines, "openai_base_url")
+	lines = removeRootKey(lines, "chatgpt_base_url")
+	lines = removeRootKey(lines, "disable_response_storage")
+	lines = removeTomlSection(lines, "[model_providers.openai]")
+	lines = removeTomlSection(lines, "[model_providers.OpenAI]")
+	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
+	lines = removeTomlSection(lines, "[model_providers.sub2api]")
+	lines = removeTomlSection(lines, "[model_providers.newapi]")
+	lines = removeTomlSection(lines, "[model_providers.zo]")
+	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
+	lines = appendTomlSection(lines, []string{
+		"[model_providers.anyrouter]",
+		`name = "Any Router"`,
+		fmt.Sprintf(`base_url = "%s"`, tomlEscape(baseURL)),
+		`wire_api = "responses"`,
+	})
+
+	next := strings.Join(lines, "\n") + "\n"
+	if len(content) > 0 {
+		backupPath := path + ".omniproxy.bak"
+		if _, err := os.Stat(backupPath); errors.Is(err, os.ErrNotExist) {
+			_ = os.WriteFile(backupPath, content, 0o600)
+		}
+	}
+	return os.WriteFile(path, []byte(next), 0o600)
+}
+
 func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) error {
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -372,6 +477,7 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) 
 	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
 	lines = setRootRawKey(lines, "model_context_window", "1000000")
 	lines = setRootRawKey(lines, "model_auto_compact_token_limit", "900000")
+	lines = removeRootKey(lines, "preferred_auth_method")
 	lines = removeRootKey(lines, "openai_base_url")
 	lines = removeRootKey(lines, "chatgpt_base_url")
 	lines = removeRootKey(lines, "disable_response_storage")
@@ -380,6 +486,7 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) 
 	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
 	lines = removeTomlSection(lines, "[model_providers.sub2api]")
 	lines = removeTomlSection(lines, "[model_providers.newapi]")
+	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
 	lines = appendTomlSection(lines, []string{
 		"[model_providers.OpenAI]",
 		`name = "OpenAI"`,

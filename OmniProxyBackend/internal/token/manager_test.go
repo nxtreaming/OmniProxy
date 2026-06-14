@@ -359,6 +359,9 @@ func TestManagerAllowsSameNameAcrossProviders(t *testing.T) {
 	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderNewAPI, BaseURL: "http://127.0.0.1:3000", TokenValue: "newapi-api-key-token"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderAnyRouter, BaseURL: "https://anyrouter.top", TokenValue: "anyrouter-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestManagerRequiresSub2APIBaseURL(t *testing.T) {
@@ -407,6 +410,31 @@ func TestManagerRequiresNewAPIBaseURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if updated.TokenValue != "newapi-api-key-token" || updated.BaseURL != "https://other.example" {
+		t.Fatalf("expected base url update without replacing key, got %#v", updated)
+	}
+}
+
+func TestManagerRequiresAnyRouterBaseURL(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.Add(UpsertRequest{Name: "anyrouter", Provider: ProviderAnyRouter, TokenValue: "anyrouter-api-key-token"}); err == nil {
+		t.Fatal("expected anyrouter base url to be required")
+	}
+	item, err := manager.Add(UpsertRequest{Name: "anyrouter", Provider: ProviderAnyRouter, BaseURL: "https://anyrouter.top/v1/", TokenValue: "anyrouter-api-key-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.BaseURL != "https://anyrouter.top/v1" {
+		t.Fatalf("expected normalized base url, got %q", item.BaseURL)
+	}
+	updated, err := manager.Update(item.ID, UpsertRequest{Name: "anyrouter", Provider: ProviderAnyRouter, BaseURL: "https://mirror.example", TokenValue: ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.TokenValue != "anyrouter-api-key-token" || updated.BaseURL != "https://mirror.example" {
 		t.Fatalf("expected base url update without replacing key, got %#v", updated)
 	}
 }

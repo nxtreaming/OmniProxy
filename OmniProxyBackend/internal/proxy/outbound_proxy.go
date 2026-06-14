@@ -120,6 +120,8 @@ func normalizeOutboundProxyProvider(provider string) string {
 		return token.ProviderSub2API
 	case token.ProviderNewAPI, "new-api", "new api":
 		return token.ProviderNewAPI
+	case token.ProviderAnyRouter, "any-router", "any router":
+		return token.ProviderAnyRouter
 	case token.ProviderZo, "zocomputer", "zo-computer":
 		return token.ProviderZo
 	case token.ProviderCustom:

@@ -36,6 +36,7 @@ export namespace config {
 	    tokenrouterBaseUrl: string;
 	    sub2apiBaseUrl: string;
 	    newapiBaseUrl: string;
+	    anyrouterBaseUrl: string;
 	    zoBaseUrl: string;
 	    customGatewayBaseUrl: string;
 	    customGatewayAnthropicBaseUrl: string;
@@ -96,6 +97,7 @@ export namespace config {
 	        this.tokenrouterBaseUrl = source["tokenrouterBaseUrl"];
 	        this.sub2apiBaseUrl = source["sub2apiBaseUrl"];
 	        this.newapiBaseUrl = source["newapiBaseUrl"];
+	        this.anyrouterBaseUrl = source["anyrouterBaseUrl"];
 	        this.zoBaseUrl = source["zoBaseUrl"];
 	        this.customGatewayBaseUrl = source["customGatewayBaseUrl"];
 	        this.customGatewayAnthropicBaseUrl = source["customGatewayAnthropicBaseUrl"];

@@ -506,6 +506,10 @@ func (a *DesktopApp) ConfigureCodexNewAPI() (codexConfigureResult, error) {
 	return a.server.configureCodexNewAPI()
 }
 
+func (a *DesktopApp) ConfigureCodexAnyRouter() (codexConfigureResult, error) {
+	return a.server.configureCodexAnyRouter()
+}
+
 func (a *DesktopApp) ConfigureCodexZo() (codexConfigureResult, error) {
 	return a.server.configureCodexZo()
 }
@@ -540,6 +544,10 @@ func (a *DesktopApp) RestoreKimiClaude() (mimoConfigureResult, error) {
 
 func (a *DesktopApp) ConfigureZhipuClaude() (mimoConfigureResult, error) {
 	return a.server.configureZhipuClaude()
+}
+
+func (a *DesktopApp) ConfigureAnyRouterClaude() (mimoConfigureResult, error) {
+	return a.server.configureAnyRouterClaude()
 }
 
 func (a *DesktopApp) ConfigureZoClaude() (mimoConfigureResult, error) {

@@ -13,6 +13,7 @@ const props = defineProps({
   codexConfiguring: { type: Boolean, default: false },
   codexSub2apiConfiguring: { type: Boolean, default: false },
   codexNewapiConfiguring: { type: Boolean, default: false },
+  codexAnyrouterConfiguring: { type: Boolean, default: false },
   codexZoConfiguring: { type: Boolean, default: false },
   codexRestoring: { type: Boolean, default: false },
   claudeModelsConfiguring: { type: Boolean, default: false },
@@ -22,6 +23,7 @@ const props = defineProps({
   mimoClaudeConfiguring: { type: Boolean, default: false },
   kimiClaudeConfiguring: { type: Boolean, default: false },
   zhipuClaudeConfiguring: { type: Boolean, default: false },
+  anyRouterClaudeConfiguring: { type: Boolean, default: false },
   zoClaudeConfiguring: { type: Boolean, default: false },
   mimoClaudeRestoring: { type: Boolean, default: false },
   geminiConfiguring: { type: Boolean, default: false },
@@ -39,6 +41,7 @@ const emit = defineEmits([
   'configure-codex',
   'configure-codex-sub2api',
   'configure-codex-newapi',
+  'configure-codex-anyrouter',
   'configure-codex-zo',
   'restore-codex',
   'configure-claude-models',
@@ -48,6 +51,7 @@ const emit = defineEmits([
   'configure-mimo-claude',
   'configure-kimi-claude',
   'configure-zhipu-claude',
+  'configure-anyrouter-claude',
   'configure-zo-claude',
   'restore-mimo-claude',
   'configure-gemini',
@@ -71,7 +75,7 @@ const selectedModels = computed({
     <div class="help-grid">
       <article class="wide-help">
         <strong>Codex</strong>
-        <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api 和 new-api 使用账号池里的 API Key。</p>
+        <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api、new-api 和 AnyRouter 使用账号池里的 API Key。</p>
         <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex
 sub2api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/sub2api
 sub2api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/sub2api/anthropic
@@ -79,6 +83,8 @@ sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini
 new-api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/newapi
 new-api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/newapi/anthropic
 new-api Gemini: http://127.0.0.1:{{ config.proxyPort }}/newapi/gemini
+AnyRouter OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/v1
+AnyRouter Anthropic: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/anthropic
 Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="$emit('configure-codex')">
@@ -89,6 +95,9 @@ Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
           </el-button>
           <el-button type="primary" plain :icon="MagicStick" :loading="codexNewapiConfiguring" @click="$emit('configure-codex-newapi')">
             {{ codexNewapiConfiguring ? '配置中' : '配置 Codex new-api' }}
+          </el-button>
+          <el-button type="primary" plain :icon="MagicStick" :loading="codexAnyrouterConfiguring" @click="$emit('configure-codex-anyrouter')">
+            {{ codexAnyrouterConfiguring ? '配置中' : '配置 Codex AnyRouter' }}
           </el-button>
           <el-button type="primary" plain :icon="MagicStick" :loading="codexZoConfiguring" @click="$emit('configure-codex-zo')">
             {{ codexZoConfiguring ? '配置中' : '配置 Codex Zo' }}
@@ -107,6 +116,7 @@ DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
 MiMo: MiMo-V2.5-Pro / MiMo-V2.5
 Kimi model: kimi-for-coding
 GLM model: glm-5.1
+AnyRouter model: claude-opus-4-5-20251101
 Zo models: claude-opus-4-7 / claude-sonnet-4-6</code></pre>
         <div class="claude-model-config">
           <div class="claude-model-config-head">
@@ -186,6 +196,9 @@ Zo models: claude-opus-4-7 / claude-sonnet-4-6</code></pre>
               </el-button>
               <el-button type="primary" plain :icon="MagicStick" :loading="zhipuClaudeConfiguring" @click="$emit('configure-zhipu-claude')">
                 {{ zhipuClaudeConfiguring ? '配置中' : 'GLM' }}
+              </el-button>
+              <el-button type="primary" plain :icon="MagicStick" :loading="anyRouterClaudeConfiguring" @click="$emit('configure-anyrouter-claude')">
+                {{ anyRouterClaudeConfiguring ? '配置中' : 'AnyRouter' }}
               </el-button>
               <el-button type="primary" plain :icon="MagicStick" :loading="zoClaudeConfiguring" @click="$emit('configure-zo-claude')">
                 {{ zoClaudeConfiguring ? '配置中' : 'Zo' }}
