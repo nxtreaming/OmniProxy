@@ -127,7 +127,7 @@ func routeBaseURL(cfg config.Config, route routeInfo, selected token.Token) stri
 	case token.ProviderZo:
 		return cfg.ZoBaseURL
 	case token.ProviderPrem:
-		return cfg.PremBaseURL
+		return premProxyBaseURL(cfg.PremBaseURL)
 	case token.ProviderCustom:
 		if route.Protocol == "anthropic" && cfg.CustomGatewayAnthropicBaseURL != "" {
 			return cfg.CustomGatewayAnthropicBaseURL
@@ -180,7 +180,7 @@ func validationBaseURL(cfg config.Config, selected token.Token) string {
 	case token.ProviderZo:
 		return cfg.ZoBaseURL
 	case token.ProviderPrem:
-		return cfg.PremBaseURL
+		return premProxyBaseURL(cfg.PremBaseURL)
 	case token.ProviderCustom:
 		return cfg.CustomGatewayBaseURL
 	case token.ProviderXiaomi:
@@ -216,6 +216,17 @@ func xiaomiBaseURL(cfg config.Config, protocol string, selected token.Token) str
 		return cfg.XiaomiAPIAnthropicBaseURL
 	}
 	return cfg.XiaomiAPIBaseURL
+}
+
+func premProxyBaseURL(baseURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	lower := strings.ToLower(baseURL)
+	for _, suffix := range []string{"/openai/v1", "/anthropic/v1", "/v1"} {
+		if strings.HasSuffix(lower, suffix) {
+			return strings.TrimRight(baseURL[:len(baseURL)-len(suffix)], "/")
+		}
+	}
+	return baseURL
 }
 
 func ProxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {

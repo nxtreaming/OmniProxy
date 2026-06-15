@@ -79,7 +79,7 @@ function credentialHint() {
     return '保存 Zo Access Token 后，可通过 /zo/v1/chat/completions 或 /zo/v1/messages 使用本地兼容入口。'
   }
   if (props.form.provider === 'prem') {
-    return '保存 Prem API Key 后，OmniProxy 会按账号调度并转发到全局 Prem pcci-proxy Base URL。'
+    return '保存 Prem API Key 后，OmniProxy 会按账号调度并转发到全局 Prem confidential-proxy Base URL。'
   }
   if (props.form.provider === 'openrouter') {
     return '保存后可在账号管理刷新 OpenRouter 模型列表，模型 ID 会按 provider/model 展示。'

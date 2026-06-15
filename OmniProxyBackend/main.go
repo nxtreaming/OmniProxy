@@ -348,6 +348,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/zhipu/claude/restore", a.handleZhipuClaudeRestore)
 	mux.HandleFunc("/api/anyrouter/claude/configure", a.handleAnyRouterClaudeConfigure)
 	mux.HandleFunc("/api/zo/claude/configure", a.handleZoClaudeConfigure)
+	mux.HandleFunc("/api/prem/claude/configure", a.handlePremClaudeConfigure)
 	mux.HandleFunc("/api/claude/models/configure", a.handleClaudeModelsConfigure)
 	mux.HandleFunc("/api/claude/desktop/models/configure", a.handleClaudeDesktopModelsConfigure)
 	mux.HandleFunc("/api/claude/desktop/restore", a.handleClaudeDesktopRestore)
@@ -1718,6 +1719,19 @@ func (a *appServer) handleZoClaudeConfigure(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	result, err := a.configureZoClaude()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handlePremClaudeConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configurePremClaude()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

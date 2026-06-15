@@ -24,6 +24,7 @@ const (
 	anyRouterClaudeModel = "claude-opus-4-5-20251101"
 	zoClaudeModel        = "claude-opus-4-7"
 	zoClaudeSonnetModel  = "claude-sonnet-4-6"
+	premClaudeModel      = "deepseek-v4-pro"
 	omniProxyMimoAuth    = "omniproxy"
 	maxClaudeModels      = 4
 )
@@ -100,6 +101,13 @@ var (
 		Name:        "Zo Claude Sonnet 4.6",
 		Description: "Claude Sonnet 4.6 routed through OmniProxy Zo Computer",
 	}
+	claudePremTarget = claudeModelTarget{
+		Model:       premClaudeModel,
+		Name:        "Prem DeepSeek V4 Pro",
+		Description: "DeepSeek V4 Pro routed through OmniProxy Prem",
+		LogMessage:  "prem claude configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Prem",
+	}
 )
 
 type claudeModelSelectionError struct {
@@ -151,6 +159,16 @@ func (a *appServer) configureZoClaude() (mimoConfigureResult, error) {
 
 	return a.configureClaudeWithBaseURL(claudeZoTarget, baseURL, func(path string, baseURL string) error {
 		return writeZoClaudeSettings(path, baseURL)
+	})
+}
+
+func (a *appServer) configurePremClaude() (mimoConfigureResult, error) {
+	a.mu.Lock()
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/prem/anthropic", a.cfg.ProxyPort)
+	a.mu.Unlock()
+
+	return a.configureClaudeWithBaseURL(claudePremTarget, baseURL, func(path string, baseURL string) error {
+		return writePremClaudeSettings(path, baseURL)
 	})
 }
 
@@ -405,6 +423,10 @@ func writeZoClaudeSettings(path string, baseURL string) error {
 	env["CLAUDE_CODE_SUBAGENT_MODEL"] = claudeZoSonnetTarget.Model
 	data["env"] = env
 	return writeJSONObject(path, data)
+}
+
+func writePremClaudeSettings(path string, baseURL string) error {
+	return writeClaudeSingleModelSettings(path, baseURL, claudePremTarget)
 }
 
 func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeModelTarget) error {
@@ -711,6 +733,7 @@ func claudeRouterAvailableModels() []string {
 		deepSeekFastModel,
 		kimiCodingModel,
 		zhipuGLMModel,
+		premClaudeModel,
 	}
 }
 
@@ -829,7 +852,8 @@ func isKnownRouterDefaultModel(value string) bool {
 		strings.EqualFold(model, zhipuGLMModel) ||
 		strings.EqualFold(model, anyRouterClaudeModel) ||
 		strings.EqualFold(model, zoClaudeModel) ||
-		strings.EqualFold(model, zoClaudeSonnetModel)
+		strings.EqualFold(model, zoClaudeSonnetModel) ||
+		strings.EqualFold(model, premClaudeModel)
 }
 
 func writeMimoClaudeOnboarding(path string) error {

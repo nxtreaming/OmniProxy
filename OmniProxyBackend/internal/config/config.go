@@ -143,7 +143,7 @@ func Default() Config {
 		NewAPIBaseURL:                      "http://127.0.0.1:3000",
 		AnyRouterBaseURL:                   "https://anyrouter.top",
 		ZoBaseURL:                          "https://api.zo.computer",
-		PremBaseURL:                        "http://127.0.0.1:3100/v1",
+		PremBaseURL:                        "http://127.0.0.1:3100",
 		PremAutoStartPCCIProxy:             true,
 		CustomGatewayBaseURL:               "",
 		CustomGatewayAnthropicBaseURL:      "",

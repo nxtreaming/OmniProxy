@@ -52,6 +52,7 @@ import {
   configureMimoClaude,
   configureOpenCode,
   configurePi,
+  configurePremClaude,
   configureZhipuClaude,
   configureZoClaude,
   createToken,
@@ -171,6 +172,7 @@ const kimiClaudeConfiguring = ref(false)
 const zhipuClaudeConfiguring = ref(false)
 const anyRouterClaudeConfiguring = ref(false)
 const zoClaudeConfiguring = ref(false)
+const premClaudeConfiguring = ref(false)
 const claudeModelsConfiguring = ref(false)
 const claudeDesktopConfiguring = ref(false)
 const claudeDesktopRestoring = ref(false)
@@ -288,7 +290,7 @@ const config = reactive({
   newapiBaseUrl: 'http://127.0.0.1:3000',
   anyrouterBaseUrl: 'https://anyrouter.top',
   zoBaseUrl: 'https://api.zo.computer',
-  premBaseUrl: 'http://127.0.0.1:3100/v1',
+  premBaseUrl: 'http://127.0.0.1:3100',
   premAutoStartPcciProxy: true,
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
@@ -1804,6 +1806,20 @@ async function configureLocalZoClaude() {
   }
 }
 
+async function configureLocalPremClaude() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  premClaudeConfiguring.value = true
+  try {
+    const result = await configurePremClaude()
+    successMessage.value = result.message || 'Claude Code 已配置为使用 Prem'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    premClaudeConfiguring.value = false
+  }
+}
+
 function claudeModelLabel(modelId) {
   return claudeModelOptions.find((option) => option.id === modelId)?.label || modelId
 }
@@ -2977,6 +2993,7 @@ async function refreshQuota(item) {
         :zhipu-claude-configuring="zhipuClaudeConfiguring"
         :any-router-claude-configuring="anyRouterClaudeConfiguring"
         :zo-claude-configuring="zoClaudeConfiguring"
+        :prem-claude-configuring="premClaudeConfiguring"
         :mimo-claude-restoring="mimoClaudeRestoring"
         :gemini-configuring="geminiConfiguring"
         :gemini-restoring="geminiRestoring"
@@ -3002,6 +3019,7 @@ async function refreshQuota(item) {
         @configure-zhipu-claude="configureLocalZhipuClaude"
         @configure-anyrouter-claude="configureLocalAnyRouterClaude"
         @configure-zo-claude="configureLocalZoClaude"
+        @configure-prem-claude="configureLocalPremClaude"
         @restore-mimo-claude="restoreLocalMimoClaude"
         @configure-gemini="configureLocalGemini"
         @restore-gemini="restoreLocalGemini"

@@ -22,6 +22,8 @@ import (
 const (
 	premPCCIProxyPackage = "@premai/api-sdk"
 	premPCCIProxyCommand = "confidential-proxy"
+	premPCCIProxyURL     = "https://gateway.prem.io"
+	premPCCIEnclaveURL   = "https://conf-engine.prem.io"
 	premPCCIStartupWait  = 60 * time.Second
 )
 
@@ -51,10 +53,11 @@ func (a *appServer) ensurePremProxyForConfiguredAccounts(reason string) {
 	manager := a.premProxy
 	a.mu.Unlock()
 
-	if manager == nil || !cfg.PremAutoStartPCCIProxy || !a.hasEnabledPremToken() {
+	apiKey := a.firstEnabledPremAPIKey()
+	if manager == nil || !cfg.PremAutoStartPCCIProxy || apiKey == "" {
 		return
 	}
-	manager.EnsureAsync(cfg.PremBaseURL, reason)
+	manager.EnsureAsync(cfg.PremBaseURL, apiKey, reason)
 }
 
 func (a *appServer) syncPremProxyAfterConfigChange(oldCfg config.Config, nextCfg config.Config) {
@@ -97,36 +100,40 @@ func (a *appServer) stopPremProxy() {
 }
 
 func (a *appServer) hasEnabledPremToken() bool {
+	return a.firstEnabledPremAPIKey() != ""
+}
+
+func (a *appServer) firstEnabledPremAPIKey() string {
 	if a.tokens == nil {
-		return false
+		return ""
 	}
 	for _, item := range a.tokens.List() {
 		if item.Provider == token.ProviderPrem && !item.Disabled {
-			return true
+			return strings.TrimSpace(item.TokenValue)
 		}
 	}
-	return false
+	return ""
 }
 
-func (m *premProxyManager) EnsureAsync(baseURL string, reason string) {
+func (m *premProxyManager) EnsureAsync(baseURL string, apiKey string, reason string) {
 	go func() {
-		if err := m.Ensure(baseURL); err != nil {
-			m.record(logs.LevelWarn, fmt.Sprintf("Prem pcci-proxy auto-start failed (%s): %v", reason, err))
+		if err := m.Ensure(baseURL, apiKey); err != nil {
+			m.record(logs.LevelWarn, fmt.Sprintf("Prem confidential-proxy auto-start failed (%s): %v", reason, err))
 		}
 	}()
 }
 
-func (m *premProxyManager) Ensure(baseURL string) error {
+func (m *premProxyManager) Ensure(baseURL string, apiKey string) error {
 	target, err := premProxyTargetFromBaseURL(baseURL)
 	if err != nil {
 		return err
 	}
 	if !target.Loopback {
-		m.record(logs.LevelInfo, fmt.Sprintf("Prem pcci-proxy auto-start skipped for non-local Base URL %s", target.BaseURL))
+		m.record(logs.LevelInfo, fmt.Sprintf("Prem confidential-proxy auto-start skipped for non-local Base URL %s", target.BaseURL))
 		return nil
 	}
 	if premProxyTCPListening(target) {
-		m.record(logs.LevelInfo, fmt.Sprintf("Prem pcci-proxy already listening on %s", target.Address))
+		m.record(logs.LevelInfo, fmt.Sprintf("Prem confidential-proxy already listening on %s", target.Address))
 		return nil
 	}
 
@@ -142,12 +149,12 @@ func (m *premProxyManager) Ensure(baseURL string) error {
 	}
 	if premProxyTCPListening(target) {
 		m.mu.Unlock()
-		m.record(logs.LevelInfo, fmt.Sprintf("Prem pcci-proxy already listening on %s", target.Address))
+		m.record(logs.LevelInfo, fmt.Sprintf("Prem confidential-proxy already listening on %s", target.Address))
 		return nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd, err := newPremPCCIProxyCommand(ctx, target.Port)
+	cmd, err := newPremPCCIProxyCommand(ctx, target.Port, apiKey)
 	if err != nil {
 		cancel()
 		m.mu.Unlock()
@@ -176,15 +183,15 @@ func (m *premProxyManager) Ensure(baseURL string) error {
 	m.startedAddr = target.Address
 	m.mu.Unlock()
 
-	m.record(logs.LevelInfo, fmt.Sprintf("Prem pcci-proxy starting on %s via npx -y -p %s %s --host 127.0.0.1 --port %s", target.Address, premPCCIProxyPackage, premPCCIProxyCommand, target.Port))
+	m.record(logs.LevelInfo, fmt.Sprintf("Prem confidential-proxy starting on %s via npx -y -p %s %s --no-attest --compat both --host 127.0.0.1 --port %s", target.Address, premPCCIProxyPackage, premPCCIProxyCommand, target.Port))
 	go m.forwardOutput("stdout", logs.LevelInfo, stdout)
 	go m.forwardOutput("stderr", logs.LevelWarn, stderr)
 	go m.waitForExit(ctx, cmd)
 
 	if !waitForPremProxyTCP(target, premPCCIStartupWait) {
-		return fmt.Errorf("pcci-proxy process started but %s did not open within %s", target.Address, premPCCIStartupWait)
+		return fmt.Errorf("confidential-proxy process started but %s did not open within %s", target.Address, premPCCIStartupWait)
 	}
-	m.record(logs.LevelInfo, fmt.Sprintf("Prem pcci-proxy ready on %s", target.Address))
+	m.record(logs.LevelInfo, fmt.Sprintf("Prem confidential-proxy ready on %s", target.Address))
 	return nil
 }
 
@@ -204,7 +211,7 @@ func (m *premProxyManager) Stop() {
 		cancel()
 	}
 	killPremProxyProcess(cmd)
-	m.record(logs.LevelInfo, "Prem pcci-proxy stop requested")
+	m.record(logs.LevelInfo, "Prem confidential-proxy stop requested")
 }
 
 func (m *premProxyManager) isRunningLocked() bool {
@@ -222,14 +229,14 @@ func (m *premProxyManager) waitForExit(ctx context.Context, cmd *exec.Cmd) {
 	m.mu.Unlock()
 
 	if ctx.Err() != nil {
-		m.record(logs.LevelInfo, "Prem pcci-proxy stopped")
+		m.record(logs.LevelInfo, "Prem confidential-proxy stopped")
 		return
 	}
 	if err != nil {
-		m.record(logs.LevelWarn, fmt.Sprintf("Prem pcci-proxy exited: %v", err))
+		m.record(logs.LevelWarn, fmt.Sprintf("Prem confidential-proxy exited: %v", err))
 		return
 	}
-	m.record(logs.LevelInfo, "Prem pcci-proxy exited")
+	m.record(logs.LevelInfo, "Prem confidential-proxy exited")
 }
 
 func (m *premProxyManager) forwardOutput(stream string, level logs.Level, reader io.Reader) {
@@ -240,10 +247,10 @@ func (m *premProxyManager) forwardOutput(stream string, level logs.Level, reader
 		if line == "" {
 			continue
 		}
-		m.record(level, fmt.Sprintf("Prem pcci-proxy %s: %s", stream, line))
+		m.record(level, fmt.Sprintf("Prem confidential-proxy %s: %s", stream, line))
 	}
 	if err := scanner.Err(); err != nil {
-		m.record(logs.LevelWarn, fmt.Sprintf("Prem pcci-proxy %s read failed: %v", stream, err))
+		m.record(logs.LevelWarn, fmt.Sprintf("Prem confidential-proxy %s read failed: %v", stream, err))
 	}
 }
 
@@ -254,23 +261,40 @@ func (m *premProxyManager) record(level logs.Level, message string) {
 	m.logs.Add(logs.Entry{Level: level, Message: message})
 }
 
-func newPremPCCIProxyCommand(ctx context.Context, port string) (*exec.Cmd, error) {
+func newPremPCCIProxyCommand(ctx context.Context, port string, apiKey string) (*exec.Cmd, error) {
 	if _, err := exec.LookPath("npx"); err != nil {
-		return nil, fmt.Errorf("npx not found; install Node.js/npm or start pcci-proxy manually")
+		return nil, fmt.Errorf("npx not found; install Node.js/npm or start confidential-proxy manually")
+	}
+
+	args := []string{
+		"-y",
+		"-p", premPCCIProxyPackage,
+		premPCCIProxyCommand,
+		"--no-attest",
+		"--compat", "both",
+		"--host", "127.0.0.1",
+		"--port", port,
+		"--proxy-url", premPCCIProxyURL,
+		"--enclave-url", premPCCIEnclaveURL,
 	}
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(ctx, "cmd", "/c", "npx", "-y", "-p", premPCCIProxyPackage, premPCCIProxyCommand, "--host", "127.0.0.1", "--port", port)
+		cmd = exec.CommandContext(ctx, "cmd", append([]string{"/c", "npx"}, args...)...)
 	} else {
-		cmd = exec.CommandContext(ctx, "npx", "-y", "-p", premPCCIProxyPackage, premPCCIProxyCommand, "--host", "127.0.0.1", "--port", port)
+		cmd = exec.CommandContext(ctx, "npx", args...)
 	}
 	cmd.Env = append(os.Environ(),
 		"PORT="+port,
 		"HOST=127.0.0.1",
+		"PROXY_URL="+premPCCIProxyURL,
+		"ENCLAVE_URL="+premPCCIEnclaveURL,
 		"CI=1",
 		"NO_COLOR=1",
 	)
+	if strings.TrimSpace(apiKey) != "" {
+		cmd.Env = append(cmd.Env, "PREM_API_KEY="+strings.TrimSpace(apiKey))
+	}
 	hidePremProxyWindow(cmd)
 	return cmd, nil
 }

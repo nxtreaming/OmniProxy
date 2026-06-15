@@ -37,7 +37,7 @@ export function buildThirdPartyEndpointGroups(port) {
           baseUrl: `${base}/prem/v1`,
           apiKey: 'omniproxy-local',
           models: 'deepseek-v4-pro / qwen3.5 / qwen3.6 或 Prem 支持的模型 ID',
-          use: '转发到全局 Prem pcci-proxy，OmniProxy 按账号选择 API Key 并注入鉴权。',
+          use: '转发到全局 Prem confidential-proxy 的 OpenAI 入口，OmniProxy 按账号选择 API Key 并注入鉴权。',
         },
         {
           name: 'OpenRouter',
@@ -116,6 +116,14 @@ export function buildThirdPartyEndpointGroups(port) {
           apiKey: 'omniproxy-local',
           models: 'claude-opus-4-7 / claude-sonnet-4-6',
           use: '用 Zo Token 适配 Anthropic Messages 请求。',
+        },
+        {
+          name: 'Prem Anthropic',
+          protocol: 'Anthropic Messages',
+          baseUrl: `${base}/prem/anthropic/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'deepseek-v4-pro / qwen3.5 / qwen3.6 或 Prem 支持的模型 ID',
+          use: '转发到全局 Prem confidential-proxy 的 Anthropic 入口。',
         },
         {
           name: 'sub2api Anthropic',

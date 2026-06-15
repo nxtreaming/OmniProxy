@@ -11,7 +11,7 @@ export const helpCredentialGroups = [
   },
   {
     title: '网关类账号',
-    summary: 'sub2api、new-api、Prem pcci-proxy、自定义网关',
+    summary: 'sub2api、new-api、Prem confidential-proxy、自定义网关',
     detail: '适合把已有兼容网关纳入 OmniProxy 调度，并统一暴露本机 loopback 入口。',
   },
 ]

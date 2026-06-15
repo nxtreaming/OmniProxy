@@ -574,6 +574,12 @@ export function configureZoClaude() {
     : request('/zo/claude/configure', { method: 'POST' })
 }
 
+export function configurePremClaude() {
+  return useWailsBindings() && DesktopApp.ConfigurePremClaude
+    ? DesktopApp.ConfigurePremClaude()
+    : request('/prem/claude/configure', { method: 'POST' })
+}
+
 export function configureClaudeModels(models) {
   const payload = { models: Array.isArray(models) ? models : [] }
   return useWailsBindings() && DesktopApp.ConfigureClaudeModels

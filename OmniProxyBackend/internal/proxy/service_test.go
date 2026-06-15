@@ -2526,7 +2526,7 @@ func TestServiceRoutesPremRequestsAndRetriesAcrossKeys(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
 	}
-	if len(upstreamPaths) != 2 || upstreamPaths[0] != "/v1/chat/completions" || upstreamPaths[1] != "/v1/chat/completions" {
+	if len(upstreamPaths) != 2 || upstreamPaths[0] != "/openai/v1/chat/completions" || upstreamPaths[1] != "/openai/v1/chat/completions" {
 		t.Fatalf("unexpected Prem upstream paths: %#v", upstreamPaths)
 	}
 	if len(authorizations) != 2 || authorizations[0] != "Bearer prem-primary-token" || authorizations[1] != "Bearer prem-backup-token" {
@@ -2542,6 +2542,51 @@ func TestServiceRoutesPremRequestsAndRetriesAcrossKeys(t *testing.T) {
 	}
 	if primaryState.Status != token.StatusExhausted || backupState.Status != token.StatusActive || backupState.Stats.TotalTokens != 11 {
 		t.Fatalf("unexpected Prem token states primary=%#v backup=%#v", primaryState, backupState)
+	}
+}
+
+func TestServiceRoutesPremAnthropicRequests(t *testing.T) {
+	var upstreamPath string
+	var authorization string
+	var apiKey string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPath = r.URL.Path
+		authorization = r.Header.Get("Authorization")
+		apiKey = r.Header.Get("x-api-key")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":2,"output_tokens":3}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "prem", Provider: token.ProviderPrem, TokenValue: "prem-api-key-token"}); err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		PremBaseURL:     upstream.URL + "/v1",
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/prem/anthropic/v1/messages", stringsReader(`{"model":"deepseek-v4-pro","messages":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	req.Header.Set("X-Api-Key", "caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if upstreamPath != "/anthropic/v1/messages" || authorization != "Bearer prem-api-key-token" || apiKey != "" {
+		t.Fatalf("unexpected Prem Anthropic route path=%q authorization=%q apiKey=%q", upstreamPath, authorization, apiKey)
 	}
 }
 

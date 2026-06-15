@@ -114,6 +114,10 @@ export function ConfigurePi() {
   return window['go']['main']['DesktopApp']['ConfigurePi']();
 }
 
+export function ConfigurePremClaude() {
+  return window['go']['main']['DesktopApp']['ConfigurePremClaude']();
+}
+
 export function ConfigureZhipuClaude() {
   return window['go']['main']['DesktopApp']['ConfigureZhipuClaude']();
 }

@@ -288,7 +288,7 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			body:     `{"model":"qwen3.5"}`,
 			provider: token.ProviderPrem,
 			protocol: "openai",
-			outPath:  "/v1/chat/completions",
+			outPath:  "/openai/v1/chat/completions",
 		},
 		{
 			name:     "prem without version",
@@ -296,7 +296,23 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			body:     `{"model":"deepseek-v4-pro"}`,
 			provider: token.ProviderPrem,
 			protocol: "openai",
-			outPath:  "/v1/chat/completions",
+			outPath:  "/openai/v1/chat/completions",
+		},
+		{
+			name:     "prem anthropic direct",
+			path:     "/prem/anthropic/v1/messages",
+			body:     `{"model":"deepseek-v4-pro"}`,
+			provider: token.ProviderPrem,
+			protocol: "anthropic",
+			outPath:  "/anthropic/v1/messages",
+		},
+		{
+			name:     "prem anthropic messages without protocol prefix",
+			path:     "/prem/v1/messages",
+			body:     `{"model":"deepseek-v4-pro"}`,
+			provider: token.ProviderPrem,
+			protocol: "anthropic",
+			outPath:  "/anthropic/v1/messages",
 		},
 	}
 	for _, tt := range cases {
@@ -346,7 +362,7 @@ func TestRouterTargetsPremBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if target != "http://127.0.0.1:3100/v1/chat/completions" {
+	if target != "http://127.0.0.1:3100/openai/v1/chat/completions" {
 		t.Fatalf("unexpected Prem OpenAI-compatible target url: %s", target)
 	}
 
@@ -356,8 +372,17 @@ func TestRouterTargetsPremBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if target != "http://127.0.0.1:3100/v1/chat/completions" {
+	if target != "http://127.0.0.1:3100/openai/v1/chat/completions" {
 		t.Fatalf("expected Prem to use global pcci-proxy base url, got %s", target)
+	}
+
+	route = router.Route(mustRouterTestURL(t, "/prem/anthropic/v1/messages"), []byte(`{"model":"deepseek-v4-pro"}`))
+	target, err = router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "http://127.0.0.1:3100/anthropic/v1/messages" {
+		t.Fatalf("unexpected Prem Anthropic-compatible target url: %s", target)
 	}
 }
 

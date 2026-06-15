@@ -560,6 +560,10 @@ func (a *DesktopApp) ConfigureZoClaude() (mimoConfigureResult, error) {
 	return a.server.configureZoClaude()
 }
 
+func (a *DesktopApp) ConfigurePremClaude() (mimoConfigureResult, error) {
+	return a.server.configurePremClaude()
+}
+
 func (a *DesktopApp) ConfigureClaudeModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
 	return a.server.configureClaudeModels(req)
 }

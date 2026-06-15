@@ -793,7 +793,7 @@ func TestValidatorUsesPremModelsEndpoint(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("expected validation ok, got %#v", result)
 	}
-	if gotPath != "/v1/models" || authorization != "Bearer prem-api-key-token" {
+	if gotPath != "/openai/v1/models" || authorization != "Bearer prem-api-key-token" {
 		t.Fatalf("unexpected Prem validation path=%q authorization=%q", gotPath, authorization)
 	}
 }

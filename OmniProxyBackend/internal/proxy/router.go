@@ -101,7 +101,9 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 		credentialType = token.CredentialTypeCodexAuthJSON
 	}
 	protocol := protocolForRoute(provider, &path)
-	if gatewayProviderUsesProtocolPrefixes(provider) && protocol == "openai" {
+	if provider == token.ProviderPrem {
+		path = premProxyPath(protocol, path)
+	} else if gatewayProviderUsesProtocolPrefixes(provider) && protocol == "openai" {
 		path = versionedGatewayOpenAIPath(path)
 	}
 	return routeInfo{Provider: provider, CredentialType: credentialType, Protocol: protocol, Model: model, Path: path, RawQuery: incoming.RawQuery}
@@ -165,6 +167,14 @@ func protocolForRoute(provider string, path *string) string {
 		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
 		}
+	case token.ProviderPrem:
+		if stripProtocolPrefix(path, "/anthropic") {
+			protocol = "anthropic"
+		} else if stripProtocolPrefix(path, "/openai") {
+			protocol = "openai"
+		} else if isAnthropicMessagePath(*path) {
+			protocol = "anthropic"
+		}
 	case token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderZo, token.ProviderCustom:
 		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
@@ -195,7 +205,7 @@ func stripProtocolPrefix(path *string, prefix string) bool {
 }
 
 func gatewayProviderUsesProtocolPrefixes(provider string) bool {
-	return provider == token.ProviderSub2API || provider == token.ProviderNewAPI || provider == token.ProviderAnyRouter || provider == token.ProviderPrem
+	return provider == token.ProviderSub2API || provider == token.ProviderNewAPI || provider == token.ProviderAnyRouter
 }
 
 func versionedGatewayOpenAIPath(path string) string {
@@ -204,6 +214,13 @@ func versionedGatewayOpenAIPath(path string) string {
 		return path
 	}
 	return singleJoiningSlash("/v1", path)
+}
+
+func premProxyPath(protocol string, path string) string {
+	if protocol == "anthropic" {
+		return singleJoiningSlash("/anthropic", versionedGatewayOpenAIPath(path))
+	}
+	return singleJoiningSlash("/openai", versionedGatewayOpenAIPath(path))
 }
 
 func isAnthropicRouterPath(path string) bool {

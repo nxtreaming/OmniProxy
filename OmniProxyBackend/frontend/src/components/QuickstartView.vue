@@ -26,6 +26,7 @@ const props = defineProps({
   zhipuClaudeConfiguring: { type: Boolean, default: false },
   anyRouterClaudeConfiguring: { type: Boolean, default: false },
   zoClaudeConfiguring: { type: Boolean, default: false },
+  premClaudeConfiguring: { type: Boolean, default: false },
   mimoClaudeRestoring: { type: Boolean, default: false },
   geminiConfiguring: { type: Boolean, default: false },
   geminiRestoring: { type: Boolean, default: false },
@@ -55,6 +56,7 @@ const emit = defineEmits([
   'configure-zhipu-claude',
   'configure-anyrouter-claude',
   'configure-zo-claude',
+  'configure-prem-claude',
   'restore-mimo-claude',
   'configure-gemini',
   'restore-gemini',
@@ -88,7 +90,8 @@ new-api Gemini: http://127.0.0.1:{{ config.proxyPort }}/newapi/gemini
 AnyRouter OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/v1
 AnyRouter Anthropic: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/anthropic
 Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo
-Prem OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/prem/v1</code></pre>
+Prem OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/prem/v1
+Prem Anthropic: http://127.0.0.1:{{ config.proxyPort }}/prem/anthropic/v1</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="$emit('configure-codex')">
             {{ codexConfiguring ? '配置中' : '配置 Codex OpenAI' }}
@@ -123,7 +126,8 @@ MiMo: MiMo-V2.5-Pro / MiMo-V2.5
 Kimi model: kimi-for-coding
 GLM model: glm-5.1
 AnyRouter model: claude-opus-4-5-20251101
-Zo models: claude-opus-4-7 / claude-sonnet-4-6</code></pre>
+Zo models: claude-opus-4-7 / claude-sonnet-4-6
+Prem model: deepseek-v4-pro</code></pre>
         <div class="claude-model-config">
           <div class="claude-model-config-head">
             <span>可选模型</span>
@@ -208,6 +212,9 @@ Zo models: claude-opus-4-7 / claude-sonnet-4-6</code></pre>
               </el-button>
               <el-button type="primary" plain :icon="MagicStick" :loading="zoClaudeConfiguring" @click="$emit('configure-zo-claude')">
                 {{ zoClaudeConfiguring ? '配置中' : 'Zo' }}
+              </el-button>
+              <el-button type="primary" plain :icon="MagicStick" :loading="premClaudeConfiguring" @click="$emit('configure-prem-claude')">
+                {{ premClaudeConfiguring ? '配置中' : 'Prem' }}
               </el-button>
               <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="$emit('restore-mimo-claude')">
                 {{ mimoClaudeRestoring ? '恢复中' : '恢复 CLI' }}

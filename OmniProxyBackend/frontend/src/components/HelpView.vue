@@ -160,7 +160,8 @@ function copyEndpointValue(value, label) {
             <p>
               OpenAI 兼容：Base URL 填 <code>http://127.0.0.1:{{ proxyPort }}/v1</code>；Zo Computer 填
               <code>http://127.0.0.1:{{ proxyPort }}/zo/v1</code>；Prem 填
-              <code>http://127.0.0.1:{{ proxyPort }}/prem/v1</code>；API Key 填 <code>omniproxy-local</code>。
+              <code>http://127.0.0.1:{{ proxyPort }}/prem/v1</code>；Prem Anthropic 填
+              <code>http://127.0.0.1:{{ proxyPort }}/prem/anthropic/v1</code>；API Key 填 <code>omniproxy-local</code>。
             </p>
           </div>
           <section v-for="group in thirdPartyEndpointGroups" :key="group.title" class="endpoint-group">

@@ -62,6 +62,8 @@ export function ConfigureOpenCode():Promise<main.clientConfigureResult>;
 
 export function ConfigurePi():Promise<main.clientConfigureResult>;
 
+export function ConfigurePremClaude():Promise<main.mimoConfigureResult>;
+
 export function ConfigureZhipuClaude():Promise<main.mimoConfigureResult>;
 
 export function ConfigureZoClaude():Promise<main.mimoConfigureResult>;

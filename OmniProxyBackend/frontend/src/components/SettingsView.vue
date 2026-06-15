@@ -130,7 +130,7 @@ const outboundProxyProviderGroups = [
         key: 'prem',
         label: 'Prem',
         providers: ['prem'],
-        description: 'Prem pcci-proxy OpenAI 兼容入口和模型列表',
+        description: 'Prem confidential-proxy OpenAI / Anthropic 双协议入口',
         recommended: true,
       },
     ],
@@ -981,12 +981,12 @@ function normalizeOutboundProxyProviders(providers) {
             <small>Zo 使用 /models/available 与 /zo/ask，上游协议由 OmniProxy 适配为 OpenAI / Anthropic。</small>
           </label>
           <label class="wide-field">
-            <span>Prem pcci-proxy Base URL</span>
+            <span>Prem confidential-proxy Base URL</span>
             <input v-model="config.premBaseUrl" type="url" />
-            <small>Prem 账号只保存 API Key；所有 Prem 请求会转发到这个本机 pcci-proxy 入口。</small>
+            <small>填写本机 confidential-proxy 根地址，不要带 /v1；OmniProxy 会自动转发到 /openai/v1 或 /anthropic/v1。</small>
           </label>
           <label class="toggle-field wide-field">
-            <span>自动启动 Prem pcci-proxy</span>
+            <span>自动启动 Prem confidential-proxy</span>
             <input v-model="config.premAutoStartPcciProxy" class="toggle-input" type="checkbox" />
             <span class="toggle-switch" aria-hidden="true">
               <span class="toggle-thumb"></span>

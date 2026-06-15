@@ -1864,6 +1864,18 @@ func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
 			label:         "Zo Claude Sonnet 4.6",
 			unwanted:      "mimo-v2.5-pro",
 		},
+		{
+			name:             "prem",
+			write:            writePremClaudeSettings,
+			defaultModel:     "deepseek-v4-pro",
+			opusModel:        "deepseek-v4-pro",
+			sonnetModel:      "deepseek-v4-pro",
+			haikuModel:       "deepseek-v4-pro",
+			subagentModel:    "deepseek-v4-pro",
+			label:            "Prem DeepSeek V4 Pro",
+			unwanted:         "mimo-v2.5-pro",
+			expectCustomName: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -1992,6 +2004,39 @@ func TestWriteZoClaudeSettingsUsesOpusAndSonnet(t *testing.T) {
 	} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
+		}
+	}
+}
+
+func TestConfigurePremClaudeUsesPremAnthropicBaseURL(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	server := &appServer{
+		cfg:  config.Config{ProxyPort: 3000},
+		logs: logs.NewRecorder(10),
+	}
+	result, err := server.configurePremClaude()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.BaseURL != "http://127.0.0.1:3000/prem/anthropic" || result.Model != premClaudeModel {
+		t.Fatalf("unexpected Prem Claude result: %#v", result)
+	}
+
+	settings, err := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(settings)
+	for _, expected := range []string{
+		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/prem/anthropic"`,
+		`"ANTHROPIC_MODEL": "deepseek-v4-pro"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Prem DeepSeek V4 Pro"`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
 		}
 	}
 }
