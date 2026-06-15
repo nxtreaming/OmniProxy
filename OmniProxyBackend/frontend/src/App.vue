@@ -936,7 +936,7 @@ async function copyEndpointValue(value, label) {
   }
 }
 
-const providerBaseUrlKeys = new Set(['sub2api', 'newapi', 'anyrouter', 'prem'])
+const providerBaseUrlKeys = new Set(['sub2api', 'newapi', 'anyrouter'])
 
 function providerRequiresBaseUrl(provider) {
   return providerBaseUrlKeys.has(String(provider || '').trim())
@@ -946,7 +946,6 @@ function providerDefaultBaseUrl(provider) {
   if (provider === 'sub2api') return config.sub2apiBaseUrl
   if (provider === 'newapi') return config.newapiBaseUrl
   if (provider === 'anyrouter') return config.anyrouterBaseUrl
-  if (provider === 'prem') return config.premBaseUrl
   return ''
 }
 

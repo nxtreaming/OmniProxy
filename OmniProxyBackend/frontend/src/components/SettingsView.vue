@@ -983,7 +983,7 @@ function normalizeOutboundProxyProviders(providers) {
           <label class="wide-field">
             <span>Prem pcci-proxy Base URL</span>
             <input v-model="config.premBaseUrl" type="url" />
-            <small>添加 Prem Key 时作为默认填充值；多 Key 可在账号里改成不同 pcci-proxy 端口。</small>
+            <small>Prem 账号只保存 API Key；所有 Prem 请求会转发到这个本机 pcci-proxy 入口。</small>
           </label>
           <label class="wide-field">
             <span>自定义网关 OpenAI Base URL</span>

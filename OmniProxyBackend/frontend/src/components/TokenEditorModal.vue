@@ -79,7 +79,7 @@ function credentialHint() {
     return '保存 Zo Access Token 后，可通过 /zo/v1/chat/completions 或 /zo/v1/messages 使用本地兼容入口。'
   }
   if (props.form.provider === 'prem') {
-    return 'Prem 账号会转发到该 Key 对应的 pcci-proxy；多 Key 可分别填不同端口，由 OmniProxy 轮换。'
+    return '保存 Prem API Key 后，OmniProxy 会按账号调度并转发到全局 Prem pcci-proxy Base URL。'
   }
   if (props.form.provider === 'openrouter') {
     return '保存后可在账号管理刷新 OpenRouter 模型列表，模型 ID 会按 provider/model 展示。'
@@ -101,20 +101,16 @@ function autoNameText(form) {
 }
 
 function requiresBaseUrl(form) {
-  return ['sub2api', 'newapi', 'anyrouter', 'prem'].includes(form.provider)
+  return ['sub2api', 'newapi', 'anyrouter'].includes(form.provider)
 }
 
 function baseUrlPlaceholder(form) {
   if (form.provider === 'newapi') return 'http://127.0.0.1:3000'
   if (form.provider === 'anyrouter') return 'https://anyrouter.top'
-  if (form.provider === 'prem') return 'http://127.0.0.1:3100/v1'
   return 'https://aiapi.aicnio.com'
 }
 
 function baseUrlHint(form) {
-  if (form.provider === 'prem') {
-    return '保存到当前账号；多 Key 时可为每个 Key 填不同 pcci-proxy 端口。'
-  }
   if (form.provider === 'newapi') {
     return '保存到当前账号；/newapi、/newapi/anthropic、/newapi/gemini 会转发到这个上游。'
   }

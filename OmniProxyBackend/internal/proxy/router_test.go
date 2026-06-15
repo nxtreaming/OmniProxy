@@ -356,8 +356,8 @@ func TestRouterTargetsPremBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if target != "http://127.0.0.1:3101/v1/chat/completions" {
-		t.Fatalf("unexpected account-level Prem target url: %s", target)
+	if target != "http://127.0.0.1:3100/v1/chat/completions" {
+		t.Fatalf("expected Prem to use global pcci-proxy base url, got %s", target)
 	}
 }
 

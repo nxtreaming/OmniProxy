@@ -999,7 +999,7 @@ func normalizeRequest(req UpsertRequest) (string, string, string, string, string
 	if err != nil {
 		return "", "", "", "", "", "", err
 	}
-	baseURL, err := NormalizeBaseURL(provider, req.BaseURL, true)
+	baseURL, err := NormalizeBaseURL(provider, req.BaseURL, providerRequiresAccountBaseURL(provider))
 	if err != nil {
 		return "", "", "", "", "", "", err
 	}
@@ -1066,7 +1066,7 @@ func normalizeUpdateRequest(existing Token, req UpsertRequest) (string, string, 
 	if err != nil {
 		return "", "", "", "", "", "", err
 	}
-	baseURL, err := NormalizeBaseURL(provider, req.BaseURL, true)
+	baseURL, err := NormalizeBaseURL(provider, req.BaseURL, providerRequiresAccountBaseURL(provider))
 	if err != nil {
 		return "", "", "", "", "", "", err
 	}
@@ -1131,7 +1131,7 @@ func normalizeStoredRegion(provider string, credentialType string, region string
 func NormalizeBaseURL(provider string, baseURL string, required bool) (string, error) {
 	provider = NormalizeProvider(provider)
 	baseURL = strings.TrimSpace(baseURL)
-	if provider != ProviderSub2API && provider != ProviderNewAPI && provider != ProviderAnyRouter && provider != ProviderPrem {
+	if provider != ProviderSub2API && provider != ProviderNewAPI && provider != ProviderAnyRouter {
 		return "", nil
 	}
 	label := provider
@@ -1149,6 +1149,11 @@ func NormalizeBaseURL(provider string, baseURL string, required bool) (string, e
 		return "", errors.New(label + " base url must be a valid URL")
 	}
 	return strings.TrimRight(baseURL, "/"), nil
+}
+
+func providerRequiresAccountBaseURL(provider string) bool {
+	provider = NormalizeProvider(provider)
+	return provider == ProviderSub2API || provider == ProviderNewAPI || provider == ProviderAnyRouter
 }
 
 func normalizeStoredBaseURL(provider string, baseURL string) string {

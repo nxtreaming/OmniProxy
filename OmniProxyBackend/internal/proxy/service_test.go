@@ -2499,11 +2499,11 @@ func TestServiceRoutesPremRequestsAndRetriesAcrossKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	backup, err := manager.Add(token.UpsertRequest{Name: "prem-backup", Provider: token.ProviderPrem, BaseURL: upstream.URL + "/v1", TokenValue: "prem-backup-token"})
+	backup, err := manager.Add(token.UpsertRequest{Name: "prem-backup", Provider: token.ProviderPrem, TokenValue: "prem-backup-token"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	primary, err := manager.Add(token.UpsertRequest{Name: "prem-primary", Provider: token.ProviderPrem, BaseURL: upstream.URL + "/v1", TokenValue: "prem-primary-token"})
+	primary, err := manager.Add(token.UpsertRequest{Name: "prem-primary", Provider: token.ProviderPrem, TokenValue: "prem-primary-token"})
 	if err != nil {
 		t.Fatal(err)
 	}

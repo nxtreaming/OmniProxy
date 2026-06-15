@@ -95,7 +95,7 @@ flowchart LR
 - **Billing detail polish**: The billing detail sidebar now includes cost insights, model share bars, ignored-model summaries, and improved dark-mode poster previews.
 - **Codex Chat Completions compatibility**: Added `/codex/v1/chat/completions`, allowing OpenAI Chat Completions clients to use OpenAI `auth.json` accounts through automatic conversion to the Codex Responses backend.
 - **AnyRouter gateway**: Added AnyRouter account management, `/anyrouter/v1` Codex/OpenAI-compatible routing, and `/anyrouter/anthropic` Claude Code / Anthropic-compatible routing.
-- **Prem gateway**: Added Prem account management and `/prem/v1` routing through the official local `pcci-proxy`, with account-level Base URLs for multi-key scheduling.
+- **Prem gateway**: Added Prem account management and `/prem/v1` routing through the official local `pcci-proxy`, with OmniProxy selecting and injecting API keys for multi-key scheduling.
 - **Codex streaming conversion**: Codex Responses SSE events are converted to `chat.completion.chunk`, and non-streaming requests are aggregated into `chat.completion` responses.
 - **Codex model and parameter adaptation**: Supports Codex CLI model aliases such as `gpt-5.4-high`, while preserving common parameters such as `max_completion_tokens`, `reasoning_effort`, tools, and function calling.
 - **Codex request body compatibility**: Decodes zstd / gzip-compressed Codex request bodies sent to local Responses entrypoints.
@@ -145,7 +145,7 @@ Or use the repository helper script:
 | Prem | `http://127.0.0.1:3000/prem/v1` | `http://127.0.0.1:3001/prem/v1` |
 | Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
 
-Prem requires the official `pcci-proxy` to be running first. OmniProxy defaults the Prem upstream to `http://127.0.0.1:3100/v1`; change it in **Global Settings** or on each Prem account. For multiple keys, run one `pcci-proxy` port per key, then put each Base URL on the matching Prem account so OmniProxy can rotate accounts and retry failures.
+Prem requires the official `pcci-proxy` to be running first. OmniProxy defaults the Prem upstream to `http://127.0.0.1:3100/v1`; change it in **Global Settings**. Prem accounts only need API keys; OmniProxy selects a usable account and injects the key into forwarded requests.
 
 Default data directories:
 
@@ -175,7 +175,7 @@ Default data directories:
 | new-api | API Key | OpenAI / Anthropic / Gemini-compatible gateway; defaults to `http://127.0.0.1:3000` and refreshes key quota via `/api/usage/token/`. |
 | AnyRouter | API Key | Codex/OpenAI and Claude Code/Anthropic-compatible gateway; defaults to `https://anyrouter.top`. |
 | Zo Computer | Access Token | OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, model lists, and client model presets. |
-| Prem | API Key | Forwards through the official local Prem `pcci-proxy` OpenAI-compatible service, with multi-key scheduling by account Base URL. |
+| Prem | API Key | Forwards through the official local Prem `pcci-proxy` OpenAI-compatible service, with multi-key scheduling in OmniProxy. |
 | Custom Gateway | API Key | OpenAI / Anthropic-compatible gateways. |
 
 ## One-click Client Setup

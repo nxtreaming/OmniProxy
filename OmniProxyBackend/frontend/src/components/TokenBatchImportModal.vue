@@ -28,20 +28,18 @@ const providerOptions = computed(() =>
 )
 
 function requiresBaseUrl(form) {
-  return ['sub2api', 'newapi', 'anyrouter', 'prem'].includes(form.provider)
+  return ['sub2api', 'newapi', 'anyrouter'].includes(form.provider)
 }
 
 function baseUrlPlaceholder(form) {
   if (form.provider === 'newapi') return 'http://127.0.0.1:3000'
   if (form.provider === 'anyrouter') return 'https://anyrouter.top'
-  if (form.provider === 'prem') return 'http://127.0.0.1:3100/v1'
   return 'https://aiapi.aicnio.com'
 }
 
 function baseUrlLabel(form) {
   if (form.provider === 'newapi') return 'new-api'
   if (form.provider === 'anyrouter') return 'AnyRouter'
-  if (form.provider === 'prem') return 'Prem'
   return 'sub2api'
 }
 </script>

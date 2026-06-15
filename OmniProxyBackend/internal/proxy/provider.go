@@ -127,9 +127,6 @@ func routeBaseURL(cfg config.Config, route routeInfo, selected token.Token) stri
 	case token.ProviderZo:
 		return cfg.ZoBaseURL
 	case token.ProviderPrem:
-		if strings.TrimSpace(selected.BaseURL) != "" {
-			return selected.BaseURL
-		}
 		return cfg.PremBaseURL
 	case token.ProviderCustom:
 		if route.Protocol == "anthropic" && cfg.CustomGatewayAnthropicBaseURL != "" {
@@ -183,9 +180,6 @@ func validationBaseURL(cfg config.Config, selected token.Token) string {
 	case token.ProviderZo:
 		return cfg.ZoBaseURL
 	case token.ProviderPrem:
-		if strings.TrimSpace(selected.BaseURL) != "" {
-			return selected.BaseURL
-		}
 		return cfg.PremBaseURL
 	case token.ProviderCustom:
 		return cfg.CustomGatewayBaseURL

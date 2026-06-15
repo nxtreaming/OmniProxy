@@ -362,7 +362,7 @@ func TestManagerAllowsSameNameAcrossProviders(t *testing.T) {
 	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderAnyRouter, BaseURL: "https://anyrouter.top", TokenValue: "anyrouter-api-key-token"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderPrem, BaseURL: "http://127.0.0.1:3100/v1", TokenValue: "prem-api-key-token"}); err != nil {
+	if _, err := manager.Add(UpsertRequest{Name: "work", Provider: ProviderPrem, TokenValue: "prem-api-key-token"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -442,28 +442,25 @@ func TestManagerRequiresAnyRouterBaseURL(t *testing.T) {
 	}
 }
 
-func TestManagerRequiresPremBaseURL(t *testing.T) {
+func TestManagerAllowsPremAPIKeyWithoutBaseURL(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := manager.Add(UpsertRequest{Name: "prem", Provider: ProviderPrem, TokenValue: "prem-api-key-token"}); err == nil {
-		t.Fatal("expected prem base url to be required")
-	}
-	item, err := manager.Add(UpsertRequest{Name: "prem", Provider: ProviderPrem, BaseURL: "http://127.0.0.1:3100/v1/", TokenValue: "prem-api-key-token"})
+	item, err := manager.Add(UpsertRequest{Name: "prem", Provider: ProviderPrem, TokenValue: "prem-api-key-token"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item.BaseURL != "http://127.0.0.1:3100/v1" {
-		t.Fatalf("expected normalized base url, got %q", item.BaseURL)
+	if item.BaseURL != "" {
+		t.Fatalf("expected prem account base url to stay empty, got %q", item.BaseURL)
 	}
-	updated, err := manager.Update(item.ID, UpsertRequest{Name: "prem", Provider: ProviderPrem, BaseURL: "http://127.0.0.1:3101/v1", TokenValue: ""})
+	updated, err := manager.Update(item.ID, UpsertRequest{Name: "prem", Provider: ProviderPrem, TokenValue: ""})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.TokenValue != "prem-api-key-token" || updated.BaseURL != "http://127.0.0.1:3101/v1" {
-		t.Fatalf("expected base url update without replacing key, got %#v", updated)
+	if updated.TokenValue != "prem-api-key-token" || updated.BaseURL != "" {
+		t.Fatalf("expected update without replacing key or setting base url, got %#v", updated)
 	}
 }
 

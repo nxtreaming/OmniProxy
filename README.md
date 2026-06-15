@@ -144,7 +144,7 @@ C:\Users\mimanchi\go\bin\wails.exe dev
 | Prem | `http://127.0.0.1:3000/prem/v1` | `http://127.0.0.1:3001/prem/v1` |
 | Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
 
-Prem 需要先运行官方 `pcci-proxy`，OmniProxy 默认把 Prem 上游指向 `http://127.0.0.1:3100/v1`，可在「全局设置」或 Prem 账号的 Base URL 中修改。多 Key 推荐每个 Key 启一个不同端口的 `pcci-proxy`，再把对应 Base URL 填到 Prem 账号里，由 OmniProxy 负责账号轮换和失败重试。
+Prem 需要先运行官方 `pcci-proxy`，OmniProxy 默认把 Prem 上游指向 `http://127.0.0.1:3100/v1`，可在「全局设置」中修改。Prem 账号只需要保存 API Key；多 Key 由 OmniProxy 选择可用账号并注入到转发请求中。
 
 默认数据目录：
 
@@ -174,7 +174,7 @@ Prem 需要先运行官方 `pcci-proxy`，OmniProxy 默认把 Prem 上游指向 
 | new-api | API Key | OpenAI / Anthropic / Gemini 兼容网关，默认 `http://127.0.0.1:3000`，通过 `/api/usage/token/` 刷新 Key 额度。 |
 | AnyRouter | API Key | Codex/OpenAI 与 Claude Code/Anthropic 兼容网关，默认 `https://anyrouter.top`。 |
 | Zo Computer | Access Token | OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、模型列表和客户端模型预设。 |
-| Prem | API Key | 通过 Prem 官方 `pcci-proxy` 本机 OpenAI 兼容服务转发，支持按账号 Base URL 的多 Key 调度。 |
+| Prem | API Key | 通过 Prem 官方 `pcci-proxy` 本机 OpenAI 兼容服务转发，支持多 Key 调度。 |
 | 自定义网关 | API Key | OpenAI / Anthropic 兼容网关。 |
 
 ## 客户端一键配置
