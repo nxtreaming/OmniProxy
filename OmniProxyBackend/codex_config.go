@@ -501,7 +501,7 @@ func writeCodexPremConfig(path string, baseURL string) error {
 		"[model_providers.prem]",
 		`name = "Prem"`,
 		fmt.Sprintf(`base_url = "%s"`, tomlEscape(baseURL)),
-		`wire_api = "chat"`,
+		`wire_api = "responses"`,
 		"requires_openai_auth = true",
 	})
 

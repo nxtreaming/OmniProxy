@@ -1670,7 +1670,7 @@ func TestWriteCodexPremConfig(t *testing.T) {
 		`[model_providers.prem]`,
 		`name = "Prem"`,
 		`base_url = "http://127.0.0.1:3000/prem/v1"`,
-		`wire_api = "chat"`,
+		`wire_api = "responses"`,
 		`requires_openai_auth = true`,
 	} {
 		if !strings.Contains(text, expected) {
