@@ -1131,7 +1131,7 @@ func normalizeStoredRegion(provider string, credentialType string, region string
 func NormalizeBaseURL(provider string, baseURL string, required bool) (string, error) {
 	provider = NormalizeProvider(provider)
 	baseURL = strings.TrimSpace(baseURL)
-	if provider != ProviderSub2API && provider != ProviderNewAPI && provider != ProviderAnyRouter {
+	if provider != ProviderSub2API && provider != ProviderNewAPI && provider != ProviderAnyRouter && provider != ProviderPrem {
 		return "", nil
 	}
 	label := provider
@@ -1171,6 +1171,8 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType == "" {
 			credentialType = CredentialTypeCodexAuthJSON
 		}
+	} else if provider == "premai" || provider == "prem-ai" || provider == "prem ai" {
+		provider = ProviderPrem
 	}
 
 	switch provider {
@@ -1195,7 +1197,7 @@ func NormalizeProviderAndCredential(provider string, credentialType string) (str
 		if credentialType != CredentialTypeAPIKey && credentialType != CredentialTypeCodingPlan {
 			return "", "", errors.New("zhipu supports API key or Coding Plan key only")
 		}
-	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderTokenRouter, ProviderSub2API, ProviderNewAPI, ProviderAnyRouter, ProviderZo, ProviderCustom:
+	case ProviderDeepSeek, ProviderKimi, ProviderMiniMax, ProviderGemini, ProviderOpenRouter, ProviderTokenRouter, ProviderSub2API, ProviderNewAPI, ProviderAnyRouter, ProviderZo, ProviderPrem, ProviderCustom:
 		if credentialType == "" {
 			credentialType = CredentialTypeAPIKey
 		}

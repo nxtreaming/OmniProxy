@@ -85,7 +85,7 @@ const taskAutomationBrowserOptions = [
   { key: 'chrome', label: 'Google Chrome' },
   { key: 'firefox', label: 'Firefox' },
 ]
-const recommendedOutboundProxyProviders = ['openai', 'anthropic', 'gemini', 'openrouter', 'zo']
+const recommendedOutboundProxyProviders = ['openai', 'anthropic', 'gemini', 'openrouter', 'zo', 'prem']
 const outboundProxyProviderGroups = [
   {
     title: '国内网络建议出站',
@@ -124,6 +124,13 @@ const outboundProxyProviderGroups = [
         label: 'Zo Computer',
         providers: ['zo'],
         description: 'Zo Computer 模型映射、模型列表和对话请求',
+        recommended: true,
+      },
+      {
+        key: 'prem',
+        label: 'Prem',
+        providers: ['prem'],
+        description: 'Prem pcci-proxy OpenAI 兼容入口和模型列表',
         recommended: true,
       },
     ],
@@ -906,7 +913,7 @@ function normalizeOutboundProxyProviders(providers) {
         <div class="settings-section-head">
           <div>
             <h3>第三方路由</h3>
-            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、new-api、AnyRouter、Zo Computer、Xiaomi MiMo 和自定义网关入口。</p>
+            <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、new-api、AnyRouter、Zo Computer、Prem、Xiaomi MiMo 和自定义网关入口。</p>
           </div>
           <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
             {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
@@ -972,6 +979,11 @@ function normalizeOutboundProxyProviders(providers) {
             <span>Zo Computer Base URL</span>
             <input v-model="config.zoBaseUrl" type="url" />
             <small>Zo 使用 /models/available 与 /zo/ask，上游协议由 OmniProxy 适配为 OpenAI / Anthropic。</small>
+          </label>
+          <label class="wide-field">
+            <span>Prem pcci-proxy Base URL</span>
+            <input v-model="config.premBaseUrl" type="url" />
+            <small>添加 Prem Key 时作为默认填充值；多 Key 可在账号里改成不同 pcci-proxy 端口。</small>
           </label>
           <label class="wide-field">
             <span>自定义网关 OpenAI Base URL</span>

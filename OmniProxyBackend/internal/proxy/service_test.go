@@ -2479,6 +2479,72 @@ func TestServiceRoutesAnyRouterRequests(t *testing.T) {
 	}
 }
 
+func TestServiceRoutesPremRequestsAndRetriesAcrossKeys(t *testing.T) {
+	var upstreamPaths []string
+	var authorizations []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPaths = append(upstreamPaths, r.URL.Path)
+		authorizations = append(authorizations, r.Header.Get("Authorization"))
+		if len(authorizations) == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":{"message":"rate limited"}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"total_tokens":11}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, err := manager.Add(token.UpsertRequest{Name: "prem-backup", Provider: token.ProviderPrem, BaseURL: upstream.URL + "/v1", TokenValue: "prem-backup-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary, err := manager.Add(token.UpsertRequest{Name: "prem-primary", Provider: token.ProviderPrem, BaseURL: upstream.URL + "/v1", TokenValue: "prem-primary-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		PremBaseURL:     upstream.URL + "/v1",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/prem/v1/chat/completions", stringsReader(`{"model":"qwen3.5","messages":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if len(upstreamPaths) != 2 || upstreamPaths[0] != "/v1/chat/completions" || upstreamPaths[1] != "/v1/chat/completions" {
+		t.Fatalf("unexpected Prem upstream paths: %#v", upstreamPaths)
+	}
+	if len(authorizations) != 2 || authorizations[0] != "Bearer prem-primary-token" || authorizations[1] != "Bearer prem-backup-token" {
+		t.Fatalf("expected Prem retry to rotate keys, got %#v", authorizations)
+	}
+	primaryState, err := manager.Get(primary.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backupState, err := manager.Get(backup.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if primaryState.Status != token.StatusExhausted || backupState.Status != token.StatusActive || backupState.Stats.TotalTokens != 11 {
+		t.Fatalf("unexpected Prem token states primary=%#v backup=%#v", primaryState, backupState)
+	}
+}
+
 func TestServiceRoutesAnyRouterAnthropicRequests(t *testing.T) {
 	var upstreamPath string
 	var apiKey string

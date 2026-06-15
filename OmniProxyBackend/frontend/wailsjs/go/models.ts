@@ -38,6 +38,7 @@ export namespace config {
 	    newapiBaseUrl: string;
 	    anyrouterBaseUrl: string;
 	    zoBaseUrl: string;
+	    premBaseUrl: string;
 	    customGatewayBaseUrl: string;
 	    customGatewayAnthropicBaseUrl: string;
 	    xiaomiBaseUrl: string;
@@ -99,6 +100,7 @@ export namespace config {
 	        this.newapiBaseUrl = source["newapiBaseUrl"];
 	        this.anyrouterBaseUrl = source["anyrouterBaseUrl"];
 	        this.zoBaseUrl = source["zoBaseUrl"];
+	        this.premBaseUrl = source["premBaseUrl"];
 	        this.customGatewayBaseUrl = source["customGatewayBaseUrl"];
 	        this.customGatewayAnthropicBaseUrl = source["customGatewayAnthropicBaseUrl"];
 	        this.xiaomiBaseUrl = source["xiaomiBaseUrl"];

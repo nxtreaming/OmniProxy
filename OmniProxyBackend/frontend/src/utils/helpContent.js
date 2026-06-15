@@ -32,6 +32,14 @@ export function buildThirdPartyEndpointGroups(port) {
           use: '适合把 Zo Token 暴露给 Cherry Studio 这类 OpenAI-compatible 客户端。',
         },
         {
+          name: 'Prem',
+          protocol: 'OpenAI Chat',
+          baseUrl: `${base}/prem/v1`,
+          apiKey: 'omniproxy-local',
+          models: 'deepseek-v4-pro / qwen3.5 / qwen3.6 或 Prem 支持的模型 ID',
+          use: '转发到 Prem 官方 pcci-proxy，本地多 Key 按账号 Base URL 调度。',
+        },
+        {
           name: 'OpenRouter',
           protocol: 'OpenAI Chat',
           baseUrl: `${base}/openrouter/v1`,

@@ -267,7 +267,7 @@ const config = reactive({
   taskAutomationReturnDelaySeconds: 3,
   outboundProxyEnabled: false,
   outboundProxyUrl: 'http://127.0.0.1:10808',
-  outboundProxyProviders: ['openai', 'anthropic', 'gemini', 'openrouter', 'zo'],
+  outboundProxyProviders: ['openai', 'anthropic', 'gemini', 'openrouter', 'zo', 'prem'],
   outboundProxyModels: ['gpt-*', 'claude-*', 'gemini-*', '*/*'],
   upstreamBaseUrl: 'https://api.openai.com',
   openaiBaseUrl: 'https://api.openai.com',
@@ -286,6 +286,7 @@ const config = reactive({
   newapiBaseUrl: 'http://127.0.0.1:3000',
   anyrouterBaseUrl: 'https://anyrouter.top',
   zoBaseUrl: 'https://api.zo.computer',
+  premBaseUrl: 'http://127.0.0.1:3100/v1',
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
   xiaomiBaseUrl: '',
@@ -935,7 +936,7 @@ async function copyEndpointValue(value, label) {
   }
 }
 
-const providerBaseUrlKeys = new Set(['sub2api', 'newapi', 'anyrouter'])
+const providerBaseUrlKeys = new Set(['sub2api', 'newapi', 'anyrouter', 'prem'])
 
 function providerRequiresBaseUrl(provider) {
   return providerBaseUrlKeys.has(String(provider || '').trim())
@@ -945,6 +946,7 @@ function providerDefaultBaseUrl(provider) {
   if (provider === 'sub2api') return config.sub2apiBaseUrl
   if (provider === 'newapi') return config.newapiBaseUrl
   if (provider === 'anyrouter') return config.anyrouterBaseUrl
+  if (provider === 'prem') return config.premBaseUrl
   return ''
 }
 
@@ -1125,6 +1127,12 @@ function batchImportPlaceholder() {
     return [
       'zo_sk_xxxxxxxxxxxxxxxxxxxxxxxx',
       'zo_sk_yyyyyyyyyyyyyyyyyyyyyyyy',
+    ].join('\n')
+  }
+  if (batchImportForm.provider === 'prem') {
+    return [
+      'prem-key-xxxxxxxxxxxxxxxxxxxxxxxx',
+      'prem-key-yyyyyyyyyyyyyyyyyyyyyyyy',
     ].join('\n')
   }
   return [
@@ -2130,6 +2138,9 @@ function credentialPlaceholder() {
   }
   if (form.provider === 'zo') {
     return '粘贴 zo_sk_ 开头的 Zo Access Token'
+  }
+  if (form.provider === 'prem') {
+    return '粘贴 Prem API Key'
   }
   if (form.provider === 'custom') {
     return '粘贴自定义网关 API Key'

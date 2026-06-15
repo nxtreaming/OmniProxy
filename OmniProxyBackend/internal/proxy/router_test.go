@@ -282,6 +282,22 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			protocol: "openai",
 			outPath:  "/v1/responses",
 		},
+		{
+			name:     "prem direct",
+			path:     "/prem/v1/chat/completions",
+			body:     `{"model":"qwen3.5"}`,
+			provider: token.ProviderPrem,
+			protocol: "openai",
+			outPath:  "/v1/chat/completions",
+		},
+		{
+			name:     "prem without version",
+			path:     "/prem/chat/completions",
+			body:     `{"model":"deepseek-v4-pro"}`,
+			provider: token.ProviderPrem,
+			protocol: "openai",
+			outPath:  "/v1/chat/completions",
+		},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -316,6 +332,32 @@ func TestRouterTargetsAnyRouterBaseURL(t *testing.T) {
 	}
 	if target != "https://mirror.example/v1/messages" {
 		t.Fatalf("unexpected AnyRouter Anthropic-compatible target url: %s", target)
+	}
+}
+
+func TestRouterTargetsPremBaseURL(t *testing.T) {
+	router := NewRouter(config.Config{
+		PremBaseURL: "http://127.0.0.1:3100/v1",
+	})
+	selected := token.Token{Provider: token.ProviderPrem, CredentialType: token.CredentialTypeAPIKey}
+
+	route := router.Route(mustRouterTestURL(t, "/prem/v1/chat/completions"), []byte(`{"model":"qwen3.5"}`))
+	target, err := router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "http://127.0.0.1:3100/v1/chat/completions" {
+		t.Fatalf("unexpected Prem OpenAI-compatible target url: %s", target)
+	}
+
+	selected.BaseURL = "http://127.0.0.1:3101/v1"
+	route = router.Route(mustRouterTestURL(t, "/prem/chat/completions"), []byte(`{"model":"deepseek-v4-pro"}`))
+	target, err = router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "http://127.0.0.1:3101/v1/chat/completions" {
+		t.Fatalf("unexpected account-level Prem target url: %s", target)
 	}
 }
 

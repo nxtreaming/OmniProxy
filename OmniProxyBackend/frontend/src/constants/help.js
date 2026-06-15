@@ -6,12 +6,12 @@ export const helpCredentialGroups = [
   },
   {
     title: '按量 API Key',
-    summary: 'OpenAI、Anthropic、DeepSeek、Kimi、MiMo、Gemini、OpenRouter、TokenRouter、Zo Computer',
+    summary: 'OpenAI、Anthropic、DeepSeek、Kimi、MiMo、Gemini、OpenRouter、TokenRouter、Zo Computer、Prem',
     detail: '适合 OpenAI / Anthropic 兼容接口转发，额度页会展示余额、剩余额度或最近统计。',
   },
   {
     title: '网关类账号',
-    summary: 'sub2api、new-api、自定义网关',
+    summary: 'sub2api、new-api、Prem pcci-proxy、自定义网关',
     detail: '适合把已有兼容网关纳入 OmniProxy 调度，并统一暴露本机 loopback 入口。',
   },
 ]

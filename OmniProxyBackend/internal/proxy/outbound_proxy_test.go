@@ -8,7 +8,7 @@ import (
 )
 
 func TestOutboundProxyMatchesRouteProviders(t *testing.T) {
-	cfg := config.Config{OutboundProxyProviders: []string{"openai", "anthropic", "gemini", "openrouter", "zo"}}
+	cfg := config.Config{OutboundProxyProviders: []string{"openai", "anthropic", "gemini", "openrouter", "zo", "prem"}}
 
 	for _, route := range []routeInfo{
 		{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Path: "/backend-api/codex/models"},
@@ -17,6 +17,7 @@ func TestOutboundProxyMatchesRouteProviders(t *testing.T) {
 		{Provider: token.ProviderGemini, Path: "/v1beta/models"},
 		{Provider: token.ProviderOpenRouter, Path: "/models"},
 		{Provider: token.ProviderZo, Path: "/models/available"},
+		{Provider: token.ProviderPrem, Path: "/v1/models"},
 	} {
 		if !outboundProxyMatchesRoute(route, cfg) {
 			t.Fatalf("expected route %#v to match proxy providers", route)

@@ -192,6 +192,10 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 		if basePathHasVersionSuffix(base.Path) {
 			path = "/models"
 		}
+	case token.ProviderPrem:
+		if basePathHasVersionSuffix(base.Path) {
+			path = "/models"
+		}
 	case token.ProviderZo:
 		path = "/models/available"
 	case token.ProviderXiaomi:

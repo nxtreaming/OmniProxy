@@ -763,6 +763,41 @@ func TestValidatorUsesTokenRouterRoutingRules(t *testing.T) {
 	}
 }
 
+func TestValidatorUsesPremModelsEndpoint(t *testing.T) {
+	var gotPath string
+	var authorization string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer upstream.Close()
+
+	validator, err := NewValidator(config.Config{
+		PremBaseURL: upstream.URL + "/v1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := validator.Validate(context.Background(), token.Token{
+		Provider:       token.ProviderPrem,
+		CredentialType: token.CredentialTypeAPIKey,
+		BaseURL:        upstream.URL + "/v1",
+		TokenValue:     "prem-api-key-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.OK {
+		t.Fatalf("expected validation ok, got %#v", result)
+	}
+	if gotPath != "/v1/models" || authorization != "Bearer prem-api-key-token" {
+		t.Fatalf("unexpected Prem validation path=%q authorization=%q", gotPath, authorization)
+	}
+}
+
 func TestValidatorUsesZoModelsAvailable(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/models/available" {

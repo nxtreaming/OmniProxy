@@ -31,7 +31,7 @@ OmniProxy is not a cloud relay service. It is built for personal local developme
 
 | Capability | Description |
 | --- | --- |
-| Local transparent proxy | Exposes local OpenAI, Anthropic, Codex, Pi, TokenRouter, Zo Computer, and other entrypoints, then injects upstream auth automatically. |
+| Local transparent proxy | Exposes local OpenAI, Anthropic, Codex, Pi, TokenRouter, AnyRouter, Zo Computer, Prem, and other entrypoints, then injects upstream auth automatically. |
 | Multi-account scheduling | Supports queue mode, balanced priority, account selection scopes, low-quota skipping, and in-flight account avoidance. |
 | Automatic failover | Retries with another usable account when upstream returns retryable errors such as `429`, `502`, `503`, or `504`. |
 | Quota observability | Shows API balances, subscription quotas, reset times, Codex Free weekly quota, Coding Plan usage, OpenRouter balance, and API key balance totals grouped by currency. |
@@ -69,7 +69,7 @@ flowchart LR
     DeepSeek["DeepSeek"]
     Kimi["Kimi"]
     Mimo["Xiaomi MiMo"]
-    More["Zhipu / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / new-api / Zo / Custom"]
+    More["Zhipu / MiniMax / Gemini / OpenRouter / TokenRouter / sub2api / new-api / AnyRouter / Zo / Prem / Custom"]
   end
 
   Clients --> Proxy
@@ -94,6 +94,8 @@ flowchart LR
 - **API Key balance summaries**: Provider quota and account pages group API key balances by currency, while preserving package details such as GLM resource packages.
 - **Billing detail polish**: The billing detail sidebar now includes cost insights, model share bars, ignored-model summaries, and improved dark-mode poster previews.
 - **Codex Chat Completions compatibility**: Added `/codex/v1/chat/completions`, allowing OpenAI Chat Completions clients to use OpenAI `auth.json` accounts through automatic conversion to the Codex Responses backend.
+- **AnyRouter gateway**: Added AnyRouter account management, `/anyrouter/v1` Codex/OpenAI-compatible routing, and `/anyrouter/anthropic` Claude Code / Anthropic-compatible routing.
+- **Prem gateway**: Added Prem account management and `/prem/v1` routing through the official local `pcci-proxy`, with account-level Base URLs for multi-key scheduling.
 - **Codex streaming conversion**: Codex Responses SSE events are converted to `chat.completion.chunk`, and non-streaming requests are aggregated into `chat.completion` responses.
 - **Codex model and parameter adaptation**: Supports Codex CLI model aliases such as `gpt-5.4-high`, while preserving common parameters such as `max_completion_tokens`, `reasoning_effort`, tools, and function calling.
 - **Codex request body compatibility**: Decodes zstd / gzip-compressed Codex request bodies sent to local Responses entrypoints.
@@ -137,8 +139,13 @@ Or use the repository helper script:
 | Claude router | `http://127.0.0.1:3000/anthropic-router` | `http://127.0.0.1:3001/anthropic-router` |
 | Pi router | `http://127.0.0.1:3000/pi-router/v1` | `http://127.0.0.1:3001/pi-router/v1` |
 | TokenRouter | `http://127.0.0.1:3000/tokenrouter/v1` | `http://127.0.0.1:3001/tokenrouter/v1` |
+| AnyRouter Codex / OpenAI | `http://127.0.0.1:3000/anyrouter/v1` | `http://127.0.0.1:3001/anyrouter/v1` |
+| AnyRouter Claude Code | `http://127.0.0.1:3000/anyrouter/anthropic` | `http://127.0.0.1:3001/anyrouter/anthropic` |
 | Zo Computer | `http://127.0.0.1:3000/zo/v1` | `http://127.0.0.1:3001/zo/v1` |
+| Prem | `http://127.0.0.1:3000/prem/v1` | `http://127.0.0.1:3001/prem/v1` |
 | Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
+
+Prem requires the official `pcci-proxy` to be running first. OmniProxy defaults the Prem upstream to `http://127.0.0.1:3100/v1`; change it in **Global Settings** or on each Prem account. For multiple keys, run one `pcci-proxy` port per key, then put each Base URL on the matching Prem account so OmniProxy can rotate accounts and retry failures.
 
 Default data directories:
 
@@ -166,7 +173,9 @@ Default data directories:
 | TokenRouter | API Key | OpenAI-compatible routing; API keys usually start with `tr_`. |
 | sub2api | API Key | OpenAI / Anthropic / Gemini-compatible gateway with Codex local setup support. |
 | new-api | API Key | OpenAI / Anthropic / Gemini-compatible gateway; defaults to `http://127.0.0.1:3000` and refreshes key quota via `/api/usage/token/`. |
+| AnyRouter | API Key | Codex/OpenAI and Claude Code/Anthropic-compatible gateway; defaults to `https://anyrouter.top`. |
 | Zo Computer | Access Token | OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, model lists, and client model presets. |
+| Prem | API Key | Forwards through the official local Prem `pcci-proxy` OpenAI-compatible service, with multi-key scheduling by account Base URL. |
 | Custom Gateway | API Key | OpenAI / Anthropic-compatible gateways. |
 
 ## One-click Client Setup

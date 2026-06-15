@@ -42,6 +42,7 @@ var defaultOutboundProxyProviders = []string{
 	"gemini",
 	"openrouter",
 	"zo",
+	"prem",
 }
 
 type Config struct {
@@ -82,6 +83,7 @@ type Config struct {
 	NewAPIBaseURL                      string   `json:"newapiBaseUrl"`
 	AnyRouterBaseURL                   string   `json:"anyrouterBaseUrl"`
 	ZoBaseURL                          string   `json:"zoBaseUrl"`
+	PremBaseURL                        string   `json:"premBaseUrl"`
 	CustomGatewayBaseURL               string   `json:"customGatewayBaseUrl"`
 	CustomGatewayAnthropicBaseURL      string   `json:"customGatewayAnthropicBaseUrl"`
 	XiaomiBaseURL                      string   `json:"xiaomiBaseUrl"`
@@ -140,6 +142,7 @@ func Default() Config {
 		NewAPIBaseURL:                      "http://127.0.0.1:3000",
 		AnyRouterBaseURL:                   "https://anyrouter.top",
 		ZoBaseURL:                          "https://api.zo.computer",
+		PremBaseURL:                        "http://127.0.0.1:3100/v1",
 		CustomGatewayBaseURL:               "",
 		CustomGatewayAnthropicBaseURL:      "",
 		XiaomiBaseURL:                      "",
@@ -221,6 +224,7 @@ func (s *Store) Load() (Config, error) {
 		NewAPIBaseURL                      *string   `json:"newapiBaseUrl"`
 		AnyRouterBaseURL                   *string   `json:"anyrouterBaseUrl"`
 		ZoBaseURL                          *string   `json:"zoBaseUrl"`
+		PremBaseURL                        *string   `json:"premBaseUrl"`
 		CustomGatewayBaseURL               *string   `json:"customGatewayBaseUrl"`
 		CustomGatewayAnthropicBaseURL      *string   `json:"customGatewayAnthropicBaseUrl"`
 		XiaomiBaseURL                      *string   `json:"xiaomiBaseUrl"`
@@ -355,6 +359,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.ZoBaseURL != nil && *saved.ZoBaseURL != "" {
 		cfg.ZoBaseURL = *saved.ZoBaseURL
+	}
+	if saved.PremBaseURL != nil && *saved.PremBaseURL != "" {
+		cfg.PremBaseURL = *saved.PremBaseURL
 	}
 	if saved.CustomGatewayBaseURL != nil {
 		cfg.CustomGatewayBaseURL = *saved.CustomGatewayBaseURL
@@ -530,6 +537,9 @@ func Normalize(cfg Config) Config {
 	}
 	if cfg.ZoBaseURL == "" {
 		cfg.ZoBaseURL = defaults.ZoBaseURL
+	}
+	if cfg.PremBaseURL == "" {
+		cfg.PremBaseURL = defaults.PremBaseURL
 	}
 	if cfg.CodexBaseURL == "" {
 		cfg.CodexBaseURL = defaults.CodexBaseURL
@@ -747,6 +757,8 @@ func normalizeOutboundProxyProvider(provider string) string {
 		return "anyrouter"
 	case "zo", "zocomputer", "zo-computer":
 		return "zo"
+	case "prem", "premai", "prem-ai", "prem ai":
+		return "prem"
 	case "custom":
 		return "custom"
 	default:
@@ -769,6 +781,8 @@ func providersFromOutboundProxyModels(models []string) []string {
 			providers = append(providers, "anthropic")
 		case model == "gemini-*" || strings.HasPrefix(model, "gemini-"):
 			providers = append(providers, "gemini")
+		case strings.HasPrefix(model, "prem:") || strings.HasPrefix(model, "prem/") || strings.HasPrefix(model, "premai/"):
+			providers = append(providers, "prem")
 		case model == "*/*" || strings.Contains(model, "/"):
 			providers = append(providers, "openrouter")
 		case strings.HasPrefix(model, "deepseek-"):
