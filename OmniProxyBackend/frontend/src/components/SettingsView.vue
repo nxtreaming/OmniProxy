@@ -985,6 +985,14 @@ function normalizeOutboundProxyProviders(providers) {
             <input v-model="config.premBaseUrl" type="url" />
             <small>Prem 账号只保存 API Key；所有 Prem 请求会转发到这个本机 pcci-proxy 入口。</small>
           </label>
+          <label class="toggle-field wide-field">
+            <span>自动启动 Prem pcci-proxy</span>
+            <input v-model="config.premAutoStartPcciProxy" class="toggle-input" type="checkbox" />
+            <span class="toggle-switch" aria-hidden="true">
+              <span class="toggle-thumb"></span>
+            </span>
+            <small>存在 Prem 账号时，OmniProxy 会用 npx 启动官方 @premai/api-sdk confidential-proxy，并使用上方 Base URL 的本机端口。</small>
+          </label>
           <label class="wide-field">
             <span>自定义网关 OpenAI Base URL</span>
             <input v-model="config.customGatewayBaseUrl" type="url" placeholder="https://your-gateway.example/v1" />

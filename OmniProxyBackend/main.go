@@ -47,6 +47,7 @@ type appServer struct {
 	history               *history.Recorder
 	proxyServer           *http.Server
 	proxyService          *proxy.Service
+	premProxy             *premProxyManager
 	taskAutomation        *taskautomation.Manager
 	control               *http.Server
 	controlToken          string
@@ -142,6 +143,7 @@ func newAppServer() (*appServer, error) {
 	server := &appServer{
 		cfg:            defaultCfg,
 		logs:           recorder,
+		premProxy:      newPremProxyManager(recorder),
 		taskAutomation: taskautomation.NewManager(defaultCfg, recorder),
 		controlToken:   controlToken,
 		updates:        newUpdateDownloader(),
@@ -1157,6 +1159,7 @@ func (a *appServer) saveConfig(cfg config.Config) (config.Config, error) {
 			return config.Config{}, err
 		}
 	}
+	a.syncPremProxyAfterConfigChange(oldCfg, cfg)
 
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "configuration updated"})
 	return cfg, nil

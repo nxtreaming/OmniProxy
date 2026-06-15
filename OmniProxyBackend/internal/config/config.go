@@ -84,6 +84,7 @@ type Config struct {
 	AnyRouterBaseURL                   string   `json:"anyrouterBaseUrl"`
 	ZoBaseURL                          string   `json:"zoBaseUrl"`
 	PremBaseURL                        string   `json:"premBaseUrl"`
+	PremAutoStartPCCIProxy             bool     `json:"premAutoStartPcciProxy"`
 	CustomGatewayBaseURL               string   `json:"customGatewayBaseUrl"`
 	CustomGatewayAnthropicBaseURL      string   `json:"customGatewayAnthropicBaseUrl"`
 	XiaomiBaseURL                      string   `json:"xiaomiBaseUrl"`
@@ -143,6 +144,7 @@ func Default() Config {
 		AnyRouterBaseURL:                   "https://anyrouter.top",
 		ZoBaseURL:                          "https://api.zo.computer",
 		PremBaseURL:                        "http://127.0.0.1:3100/v1",
+		PremAutoStartPCCIProxy:             true,
 		CustomGatewayBaseURL:               "",
 		CustomGatewayAnthropicBaseURL:      "",
 		XiaomiBaseURL:                      "",
@@ -225,6 +227,7 @@ func (s *Store) Load() (Config, error) {
 		AnyRouterBaseURL                   *string   `json:"anyrouterBaseUrl"`
 		ZoBaseURL                          *string   `json:"zoBaseUrl"`
 		PremBaseURL                        *string   `json:"premBaseUrl"`
+		PremAutoStartPCCIProxy             *bool     `json:"premAutoStartPcciProxy"`
 		CustomGatewayBaseURL               *string   `json:"customGatewayBaseUrl"`
 		CustomGatewayAnthropicBaseURL      *string   `json:"customGatewayAnthropicBaseUrl"`
 		XiaomiBaseURL                      *string   `json:"xiaomiBaseUrl"`
@@ -362,6 +365,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.PremBaseURL != nil && *saved.PremBaseURL != "" {
 		cfg.PremBaseURL = *saved.PremBaseURL
+	}
+	if saved.PremAutoStartPCCIProxy != nil {
+		cfg.PremAutoStartPCCIProxy = *saved.PremAutoStartPCCIProxy
 	}
 	if saved.CustomGatewayBaseURL != nil {
 		cfg.CustomGatewayBaseURL = *saved.CustomGatewayBaseURL

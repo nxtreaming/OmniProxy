@@ -289,6 +289,7 @@ const config = reactive({
   anyrouterBaseUrl: 'https://anyrouter.top',
   zoBaseUrl: 'https://api.zo.computer',
   premBaseUrl: 'http://127.0.0.1:3100/v1',
+  premAutoStartPcciProxy: true,
   customGatewayBaseUrl: '',
   customGatewayAnthropicBaseUrl: '',
   xiaomiBaseUrl: '',

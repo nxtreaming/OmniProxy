@@ -60,6 +60,7 @@ func (a *DesktopApp) startup(ctx context.Context) {
 	}
 	go a.server.refreshCodexUsageOnStartup(ctx)
 	a.server.startHealthMonitor()
+	a.server.ensurePremProxyForConfiguredAccounts("startup")
 	a.setupTray()
 }
 
@@ -69,6 +70,7 @@ func (a *DesktopApp) shutdown(ctx context.Context) {
 		a.tray = nil
 	}
 	a.server.stopHealthMonitor()
+	a.server.stopPremProxy()
 	if err := a.server.stopProxy(); err != nil {
 		log.Printf("proxy shutdown failed: %v", err)
 	}

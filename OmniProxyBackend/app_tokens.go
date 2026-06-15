@@ -24,6 +24,7 @@ func (a *appServer) createToken(ctx context.Context, req token.UpsertRequest) (t
 			item = updated
 		}
 	}
+	a.ensurePremProxyForToken(item, "Prem account added")
 	return tokenResponseFor(item), nil
 }
 
@@ -33,6 +34,7 @@ func (a *appServer) updateToken(id string, req token.UpsertRequest) (tokenRespon
 		return tokenResponse{}, err
 	}
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token updated"})
+	a.ensurePremProxyForToken(item, "Prem account updated")
 	return tokenResponseFor(item), nil
 }
 
@@ -41,6 +43,7 @@ func (a *appServer) deleteToken(id string) error {
 		return err
 	}
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "token deleted"})
+	a.stopPremProxyIfUnused()
 	return nil
 }
 
@@ -54,6 +57,11 @@ func (a *appServer) setTokenDisabled(id string, disabled bool) (tokenResponse, e
 		message = "token disabled"
 	}
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	if item.Disabled {
+		a.stopPremProxyIfUnused()
+	} else {
+		a.ensurePremProxyForToken(item, "Prem account enabled")
+	}
 	return tokenResponseFor(item), nil
 }
 

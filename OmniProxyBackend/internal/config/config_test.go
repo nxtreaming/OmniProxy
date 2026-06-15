@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	cfg := Normalize(Config{})
@@ -45,6 +49,9 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	}
 	if cfg.ZhipuBaseURL == "" || cfg.MiniMaxBaseURL == "" || cfg.GeminiBaseURL == "" || cfg.OpenRouterBaseURL == "" || cfg.TokenRouterBaseURL == "" || cfg.Sub2APIBaseURL == "" || cfg.NewAPIBaseURL == "" || cfg.AnyRouterBaseURL == "" || cfg.ZoBaseURL == "" || cfg.PremBaseURL == "" {
 		t.Fatalf("expected new provider default base urls, got zhipu=%q minimax=%q gemini=%q openrouter=%q tokenrouter=%q sub2api=%q newapi=%q anyrouter=%q zo=%q prem=%q", cfg.ZhipuBaseURL, cfg.MiniMaxBaseURL, cfg.GeminiBaseURL, cfg.OpenRouterBaseURL, cfg.TokenRouterBaseURL, cfg.Sub2APIBaseURL, cfg.NewAPIBaseURL, cfg.AnyRouterBaseURL, cfg.ZoBaseURL, cfg.PremBaseURL)
+	}
+	if !Default().PremAutoStartPCCIProxy {
+		t.Fatal("expected Prem pcci-proxy auto-start enabled by default")
 	}
 
 	cfg = Normalize(Config{
@@ -95,5 +102,19 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	}
 	if cfg.TaskAutomationReturnDelaySeconds != 600 {
 		t.Fatalf("expected capped task automation return delay seconds, got %d", cfg.TaskAutomationReturnDelaySeconds)
+	}
+}
+
+func TestStoreLoadPreservesPremAutoStartDisabled(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"premAutoStartPcciProxy":false}`), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.PremAutoStartPCCIProxy {
+		t.Fatal("expected saved Prem pcci-proxy auto-start=false to be preserved")
 	}
 }

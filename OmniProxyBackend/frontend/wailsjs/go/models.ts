@@ -39,6 +39,7 @@ export namespace config {
 	    anyrouterBaseUrl: string;
 	    zoBaseUrl: string;
 	    premBaseUrl: string;
+	    premAutoStartPcciProxy: boolean;
 	    customGatewayBaseUrl: string;
 	    customGatewayAnthropicBaseUrl: string;
 	    xiaomiBaseUrl: string;
@@ -101,6 +102,7 @@ export namespace config {
 	        this.anyrouterBaseUrl = source["anyrouterBaseUrl"];
 	        this.zoBaseUrl = source["zoBaseUrl"];
 	        this.premBaseUrl = source["premBaseUrl"];
+	        this.premAutoStartPcciProxy = source["premAutoStartPcciProxy"];
 	        this.customGatewayBaseUrl = source["customGatewayBaseUrl"];
 	        this.customGatewayAnthropicBaseUrl = source["customGatewayAnthropicBaseUrl"];
 	        this.xiaomiBaseUrl = source["xiaomiBaseUrl"];
