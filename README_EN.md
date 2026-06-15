@@ -96,6 +96,7 @@ flowchart LR
 - **Codex Chat Completions compatibility**: Added `/codex/v1/chat/completions`, allowing OpenAI Chat Completions clients to use OpenAI `auth.json` accounts through automatic conversion to the Codex Responses backend.
 - **AnyRouter gateway**: Added AnyRouter account management, `/anyrouter/v1` Codex/OpenAI-compatible routing, and `/anyrouter/anthropic` Claude Code / Anthropic-compatible routing.
 - **Prem gateway**: Added Prem account management and `/prem/v1` routing through the official local `pcci-proxy`, with OmniProxy selecting and injecting API keys for multi-key scheduling.
+- **Prem Codex one-click setup**: Codex can now write the local `/prem/v1` entrypoint, while OmniProxy still handles Prem multi-key scheduling and auth injection.
 - **Codex streaming conversion**: Codex Responses SSE events are converted to `chat.completion.chunk`, and non-streaming requests are aggregated into `chat.completion` responses.
 - **Codex model and parameter adaptation**: Supports Codex CLI model aliases such as `gpt-5.4-high`, while preserving common parameters such as `max_completion_tokens`, `reasoning_effort`, tools, and function calling.
 - **Codex request body compatibility**: Decodes zstd / gzip-compressed Codex request bodies sent to local Responses entrypoints.
@@ -182,7 +183,7 @@ Default data directories:
 
 | Client | Supported Setup |
 | --- | --- |
-| Codex | Writes the local Codex backend proxy address, or switches to sub2api / new-api / Zo Computer local entrypoints, with backup restore support. |
+| Codex | Writes the local Codex backend proxy address, or switches to sub2api / new-api / AnyRouter / Zo Computer / Prem local entrypoints, with backup restore support. |
 | Claude Code | Writes the Anthropic router and selected DeepSeek / MiMo / Kimi / GLM / Zo Computer model slots. |
 | Claude Desktop | Writes a 3P Gateway Profile and reuses selected Claude model slots; restart Claude Desktop after configuration. |
 | Gemini CLI | Writes Gemini local proxy configuration. |
@@ -205,7 +206,7 @@ Common endpoints:
 | Config | `GET /api/config`, `PUT /api/config`, `GET /api/data-directory`, `PUT /api/data-directory` |
 | History | `GET /api/logs`, `GET /api/history`, `POST /api/history/clear` |
 | Billing | `GET /api/billing/usage`, `GET /api/billing/dates`, `POST /api/billing/clear` |
-| Client setup | `POST /api/codex/configure`, `POST /api/codex/sub2api/configure`, `POST /api/codex/newapi/configure`, `POST /api/codex/zo/configure`, `POST /api/claude/models/configure`, `POST /api/claude/desktop/models/configure`, `POST /api/zo/claude/configure`, `POST /api/deepseek-tui/configure`, `POST /api/opencode/configure`, `POST /api/pi/configure` |
+| Client setup | `POST /api/codex/configure`, `POST /api/codex/sub2api/configure`, `POST /api/codex/newapi/configure`, `POST /api/codex/anyrouter/configure`, `POST /api/codex/zo/configure`, `POST /api/codex/prem/configure`, `POST /api/claude/models/configure`, `POST /api/claude/desktop/models/configure`, `POST /api/zo/claude/configure`, `POST /api/deepseek-tui/configure`, `POST /api/opencode/configure`, `POST /api/pi/configure` |
 | Updates | `POST /api/update/check`, `POST /api/update/download`, `GET /api/update/download/status`, `POST /api/update/install` |
 
 `/selected` adds or removes an account from its provider's scheduling selection set. When a provider has no selected accounts, the scheduler rotates all usable accounts for that provider; once selected accounts exist, rotation is limited to the selected set.

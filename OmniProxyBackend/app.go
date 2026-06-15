@@ -514,6 +514,10 @@ func (a *DesktopApp) ConfigureCodexZo() (codexConfigureResult, error) {
 	return a.server.configureCodexZo()
 }
 
+func (a *DesktopApp) ConfigureCodexPrem() (codexConfigureResult, error) {
+	return a.server.configureCodexPrem()
+}
+
 func (a *DesktopApp) RestoreCodex() (codexConfigureResult, error) {
 	return a.server.restoreCodexConfig()
 }

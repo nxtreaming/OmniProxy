@@ -337,6 +337,61 @@ func (a *appServer) configureCodexZo() (codexConfigureResult, error) {
 	return result, nil
 }
 
+func (a *appServer) configureCodexPrem() (codexConfigureResult, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/prem/v1", cfg.ProxyPort)
+	configPath := filepath.Join(codexDir, "config.toml")
+	if err := writeCodexPremConfig(configPath, baseURL); err != nil {
+		return codexConfigureResult{}, err
+	}
+
+	result := codexConfigureResult{
+		ConfigPath: configPath,
+		AuthPath:   filepath.Join(codexDir, "auth.json"),
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    baseURL,
+	}
+
+	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+	switch authState {
+	case "created":
+		result.ImportedAuth = true
+	case "updated":
+		result.AuthUpdated = true
+	case "existing":
+		result.AuthAlreadyAdded = true
+	}
+
+	parts := []string{"Codex 已切换到 OmniProxy Prem 本地代理"}
+	if result.ImportedAuth {
+		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
+	} else if result.AuthUpdated {
+		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
+	} else {
+		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
+	}
+	parts = append(parts, "请在 OmniProxy 的 Prem 账号中保存真实 API Key，并确认 pcci-proxy 正在运行")
+	result.Message = strings.Join(parts, "；")
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy prem"})
+	return result, nil
+}
+
 func (a *appServer) restoreCodexConfig() (codexConfigureResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -386,6 +441,7 @@ func writeCodexOmniProxyConfig(path string, baseURL string) error {
 	lines = removeTomlSection(lines, "[model_providers.openai]")
 	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
 	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
+	lines = removeTomlSection(lines, "[model_providers.prem]")
 
 	next := strings.Join(lines, "\n") + "\n"
 	if len(content) > 0 {
@@ -407,6 +463,56 @@ func writeCodexSub2APIConfig(path string, baseURL string) error {
 
 func writeCodexNewAPIConfig(path string, baseURL string) error {
 	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.5")
+}
+
+func writeCodexPremConfig(path string, baseURL string) error {
+	content, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	lines := []string{}
+	if text != "" {
+		lines = strings.Split(strings.TrimRight(text, "\n"), "\n")
+	}
+
+	lines = setRootStringKey(lines, "model_provider", "prem")
+	lines = setRootStringKey(lines, "model", "deepseek-v4-pro")
+	lines = setRootStringKey(lines, "review_model", "deepseek-v4-pro")
+	lines = setRootStringKey(lines, "preferred_auth_method", "apikey")
+	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
+	lines = setRootStringKey(lines, "network_access", "enabled")
+	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
+	lines = removeRootKey(lines, "openai_base_url")
+	lines = removeRootKey(lines, "chatgpt_base_url")
+	lines = removeRootKey(lines, "disable_response_storage")
+	lines = removeRootKey(lines, "model_context_window")
+	lines = removeRootKey(lines, "model_auto_compact_token_limit")
+	lines = removeTomlSection(lines, "[model_providers.openai]")
+	lines = removeTomlSection(lines, "[model_providers.OpenAI]")
+	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
+	lines = removeTomlSection(lines, "[model_providers.sub2api]")
+	lines = removeTomlSection(lines, "[model_providers.newapi]")
+	lines = removeTomlSection(lines, "[model_providers.zo]")
+	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
+	lines = removeTomlSection(lines, "[model_providers.prem]")
+	lines = appendTomlSection(lines, []string{
+		"[model_providers.prem]",
+		`name = "Prem"`,
+		fmt.Sprintf(`base_url = "%s"`, tomlEscape(baseURL)),
+		`wire_api = "chat"`,
+		"requires_openai_auth = true",
+	})
+
+	next := strings.Join(lines, "\n") + "\n"
+	if len(content) > 0 {
+		backupPath := path + ".omniproxy.bak"
+		if _, err := os.Stat(backupPath); errors.Is(err, os.ErrNotExist) {
+			_ = os.WriteFile(backupPath, content, 0o600)
+		}
+	}
+	return os.WriteFile(path, []byte(next), 0o600)
 }
 
 func writeCodexAnyRouterConfig(path string, baseURL string) error {
@@ -440,6 +546,7 @@ func writeCodexAnyRouterConfig(path string, baseURL string) error {
 	lines = removeTomlSection(lines, "[model_providers.newapi]")
 	lines = removeTomlSection(lines, "[model_providers.zo]")
 	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
+	lines = removeTomlSection(lines, "[model_providers.prem]")
 	lines = appendTomlSection(lines, []string{
 		"[model_providers.anyrouter]",
 		`name = "Any Router"`,
@@ -487,6 +594,7 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) 
 	lines = removeTomlSection(lines, "[model_providers.sub2api]")
 	lines = removeTomlSection(lines, "[model_providers.newapi]")
 	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
+	lines = removeTomlSection(lines, "[model_providers.prem]")
 	lines = appendTomlSection(lines, []string{
 		"[model_providers.OpenAI]",
 		`name = "OpenAI"`,

@@ -40,6 +40,7 @@ import {
   configureCodex,
   configureCodexAnyRouter,
   configureCodexNewAPI,
+  configureCodexPrem,
   configureCodexSub2API,
   configureCodexZo,
   configureClaudeDesktopModels,
@@ -162,6 +163,7 @@ const codexSub2APIConfiguring = ref(false)
 const codexNewAPIConfiguring = ref(false)
 const codexAnyRouterConfiguring = ref(false)
 const codexZoConfiguring = ref(false)
+const codexPremConfiguring = ref(false)
 const codexRestoring = ref(false)
 const mimoClaudeConfiguring = ref(false)
 const deepSeekClaudeConfiguring = ref(false)
@@ -1688,6 +1690,21 @@ async function configureLocalCodexZo() {
   }
 }
 
+async function configureLocalCodexPrem() {
+  errorMessage.value = ''
+  successMessage.value = ''
+  codexPremConfiguring.value = true
+  try {
+    const result = await configureCodexPrem()
+    await refreshAll()
+    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy Prem'
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    codexPremConfiguring.value = false
+  }
+}
+
 async function restoreLocalCodex() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -2948,6 +2965,7 @@ async function refreshQuota(item) {
         :codex-newapi-configuring="codexNewAPIConfiguring"
         :codex-anyrouter-configuring="codexAnyRouterConfiguring"
         :codex-zo-configuring="codexZoConfiguring"
+        :codex-prem-configuring="codexPremConfiguring"
         :codex-restoring="codexRestoring"
         :claude-models-configuring="claudeModelsConfiguring"
         :claude-desktop-configuring="claudeDesktopConfiguring"
@@ -2972,6 +2990,7 @@ async function refreshQuota(item) {
         @configure-codex-newapi="configureLocalCodexNewAPI"
         @configure-codex-anyrouter="configureLocalCodexAnyRouter"
         @configure-codex-zo="configureLocalCodexZo"
+        @configure-codex-prem="configureLocalCodexPrem"
         @restore-codex="restoreLocalCodex"
         @configure-claude-models="configureLocalClaudeModels"
         @configure-claude-desktop-models="configureLocalClaudeDesktopModels"

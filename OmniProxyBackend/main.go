@@ -334,6 +334,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/codex/newapi/configure", a.handleCodexNewAPIConfigure)
 	mux.HandleFunc("/api/codex/anyrouter/configure", a.handleCodexAnyRouterConfigure)
 	mux.HandleFunc("/api/codex/zo/configure", a.handleCodexZoConfigure)
+	mux.HandleFunc("/api/codex/prem/configure", a.handleCodexPremConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
 	mux.HandleFunc("/api/mimo/claude/configure", a.handleMimoClaudeConfigure)
 	mux.HandleFunc("/api/mimo/claude/restore", a.handleMimoClaudeRestore)
@@ -1558,6 +1559,19 @@ func (a *appServer) handleCodexZoConfigure(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	result, err := a.configureCodexZo()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleCodexPremConfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.configureCodexPrem()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

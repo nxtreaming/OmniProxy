@@ -15,6 +15,7 @@ const props = defineProps({
   codexNewapiConfiguring: { type: Boolean, default: false },
   codexAnyrouterConfiguring: { type: Boolean, default: false },
   codexZoConfiguring: { type: Boolean, default: false },
+  codexPremConfiguring: { type: Boolean, default: false },
   codexRestoring: { type: Boolean, default: false },
   claudeModelsConfiguring: { type: Boolean, default: false },
   claudeDesktopConfiguring: { type: Boolean, default: false },
@@ -43,6 +44,7 @@ const emit = defineEmits([
   'configure-codex-newapi',
   'configure-codex-anyrouter',
   'configure-codex-zo',
+  'configure-codex-prem',
   'restore-codex',
   'configure-claude-models',
   'configure-claude-desktop-models',
@@ -75,7 +77,7 @@ const selectedModels = computed({
     <div class="help-grid">
       <article class="wide-help">
         <strong>Codex</strong>
-        <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api、new-api 和 AnyRouter 使用账号池里的 API Key。</p>
+        <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api、new-api、AnyRouter、Zo 和 Prem 使用账号池里的凭据。</p>
         <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex
 sub2api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/sub2api
 sub2api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/sub2api/anthropic
@@ -85,7 +87,8 @@ new-api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/newapi/anthropic
 new-api Gemini: http://127.0.0.1:{{ config.proxyPort }}/newapi/gemini
 AnyRouter OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/v1
 AnyRouter Anthropic: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/anthropic
-Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
+Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo
+Prem OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/prem/v1</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="$emit('configure-codex')">
             {{ codexConfiguring ? '配置中' : '配置 Codex OpenAI' }}
@@ -101,6 +104,9 @@ Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo</code></pre>
           </el-button>
           <el-button type="primary" plain :icon="MagicStick" :loading="codexZoConfiguring" @click="$emit('configure-codex-zo')">
             {{ codexZoConfiguring ? '配置中' : '配置 Codex Zo' }}
+          </el-button>
+          <el-button type="primary" plain :icon="MagicStick" :loading="codexPremConfiguring" @click="$emit('configure-codex-prem')">
+            {{ codexPremConfiguring ? '配置中' : '配置 Codex Prem' }}
           </el-button>
           <el-button :icon="RefreshRight" :loading="codexRestoring" @click="$emit('restore-codex')">
             {{ codexRestoring ? '恢复中' : '恢复 Codex 配置' }}

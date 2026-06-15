@@ -1632,6 +1632,58 @@ func TestWriteCodexAnyRouterConfig(t *testing.T) {
 	}
 }
 
+func TestWriteCodexPremConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	initial := strings.Join([]string{
+		`model = "old-model"`,
+		`model_provider = "OpenAI"`,
+		`openai_base_url = "http://old.example/v1"`,
+		`disable_response_storage = true`,
+		`preferred_auth_method = "oauth"`,
+		`model_context_window = 1000000`,
+		`model_auto_compact_token_limit = 900000`,
+		`[model_providers.OpenAI]`,
+		`base_url = "http://old.example/v1"`,
+		`[model_providers.anyrouter]`,
+		`base_url = "http://old-anyrouter.example/v1"`,
+		`[model_providers.prem]`,
+		`base_url = "http://old-prem.example/v1"`,
+	}, "\n")
+	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeCodexPremConfig(path, "http://127.0.0.1:3000/prem/v1"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`model_provider = "prem"`,
+		`model = "deepseek-v4-pro"`,
+		`review_model = "deepseek-v4-pro"`,
+		`preferred_auth_method = "apikey"`,
+		`[model_providers.prem]`,
+		`name = "Prem"`,
+		`base_url = "http://127.0.0.1:3000/prem/v1"`,
+		`wire_api = "chat"`,
+		`requires_openai_auth = true`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
+		}
+	}
+	for _, unexpected := range []string{"old.example", "old-anyrouter.example", "old-prem.example", "openai_base_url", "disable_response_storage", "model_context_window", "model_auto_compact_token_limit", "[model_providers.OpenAI]", "[model_providers.anyrouter]"} {
+		if strings.Contains(text, unexpected) {
+			t.Fatalf("config still contains %q:\n%s", unexpected, text)
+		}
+	}
+}
+
 func TestEnsureCodexOpenAIAPIKeyPreservesExistingAuth(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "auth.json")
 	initial := `{"tokens":{"access_token":"keep-token"}}`

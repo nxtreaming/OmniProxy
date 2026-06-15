@@ -74,6 +74,10 @@ export function ConfigureCodexNewAPI() {
   return window['go']['main']['DesktopApp']['ConfigureCodexNewAPI']();
 }
 
+export function ConfigureCodexPrem() {
+  return window['go']['main']['DesktopApp']['ConfigureCodexPrem']();
+}
+
 export function ConfigureCodexSub2API() {
   return window['go']['main']['DesktopApp']['ConfigureCodexSub2API']();
 }

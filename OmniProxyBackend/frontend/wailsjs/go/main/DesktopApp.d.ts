@@ -42,6 +42,8 @@ export function ConfigureCodexAnyRouter():Promise<main.codexConfigureResult>;
 
 export function ConfigureCodexNewAPI():Promise<main.codexConfigureResult>;
 
+export function ConfigureCodexPrem():Promise<main.codexConfigureResult>;
+
 export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
 
 export function ConfigureCodexZo():Promise<main.codexConfigureResult>;

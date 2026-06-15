@@ -514,6 +514,12 @@ export function configureCodexZo() {
     : request('/codex/zo/configure', { method: 'POST' })
 }
 
+export function configureCodexPrem() {
+  return useWailsBindings() && DesktopApp.ConfigureCodexPrem
+    ? DesktopApp.ConfigureCodexPrem()
+    : request('/codex/prem/configure', { method: 'POST' })
+}
+
 export function restoreCodex() {
   return useWailsBindings() ? DesktopApp.RestoreCodex() : request('/codex/restore', { method: 'POST' })
 }
