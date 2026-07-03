@@ -30,43 +30,19 @@ export function ClearRequestHistory():Promise<void>;
 
 export function Config():Promise<config.Config>;
 
-export function ConfigureAnyRouterClaude():Promise<main.mimoConfigureResult>;
-
 export function ConfigureClaudeDesktopModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
 
 export function ConfigureClaudeModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
 
 export function ConfigureCodex():Promise<main.codexConfigureResult>;
 
-export function ConfigureCodexAnyRouter():Promise<main.codexConfigureResult>;
-
-export function ConfigureCodexNewAPI():Promise<main.codexConfigureResult>;
-
-export function ConfigureCodexPrem():Promise<main.codexConfigureResult>;
-
-export function ConfigureCodexSub2API():Promise<main.codexConfigureResult>;
-
-export function ConfigureCodexZo():Promise<main.codexConfigureResult>;
-
-export function ConfigureDeepSeekClaude():Promise<main.mimoConfigureResult>;
-
 export function ConfigureDeepSeekTUI():Promise<main.clientConfigureResult>;
 
 export function ConfigureGemini():Promise<main.clientConfigureResult>;
 
-export function ConfigureKimiClaude():Promise<main.mimoConfigureResult>;
-
-export function ConfigureMimoClaude():Promise<main.mimoConfigureResult>;
-
 export function ConfigureOpenCode():Promise<main.clientConfigureResult>;
 
 export function ConfigurePi():Promise<main.clientConfigureResult>;
-
-export function ConfigurePremClaude():Promise<main.mimoConfigureResult>;
-
-export function ConfigureZhipuClaude():Promise<main.mimoConfigureResult>;
-
-export function ConfigureZoClaude():Promise<main.mimoConfigureResult>;
 
 export function ControlAPI():Promise<string>;
 
@@ -102,25 +78,19 @@ export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyRe
 
 export function RequestHistorySummary(arg1:history.Filter,arg2:number):Promise<history.Summary>;
 
+export function RestoreClaude():Promise<main.mimoConfigureResult>;
+
 export function RestoreClaudeDesktop():Promise<main.mimoConfigureResult>;
 
 export function RestoreCodex():Promise<main.codexConfigureResult>;
-
-export function RestoreDeepSeekClaude():Promise<main.mimoConfigureResult>;
 
 export function RestoreDeepSeekTUI():Promise<main.clientConfigureResult>;
 
 export function RestoreGemini():Promise<main.clientConfigureResult>;
 
-export function RestoreKimiClaude():Promise<main.mimoConfigureResult>;
-
-export function RestoreMimoClaude():Promise<main.mimoConfigureResult>;
-
 export function RestoreOpenCode():Promise<main.clientConfigureResult>;
 
 export function RestorePi():Promise<main.clientConfigureResult>;
-
-export function RestoreZhipuClaude():Promise<main.mimoConfigureResult>;
 
 export function SaveConfig(arg1:config.Config):Promise<config.Config>;
 

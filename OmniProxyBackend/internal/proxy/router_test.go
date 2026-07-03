@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 
 	"OmniProxyBackend/internal/config"
@@ -32,6 +33,20 @@ func TestRouterReadsModelFromGeminiPath(t *testing.T) {
 	}
 }
 
+func TestRouterUsesRouteDefaultModelWhenRequestOmitsModel(t *testing.T) {
+	cfg := config.Config{
+		GatewayRoutes: config.GatewayRoutes{
+			Claude: config.GatewayRouteConfig{Provider: token.ProviderAnthropic, Model: "claude-route-default"},
+			OpenAI: config.GatewayRouteConfig{Provider: token.ProviderOpenAI, Model: "openai-route-default"},
+		},
+	}
+	route := NewRouter(cfg).Route(mustRouterTestURL(t, "/anthropic-router/v1/messages"), []byte(`{"messages":[]}`))
+
+	if route.Model != "claude-route-default" {
+		t.Fatalf("expected Claude route default model, got %#v", route)
+	}
+}
+
 func TestPiRouterOpenAIModelsRequireAPIKeyCredential(t *testing.T) {
 	route := NewRouter(config.Config{}).Route(mustRouterTestURL(t, "/pi-router/v1/chat/completions"), []byte(`{"model":"gpt-5.4"}`))
 
@@ -48,8 +63,37 @@ func TestRouterCodexPrefixRequiresCodexAuthJSONCredential(t *testing.T) {
 	}
 }
 
+func TestRouterIncludesGatewayFallbackRoutes(t *testing.T) {
+	router := NewRouter(config.Config{
+		GatewayRoutes: config.GatewayRoutes{
+			OpenAI: config.GatewayRouteConfig{
+				Provider:       token.ProviderOpenAI,
+				CredentialType: token.CredentialTypeAPIKey,
+				Model:          "gpt-route",
+				Fallbacks: []config.GatewayRouteConfig{
+					{Provider: token.ProviderDeepSeek},
+					{Provider: token.ProviderPrem},
+				},
+			},
+		},
+	})
+
+	route := router.Route(mustRouterTestURL(t, "/opencode-router/v1/chat/completions"), []byte(`{"messages":[]}`))
+	if route.Provider != token.ProviderOpenAI || route.Model != "gpt-route" || route.Path != "/v1/chat/completions" {
+		t.Fatalf("unexpected primary route: %#v", route)
+	}
+	if len(route.Fallbacks) != 2 {
+		t.Fatalf("expected two fallback routes, got %#v", route.Fallbacks)
+	}
+	if route.Fallbacks[0].Provider != token.ProviderDeepSeek || route.Fallbacks[0].Protocol != "openai" || route.Fallbacks[0].Path != "/v1/chat/completions" {
+		t.Fatalf("unexpected DeepSeek fallback route: %#v", route.Fallbacks[0])
+	}
+	if route.Fallbacks[1].Provider != token.ProviderPrem || route.Fallbacks[1].Protocol != "openai" || route.Fallbacks[1].Path != "/openai/v1/chat/completions" {
+		t.Fatalf("unexpected Prem fallback route: %#v", route.Fallbacks[1])
+	}
+}
+
 func TestRouterMapsNewProviderPrefixes(t *testing.T) {
-	router := NewRouter(config.Config{})
 	cases := []struct {
 		name     string
 		path     string
@@ -317,6 +361,14 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.Config{}
+			switch {
+			case strings.HasPrefix(tt.path, "/anthropic-router") || strings.HasPrefix(tt.path, "/claude-desktop"):
+				cfg.GatewayRoutes.Claude = config.GatewayRouteConfig{Provider: tt.provider}
+			case strings.HasPrefix(tt.path, "/opencode-router") || strings.HasPrefix(tt.path, "/pi-router"):
+				cfg.GatewayRoutes.OpenAI = config.GatewayRouteConfig{Provider: tt.provider}
+			}
+			router := NewRouter(cfg)
 			route := router.Route(mustRouterTestURL(t, tt.path), []byte(tt.body))
 			if route.Provider != tt.provider || route.Protocol != tt.protocol || route.Path != tt.outPath {
 				t.Fatalf("unexpected route: %#v", route)
@@ -389,6 +441,9 @@ func TestRouterTargetsPremBaseURL(t *testing.T) {
 func TestRouterAvoidsDuplicateOpenAIVersionForVersionedProviderBaseURL(t *testing.T) {
 	router := NewRouter(config.Config{
 		ZhipuBaseURL: "https://open.bigmodel.cn/api/paas/v4",
+		GatewayRoutes: config.GatewayRoutes{
+			OpenAI: config.GatewayRouteConfig{Provider: token.ProviderZhipu},
+		},
 	})
 	route := router.Route(mustRouterTestURL(t, "/opencode-router/v1/chat/completions"), []byte(`{"model":"glm-5.1"}`))
 	target, err := router.TargetURL(route, token.Token{Provider: token.ProviderZhipu, CredentialType: token.CredentialTypeAPIKey})
@@ -408,6 +463,9 @@ func TestRouterTargetsXiaomiTokenPlanAnthropicSGPBaseURL(t *testing.T) {
 		XiaomiTokenPlanAnthropicBaseURL:    "https://token-plan-cn.xiaomimimo.com/anthropic",
 		XiaomiTokenPlanSGPAnthropicBaseURL: "https://token-plan-sgp.xiaomimimo.com/anthropic",
 		XiaomiTokenPlanAMSAnthropicBaseURL: "https://token-plan-ams.xiaomimimo.com/anthropic",
+		GatewayRoutes: config.GatewayRoutes{
+			Claude: config.GatewayRouteConfig{Provider: token.ProviderXiaomi},
+		},
 	})
 	selected := token.Token{Provider: token.ProviderXiaomi, CredentialType: token.CredentialTypeMimoTokenPlan, Region: token.MimoRegionSGP}
 	cases := []struct {
@@ -456,6 +514,9 @@ func TestRouterTargetsXiaomiTokenPlanAMSBaseURL(t *testing.T) {
 		XiaomiTokenPlanAMSBaseURL:          "https://token-plan-ams.xiaomimimo.com/v1",
 		XiaomiTokenPlanAnthropicBaseURL:    "https://token-plan-cn.xiaomimimo.com/anthropic",
 		XiaomiTokenPlanAMSAnthropicBaseURL: "https://token-plan-ams.xiaomimimo.com/anthropic",
+		GatewayRoutes: config.GatewayRoutes{
+			Claude: config.GatewayRouteConfig{Provider: token.ProviderXiaomi},
+		},
 	})
 	selected := token.Token{Provider: token.ProviderXiaomi, CredentialType: token.CredentialTypeMimoTokenPlan, Region: token.MimoRegionAMS}
 

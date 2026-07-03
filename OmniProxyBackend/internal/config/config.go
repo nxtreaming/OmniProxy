@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"OmniProxyBackend/internal/storage"
+	"OmniProxyBackend/internal/token"
 )
 
 const (
@@ -29,6 +30,13 @@ const (
 	MimoCredentialPriorityTokenPlan = "mimo_token_plan"
 )
 
+const (
+	GatewayRouteCodex  = "codex"
+	GatewayRouteClaude = "claude"
+	GatewayRouteOpenAI = "openai"
+	GatewayRouteGemini = "gemini"
+)
+
 var defaultOutboundProxyModels = []string{
 	"gpt-*",
 	"claude-*",
@@ -46,62 +54,77 @@ var defaultOutboundProxyProviders = []string{
 }
 
 type Config struct {
-	ProxyPort                          int      `json:"proxyPort"`
-	ControlPort                        int      `json:"controlPort"`
-	SchedulingMode                     string   `json:"schedulingMode"`
-	WebSocketMode                      string   `json:"websocketMode"`
-	CheckBetaUpdates                   bool     `json:"checkBetaUpdates"`
-	TaskAutomationEnabled              bool     `json:"taskAutomationEnabled"`
-	TaskAutomationClients              []string `json:"taskAutomationClients"`
-	TaskAutomationLaunchMode           string   `json:"taskAutomationLaunchMode"`
-	TaskAutomationLaunchTarget         string   `json:"taskAutomationLaunchTarget"`
-	TaskAutomationFallbackURL          string   `json:"taskAutomationFallbackUrl"`
-	TaskAutomationBrowser              string   `json:"taskAutomationBrowser"`
-	TaskAutomationBrowserUserDataDir   string   `json:"taskAutomationBrowserUserDataDir"`
-	TaskAutomationBrowserProfile       string   `json:"taskAutomationBrowserProfile"`
-	TaskAutomationReturnToClient       bool     `json:"taskAutomationReturnToClient"`
-	TaskAutomationIdleSeconds          int      `json:"taskAutomationIdleSeconds"`
-	TaskAutomationReturnDelaySeconds   int      `json:"taskAutomationReturnDelaySeconds"`
-	OutboundProxyEnabled               bool     `json:"outboundProxyEnabled"`
-	OutboundProxyURL                   string   `json:"outboundProxyUrl"`
-	OutboundProxyProviders             []string `json:"outboundProxyProviders"`
-	OutboundProxyModels                []string `json:"outboundProxyModels"`
-	UpstreamBaseURL                    string   `json:"upstreamBaseUrl"`
-	OpenAIBaseURL                      string   `json:"openaiBaseUrl"`
-	AnthropicBaseURL                   string   `json:"anthropicBaseUrl"`
-	DeepSeekBaseURL                    string   `json:"deepseekBaseUrl"`
-	DeepSeekAnthropicBaseURL           string   `json:"deepseekAnthropicBaseUrl"`
-	KimiBaseURL                        string   `json:"kimiBaseUrl"`
-	ZhipuBaseURL                       string   `json:"zhipuBaseUrl"`
-	ZhipuAnthropicBaseURL              string   `json:"zhipuAnthropicBaseUrl"`
-	MiniMaxBaseURL                     string   `json:"minimaxBaseUrl"`
-	MiniMaxAnthropicBaseURL            string   `json:"minimaxAnthropicBaseUrl"`
-	GeminiBaseURL                      string   `json:"geminiBaseUrl"`
-	OpenRouterBaseURL                  string   `json:"openrouterBaseUrl"`
-	TokenRouterBaseURL                 string   `json:"tokenrouterBaseUrl"`
-	Sub2APIBaseURL                     string   `json:"sub2apiBaseUrl"`
-	NewAPIBaseURL                      string   `json:"newapiBaseUrl"`
-	AnyRouterBaseURL                   string   `json:"anyrouterBaseUrl"`
-	ZoBaseURL                          string   `json:"zoBaseUrl"`
-	PremBaseURL                        string   `json:"premBaseUrl"`
-	PremAutoStartPCCIProxy             bool     `json:"premAutoStartPcciProxy"`
-	CustomGatewayBaseURL               string   `json:"customGatewayBaseUrl"`
-	CustomGatewayAnthropicBaseURL      string   `json:"customGatewayAnthropicBaseUrl"`
-	XiaomiBaseURL                      string   `json:"xiaomiBaseUrl"`
-	XiaomiAPIBaseURL                   string   `json:"xiaomiApiBaseUrl"`
-	XiaomiAPIAnthropicBaseURL          string   `json:"xiaomiApiAnthropicBaseUrl"`
-	XiaomiTokenPlanBaseURL             string   `json:"xiaomiTokenPlanBaseUrl"`
-	XiaomiTokenPlanAnthropicBaseURL    string   `json:"xiaomiTokenPlanAnthropicBaseUrl"`
-	XiaomiTokenPlanSGPBaseURL          string   `json:"xiaomiTokenPlanSgpBaseUrl"`
-	XiaomiTokenPlanSGPAnthropicBaseURL string   `json:"xiaomiTokenPlanSgpAnthropicBaseUrl"`
-	XiaomiTokenPlanAMSBaseURL          string   `json:"xiaomiTokenPlanAmsBaseUrl"`
-	XiaomiTokenPlanAMSAnthropicBaseURL string   `json:"xiaomiTokenPlanAmsAnthropicBaseUrl"`
-	XiaomiCredentialPriority           string   `json:"xiaomiCredentialPriority"`
-	CodexBaseURL                       string   `json:"codexBaseUrl"`
-	SwitchThreshold                    int      `json:"switchThreshold"`
-	MaxRetries                         int      `json:"maxRetries"`
-	HistoryRetentionDays               int      `json:"historyRetentionDays"`
-	CodexUsageEndpoint                 string   `json:"codexUsageEndpoint"`
+	ProxyPort                          int           `json:"proxyPort"`
+	ControlPort                        int           `json:"controlPort"`
+	SchedulingMode                     string        `json:"schedulingMode"`
+	WebSocketMode                      string        `json:"websocketMode"`
+	CheckBetaUpdates                   bool          `json:"checkBetaUpdates"`
+	TaskAutomationEnabled              bool          `json:"taskAutomationEnabled"`
+	TaskAutomationClients              []string      `json:"taskAutomationClients"`
+	TaskAutomationLaunchMode           string        `json:"taskAutomationLaunchMode"`
+	TaskAutomationLaunchTarget         string        `json:"taskAutomationLaunchTarget"`
+	TaskAutomationFallbackURL          string        `json:"taskAutomationFallbackUrl"`
+	TaskAutomationBrowser              string        `json:"taskAutomationBrowser"`
+	TaskAutomationBrowserUserDataDir   string        `json:"taskAutomationBrowserUserDataDir"`
+	TaskAutomationBrowserProfile       string        `json:"taskAutomationBrowserProfile"`
+	TaskAutomationReturnToClient       bool          `json:"taskAutomationReturnToClient"`
+	TaskAutomationIdleSeconds          int           `json:"taskAutomationIdleSeconds"`
+	TaskAutomationReturnDelaySeconds   int           `json:"taskAutomationReturnDelaySeconds"`
+	OutboundProxyEnabled               bool          `json:"outboundProxyEnabled"`
+	OutboundProxyURL                   string        `json:"outboundProxyUrl"`
+	OutboundProxyProviders             []string      `json:"outboundProxyProviders"`
+	OutboundProxyModels                []string      `json:"outboundProxyModels"`
+	UpstreamBaseURL                    string        `json:"upstreamBaseUrl"`
+	OpenAIBaseURL                      string        `json:"openaiBaseUrl"`
+	AnthropicBaseURL                   string        `json:"anthropicBaseUrl"`
+	DeepSeekBaseURL                    string        `json:"deepseekBaseUrl"`
+	DeepSeekAnthropicBaseURL           string        `json:"deepseekAnthropicBaseUrl"`
+	KimiBaseURL                        string        `json:"kimiBaseUrl"`
+	ZhipuBaseURL                       string        `json:"zhipuBaseUrl"`
+	ZhipuAnthropicBaseURL              string        `json:"zhipuAnthropicBaseUrl"`
+	MiniMaxBaseURL                     string        `json:"minimaxBaseUrl"`
+	MiniMaxAnthropicBaseURL            string        `json:"minimaxAnthropicBaseUrl"`
+	GeminiBaseURL                      string        `json:"geminiBaseUrl"`
+	OpenRouterBaseURL                  string        `json:"openrouterBaseUrl"`
+	TokenRouterBaseURL                 string        `json:"tokenrouterBaseUrl"`
+	Sub2APIBaseURL                     string        `json:"sub2apiBaseUrl"`
+	NewAPIBaseURL                      string        `json:"newapiBaseUrl"`
+	AnyRouterBaseURL                   string        `json:"anyrouterBaseUrl"`
+	ZoBaseURL                          string        `json:"zoBaseUrl"`
+	PremBaseURL                        string        `json:"premBaseUrl"`
+	PremAutoStartPCCIProxy             bool          `json:"premAutoStartPcciProxy"`
+	CustomGatewayBaseURL               string        `json:"customGatewayBaseUrl"`
+	CustomGatewayAnthropicBaseURL      string        `json:"customGatewayAnthropicBaseUrl"`
+	XiaomiBaseURL                      string        `json:"xiaomiBaseUrl"`
+	XiaomiAPIBaseURL                   string        `json:"xiaomiApiBaseUrl"`
+	XiaomiAPIAnthropicBaseURL          string        `json:"xiaomiApiAnthropicBaseUrl"`
+	XiaomiTokenPlanBaseURL             string        `json:"xiaomiTokenPlanBaseUrl"`
+	XiaomiTokenPlanAnthropicBaseURL    string        `json:"xiaomiTokenPlanAnthropicBaseUrl"`
+	XiaomiTokenPlanSGPBaseURL          string        `json:"xiaomiTokenPlanSgpBaseUrl"`
+	XiaomiTokenPlanSGPAnthropicBaseURL string        `json:"xiaomiTokenPlanSgpAnthropicBaseUrl"`
+	XiaomiTokenPlanAMSBaseURL          string        `json:"xiaomiTokenPlanAmsBaseUrl"`
+	XiaomiTokenPlanAMSAnthropicBaseURL string        `json:"xiaomiTokenPlanAmsAnthropicBaseUrl"`
+	XiaomiCredentialPriority           string        `json:"xiaomiCredentialPriority"`
+	CodexBaseURL                       string        `json:"codexBaseUrl"`
+	GatewayRoutes                      GatewayRoutes `json:"gatewayRoutes"`
+	SwitchThreshold                    int           `json:"switchThreshold"`
+	MaxRetries                         int           `json:"maxRetries"`
+	HistoryRetentionDays               int           `json:"historyRetentionDays"`
+	CodexUsageEndpoint                 string        `json:"codexUsageEndpoint"`
+}
+
+type GatewayRouteConfig struct {
+	Provider       string               `json:"provider"`
+	CredentialType string               `json:"credentialType,omitempty"`
+	Model          string               `json:"model,omitempty"`
+	Fallbacks      []GatewayRouteConfig `json:"fallbacks,omitempty"`
+}
+
+type GatewayRoutes struct {
+	Codex  GatewayRouteConfig `json:"codex"`
+	Claude GatewayRouteConfig `json:"claude"`
+	OpenAI GatewayRouteConfig `json:"openai"`
+	Gemini GatewayRouteConfig `json:"gemini"`
 }
 
 func Default() Config {
@@ -158,10 +181,16 @@ func Default() Config {
 		XiaomiTokenPlanAMSAnthropicBaseURL: "https://token-plan-ams.xiaomimimo.com/anthropic",
 		XiaomiCredentialPriority:           MimoCredentialPriorityTokenPlan,
 		CodexBaseURL:                       "https://chatgpt.com/backend-api/codex",
-		SwitchThreshold:                    15,
-		MaxRetries:                         2,
-		HistoryRetentionDays:               14,
-		CodexUsageEndpoint:                 "https://chatgpt.com/backend-api/wham/usage",
+		GatewayRoutes: GatewayRoutes{
+			Codex:  GatewayRouteConfig{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Model: "gpt-5.4"},
+			Claude: GatewayRouteConfig{Provider: token.ProviderAnthropic, CredentialType: token.CredentialTypeAPIKey, Model: "claude-sonnet-4-5-20250929"},
+			OpenAI: GatewayRouteConfig{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeAPIKey, Model: "gpt-5.4"},
+			Gemini: GatewayRouteConfig{Provider: token.ProviderGemini, CredentialType: token.CredentialTypeAPIKey, Model: "gemini-3-pro-preview"},
+		},
+		SwitchThreshold:      15,
+		MaxRetries:           2,
+		HistoryRetentionDays: 14,
+		CodexUsageEndpoint:   "https://chatgpt.com/backend-api/wham/usage",
 	}
 }
 
@@ -189,62 +218,63 @@ func (s *Store) Load() (Config, error) {
 	}
 
 	var saved struct {
-		ProxyPort                          *int      `json:"proxyPort"`
-		ControlPort                        *int      `json:"controlPort"`
-		SchedulingMode                     *string   `json:"schedulingMode"`
-		WebSocketMode                      *string   `json:"websocketMode"`
-		CheckBetaUpdates                   *bool     `json:"checkBetaUpdates"`
-		TaskAutomationEnabled              *bool     `json:"taskAutomationEnabled"`
-		TaskAutomationClients              *[]string `json:"taskAutomationClients"`
-		TaskAutomationLaunchMode           *string   `json:"taskAutomationLaunchMode"`
-		TaskAutomationLaunchTarget         *string   `json:"taskAutomationLaunchTarget"`
-		TaskAutomationFallbackURL          *string   `json:"taskAutomationFallbackUrl"`
-		TaskAutomationBrowser              *string   `json:"taskAutomationBrowser"`
-		TaskAutomationBrowserUserDataDir   *string   `json:"taskAutomationBrowserUserDataDir"`
-		TaskAutomationBrowserProfile       *string   `json:"taskAutomationBrowserProfile"`
-		TaskAutomationReturnToClient       *bool     `json:"taskAutomationReturnToClient"`
-		TaskAutomationIdleSeconds          *int      `json:"taskAutomationIdleSeconds"`
-		TaskAutomationReturnDelaySeconds   *int      `json:"taskAutomationReturnDelaySeconds"`
-		OutboundProxyEnabled               *bool     `json:"outboundProxyEnabled"`
-		OutboundProxyURL                   *string   `json:"outboundProxyUrl"`
-		OutboundProxyProviders             *[]string `json:"outboundProxyProviders"`
-		OutboundProxyModels                *[]string `json:"outboundProxyModels"`
-		UpstreamBaseURL                    *string   `json:"upstreamBaseUrl"`
-		OpenAIBaseURL                      *string   `json:"openaiBaseUrl"`
-		AnthropicBaseURL                   *string   `json:"anthropicBaseUrl"`
-		DeepSeekBaseURL                    *string   `json:"deepseekBaseUrl"`
-		DeepSeekAnthropicBaseURL           *string   `json:"deepseekAnthropicBaseUrl"`
-		KimiBaseURL                        *string   `json:"kimiBaseUrl"`
-		ZhipuBaseURL                       *string   `json:"zhipuBaseUrl"`
-		ZhipuAnthropicBaseURL              *string   `json:"zhipuAnthropicBaseUrl"`
-		MiniMaxBaseURL                     *string   `json:"minimaxBaseUrl"`
-		MiniMaxAnthropicBaseURL            *string   `json:"minimaxAnthropicBaseUrl"`
-		GeminiBaseURL                      *string   `json:"geminiBaseUrl"`
-		OpenRouterBaseURL                  *string   `json:"openrouterBaseUrl"`
-		TokenRouterBaseURL                 *string   `json:"tokenrouterBaseUrl"`
-		Sub2APIBaseURL                     *string   `json:"sub2apiBaseUrl"`
-		NewAPIBaseURL                      *string   `json:"newapiBaseUrl"`
-		AnyRouterBaseURL                   *string   `json:"anyrouterBaseUrl"`
-		ZoBaseURL                          *string   `json:"zoBaseUrl"`
-		PremBaseURL                        *string   `json:"premBaseUrl"`
-		PremAutoStartPCCIProxy             *bool     `json:"premAutoStartPcciProxy"`
-		CustomGatewayBaseURL               *string   `json:"customGatewayBaseUrl"`
-		CustomGatewayAnthropicBaseURL      *string   `json:"customGatewayAnthropicBaseUrl"`
-		XiaomiBaseURL                      *string   `json:"xiaomiBaseUrl"`
-		XiaomiAPIBaseURL                   *string   `json:"xiaomiApiBaseUrl"`
-		XiaomiAPIAnthropicBaseURL          *string   `json:"xiaomiApiAnthropicBaseUrl"`
-		XiaomiTokenPlanBaseURL             *string   `json:"xiaomiTokenPlanBaseUrl"`
-		XiaomiTokenPlanAnthropicBaseURL    *string   `json:"xiaomiTokenPlanAnthropicBaseUrl"`
-		XiaomiTokenPlanSGPBaseURL          *string   `json:"xiaomiTokenPlanSgpBaseUrl"`
-		XiaomiTokenPlanSGPAnthropicBaseURL *string   `json:"xiaomiTokenPlanSgpAnthropicBaseUrl"`
-		XiaomiTokenPlanAMSBaseURL          *string   `json:"xiaomiTokenPlanAmsBaseUrl"`
-		XiaomiTokenPlanAMSAnthropicBaseURL *string   `json:"xiaomiTokenPlanAmsAnthropicBaseUrl"`
-		XiaomiCredentialPriority           *string   `json:"xiaomiCredentialPriority"`
-		CodexBaseURL                       *string   `json:"codexBaseUrl"`
-		SwitchThreshold                    *int      `json:"switchThreshold"`
-		MaxRetries                         *int      `json:"maxRetries"`
-		HistoryRetentionDays               *int      `json:"historyRetentionDays"`
-		CodexUsageEndpoint                 *string   `json:"codexUsageEndpoint"`
+		ProxyPort                          *int           `json:"proxyPort"`
+		ControlPort                        *int           `json:"controlPort"`
+		SchedulingMode                     *string        `json:"schedulingMode"`
+		WebSocketMode                      *string        `json:"websocketMode"`
+		CheckBetaUpdates                   *bool          `json:"checkBetaUpdates"`
+		TaskAutomationEnabled              *bool          `json:"taskAutomationEnabled"`
+		TaskAutomationClients              *[]string      `json:"taskAutomationClients"`
+		TaskAutomationLaunchMode           *string        `json:"taskAutomationLaunchMode"`
+		TaskAutomationLaunchTarget         *string        `json:"taskAutomationLaunchTarget"`
+		TaskAutomationFallbackURL          *string        `json:"taskAutomationFallbackUrl"`
+		TaskAutomationBrowser              *string        `json:"taskAutomationBrowser"`
+		TaskAutomationBrowserUserDataDir   *string        `json:"taskAutomationBrowserUserDataDir"`
+		TaskAutomationBrowserProfile       *string        `json:"taskAutomationBrowserProfile"`
+		TaskAutomationReturnToClient       *bool          `json:"taskAutomationReturnToClient"`
+		TaskAutomationIdleSeconds          *int           `json:"taskAutomationIdleSeconds"`
+		TaskAutomationReturnDelaySeconds   *int           `json:"taskAutomationReturnDelaySeconds"`
+		OutboundProxyEnabled               *bool          `json:"outboundProxyEnabled"`
+		OutboundProxyURL                   *string        `json:"outboundProxyUrl"`
+		OutboundProxyProviders             *[]string      `json:"outboundProxyProviders"`
+		OutboundProxyModels                *[]string      `json:"outboundProxyModels"`
+		UpstreamBaseURL                    *string        `json:"upstreamBaseUrl"`
+		OpenAIBaseURL                      *string        `json:"openaiBaseUrl"`
+		AnthropicBaseURL                   *string        `json:"anthropicBaseUrl"`
+		DeepSeekBaseURL                    *string        `json:"deepseekBaseUrl"`
+		DeepSeekAnthropicBaseURL           *string        `json:"deepseekAnthropicBaseUrl"`
+		KimiBaseURL                        *string        `json:"kimiBaseUrl"`
+		ZhipuBaseURL                       *string        `json:"zhipuBaseUrl"`
+		ZhipuAnthropicBaseURL              *string        `json:"zhipuAnthropicBaseUrl"`
+		MiniMaxBaseURL                     *string        `json:"minimaxBaseUrl"`
+		MiniMaxAnthropicBaseURL            *string        `json:"minimaxAnthropicBaseUrl"`
+		GeminiBaseURL                      *string        `json:"geminiBaseUrl"`
+		OpenRouterBaseURL                  *string        `json:"openrouterBaseUrl"`
+		TokenRouterBaseURL                 *string        `json:"tokenrouterBaseUrl"`
+		Sub2APIBaseURL                     *string        `json:"sub2apiBaseUrl"`
+		NewAPIBaseURL                      *string        `json:"newapiBaseUrl"`
+		AnyRouterBaseURL                   *string        `json:"anyrouterBaseUrl"`
+		ZoBaseURL                          *string        `json:"zoBaseUrl"`
+		PremBaseURL                        *string        `json:"premBaseUrl"`
+		PremAutoStartPCCIProxy             *bool          `json:"premAutoStartPcciProxy"`
+		CustomGatewayBaseURL               *string        `json:"customGatewayBaseUrl"`
+		CustomGatewayAnthropicBaseURL      *string        `json:"customGatewayAnthropicBaseUrl"`
+		XiaomiBaseURL                      *string        `json:"xiaomiBaseUrl"`
+		XiaomiAPIBaseURL                   *string        `json:"xiaomiApiBaseUrl"`
+		XiaomiAPIAnthropicBaseURL          *string        `json:"xiaomiApiAnthropicBaseUrl"`
+		XiaomiTokenPlanBaseURL             *string        `json:"xiaomiTokenPlanBaseUrl"`
+		XiaomiTokenPlanAnthropicBaseURL    *string        `json:"xiaomiTokenPlanAnthropicBaseUrl"`
+		XiaomiTokenPlanSGPBaseURL          *string        `json:"xiaomiTokenPlanSgpBaseUrl"`
+		XiaomiTokenPlanSGPAnthropicBaseURL *string        `json:"xiaomiTokenPlanSgpAnthropicBaseUrl"`
+		XiaomiTokenPlanAMSBaseURL          *string        `json:"xiaomiTokenPlanAmsBaseUrl"`
+		XiaomiTokenPlanAMSAnthropicBaseURL *string        `json:"xiaomiTokenPlanAmsAnthropicBaseUrl"`
+		XiaomiCredentialPriority           *string        `json:"xiaomiCredentialPriority"`
+		CodexBaseURL                       *string        `json:"codexBaseUrl"`
+		GatewayRoutes                      *GatewayRoutes `json:"gatewayRoutes"`
+		SwitchThreshold                    *int           `json:"switchThreshold"`
+		MaxRetries                         *int           `json:"maxRetries"`
+		HistoryRetentionDays               *int           `json:"historyRetentionDays"`
+		CodexUsageEndpoint                 *string        `json:"codexUsageEndpoint"`
 	}
 	if err := json.Unmarshal(data, &saved); err != nil {
 		return cfg, err
@@ -410,6 +440,9 @@ func (s *Store) Load() (Config, error) {
 	if saved.CodexBaseURL != nil && *saved.CodexBaseURL != "" {
 		cfg.CodexBaseURL = *saved.CodexBaseURL
 	}
+	if saved.GatewayRoutes != nil {
+		cfg.GatewayRoutes = *saved.GatewayRoutes
+	}
 	if saved.SwitchThreshold != nil && *saved.SwitchThreshold > 0 {
 		cfg.SwitchThreshold = *saved.SwitchThreshold
 	}
@@ -550,6 +583,7 @@ func Normalize(cfg Config) Config {
 	if cfg.CodexBaseURL == "" {
 		cfg.CodexBaseURL = defaults.CodexBaseURL
 	}
+	cfg.GatewayRoutes = normalizeGatewayRoutes(cfg.GatewayRoutes, defaults.GatewayRoutes)
 	if cfg.XiaomiAPIBaseURL == "" {
 		if cfg.XiaomiBaseURL != "" {
 			cfg.XiaomiAPIBaseURL = cfg.XiaomiBaseURL
@@ -604,6 +638,141 @@ func Normalize(cfg Config) Config {
 		cfg.CodexUsageEndpoint = defaults.CodexUsageEndpoint
 	}
 	return cfg
+}
+
+func normalizeGatewayRoutes(routes GatewayRoutes, defaults GatewayRoutes) GatewayRoutes {
+	return GatewayRoutes{
+		Codex:  normalizeGatewayRoute(routes.Codex, defaults.Codex, gatewayCodexProviders()),
+		Claude: normalizeGatewayRoute(routes.Claude, defaults.Claude, gatewayClaudeProviders()),
+		OpenAI: normalizeGatewayRoute(routes.OpenAI, defaults.OpenAI, gatewayOpenAIProviders()),
+		Gemini: normalizeGatewayRoute(routes.Gemini, defaults.Gemini, gatewayGeminiProviders()),
+	}
+}
+
+func normalizeGatewayRoute(route GatewayRouteConfig, defaults GatewayRouteConfig, allowed map[string]bool) GatewayRouteConfig {
+	normalized := normalizeGatewayRouteTarget(route, defaults, allowed, true)
+	normalized.Fallbacks = normalizeGatewayRouteFallbacks(route.Fallbacks, normalized, allowed)
+	return normalized
+}
+
+func normalizeGatewayRouteTarget(route GatewayRouteConfig, defaults GatewayRouteConfig, allowed map[string]bool, useDefaults bool) GatewayRouteConfig {
+	provider := strings.TrimSpace(strings.ToLower(route.Provider))
+	if provider == "" {
+		if !useDefaults {
+			return GatewayRouteConfig{}
+		}
+		provider = defaults.Provider
+	}
+	credentialType := strings.TrimSpace(strings.ToLower(route.CredentialType))
+	if useDefaults && credentialType == "" && strings.EqualFold(provider, defaults.Provider) {
+		credentialType = defaults.CredentialType
+	}
+	credentialExplicit := credentialType != ""
+	normalizedProvider, normalizedCredential, err := token.NormalizeProviderAndCredential(provider, credentialType)
+	if err != nil || !allowed[normalizedProvider] {
+		if !useDefaults {
+			return GatewayRouteConfig{}
+		}
+		normalizedProvider = defaults.Provider
+		normalizedCredential = defaults.CredentialType
+	}
+	if !credentialExplicit && (!useDefaults || !strings.EqualFold(normalizedProvider, defaults.Provider)) {
+		normalizedCredential = ""
+	}
+	model := strings.TrimSpace(route.Model)
+	if model == "" {
+		model = defaults.Model
+	}
+	return GatewayRouteConfig{
+		Provider:       normalizedProvider,
+		CredentialType: normalizedCredential,
+		Model:          model,
+	}
+}
+
+func normalizeGatewayRouteFallbacks(fallbacks []GatewayRouteConfig, primary GatewayRouteConfig, allowed map[string]bool) []GatewayRouteConfig {
+	if len(fallbacks) == 0 {
+		return nil
+	}
+	seen := map[string]bool{gatewayRouteTargetKey(primary): true}
+	out := make([]GatewayRouteConfig, 0, len(fallbacks))
+	for _, fallback := range fallbacks {
+		normalized := normalizeGatewayRouteTarget(fallback, primary, allowed, false)
+		if normalized.Provider == "" {
+			continue
+		}
+		key := gatewayRouteTargetKey(normalized)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		normalized.Fallbacks = nil
+		out = append(out, normalized)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func gatewayRouteTargetKey(route GatewayRouteConfig) string {
+	return strings.ToLower(strings.TrimSpace(route.Provider)) + "\x00" + strings.ToLower(strings.TrimSpace(route.CredentialType))
+}
+
+func gatewayCodexProviders() map[string]bool {
+	return gatewayProviderSet(
+		token.ProviderOpenAI,
+		token.ProviderDeepSeek,
+		token.ProviderKimi,
+		token.ProviderXiaomi,
+		token.ProviderZhipu,
+		token.ProviderMiniMax,
+		token.ProviderOpenRouter,
+		token.ProviderTokenRouter,
+		token.ProviderSub2API,
+		token.ProviderNewAPI,
+		token.ProviderAnyRouter,
+		token.ProviderZo,
+		token.ProviderPrem,
+		token.ProviderCustom,
+	)
+}
+
+func gatewayClaudeProviders() map[string]bool {
+	return gatewayProviderSet(
+		token.ProviderAnthropic,
+		token.ProviderDeepSeek,
+		token.ProviderKimi,
+		token.ProviderXiaomi,
+		token.ProviderZhipu,
+		token.ProviderMiniMax,
+		token.ProviderSub2API,
+		token.ProviderNewAPI,
+		token.ProviderAnyRouter,
+		token.ProviderZo,
+		token.ProviderPrem,
+		token.ProviderCustom,
+	)
+}
+
+func gatewayOpenAIProviders() map[string]bool {
+	return gatewayCodexProviders()
+}
+
+func gatewayGeminiProviders() map[string]bool {
+	return gatewayProviderSet(
+		token.ProviderGemini,
+		token.ProviderSub2API,
+		token.ProviderNewAPI,
+	)
+}
+
+func gatewayProviderSet(providers ...string) map[string]bool {
+	out := map[string]bool{}
+	for _, provider := range providers {
+		out[token.NormalizeProvider(provider)] = true
+	}
+	return out
 }
 
 func normalizeTaskAutomationLaunchMode(mode string) string {

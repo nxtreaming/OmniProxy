@@ -1,0 +1,260 @@
+.settings-panel .settings-gateway-section {
+  gap: 18px;
+}
+
+.settings-panel .gateway-route-list {
+  display: grid;
+  gap: 0;
+}
+
+.settings-panel .gateway-route-row {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.settings-panel .gateway-route-row:first-child {
+  padding-top: 0;
+}
+
+.settings-panel .gateway-route-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.settings-panel .gateway-route-summary {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.52fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.settings-panel .gateway-route-summary > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-panel .gateway-route-summary strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-route-summary small {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.settings-panel .gateway-route-summary code {
+  min-width: 0;
+  justify-self: end;
+  max-width: 100%;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-panel .gateway-route-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(min(100%, 180px), 1fr));
+  gap: 14px;
+}
+
+.settings-panel .gateway-route-controls label,
+.settings-panel .gateway-route-model-field,
+.settings-panel .gateway-route-backend-field,
+.shell.dark .settings-panel .gateway-route-controls label {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-panel .gateway-route-controls label > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-route-backend-field {
+  grid-column: 1 / -1;
+}
+
+.settings-panel .gateway-route-backend-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-panel .gateway-route-model-field {
+  grid-column: 1 / -1;
+}
+
+.settings-panel .gateway-route-backend-head span,
+.settings-panel .gateway-route-model-field > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-route-backend-head small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-provider-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-panel .gateway-provider-chip {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 46%, var(--surface));
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  box-shadow: none;
+}
+
+.settings-panel .gateway-provider-chip:hover {
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 62%, var(--surface));
+  color: var(--text-strong);
+}
+
+.settings-panel .gateway-provider-chip.active {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  color: var(--brand-strong);
+}
+
+.settings-panel .gateway-provider-chip.primary,
+.settings-panel .gateway-provider-chip:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.settings-panel .gateway-provider-chip small {
+  min-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.settings-panel .gateway-fallback-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 10px;
+}
+
+.settings-panel .gateway-fallback-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-soft) 30%, var(--surface));
+}
+
+.settings-panel .gateway-fallback-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-panel .gateway-model-preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-panel .gateway-model-preset {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.25;
+}
+
+.settings-panel .gateway-model-preset:hover,
+.settings-panel .gateway-model-preset.active {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent-strong);
+}
+
+.settings-panel .gateway-route-controls input,
+.settings-panel .gateway-route-controls .gemini-select-trigger {
+  min-width: 0;
+  min-height: 42px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+}
+
+.shell.dark .settings-panel .gateway-route-controls input,
+.shell.dark .settings-panel .gateway-route-controls .gemini-select-trigger,
+.shell.dark .settings-panel .gateway-fallback-row,
+.shell.dark .settings-panel .gateway-provider-chip,
+.shell.dark .settings-panel .gateway-route-summary code {
+  background: color-mix(in srgb, var(--surface-soft) 40%, var(--surface));
+}
+
+.settings-panel .gateway-route-controls .gemini-select-menu {
+  z-index: 110;
+}
+
+@media (max-width: 900px) {
+  .settings-panel .gateway-route-summary,
+  .settings-panel .gateway-route-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .gateway-route-summary code {
+    justify-self: stretch;
+  }
+
+  .settings-panel .gateway-fallback-row {
+    grid-template-columns: 1fr;
+  }
+}

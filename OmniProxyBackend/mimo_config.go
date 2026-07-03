@@ -82,13 +82,6 @@ var (
 		LogMessage:  "zhipu claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Zhipu GLM",
 	}
-	claudeAnyRouterTarget = claudeModelTarget{
-		Model:       anyRouterClaudeModel,
-		Name:        "Claude Opus 4.5",
-		Description: "Claude Opus 4.5 routed through OmniProxy AnyRouter",
-		LogMessage:  "anyrouter claude configured",
-		Message:     "Claude Code 已配置为通过 OmniProxy 使用 AnyRouter",
-	}
 	claudeZoTarget = claudeModelTarget{
 		Model:       zoClaudeModel,
 		Name:        "Zo Claude Opus 4.7",
@@ -101,13 +94,6 @@ var (
 		Name:        "Zo Claude Sonnet 4.6",
 		Description: "Claude Sonnet 4.6 routed through OmniProxy Zo Computer",
 	}
-	claudePremTarget = claudeModelTarget{
-		Model:       premClaudeModel,
-		Name:        "Prem DeepSeek V4 Pro",
-		Description: "DeepSeek V4 Pro routed through OmniProxy Prem",
-		LogMessage:  "prem claude configured",
-		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Prem",
-	}
 )
 
 type claudeModelSelectionError struct {
@@ -116,60 +102,6 @@ type claudeModelSelectionError struct {
 
 func (e *claudeModelSelectionError) Error() string {
 	return e.message
-}
-
-func (a *appServer) configureMimoClaude() (mimoConfigureResult, error) {
-	return a.configureClaudeWithWriter(claudeMimoTarget, func(path string, baseURL string) error {
-		return writeMimoClaudeSettings(path, baseURL)
-	})
-}
-
-func (a *appServer) configureDeepSeekClaude() (mimoConfigureResult, error) {
-	return a.configureClaudeWithWriter(claudeDeepSeekTarget, func(path string, baseURL string) error {
-		return writeDeepSeekClaudeSettings(path, baseURL)
-	})
-}
-
-func (a *appServer) configureKimiClaude() (mimoConfigureResult, error) {
-	return a.configureClaudeWithWriter(claudeKimiTarget, func(path string, baseURL string) error {
-		return writeKimiClaudeSettings(path, baseURL)
-	})
-}
-
-func (a *appServer) configureZhipuClaude() (mimoConfigureResult, error) {
-	return a.configureClaudeWithWriter(claudeZhipuTarget, func(path string, baseURL string) error {
-		return writeZhipuClaudeSettings(path, baseURL)
-	})
-}
-
-func (a *appServer) configureAnyRouterClaude() (mimoConfigureResult, error) {
-	a.mu.Lock()
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/anyrouter/anthropic", a.cfg.ProxyPort)
-	a.mu.Unlock()
-
-	return a.configureClaudeWithBaseURL(claudeAnyRouterTarget, baseURL, func(path string, baseURL string) error {
-		return writeAnyRouterClaudeSettings(path, baseURL)
-	})
-}
-
-func (a *appServer) configureZoClaude() (mimoConfigureResult, error) {
-	a.mu.Lock()
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/zo", a.cfg.ProxyPort)
-	a.mu.Unlock()
-
-	return a.configureClaudeWithBaseURL(claudeZoTarget, baseURL, func(path string, baseURL string) error {
-		return writeZoClaudeSettings(path, baseURL)
-	})
-}
-
-func (a *appServer) configurePremClaude() (mimoConfigureResult, error) {
-	a.mu.Lock()
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/prem/anthropic", a.cfg.ProxyPort)
-	a.mu.Unlock()
-
-	return a.configureClaudeWithBaseURL(claudePremTarget, baseURL, func(path string, baseURL string) error {
-		return writePremClaudeSettings(path, baseURL)
-	})
 }
 
 func (a *appServer) configureClaudeModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
@@ -269,7 +201,7 @@ func (a *appServer) configureClaudeWithBaseURL(target claudeModelTarget, baseURL
 	}, nil
 }
 
-func (a *appServer) restoreMimoClaudeConfig() (mimoConfigureResult, error) {
+func (a *appServer) restoreClaudeConfig() (mimoConfigureResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return mimoConfigureResult{}, err
@@ -284,25 +216,13 @@ func (a *appServer) restoreMimoClaudeConfig() (mimoConfigureResult, error) {
 		return mimoConfigureResult{}, err
 	}
 
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "mimo claude config restored"})
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "claude config restored"})
 	return mimoConfigureResult{
 		SettingsPath: settingsPath,
 		ClaudePath:   claudePath,
 		BackupPath:   settingsPath + ".omniproxy.bak",
 		Message:      "Claude Code 配置已恢复",
 	}, nil
-}
-
-func (a *appServer) restoreDeepSeekClaudeConfig() (mimoConfigureResult, error) {
-	return a.restoreMimoClaudeConfig()
-}
-
-func (a *appServer) restoreKimiClaudeConfig() (mimoConfigureResult, error) {
-	return a.restoreMimoClaudeConfig()
-}
-
-func (a *appServer) restoreZhipuClaudeConfig() (mimoConfigureResult, error) {
-	return a.restoreMimoClaudeConfig()
 }
 
 func (a *appServer) restoreClaudeDesktopConfig() (mimoConfigureResult, error) {
@@ -334,101 +254,6 @@ func (a *appServer) restoreClaudeDesktopConfig() (mimoConfigureResult, error) {
 	}, nil
 }
 
-func writeMimoClaudeSettings(path string, baseURL string) error {
-	data, err := readJSONObject(path)
-	if err != nil {
-		return err
-	}
-	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
-		return err
-	}
-
-	env := cleanClaudeEnv(data)
-	env["ANTHROPIC_BASE_URL"] = baseURL
-	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
-	env["ANTHROPIC_MODEL"] = mimoLongContextModel
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = mimoLongContextModel
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = "MiMo-V2.5-Pro [1m]"
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5-Pro 1M context routed through OmniProxy"
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = mimoStandardModel
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"] = "MiMo-V2.5"
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = mimoStandardModel
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"] = "MiMo-V2.5"
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"] = "Xiaomi MiMo-V2.5 routed through OmniProxy"
-	env["CLAUDE_CODE_SUBAGENT_MODEL"] = mimoStandardModel
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION"] = mimoModel
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"] = "MiMo-V2.5-Pro"
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"] = "Xiaomi MiMo-V2.5-Pro routed through OmniProxy"
-	data["env"] = env
-	return writeJSONObject(path, data)
-}
-
-func writeDeepSeekClaudeSettings(path string, baseURL string) error {
-	data, err := readJSONObject(path)
-	if err != nil {
-		return err
-	}
-	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
-		return err
-	}
-
-	env := cleanClaudeEnv(data)
-	env["ANTHROPIC_BASE_URL"] = baseURL
-	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
-	env["ANTHROPIC_MODEL"] = deepSeekProModel
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = deepSeekProModel
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = "DeepSeek V4 Pro"
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = "DeepSeek V4 Pro routed through OmniProxy"
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = deepSeekProModel
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"] = "DeepSeek V4 Pro"
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"] = "DeepSeek V4 Pro routed through OmniProxy"
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = deepSeekFastModel
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"] = "DeepSeek V4 Flash"
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"] = "DeepSeek V4 Flash routed through OmniProxy"
-	env["CLAUDE_CODE_SUBAGENT_MODEL"] = deepSeekFastModel
-	env["CLAUDE_CODE_EFFORT_LEVEL"] = "max"
-	data["env"] = env
-	return writeJSONObject(path, data)
-}
-
-func writeKimiClaudeSettings(path string, baseURL string) error {
-	return writeClaudeSingleModelSettings(path, baseURL, claudeKimiTarget)
-}
-
-func writeZhipuClaudeSettings(path string, baseURL string) error {
-	return writeClaudeSingleModelSettings(path, baseURL, claudeZhipuTarget)
-}
-
-func writeAnyRouterClaudeSettings(path string, baseURL string) error {
-	return writeClaudeSingleModelSettings(path, baseURL, claudeAnyRouterTarget)
-}
-
-func writeZoClaudeSettings(path string, baseURL string) error {
-	data, err := readJSONObject(path)
-	if err != nil {
-		return err
-	}
-	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
-		return err
-	}
-
-	env := cleanClaudeEnv(data)
-	env["ANTHROPIC_BASE_URL"] = baseURL
-	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
-	env["ANTHROPIC_MODEL"] = claudeZoTarget.Model
-	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeZoTarget)
-	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeZoSonnetTarget)
-	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeZoSonnetTarget)
-	env["CLAUDE_CODE_SUBAGENT_MODEL"] = claudeZoSonnetTarget.Model
-	data["env"] = env
-	return writeJSONObject(path, data)
-}
-
-func writePremClaudeSettings(path string, baseURL string) error {
-	return writeClaudeSingleModelSettings(path, baseURL, claudePremTarget)
-}
-
 func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeModelTarget) error {
 	if len(targets) == 0 {
 		return &claudeModelSelectionError{message: "至少选择一个 Claude Code 模型"}
@@ -456,41 +281,6 @@ func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeMo
 	if claudeTargetsInclude(targets, deepSeekProModel) {
 		env["CLAUDE_CODE_EFFORT_LEVEL"] = "max"
 	}
-	data["env"] = env
-	return writeJSONObject(path, data)
-}
-
-func writeClaudeSingleModelSettings(path string, baseURL string, target claudeModelTarget) error {
-	data, err := readJSONObject(path)
-	if err != nil {
-		return err
-	}
-	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
-		return err
-	}
-
-	env, _ := data["env"].(map[string]any)
-	if env == nil {
-		env = map[string]any{}
-	}
-	removeClaudeRouterSettings(data, env)
-
-	env["ANTHROPIC_BASE_URL"] = baseURL
-	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
-	env["ANTHROPIC_MODEL"] = target.Model
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = target.Model
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"] = target.Name
-	env["ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"] = target.Description
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = target.Model
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL_NAME"] = target.Name
-	env["ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION"] = target.Description
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = target.Model
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME"] = target.Name
-	env["ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION"] = target.Description
-	env["CLAUDE_CODE_SUBAGENT_MODEL"] = target.Model
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION"] = target.Model
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"] = target.Name
-	env["ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"] = target.Description
 	data["env"] = env
 	return writeJSONObject(path, data)
 }

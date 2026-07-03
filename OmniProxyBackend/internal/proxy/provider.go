@@ -247,5 +247,8 @@ func ProxyConfigChanged(oldCfg config.Config, nextCfg config.Config) bool {
 	if !reflect.DeepEqual(oldCfg.OutboundProxyProviders, nextCfg.OutboundProxyProviders) {
 		return true
 	}
+	if !reflect.DeepEqual(oldCfg.GatewayRoutes, nextCfg.GatewayRoutes) {
+		return true
+	}
 	return !reflect.DeepEqual(proxyBaseURLFields(oldCfg), proxyBaseURLFields(nextCfg))
 }

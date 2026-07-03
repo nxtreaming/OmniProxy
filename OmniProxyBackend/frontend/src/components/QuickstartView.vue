@@ -11,23 +11,11 @@ const props = defineProps({
   canConfigureClaudeModels: { type: Boolean, required: true },
   isClaudeModelOptionDisabled: { type: Function, required: true },
   codexConfiguring: { type: Boolean, default: false },
-  codexSub2apiConfiguring: { type: Boolean, default: false },
-  codexNewapiConfiguring: { type: Boolean, default: false },
-  codexAnyrouterConfiguring: { type: Boolean, default: false },
-  codexZoConfiguring: { type: Boolean, default: false },
-  codexPremConfiguring: { type: Boolean, default: false },
   codexRestoring: { type: Boolean, default: false },
   claudeModelsConfiguring: { type: Boolean, default: false },
   claudeDesktopConfiguring: { type: Boolean, default: false },
   claudeDesktopRestoring: { type: Boolean, default: false },
-  deepSeekClaudeConfiguring: { type: Boolean, default: false },
-  mimoClaudeConfiguring: { type: Boolean, default: false },
-  kimiClaudeConfiguring: { type: Boolean, default: false },
-  zhipuClaudeConfiguring: { type: Boolean, default: false },
-  anyRouterClaudeConfiguring: { type: Boolean, default: false },
-  zoClaudeConfiguring: { type: Boolean, default: false },
-  premClaudeConfiguring: { type: Boolean, default: false },
-  mimoClaudeRestoring: { type: Boolean, default: false },
+  claudeCliRestoring: { type: Boolean, default: false },
   geminiConfiguring: { type: Boolean, default: false },
   geminiRestoring: { type: Boolean, default: false },
   opencodeConfiguring: { type: Boolean, default: false },
@@ -41,23 +29,11 @@ const props = defineProps({
 const emit = defineEmits([
   'update:selectedClaudeModels',
   'configure-codex',
-  'configure-codex-sub2api',
-  'configure-codex-newapi',
-  'configure-codex-anyrouter',
-  'configure-codex-zo',
-  'configure-codex-prem',
   'restore-codex',
   'configure-claude-models',
   'configure-claude-desktop-models',
   'restore-claude-desktop',
-  'configure-deepseek-claude',
-  'configure-mimo-claude',
-  'configure-kimi-claude',
-  'configure-zhipu-claude',
-  'configure-anyrouter-claude',
-  'configure-zo-claude',
-  'configure-prem-claude',
-  'restore-mimo-claude',
+  'restore-claude',
   'configure-gemini',
   'restore-gemini',
   'configure-opencode',
@@ -72,6 +48,11 @@ const selectedModels = computed({
   get: () => props.selectedClaudeModels,
   set: (value) => emit('update:selectedClaudeModels', value),
 })
+
+const codexRouteModel = computed(() => props.config.gatewayRoutes?.codex?.model || 'gpt-5.4')
+const claudeRouteModel = computed(() => props.config.gatewayRoutes?.claude?.model || 'claude-sonnet-4-5-20250929')
+const openAIRouteModel = computed(() => props.config.gatewayRoutes?.openai?.model || 'gpt-5.4')
+const geminiRouteModel = computed(() => props.config.gatewayRoutes?.gemini?.model || 'gemini-3-pro-preview')
 </script>
 
 <template>
@@ -79,37 +60,13 @@ const selectedModels = computed({
     <div class="help-grid">
       <article class="wide-help">
         <strong>Codex</strong>
-        <p>本地 Codex 会写入 <code>%USERPROFILE%\.codex\config.toml</code>。OpenAI Codex 使用 auth.json；sub2api、new-api、AnyRouter、Zo 和 Prem 使用账号池里的凭据。</p>
-        <pre class="help-code"><code>OpenAI Codex Base URL: http://127.0.0.1:{{ config.proxyPort }}/backend-api/codex
-sub2api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/sub2api
-sub2api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/sub2api/anthropic
-sub2api Gemini: http://127.0.0.1:{{ config.proxyPort }}/sub2api/gemini
-new-api OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/newapi
-new-api Anthropic: http://127.0.0.1:{{ config.proxyPort }}/newapi/anthropic
-new-api Gemini: http://127.0.0.1:{{ config.proxyPort }}/newapi/gemini
-AnyRouter OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/v1
-AnyRouter Anthropic: http://127.0.0.1:{{ config.proxyPort }}/anyrouter/anthropic
-Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo
-Prem OpenAI/Codex: http://127.0.0.1:{{ config.proxyPort }}/prem/v1
-Prem Anthropic: http://127.0.0.1:{{ config.proxyPort }}/prem/anthropic/v1</code></pre>
+        <p>本地 Codex 只写入 OmniProxy 网关地址；后端厂商、凭据和默认模型在「网关路由」页面切换。</p>
+        <pre class="help-code"><code>Base URL: http://127.0.0.1:{{ config.proxyPort }}/codex/v1
+Protocol: OpenAI Responses
+默认模型: {{ codexRouteModel }}</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="$emit('configure-codex')">
-            {{ codexConfiguring ? '配置中' : '配置 Codex OpenAI' }}
-          </el-button>
-          <el-button type="primary" plain :icon="MagicStick" :loading="codexSub2apiConfiguring" @click="$emit('configure-codex-sub2api')">
-            {{ codexSub2apiConfiguring ? '配置中' : '配置 Codex sub2api' }}
-          </el-button>
-          <el-button type="primary" plain :icon="MagicStick" :loading="codexNewapiConfiguring" @click="$emit('configure-codex-newapi')">
-            {{ codexNewapiConfiguring ? '配置中' : '配置 Codex new-api' }}
-          </el-button>
-          <el-button type="primary" plain :icon="MagicStick" :loading="codexAnyrouterConfiguring" @click="$emit('configure-codex-anyrouter')">
-            {{ codexAnyrouterConfiguring ? '配置中' : '配置 Codex AnyRouter' }}
-          </el-button>
-          <el-button type="primary" plain :icon="MagicStick" :loading="codexZoConfiguring" @click="$emit('configure-codex-zo')">
-            {{ codexZoConfiguring ? '配置中' : '配置 Codex Zo' }}
-          </el-button>
-          <el-button type="primary" plain :icon="MagicStick" :loading="codexPremConfiguring" @click="$emit('configure-codex-prem')">
-            {{ codexPremConfiguring ? '配置中' : '配置 Codex Prem' }}
+            {{ codexConfiguring ? '配置中' : '配置 Codex 网关' }}
           </el-button>
           <el-button :icon="RefreshRight" :loading="codexRestoring" @click="$emit('restore-codex')">
             {{ codexRestoring ? '恢复中' : '恢复 Codex 配置' }}
@@ -119,15 +76,9 @@ Prem Anthropic: http://127.0.0.1:{{ config.proxyPort }}/prem/anthropic/v1</code>
 
       <article class="wide-help">
         <strong>Claude Code</strong>
-        <p>每次只接入一个 Claude Code 上游，也可以按需选择最多 4 个模型写入模型槽位，并清理 OmniProxy 旧配置。</p>
+        <p>Claude Code 和 Claude Desktop 固定接入本地 Anthropic 网关；模型槽位只控制客户端发送的模型名，后端厂商在网关路由中选择。</p>
         <pre class="help-code"><code>Claude Router URL: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
-DeepSeek: deepseek-v4-pro[1m] / deepseek-v4-flash
-MiMo: MiMo-V2.5-Pro / MiMo-V2.5
-Kimi model: kimi-for-coding
-GLM model: glm-5.1
-AnyRouter model: claude-opus-4-5-20251101
-Zo models: claude-opus-4-7 / claude-sonnet-4-6
-Prem model: deepseek-v4-pro</code></pre>
+默认模型: {{ claudeRouteModel }}</code></pre>
         <div class="claude-model-config">
           <div class="claude-model-config-head">
             <span>可选模型</span>
@@ -193,31 +144,10 @@ Prem model: deepseek-v4-pro</code></pre>
             </div>
           </div>
           <div class="claude-action-row">
-            <span>快捷单模型</span>
+            <span>恢复 CLI</span>
             <div class="help-actions claude-actions">
-              <el-button type="primary" :icon="MagicStick" :loading="deepSeekClaudeConfiguring" @click="$emit('configure-deepseek-claude')">
-                {{ deepSeekClaudeConfiguring ? '配置中' : 'DeepSeek' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="mimoClaudeConfiguring" @click="$emit('configure-mimo-claude')">
-                {{ mimoClaudeConfiguring ? '配置中' : 'MiMo' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="kimiClaudeConfiguring" @click="$emit('configure-kimi-claude')">
-                {{ kimiClaudeConfiguring ? '配置中' : 'Kimi' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="zhipuClaudeConfiguring" @click="$emit('configure-zhipu-claude')">
-                {{ zhipuClaudeConfiguring ? '配置中' : 'GLM' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="anyRouterClaudeConfiguring" @click="$emit('configure-anyrouter-claude')">
-                {{ anyRouterClaudeConfiguring ? '配置中' : 'AnyRouter' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="zoClaudeConfiguring" @click="$emit('configure-zo-claude')">
-                {{ zoClaudeConfiguring ? '配置中' : 'Zo' }}
-              </el-button>
-              <el-button type="primary" plain :icon="MagicStick" :loading="premClaudeConfiguring" @click="$emit('configure-prem-claude')">
-                {{ premClaudeConfiguring ? '配置中' : 'Prem' }}
-              </el-button>
-              <el-button :icon="RefreshRight" :loading="mimoClaudeRestoring" @click="$emit('restore-mimo-claude')">
-                {{ mimoClaudeRestoring ? '恢复中' : '恢复 CLI' }}
+              <el-button :icon="RefreshRight" :loading="claudeCliRestoring" @click="$emit('restore-claude')">
+                {{ claudeCliRestoring ? '恢复中' : '恢复 CLI' }}
               </el-button>
             </div>
           </div>
@@ -226,9 +156,9 @@ Prem model: deepseek-v4-pro</code></pre>
 
       <article class="wide-help">
         <strong>Gemini CLI</strong>
-        <p>写入 <code>%USERPROFILE%\.gemini\.env</code> 和 <code>settings.json</code>，使用账号池里的 Gemini API Key。</p>
+        <p>写入 <code>%USERPROFILE%\.gemini\.env</code> 和 <code>settings.json</code>，固定连接本地 Gemini 网关。</p>
         <pre class="help-code"><code>GOOGLE_GEMINI_BASE_URL=http://127.0.0.1:{{ config.proxyPort }}/gemini
-GEMINI_MODEL=gemini-3-pro-preview</code></pre>
+GEMINI_MODEL={{ geminiRouteModel }}</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="geminiConfiguring" @click="$emit('configure-gemini')">
             {{ geminiConfiguring ? '配置中' : '配置 Gemini CLI' }}
@@ -241,13 +171,10 @@ GEMINI_MODEL=gemini-3-pro-preview</code></pre>
 
       <article class="wide-help">
         <strong>OpenCode</strong>
-        <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，添加 OmniProxy、Gemini、OpenRouter、TokenRouter、Zo Computer 和自定义网关 provider。</p>
+        <p>写入 <code>%USERPROFILE%\.config\opencode\opencode.json</code>，只添加 OmniProxy provider；后端厂商在网关路由中选择。</p>
         <pre class="help-code"><code>OpenAI-compatible Router: http://127.0.0.1:{{ config.proxyPort }}/opencode-router/v1
-Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini
-OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
-TokenRouter: http://127.0.0.1:{{ config.proxyPort }}/tokenrouter/v1
-Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo/v1
-Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
+Provider ID: omniproxy
+默认模型: {{ openAIRouteModel }}</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="opencodeConfiguring" @click="$emit('configure-opencode')">
             {{ opencodeConfiguring ? '配置中' : '配置 OpenCode' }}
@@ -260,14 +187,10 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
 
       <article class="wide-help">
         <strong>Pi Coding Agent</strong>
-        <p>写入 <code>%USERPROFILE%\.pi\agent\models.json</code>，添加 OmniProxy 和 Zo Computer provider，可通过 <code>pi --provider omniproxy --model gpt-5.4</code> 使用。</p>
+        <p>写入 <code>%USERPROFILE%\.pi\agent\models.json</code>，只添加 OmniProxy provider，可通过 <code>pi --provider omniproxy --model {{ openAIRouteModel }}</code> 使用。</p>
         <pre class="help-code"><code>Pi Router: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1
-Anthropic Router: http://127.0.0.1:{{ config.proxyPort }}/anthropic-router
-Gemini Native: http://127.0.0.1:{{ config.proxyPort }}/gemini/v1beta
-OpenRouter: http://127.0.0.1:{{ config.proxyPort }}/openrouter/v1
-TokenRouter auto: http://127.0.0.1:{{ config.proxyPort }}/pi-router/v1 + model auto:balance
-Zo Computer: http://127.0.0.1:{{ config.proxyPort }}/zo/v1
-Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
+Provider ID: omniproxy
+默认模型: {{ openAIRouteModel }}</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="piConfiguring" @click="$emit('configure-pi')">
             {{ piConfiguring ? '配置中' : '配置 Pi Coding Agent' }}
@@ -280,11 +203,11 @@ Custom Gateway: http://127.0.0.1:{{ config.proxyPort }}/custom/v1</code></pre>
 
       <article class="wide-help">
         <strong>DeepSeek-TUI</strong>
-        <p>写入 <code>%USERPROFILE%\.deepseek\config.toml</code>，使用 DeepSeek-TUI 内置 DeepSeek provider 连接 OmniProxy 的 DeepSeek 账号池。</p>
-        <pre class="help-code"><code>provider = "deepseek"
-default_text_model = "deepseek-v4-pro"
-[providers.deepseek]
-base_url = "http://127.0.0.1:{{ config.proxyPort }}/deepseek/v1"
+        <p>写入 <code>%USERPROFILE%\.deepseek\config.toml</code>，使用 OmniProxy provider 连接 OpenAI 兼容网关。</p>
+        <pre class="help-code"><code>provider = "omniproxy"
+default_text_model = "{{ openAIRouteModel }}"
+[providers.omniproxy]
+base_url = "http://127.0.0.1:{{ config.proxyPort }}/opencode-router/v1"
 api_key = "omniproxy-local"</code></pre>
         <div class="help-actions">
           <el-button type="primary" :icon="MagicStick" :loading="deepSeekTuiConfiguring" @click="$emit('configure-deepseek-tui')">

@@ -22,7 +22,7 @@ Local AI development tools keep multiplying, while accounts, Base URLs, models, 
 
 - Stop switching accounts manually; the scheduler picks accounts by status, selection scope, and in-flight usage.
 - Clients only connect to `127.0.0.1`; real upstream tokens stay local and are injected by the proxy per provider.
-- Codex, Claude Code, Claude Desktop, OpenCode, Pi Coding Agent, DeepSeek-TUI, and other tools can be configured with one click, with backups kept for restore.
+- Codex, Claude Code, Claude Desktop, OpenCode, Pi Coding Agent, DeepSeek-TUI, and other tools can write stable local gateway entrypoints with one click; backend provider, credential type, and default model are selected on the **Gateway Routing** page.
 - Request history, model tokens, failure reasons, quota reset times, API key balances, and local billing stats are visible in one place.
 
 OmniProxy is not a cloud relay service. It is built for personal local development, binds to loopback by default, and stores credentials in the local data directory.
@@ -32,6 +32,7 @@ OmniProxy is not a cloud relay service. It is built for personal local developme
 | Capability | Description |
 | --- | --- |
 | Local transparent proxy | Exposes local OpenAI, Anthropic, Codex, Pi, TokenRouter, AnyRouter, Zo Computer, Prem, and other entrypoints, then injects upstream auth automatically. |
+| Gateway routing | Provides stable Codex, Claude, OpenAI-compatible, and Gemini client entrypoints. Backend provider selection is centralized in the gateway, so switching providers no longer rewrites client config files. |
 | Multi-account scheduling | Supports queue mode, balanced priority, account selection scopes, low-quota skipping, and in-flight account avoidance. |
 | Automatic failover | Retries with another usable account when upstream returns retryable errors such as `429`, `502`, `503`, or `504`. |
 | Quota observability | Shows API balances, subscription quotas, reset times, Codex Free weekly quota, Coding Plan usage, OpenRouter balance, and API key balance totals grouped by currency. |
@@ -88,15 +89,15 @@ flowchart LR
 
 - **Gemini-style UI refresh**: The desktop console now uses a modern minimal visual system across Dashboard, Quota, Account Management, Request History, Realtime Logs, Usage Trends, Billing, One-click Setup, Global Settings, and OpenRouter Chat.
 - **Desktop interaction polish**: Dropdowns, dialogs, global snackbars, scrollbars, buttons, and cards now share one visual language. Each page keeps its own scroll position, and Realtime Logs now shows only the latest 5 minutes with internal scrolling.
+- **Gateway routing settings**: Codex, Claude Code, Claude Desktop, OpenCode, Pi, DeepSeek-TUI, and Gemini CLI now write stable local entrypoints by default. Upstream provider, credential type, and default model are selected on the **Gateway Routing** page.
 - **Zo Computer gateway**: Added a Go-native Zo Computer adapter for `/zo/v1/chat/completions`, `/zo/v1/responses`, `/zo/v1/messages`, and compatible model-list endpoints.
-- **Zo one-click setup**: Codex, Claude Code, OpenCode, and Pi Coding Agent can write Zo Computer local entrypoints, with presets for GPT-5.5, GPT-5.4, GLM 5, Gemini 3.1 Pro, MiniMax 2.7, DeepSeek V4 Pro, Claude Opus 4.7, and Claude Sonnet 4.6.
+- **AnyRouter / Prem integration**: AnyRouter, Prem, and other third-party upstreams still support fixed direct paths and can also be selected as gateway-route backends, with OmniProxy handling scheduling and auth injection.
 - **Claude Desktop and DeepSeek-TUI**: Added local write / restore support for Claude Desktop 3P Gateway Profile and DeepSeek-TUI configuration.
 - **API Key balance summaries**: Provider quota and account pages group API key balances by currency, while preserving package details such as GLM resource packages.
 - **Billing detail polish**: The billing detail sidebar now includes cost insights, model share bars, ignored-model summaries, and improved dark-mode poster previews.
 - **Codex Chat Completions compatibility**: Added `/codex/v1/chat/completions`, allowing OpenAI Chat Completions clients to use OpenAI `auth.json` accounts through automatic conversion to the Codex Responses backend.
 - **AnyRouter gateway**: Added AnyRouter account management, `/anyrouter/v1` Codex/OpenAI-compatible routing, and `/anyrouter/anthropic` Claude Code / Anthropic-compatible routing.
 - **Prem gateway**: Added Prem account management and `/prem/v1` routing through the official local `pcci-proxy`, with OmniProxy selecting and injecting API keys for multi-key scheduling.
-- **Prem Codex one-click setup**: Codex can now write the local `/prem/v1` entrypoint, while OmniProxy still handles Prem multi-key scheduling and auth injection.
 - **Codex streaming conversion**: Codex Responses SSE events are converted to `chat.completion.chunk`, and non-streaming requests are aggregated into `chat.completion` responses.
 - **Codex model and parameter adaptation**: Supports Codex CLI model aliases such as `gpt-5.4-high`, while preserving common parameters such as `max_completion_tokens`, `reasoning_effort`, tools, and function calling.
 - **Codex request body compatibility**: Decodes zstd / gzip-compressed Codex request bodies sent to local Responses entrypoints.
@@ -107,7 +108,7 @@ flowchart LR
 
 1. Download installers from [GitHub Releases](https://github.com/mibgb65-cloud/OmniProxy/releases). Beta releases may provide unsigned macOS DMGs for testing; daily use should prefer the Windows installer or a signed build.
 2. Start OmniProxy and add at least one upstream account in **Account Management**.
-3. Confirm proxy port and provider Base URLs in **Global Settings**.
+3. Confirm client backend providers and default models on **Gateway Routing**, then confirm proxy port and provider Base URLs in **Global Settings**.
 4. Start the local proxy.
 5. Point your client Base URL to `http://127.0.0.1:3000`, or use **One-click Setup** to write local client configuration.
 
@@ -138,6 +139,7 @@ Or use the repository helper script:
 | Codex backend | `http://127.0.0.1:3000/backend-api/codex` | `http://127.0.0.1:3001/backend-api/codex` |
 | Codex Chat Completions | `http://127.0.0.1:3000/codex/v1` | `http://127.0.0.1:3001/codex/v1` |
 | Claude router | `http://127.0.0.1:3000/anthropic-router` | `http://127.0.0.1:3001/anthropic-router` |
+| Gemini router | `http://127.0.0.1:3000/gemini` | `http://127.0.0.1:3001/gemini` |
 | Pi router | `http://127.0.0.1:3000/pi-router/v1` | `http://127.0.0.1:3001/pi-router/v1` |
 | TokenRouter | `http://127.0.0.1:3000/tokenrouter/v1` | `http://127.0.0.1:3001/tokenrouter/v1` |
 | AnyRouter Codex / OpenAI | `http://127.0.0.1:3000/anyrouter/v1` | `http://127.0.0.1:3001/anyrouter/v1` |
@@ -147,6 +149,8 @@ Or use the repository helper script:
 | Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
 
 Prem requires the official `pcci-proxy` to be running first. OmniProxy defaults the Prem upstream to `http://127.0.0.1:3100/v1`; change it in **Global Settings**. Prem accounts only need API keys; OmniProxy selects a usable account and injects the key into forwarded requests.
+
+Codex, Claude, OpenAI compatible, Pi router, and Gemini router are stable client-facing entrypoints. Requests received there are routed according to **Gateway Routing**, which can select OpenAI, Anthropic, Gemini, DeepSeek, MiMo, sub2api, new-api, AnyRouter, Zo, Prem, custom gateways, or other supported backends. TokenRouter, AnyRouter, Zo, Prem, and similar paths remain available as advanced fixed-backend entrypoints.
 
 Default data directories:
 
@@ -172,7 +176,7 @@ Default data directories:
 | Gemini | API Key | Gemini API routing and Gemini CLI one-click setup. |
 | OpenRouter | API Key | Model list, balance check, and desktop chat. |
 | TokenRouter | API Key | OpenAI-compatible routing; API keys usually start with `tr_`. |
-| sub2api | API Key | OpenAI / Anthropic / Gemini-compatible gateway with Codex local setup support. |
+| sub2api | API Key | OpenAI / Anthropic / Gemini-compatible gateway, usable as a gateway-route backend or a fixed backend entrypoint. |
 | new-api | API Key | OpenAI / Anthropic / Gemini-compatible gateway; defaults to `http://127.0.0.1:3000` and refreshes key quota via `/api/usage/token/`. |
 | AnyRouter | API Key | Codex/OpenAI and Claude Code/Anthropic-compatible gateway; defaults to `https://anyrouter.top`. |
 | Zo Computer | Access Token | OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, model lists, and client model presets. |
@@ -183,13 +187,13 @@ Default data directories:
 
 | Client | Supported Setup |
 | --- | --- |
-| Codex | Writes the local Codex backend proxy address, or switches to sub2api / new-api / AnyRouter / Zo Computer / Prem local entrypoints, with backup restore support. |
-| Claude Code | Writes the Anthropic router and selected DeepSeek / MiMo / Kimi / GLM / Zo Computer model slots. |
-| Claude Desktop | Writes a 3P Gateway Profile and reuses selected Claude model slots; restart Claude Desktop after configuration. |
-| Gemini CLI | Writes Gemini local proxy configuration. |
-| OpenCode | Writes local provider configuration for Gemini, OpenRouter, TokenRouter, Zo Computer, and custom gateway providers. |
-| Pi Coding Agent | Writes OmniProxy and Zo Computer providers, routing by model through `/pi-router/v1` or `/zo/v1`. |
-| DeepSeek-TUI | Writes DeepSeek-TUI configuration so its built-in DeepSeek provider connects to OmniProxy's DeepSeek account pool. |
+| Codex | Writes the stable `/codex/v1` gateway entrypoint; backend provider, credential, and default model are selected in gateway routing, with backup restore support. |
+| Claude Code | Writes the stable Anthropic router and up to 4 selected model slots; backend provider is selected in gateway routing. |
+| Claude Desktop | Writes a 3P Gateway Profile and reuses selected Claude model slots; backend provider is selected in gateway routing. Restart Claude Desktop after configuration. |
+| Gemini CLI | Writes the stable Gemini router; backend provider and default model are selected in gateway routing. |
+| OpenCode | Writes only the `omniproxy` provider and `/opencode-router/v1`; backend provider is selected in gateway routing. |
+| Pi Coding Agent | Writes only the `omniproxy` provider and `/pi-router/v1`; backend provider is selected in gateway routing. |
+| DeepSeek-TUI | Writes the `omniproxy` provider and `/opencode-router/v1` instead of binding to DeepSeek's built-in provider. |
 
 ## Control API
 
@@ -206,7 +210,7 @@ Common endpoints:
 | Config | `GET /api/config`, `PUT /api/config`, `GET /api/data-directory`, `PUT /api/data-directory` |
 | History | `GET /api/logs`, `GET /api/history`, `POST /api/history/clear` |
 | Billing | `GET /api/billing/usage`, `GET /api/billing/dates`, `POST /api/billing/clear` |
-| Client setup | `POST /api/codex/configure`, `POST /api/codex/sub2api/configure`, `POST /api/codex/newapi/configure`, `POST /api/codex/anyrouter/configure`, `POST /api/codex/zo/configure`, `POST /api/codex/prem/configure`, `POST /api/claude/models/configure`, `POST /api/claude/desktop/models/configure`, `POST /api/zo/claude/configure`, `POST /api/deepseek-tui/configure`, `POST /api/opencode/configure`, `POST /api/pi/configure` |
+| Client setup | `POST /api/codex/configure`, `POST /api/codex/restore`, `POST /api/claude/models/configure`, `POST /api/claude/restore`, `POST /api/claude/desktop/models/configure`, `POST /api/claude/desktop/restore`, `POST /api/deepseek-tui/configure`, `POST /api/deepseek-tui/restore`, `POST /api/gemini/configure`, `POST /api/gemini/restore`, `POST /api/opencode/configure`, `POST /api/opencode/restore`, `POST /api/pi/configure`, `POST /api/pi/restore` |
 | Updates | `POST /api/update/check`, `POST /api/update/download`, `GET /api/update/download/status`, `POST /api/update/install` |
 
 `/selected` adds or removes an account from its provider's scheduling selection set. When a provider has no selected accounts, the scheduler rotates all usable accounts for that provider; once selected accounts exist, rotation is limited to the selected set.

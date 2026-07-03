@@ -50,10 +50,6 @@ export function Config() {
   return window['go']['main']['DesktopApp']['Config']();
 }
 
-export function ConfigureAnyRouterClaude() {
-  return window['go']['main']['DesktopApp']['ConfigureAnyRouterClaude']();
-}
-
 export function ConfigureClaudeDesktopModels(arg1) {
   return window['go']['main']['DesktopApp']['ConfigureClaudeDesktopModels'](arg1);
 }
@@ -66,30 +62,6 @@ export function ConfigureCodex() {
   return window['go']['main']['DesktopApp']['ConfigureCodex']();
 }
 
-export function ConfigureCodexAnyRouter() {
-  return window['go']['main']['DesktopApp']['ConfigureCodexAnyRouter']();
-}
-
-export function ConfigureCodexNewAPI() {
-  return window['go']['main']['DesktopApp']['ConfigureCodexNewAPI']();
-}
-
-export function ConfigureCodexPrem() {
-  return window['go']['main']['DesktopApp']['ConfigureCodexPrem']();
-}
-
-export function ConfigureCodexSub2API() {
-  return window['go']['main']['DesktopApp']['ConfigureCodexSub2API']();
-}
-
-export function ConfigureCodexZo() {
-  return window['go']['main']['DesktopApp']['ConfigureCodexZo']();
-}
-
-export function ConfigureDeepSeekClaude() {
-  return window['go']['main']['DesktopApp']['ConfigureDeepSeekClaude']();
-}
-
 export function ConfigureDeepSeekTUI() {
   return window['go']['main']['DesktopApp']['ConfigureDeepSeekTUI']();
 }
@@ -98,32 +70,12 @@ export function ConfigureGemini() {
   return window['go']['main']['DesktopApp']['ConfigureGemini']();
 }
 
-export function ConfigureKimiClaude() {
-  return window['go']['main']['DesktopApp']['ConfigureKimiClaude']();
-}
-
-export function ConfigureMimoClaude() {
-  return window['go']['main']['DesktopApp']['ConfigureMimoClaude']();
-}
-
 export function ConfigureOpenCode() {
   return window['go']['main']['DesktopApp']['ConfigureOpenCode']();
 }
 
 export function ConfigurePi() {
   return window['go']['main']['DesktopApp']['ConfigurePi']();
-}
-
-export function ConfigurePremClaude() {
-  return window['go']['main']['DesktopApp']['ConfigurePremClaude']();
-}
-
-export function ConfigureZhipuClaude() {
-  return window['go']['main']['DesktopApp']['ConfigureZhipuClaude']();
-}
-
-export function ConfigureZoClaude() {
-  return window['go']['main']['DesktopApp']['ConfigureZoClaude']();
 }
 
 export function ControlAPI() {
@@ -194,16 +146,16 @@ export function RequestHistorySummary(arg1, arg2) {
   return window['go']['main']['DesktopApp']['RequestHistorySummary'](arg1, arg2);
 }
 
+export function RestoreClaude() {
+  return window['go']['main']['DesktopApp']['RestoreClaude']();
+}
+
 export function RestoreClaudeDesktop() {
   return window['go']['main']['DesktopApp']['RestoreClaudeDesktop']();
 }
 
 export function RestoreCodex() {
   return window['go']['main']['DesktopApp']['RestoreCodex']();
-}
-
-export function RestoreDeepSeekClaude() {
-  return window['go']['main']['DesktopApp']['RestoreDeepSeekClaude']();
 }
 
 export function RestoreDeepSeekTUI() {
@@ -214,24 +166,12 @@ export function RestoreGemini() {
   return window['go']['main']['DesktopApp']['RestoreGemini']();
 }
 
-export function RestoreKimiClaude() {
-  return window['go']['main']['DesktopApp']['RestoreKimiClaude']();
-}
-
-export function RestoreMimoClaude() {
-  return window['go']['main']['DesktopApp']['RestoreMimoClaude']();
-}
-
 export function RestoreOpenCode() {
   return window['go']['main']['DesktopApp']['RestoreOpenCode']();
 }
 
 export function RestorePi() {
   return window['go']['main']['DesktopApp']['RestorePi']();
-}
-
-export function RestoreZhipuClaude() {
-  return window['go']['main']['DesktopApp']['RestoreZhipuClaude']();
 }
 
 export function SaveConfig(arg1) {

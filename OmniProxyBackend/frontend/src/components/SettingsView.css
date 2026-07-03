@@ -70,6 +70,7 @@
 .settings-panel .settings-maintenance-section,
 .settings-panel .settings-service-section,
 .settings-panel .settings-scheduling-section,
+.settings-panel .settings-gateway-section,
 .settings-panel .settings-task-automation-section,
 .settings-panel .settings-outbound-section,
 .settings-panel .settings-url-section {
@@ -641,6 +642,7 @@
   .settings-panel .settings-service-section,
   .settings-panel .settings-outbound-section,
   .settings-panel .settings-scheduling-section,
+  .settings-panel .settings-gateway-section,
   .settings-panel .settings-task-automation-section,
   .settings-panel .settings-url-section {
     grid-column: 1 / -1;

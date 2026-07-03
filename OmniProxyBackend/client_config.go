@@ -13,7 +13,7 @@ import (
 
 const (
 	geminiDefaultModel            = "gemini-3-pro-preview"
-	deepSeekTUIDefaultModel       = "deepseek-v4-pro"
+	openAICompatibleDefaultModel  = "gpt-5.4"
 	deepSeekTUIClientHeader       = "DeepSeek-TUI"
 	opencodeOmniProviderID        = "omniproxy"
 	opencodeGeminiProviderID      = "omniproxy-gemini"
@@ -47,8 +47,13 @@ func (a *appServer) configureDeepSeekTUI() (clientConfigureResult, error) {
 	}
 
 	a.mu.Lock()
-	port := a.cfg.ProxyPort
+	cfg := a.cfg
 	a.mu.Unlock()
+	port := cfg.ProxyPort
+	model := strings.TrimSpace(cfg.GatewayRoutes.OpenAI.Model)
+	if model == "" {
+		model = openAICompatibleDefaultModel
+	}
 
 	deepSeekDir := filepath.Join(home, ".deepseek")
 	if err := os.MkdirAll(deepSeekDir, 0o755); err != nil {
@@ -56,8 +61,8 @@ func (a *appServer) configureDeepSeekTUI() (clientConfigureResult, error) {
 	}
 
 	configPath := filepath.Join(deepSeekDir, "config.toml")
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/deepseek/v1", port)
-	if err := writeDeepSeekTUIConfig(configPath, baseURL, localClientAPIKey, deepSeekTUIDefaultModel); err != nil {
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/opencode-router/v1", port)
+	if err := writeDeepSeekTUIConfig(configPath, baseURL, localClientAPIKey, model); err != nil {
 		return clientConfigureResult{}, err
 	}
 
@@ -66,9 +71,9 @@ func (a *appServer) configureDeepSeekTUI() (clientConfigureResult, error) {
 		ConfigPath: configPath,
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    baseURL,
-		Model:      deepSeekTUIDefaultModel,
-		ProviderID: "deepseek",
-		Message:    "DeepSeek-TUI 已配置为通过 OmniProxy 使用 DeepSeek 账号池",
+		Model:      model,
+		ProviderID: "omniproxy",
+		Message:    "DeepSeek-TUI 已配置为通过 OmniProxy OpenAI 兼容网关，后端平台请在网关路由中选择",
 	}, nil
 }
 
@@ -98,8 +103,13 @@ func (a *appServer) configureGemini() (clientConfigureResult, error) {
 	}
 
 	a.mu.Lock()
-	port := a.cfg.ProxyPort
+	cfg := a.cfg
 	a.mu.Unlock()
+	port := cfg.ProxyPort
+	model := strings.TrimSpace(cfg.GatewayRoutes.Gemini.Model)
+	if model == "" {
+		model = geminiDefaultModel
+	}
 
 	geminiDir := filepath.Join(home, ".gemini")
 	if err := os.MkdirAll(geminiDir, 0o755); err != nil {
@@ -110,7 +120,7 @@ func (a *appServer) configureGemini() (clientConfigureResult, error) {
 	envPath := filepath.Join(geminiDir, ".env")
 	settingsPath := filepath.Join(geminiDir, "settings.json")
 
-	if err := writeGeminiEnv(envPath, baseURL, localClientAPIKey, geminiDefaultModel); err != nil {
+	if err := writeGeminiEnv(envPath, baseURL, localClientAPIKey, model); err != nil {
 		return clientConfigureResult{}, err
 	}
 	if err := writeGeminiSettings(settingsPath, "gemini-api-key"); err != nil {
@@ -123,7 +133,7 @@ func (a *appServer) configureGemini() (clientConfigureResult, error) {
 		SettingsPath: settingsPath,
 		BackupPath:   envPath + ".omniproxy.bak",
 		BaseURL:      baseURL,
-		Model:        geminiDefaultModel,
+		Model:        model,
 		Message:      "Gemini CLI 已配置为通过 OmniProxy 使用 Gemini 账号池",
 	}, nil
 }
@@ -242,12 +252,12 @@ func writeDeepSeekTUIConfig(path string, baseURL string, apiKey string, model st
 		return err
 	}
 	lines := splitTextLines(strings.TrimPrefix(string(raw), "\ufeff"))
-	lines = setTOMLStringValue(lines, "", "provider", "deepseek")
+	lines = setTOMLStringValue(lines, "", "provider", "omniproxy")
 	lines = setTOMLStringValue(lines, "", "default_text_model", model)
-	lines = setTOMLStringValue(lines, "providers.deepseek", "api_key", apiKey)
-	lines = setTOMLStringValue(lines, "providers.deepseek", "base_url", baseURL)
-	lines = setTOMLStringValue(lines, "providers.deepseek", "model", model)
-	lines = setTOMLRawValueIfMissing(lines, "providers.deepseek", "http_headers", fmt.Sprintf(`{ "X-OmniProxy-Client" = %s }`, tomlString(deepSeekTUIClientHeader)))
+	lines = setTOMLStringValue(lines, "providers.omniproxy", "api_key", apiKey)
+	lines = setTOMLStringValue(lines, "providers.omniproxy", "base_url", baseURL)
+	lines = setTOMLStringValue(lines, "providers.omniproxy", "model", model)
+	lines = setTOMLRawValueIfMissing(lines, "providers.omniproxy", "http_headers", fmt.Sprintf(`{ "X-OmniProxy-Client" = %s }`, tomlString(deepSeekTUIClientHeader)))
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -421,7 +431,7 @@ func (a *appServer) configureOpenCode() (clientConfigureResult, error) {
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    routerBaseURL,
 		ProviderID: opencodeOmniProviderID,
-		Message:    "OpenCode 已添加 OmniProxy、OmniProxy Gemini、OmniProxy OpenRouter、OmniProxy TokenRouter、OmniProxy Zo Computer 和 OmniProxy 自定义网关 provider",
+		Message:    "OpenCode 已添加 OmniProxy 网关 provider，后端平台请在网关路由中选择",
 	}, nil
 }
 
@@ -473,7 +483,7 @@ func (a *appServer) configurePi() (clientConfigureResult, error) {
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    routerBaseURL,
 		ProviderID: piOmniProviderID,
-		Message:    "Pi Coding Agent 已添加 OmniProxy 和 OmniProxy Zo Computer provider",
+		Message:    "Pi Coding Agent 已添加 OmniProxy 网关 provider，后端平台请在网关路由中选择",
 	}, nil
 }
 
@@ -512,12 +522,10 @@ func writeOpenCodeConfig(path string, routerBaseURL string, geminiBaseURL string
 	if providers == nil {
 		providers = map[string]any{}
 	}
-	providers[opencodeOmniProviderID] = openCodeRouterProvider(routerBaseURL)
-	providers[opencodeGeminiProviderID] = openCodeGeminiProvider(geminiBaseURL)
-	providers[opencodeOpenRouterProviderID] = openCodeOpenRouterProvider(openRouterBaseURL, openRouterModels)
-	providers[opencodeTokenRouterProviderID] = openCodeTokenRouterProvider(tokenRouterBaseURL)
-	providers[opencodeZoProviderID] = openCodeZoProvider(zoBaseURL)
-	providers[opencodeCustomProviderID] = openCodeCustomProvider(customBaseURL)
+	for _, id := range []string{opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeTokenRouterProviderID, opencodeZoProviderID, opencodeCustomProviderID} {
+		delete(providers, id)
+	}
+	providers[opencodeOmniProviderID] = openCodeRouterProvider(routerBaseURL, openRouterModels)
 	data["provider"] = providers
 
 	return writeJSONObject(path, data)
@@ -540,7 +548,6 @@ func writePiModelsConfig(path string, routerBaseURL string, zoBaseURL string, op
 		delete(providers, id)
 	}
 	providers[piOmniProviderID] = piOpenAIProvider("OmniProxy", routerBaseURL, piRouterModels(openRouterModels), true)
-	providers[piZoProviderID] = piOpenAIProvider("OmniProxy Zo Computer", zoBaseURL, piZoModels(), false)
 	data["providers"] = providers
 
 	return writeJSONObject(path, data)
@@ -685,7 +692,25 @@ func defaultPiOpenRouterModels() []map[string]any {
 	}
 }
 
-func openCodeRouterProvider(baseURL string) map[string]any {
+func openCodeRouterProvider(baseURL string, extraModels map[string]any) map[string]any {
+	models := map[string]any{
+		"gpt-5.4":         map[string]any{"name": "GPT-5.4"},
+		"deepseek-v4-pro": map[string]any{"name": "DeepSeek V4 Pro"},
+		"glm-5.1":         map[string]any{"name": "GLM-5.1"},
+		"MiniMax-M2.7":    map[string]any{"name": "MiniMax M2.7"},
+		"mimo-v2.5-pro":   map[string]any{"name": "MiMo V2.5 Pro"},
+		"auto:balance":    map[string]any{"name": "TokenRouter Auto Balance"},
+		"custom-model":    map[string]any{"name": "Custom Gateway Model"},
+	}
+	for id, model := range extraModels {
+		if strings.TrimSpace(id) == "" {
+			continue
+		}
+		if _, exists := models[id]; exists {
+			continue
+		}
+		models[id] = model
+	}
 	return map[string]any{
 		"npm":  "@ai-sdk/openai-compatible",
 		"name": "OmniProxy",
@@ -694,13 +719,7 @@ func openCodeRouterProvider(baseURL string) map[string]any {
 			"apiKey":      localClientAPIKey,
 			"setCacheKey": true,
 		},
-		"models": map[string]any{
-			"gpt-5.4":         map[string]any{"name": "GPT-5.4"},
-			"deepseek-v4-pro": map[string]any{"name": "DeepSeek V4 Pro"},
-			"glm-5.1":         map[string]any{"name": "GLM-5.1"},
-			"MiniMax-M2.7":    map[string]any{"name": "MiniMax M2.7"},
-			"mimo-v2.5-pro":   map[string]any{"name": "MiMo V2.5 Pro"},
-		},
+		"models": models,
 	}
 }
 

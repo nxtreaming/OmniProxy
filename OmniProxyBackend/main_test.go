@@ -1444,246 +1444,6 @@ func TestWriteCodexOmniProxyConfig(t *testing.T) {
 	}
 }
 
-func TestWriteCodexSub2APIConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	initial := strings.Join([]string{
-		`model = "old-model"`,
-		`model_provider = "openai"`,
-		`openai_base_url = "http://old.example/v1"`,
-		`chatgpt_base_url = "http://127.0.0.1:3000/backend-api/"`,
-		`disable_response_storage = true`,
-		``,
-		`[projects.'E:\go\OmniProxy']`,
-		`trust_level = "trusted"`,
-		``,
-		`[model_providers.OpenAI]`,
-		`base_url = "http://old.example/v1"`,
-	}, "\n")
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writeCodexSub2APIConfig(path, "http://127.0.0.1:3000/sub2api"); err != nil {
-		t.Fatal(err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(content)
-	for _, expected := range []string{
-		`model_provider = "OpenAI"`,
-		`model = "gpt-5.4"`,
-		`review_model = "gpt-5.4"`,
-		`model_reasoning_effort = "xhigh"`,
-		`network_access = "enabled"`,
-		`windows_wsl_setup_acknowledged = true`,
-		`model_context_window = 1000000`,
-		`model_auto_compact_token_limit = 900000`,
-		`[model_providers.OpenAI]`,
-		`name = "OpenAI"`,
-		`base_url = "http://127.0.0.1:3000/sub2api"`,
-		`wire_api = "responses"`,
-		`requires_openai_auth = true`,
-		`[projects.'E:\go\OmniProxy']`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
-		}
-	}
-	for _, unexpected := range []string{"old.example", "openai_base_url", "chatgpt_base_url", "disable_response_storage"} {
-		if strings.Contains(text, unexpected) {
-			t.Fatalf("config still contains %q:\n%s", unexpected, text)
-		}
-	}
-}
-
-func TestWriteCodexNewAPIConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	initial := strings.Join([]string{
-		`model = "old-model"`,
-		`model_provider = "openai"`,
-		`openai_base_url = "http://old.example/v1"`,
-		`disable_response_storage = true`,
-		`[model_providers.OpenAI]`,
-		`base_url = "http://old.example/v1"`,
-	}, "\n")
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writeCodexNewAPIConfig(path, "http://127.0.0.1:3000/newapi"); err != nil {
-		t.Fatal(err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(content)
-	for _, expected := range []string{
-		`model_provider = "OpenAI"`,
-		`model = "gpt-5.5"`,
-		`review_model = "gpt-5.5"`,
-		`base_url = "http://127.0.0.1:3000/newapi"`,
-		`wire_api = "responses"`,
-		`requires_openai_auth = true`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
-		}
-	}
-	if strings.Contains(text, "old.example") {
-		t.Fatalf("config still contains old base url:\n%s", text)
-	}
-	if strings.Contains(text, "disable_response_storage") {
-		t.Fatalf("config still disables Codex history:\n%s", text)
-	}
-}
-
-func TestWriteCodexZoConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	initial := strings.Join([]string{
-		`model = "old-model"`,
-		`model_provider = "openai"`,
-		`openai_base_url = "http://old.example/v1"`,
-		`[model_providers.OpenAI]`,
-		`base_url = "http://old.example/v1"`,
-	}, "\n")
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writeCodexZoConfig(path, "http://127.0.0.1:3000/zo"); err != nil {
-		t.Fatal(err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(content)
-	for _, expected := range []string{
-		`model_provider = "OpenAI"`,
-		`model = "gpt-5.5"`,
-		`review_model = "gpt-5.5"`,
-		`base_url = "http://127.0.0.1:3000/zo"`,
-		`wire_api = "responses"`,
-		`requires_openai_auth = true`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
-		}
-	}
-	if strings.Contains(text, "old.example") {
-		t.Fatalf("config still contains old base url:\n%s", text)
-	}
-}
-
-func TestWriteCodexAnyRouterConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	initial := strings.Join([]string{
-		`model = "old-model"`,
-		`model_provider = "OpenAI"`,
-		`openai_base_url = "http://old.example/v1"`,
-		`disable_response_storage = true`,
-		`preferred_auth_method = "oauth"`,
-		``,
-		`[projects.'E:\go\OmniProxy']`,
-		`trust_level = "trusted"`,
-		``,
-		`[model_providers.OpenAI]`,
-		`base_url = "http://old.example/v1"`,
-	}, "\n")
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writeCodexAnyRouterConfig(path, "http://127.0.0.1:3000/anyrouter/v1"); err != nil {
-		t.Fatal(err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(content)
-	for _, expected := range []string{
-		`model_provider = "anyrouter"`,
-		`model = "gpt-5-codex"`,
-		`review_model = "gpt-5-codex"`,
-		`preferred_auth_method = "apikey"`,
-		`[model_providers.anyrouter]`,
-		`name = "Any Router"`,
-		`base_url = "http://127.0.0.1:3000/anyrouter/v1"`,
-		`wire_api = "responses"`,
-		`[projects.'E:\go\OmniProxy']`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
-		}
-	}
-	if strings.Contains(text, "old.example") || strings.Contains(text, "[model_providers.OpenAI]") {
-		t.Fatalf("old provider config was not removed:\n%s", text)
-	}
-	if strings.Contains(text, "openai_base_url") || strings.Contains(text, "disable_response_storage") {
-		t.Fatalf("legacy Codex keys should not be kept:\n%s", text)
-	}
-}
-
-func TestWriteCodexPremConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	initial := strings.Join([]string{
-		`model = "old-model"`,
-		`model_provider = "OpenAI"`,
-		`openai_base_url = "http://old.example/v1"`,
-		`disable_response_storage = true`,
-		`preferred_auth_method = "oauth"`,
-		`model_context_window = 1000000`,
-		`model_auto_compact_token_limit = 900000`,
-		`[model_providers.OpenAI]`,
-		`base_url = "http://old.example/v1"`,
-		`[model_providers.anyrouter]`,
-		`base_url = "http://old-anyrouter.example/v1"`,
-		`[model_providers.prem]`,
-		`base_url = "http://old-prem.example/v1"`,
-	}, "\n")
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writeCodexPremConfig(path, "http://127.0.0.1:3000/prem/v1"); err != nil {
-		t.Fatal(err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(content)
-	for _, expected := range []string{
-		`model_provider = "prem"`,
-		`model = "deepseek-v4-pro"`,
-		`review_model = "deepseek-v4-pro"`,
-		`preferred_auth_method = "apikey"`,
-		`[model_providers.prem]`,
-		`name = "Prem"`,
-		`base_url = "http://127.0.0.1:3000/prem/v1"`,
-		`wire_api = "responses"`,
-		`requires_openai_auth = true`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)
-		}
-	}
-	for _, unexpected := range []string{"old.example", "old-anyrouter.example", "old-prem.example", "openai_base_url", "disable_response_storage", "model_context_window", "model_auto_compact_token_limit", "[model_providers.OpenAI]", "[model_providers.anyrouter]"} {
-		if strings.Contains(text, unexpected) {
-			t.Fatalf("config still contains %q:\n%s", unexpected, text)
-		}
-	}
-}
-
 func TestEnsureCodexOpenAIAPIKeyPreservesExistingAuth(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "auth.json")
 	initial := `{"tokens":{"access_token":"keep-token"}}`
@@ -1737,185 +1497,6 @@ func TestWriteCodexOmniProxyConfigKeepsOriginalBackup(t *testing.T) {
 	}
 }
 
-func TestWriteClaudeRouterSettingsUsesSingleModelOption(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "settings.json")
-	initial := `{"env":{"ANTHROPIC_BASE_URL":"https://api.anthropic.com","ANTHROPIC_MODEL":"deepseek-v4-pro[1m]","ANTHROPIC_DEFAULT_OPUS_MODEL":"deepseek-v4-pro[1m]","ANTHROPIC_DEFAULT_OPUS_MODEL_NAME":"Old DeepSeek","CLAUDE_CODE_EFFORT_LEVEL":"max","OTHER":"keep"},"availableModels":["custom-existing-model","claude-opus-4-7","kimi-for-coding"],"modelOverrides":{"claude-sonnet-4-0":"custom-existing","claude-opus-4-7":"mimo-v2.5-pro"}}` + "\n"
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writeMimoClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router"); err != nil {
-		t.Fatal(err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(content)
-	for _, expected := range []string{
-		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/anthropic-router"`,
-		`"ANTHROPIC_AUTH_TOKEN": "omniproxy"`,
-		`"ANTHROPIC_MODEL": "mimo-v2.5-pro[1m]"`,
-		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "mimo-v2.5-pro[1m]"`,
-		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "MiMo-V2.5-Pro [1m]"`,
-		`"ANTHROPIC_DEFAULT_SONNET_MODEL": "mimo-v2.5"`,
-		`"ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "MiMo-V2.5"`,
-		`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "mimo-v2.5"`,
-		`"ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "MiMo-V2.5"`,
-		`"CLAUDE_CODE_SUBAGENT_MODEL": "mimo-v2.5"`,
-		`"ANTHROPIC_CUSTOM_MODEL_OPTION": "mimo-v2.5-pro"`,
-		`"ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "MiMo-V2.5-Pro"`,
-		`"OTHER": "keep"`,
-		`"availableModels": [`,
-		`"custom-existing-model"`,
-		`"claude-sonnet-4-0": "custom-existing"`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
-		}
-	}
-	for _, unwanted := range []string{
-		`"Old DeepSeek"`,
-		`"CLAUDE_CODE_EFFORT_LEVEL"`,
-		`"claude-opus-4-7"`,
-		`"kimi-for-coding"`,
-		`"deepseek-v4-flash"`,
-	} {
-		if strings.Contains(text, unwanted) {
-			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
-		}
-	}
-	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
-		t.Fatalf("expected backup file: %v", err)
-	}
-}
-
-func TestWriteClaudeRouterSettingsCanSelectEachProvider(t *testing.T) {
-	cases := []struct {
-		name             string
-		write            func(string, string) error
-		defaultModel     string
-		opusModel        string
-		sonnetModel      string
-		haikuModel       string
-		subagentModel    string
-		label            string
-		unwanted         string
-		expectEffortMax  bool
-		expectCustomName bool
-	}{
-		{
-			name:             "mimo",
-			write:            writeMimoClaudeSettings,
-			defaultModel:     "mimo-v2.5-pro[1m]",
-			opusModel:        "mimo-v2.5-pro[1m]",
-			sonnetModel:      "mimo-v2.5",
-			haikuModel:       "mimo-v2.5",
-			subagentModel:    "mimo-v2.5",
-			label:            "MiMo-V2.5-Pro",
-			unwanted:         "deepseek-v4-pro[1m]",
-			expectCustomName: true,
-		},
-		{
-			name:            "deepseek",
-			write:           writeDeepSeekClaudeSettings,
-			defaultModel:    "deepseek-v4-pro[1m]",
-			opusModel:       "deepseek-v4-pro[1m]",
-			sonnetModel:     "deepseek-v4-pro[1m]",
-			haikuModel:      "deepseek-v4-flash",
-			subagentModel:   "deepseek-v4-flash",
-			label:           "DeepSeek V4 Flash",
-			unwanted:        "mimo-v2.5-pro",
-			expectEffortMax: true,
-		},
-		{
-			name:             "kimi",
-			write:            writeKimiClaudeSettings,
-			defaultModel:     "kimi-for-coding",
-			opusModel:        "kimi-for-coding",
-			sonnetModel:      "kimi-for-coding",
-			haikuModel:       "kimi-for-coding",
-			subagentModel:    "kimi-for-coding",
-			label:            "Kimi for Coding",
-			unwanted:         "mimo-v2.5-pro",
-			expectCustomName: true,
-		},
-		{
-			name:             "zhipu",
-			write:            writeZhipuClaudeSettings,
-			defaultModel:     "glm-5.1",
-			opusModel:        "glm-5.1",
-			sonnetModel:      "glm-5.1",
-			haikuModel:       "glm-5.1",
-			subagentModel:    "glm-5.1",
-			label:            "GLM-5.1",
-			unwanted:         "mimo-v2.5-pro",
-			expectCustomName: true,
-		},
-		{
-			name:          "zo",
-			write:         writeZoClaudeSettings,
-			defaultModel:  "claude-opus-4-7",
-			opusModel:     "claude-opus-4-7",
-			sonnetModel:   "claude-sonnet-4-6",
-			haikuModel:    "claude-sonnet-4-6",
-			subagentModel: "claude-sonnet-4-6",
-			label:         "Zo Claude Sonnet 4.6",
-			unwanted:      "mimo-v2.5-pro",
-		},
-		{
-			name:             "prem",
-			write:            writePremClaudeSettings,
-			defaultModel:     "deepseek-v4-pro",
-			opusModel:        "deepseek-v4-pro",
-			sonnetModel:      "deepseek-v4-pro",
-			haikuModel:       "deepseek-v4-pro",
-			subagentModel:    "deepseek-v4-pro",
-			label:            "Prem DeepSeek V4 Pro",
-			unwanted:         "mimo-v2.5-pro",
-			expectCustomName: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "settings.json")
-			if err := os.WriteFile(path, []byte(`{"env":{"OTHER":"keep"}}`+"\n"), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			if err := tc.write(path, "http://127.0.0.1:3000/anthropic-router"); err != nil {
-				t.Fatal(err)
-			}
-			content, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			text := string(content)
-			for _, expected := range []string{
-				`"ANTHROPIC_MODEL": "` + tc.defaultModel + `"`,
-				`"ANTHROPIC_DEFAULT_OPUS_MODEL": "` + tc.opusModel + `"`,
-				`"ANTHROPIC_DEFAULT_SONNET_MODEL": "` + tc.sonnetModel + `"`,
-				`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "` + tc.haikuModel + `"`,
-				`"CLAUDE_CODE_SUBAGENT_MODEL": "` + tc.subagentModel + `"`,
-			} {
-				if !strings.Contains(text, expected) {
-					t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
-				}
-			}
-			if tc.expectCustomName && !strings.Contains(text, `"ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "`+tc.label+`"`) {
-				t.Fatalf("expected settings to contain custom label %q, got:\n%s", tc.label, text)
-			}
-			if tc.expectEffortMax && !strings.Contains(text, `"CLAUDE_CODE_EFFORT_LEVEL": "max"`) {
-				t.Fatalf("expected deepseek settings to set max effort, got:\n%s", text)
-			}
-			if strings.Contains(text, tc.unwanted) {
-				t.Fatalf("expected settings not to contain %q, got:\n%s", tc.unwanted, text)
-			}
-		})
-	}
-}
-
 func TestWriteSelectedClaudeSettingsUsesSelectedModels(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	initial := `{"env":{"ANTHROPIC_MODEL":"mimo-v2.5-pro[1m]","ANTHROPIC_DEFAULT_HAIKU_MODEL":"mimo-v2.5","ANTHROPIC_CUSTOM_MODEL_OPTION":"mimo-v2.5-pro","OTHER":"keep"},"availableModels":["custom-existing-model","mimo-v2.5-pro[1m]"],"modelOverrides":{"claude-opus-4-7":"mimo-v2.5-pro"}}` + "\n"
@@ -1962,81 +1543,6 @@ func TestWriteSelectedClaudeSettingsUsesSelectedModels(t *testing.T) {
 	} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
-		}
-	}
-}
-
-func TestWriteZoClaudeSettingsUsesOpusAndSonnet(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "settings.json")
-	initial := `{"env":{"ANTHROPIC_MODEL":"claude-sonnet-4-6","ANTHROPIC_DEFAULT_OPUS_MODEL":"claude-sonnet-4-6","ANTHROPIC_DEFAULT_OPUS_MODEL_NAME":"Old Zo","OTHER":"keep"},"availableModels":["custom-existing-model","claude-opus-4-7"],"modelOverrides":{"claude-opus-4-7":"mimo-v2.5-pro"}}` + "\n"
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := writeZoClaudeSettings(path, "http://127.0.0.1:3000/zo"); err != nil {
-		t.Fatal(err)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(content)
-	for _, expected := range []string{
-		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/zo"`,
-		`"ANTHROPIC_MODEL": "claude-opus-4-7"`,
-		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-7"`,
-		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Zo Claude Opus 4.7"`,
-		`"ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6"`,
-		`"ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Zo Claude Sonnet 4.6"`,
-		`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-sonnet-4-6"`,
-		`"CLAUDE_CODE_SUBAGENT_MODEL": "claude-sonnet-4-6"`,
-		`"OTHER": "keep"`,
-		`"custom-existing-model"`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
-		}
-	}
-	for _, unwanted := range []string{
-		`"Old Zo"`,
-		`"claude-opus-4-7": "mimo-v2.5-pro"`,
-	} {
-		if strings.Contains(text, unwanted) {
-			t.Fatalf("expected settings not to contain %q, got:\n%s", unwanted, text)
-		}
-	}
-}
-
-func TestConfigurePremClaudeUsesPremAnthropicBaseURL(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-
-	server := &appServer{
-		cfg:  config.Config{ProxyPort: 3000},
-		logs: logs.NewRecorder(10),
-	}
-	result, err := server.configurePremClaude()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.BaseURL != "http://127.0.0.1:3000/prem/anthropic" || result.Model != premClaudeModel {
-		t.Fatalf("unexpected Prem Claude result: %#v", result)
-	}
-
-	settings, err := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(settings)
-	for _, expected := range []string{
-		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/prem/anthropic"`,
-		`"ANTHROPIC_MODEL": "deepseek-v4-pro"`,
-		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Prem DeepSeek V4 Pro"`,
-	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
 		}
 	}
 }
@@ -2235,7 +1741,11 @@ func TestWriteClaudeRouterSettingsAcceptsUTF8BOM(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := writeMimoClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router"); err != nil {
+	targets, err := normalizeClaudeModelTargets([]string{"mimo-2.5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSelectedClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router", targets); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2314,7 +1824,7 @@ base_url = "https://api.openai.com/v1"
 		t.Fatal(err)
 	}
 
-	if err := writeDeepSeekTUIConfig(path, "http://127.0.0.1:3000/deepseek/v1", "omniproxy-local", "deepseek-v4-pro"); err != nil {
+	if err := writeDeepSeekTUIConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "omniproxy-local", "deepseek-v4-pro"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2324,13 +1834,14 @@ base_url = "https://api.openai.com/v1"
 	}
 	body := string(raw)
 	for _, expected := range []string{
-		`provider = "deepseek"`,
+		`provider = "omniproxy"`,
 		`default_text_model = "deepseek-v4-pro"`,
-		`[providers.deepseek]`,
+		`[providers.omniproxy]`,
 		`api_key = "omniproxy-local"`,
-		`base_url = "http://127.0.0.1:3000/deepseek/v1"`,
+		`base_url = "http://127.0.0.1:3000/opencode-router/v1"`,
 		`model = "deepseek-v4-pro"`,
 		`http_headers = { "X-OmniProxy-Client" = "DeepSeek-TUI" }`,
+		`[providers.deepseek]`,
 		`other = "keep"`,
 		`[memory]`,
 		`[providers.openai]`,
@@ -2339,7 +1850,7 @@ base_url = "https://api.openai.com/v1"
 			t.Fatalf("expected %q in DeepSeek-TUI config:\n%s", expected, body)
 		}
 	}
-	if strings.Count(body, `base_url = "http://127.0.0.1:3000/deepseek/v1"`) != 1 {
+	if strings.Count(body, `base_url = "http://127.0.0.1:3000/opencode-router/v1"`) != 1 {
 		t.Fatalf("expected duplicate provider base_url to be removed:\n%s", body)
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
@@ -2355,7 +1866,7 @@ http_headers = { "X-Existing" = "keep" }
 		t.Fatal(err)
 	}
 
-	if err := writeDeepSeekTUIConfig(path, "http://127.0.0.1:3000/deepseek/v1", "omniproxy-local", "deepseek-v4-pro"); err != nil {
+	if err := writeDeepSeekTUIConfig(path, "http://127.0.0.1:3000/opencode-router/v1", "omniproxy-local", "deepseek-v4-pro"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2367,8 +1878,8 @@ http_headers = { "X-Existing" = "keep" }
 	if !strings.Contains(body, `http_headers = { "X-Existing" = "keep" }`) {
 		t.Fatalf("expected existing provider headers to be preserved:\n%s", body)
 	}
-	if strings.Contains(body, `X-OmniProxy-Client`) {
-		t.Fatalf("expected existing provider headers not to be overwritten:\n%s", body)
+	if strings.Count(body, `X-OmniProxy-Client`) != 1 {
+		t.Fatalf("expected OmniProxy provider headers to be added once:\n%s", body)
 	}
 }
 
@@ -2390,9 +1901,14 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	providers := data["provider"].(map[string]any)
-	for _, id := range []string{"existing", opencodeOmniProviderID, opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeTokenRouterProviderID, opencodeZoProviderID, opencodeCustomProviderID} {
+	for _, id := range []string{"existing", opencodeOmniProviderID} {
 		if providers[id] == nil {
 			t.Fatalf("expected provider %s in %#v", id, providers)
+		}
+	}
+	for _, id := range []string{opencodeGeminiProviderID, opencodeOpenRouterProviderID, opencodeTokenRouterProviderID, opencodeZoProviderID, opencodeCustomProviderID} {
+		if providers[id] != nil {
+			t.Fatalf("expected OpenCode config to remove old OmniProxy provider %s: %#v", id, providers)
 		}
 	}
 	routerProvider := providers[opencodeOmniProviderID].(map[string]any)
@@ -2400,32 +1916,9 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 	if options["baseURL"] != "http://127.0.0.1:3000/opencode-router/v1" {
 		t.Fatalf("unexpected router baseURL: %#v", options)
 	}
-	openRouterProvider := providers[opencodeOpenRouterProviderID].(map[string]any)
-	openRouterOptions := openRouterProvider["options"].(map[string]any)
-	if openRouterOptions["baseURL"] != "http://127.0.0.1:3000/openrouter/v1" {
-		t.Fatalf("unexpected openrouter baseURL: %#v", openRouterOptions)
-	}
-	openRouterProviderModels := openRouterProvider["models"].(map[string]any)
-	if openRouterProviderModels["openai/gpt-test"] == nil {
-		t.Fatalf("expected openrouter models in %#v", openRouterProviderModels)
-	}
-	tokenRouterProvider := providers[opencodeTokenRouterProviderID].(map[string]any)
-	tokenRouterOptions := tokenRouterProvider["options"].(map[string]any)
-	if tokenRouterOptions["baseURL"] != "http://127.0.0.1:3000/tokenrouter/v1" {
-		t.Fatalf("unexpected tokenrouter baseURL: %#v", tokenRouterOptions)
-	}
-	tokenRouterModels := tokenRouterProvider["models"].(map[string]any)
-	if tokenRouterModels["auto:balance"] == nil {
-		t.Fatalf("expected tokenrouter models in %#v", tokenRouterProvider)
-	}
-	zoProvider := providers[opencodeZoProviderID].(map[string]any)
-	zoOptions := zoProvider["options"].(map[string]any)
-	if zoOptions["baseURL"] != "http://127.0.0.1:3000/zo/v1" {
-		t.Fatalf("unexpected zo baseURL: %#v", zoOptions)
-	}
-	zoModels := zoProvider["models"].(map[string]any)
-	if zoModels["gpt-5.5"] == nil || zoModels["claude-sonnet-4-6"] == nil || zoModels["deepseek-v4-pro"] == nil || zoModels["glm-5"] == nil {
-		t.Fatalf("expected zo models in %#v", zoModels)
+	routerModels := routerProvider["models"].(map[string]any)
+	if routerModels["openai/gpt-test"] == nil || routerModels["auto:balance"] == nil || routerModels["custom-model"] == nil {
+		t.Fatalf("expected gateway models in %#v", routerModels)
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
 		t.Fatalf("expected opencode backup: %v", err)
@@ -2455,12 +1948,12 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	providers := data["providers"].(map[string]any)
-	for _, id := range []string{"existing", piOmniProviderID, piZoProviderID} {
+	for _, id := range []string{"existing", piOmniProviderID} {
 		if providers[id] == nil {
 			t.Fatalf("expected provider %s in %#v", id, providers)
 		}
 	}
-	for _, id := range []string{piAnthropicProviderID, piGeminiProviderID, piOpenRouterProviderID, piCustomProviderID} {
+	for _, id := range []string{piAnthropicProviderID, piGeminiProviderID, piOpenRouterProviderID, piZoProviderID, piCustomProviderID} {
 		if providers[id] != nil {
 			t.Fatalf("expected Pi config to remove old OmniProxy provider %s: %#v", id, providers)
 		}
@@ -2468,17 +1961,6 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 	routerProvider := providers[piOmniProviderID].(map[string]any)
 	if routerProvider["api"] != "openai-completions" || routerProvider["baseUrl"] != "http://127.0.0.1:3000/pi-router/v1" {
 		t.Fatalf("unexpected Pi router provider: %#v", routerProvider)
-	}
-	zoProvider := providers[piZoProviderID].(map[string]any)
-	if zoProvider["api"] != "openai-completions" || zoProvider["baseUrl"] != "http://127.0.0.1:3000/zo/v1" {
-		t.Fatalf("unexpected Pi zo provider: %#v", zoProvider)
-	}
-	zoModels := zoProvider["models"].([]any)
-	if _, ok := piTestFindModel(zoModels, "gpt-5.5"); !ok {
-		t.Fatalf("expected Pi zo provider models to include gpt-5.5: %#v", zoModels)
-	}
-	if _, ok := piTestFindModel(zoModels, "claude-sonnet-4-6"); !ok {
-		t.Fatalf("expected Pi zo provider models to include claude-sonnet-4-6: %#v", zoModels)
 	}
 	routerModels := routerProvider["models"].([]any)
 	if len(routerModels) == 0 {

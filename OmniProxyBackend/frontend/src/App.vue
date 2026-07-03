@@ -36,25 +36,13 @@ import {
   WindowToggleMaximise,
 } from '../wailsjs/runtime/runtime'
 import {
-  configureAnyRouterClaude,
   configureCodex,
-  configureCodexAnyRouter,
-  configureCodexNewAPI,
-  configureCodexPrem,
-  configureCodexSub2API,
-  configureCodexZo,
   configureClaudeDesktopModels,
   configureClaudeModels,
-  configureDeepSeekClaude,
   configureDeepSeekTUI,
   configureGemini,
-  configureKimiClaude,
-  configureMimoClaude,
   configureOpenCode,
   configurePi,
-  configurePremClaude,
-  configureZhipuClaude,
-  configureZoClaude,
   createToken,
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   clearBillingUsage,
@@ -90,13 +78,12 @@ import {
   updateToken,
   validateToken,
   restoreCodex,
+  restoreClaude,
   restoreClaudeDesktop,
   restoreDeepSeekTUI,
   restoreGemini,
-  restoreMimoClaude,
   restoreOpenCode,
   restorePi,
-  restoreZhipuClaude,
 } from './services/api'
 import {
   Coin,
@@ -120,6 +107,7 @@ const DashboardView = defineAsyncComponent(() => import('./components/DashboardV
 const AboutView = defineAsyncComponent(() => import('./components/AboutView.vue'))
 const BillingView = defineAsyncComponent(() => import('./components/BillingView.vue'))
 const FirstUseGuideModal = defineAsyncComponent(() => import('./components/FirstUseGuideModal.vue'))
+const GatewayRoutesView = defineAsyncComponent(() => import('./components/GatewayRoutesView.vue'))
 const HistoryView = defineAsyncComponent(() => import('./components/HistoryView.vue'))
 const HelpView = defineAsyncComponent(() => import('./components/HelpView.vue'))
 const LogsView = defineAsyncComponent(() => import('./components/LogsView.vue'))
@@ -145,6 +133,7 @@ const tabIcons = {
   history: Clock,
   logs: Memo,
   quickstart: MagicStick,
+  'gateway-routes': SwitchButton,
   settings: Setting,
   about: InfoFilled,
   help: HelpFilled,
@@ -153,26 +142,14 @@ const navSections = [
   { label: '总览', items: tabs.filter((tab) => ['dashboard', 'usage-trends', 'billing', 'quotas'].includes(tab.key)) },
   { label: '运行', items: tabs.filter((tab) => ['tokens', 'history', 'logs', 'quickstart'].includes(tab.key)) },
   { label: '体验', items: tabs.filter((tab) => ['openrouter-chat'].includes(tab.key)) },
-  { label: '系统', items: tabs.filter((tab) => ['settings', 'about', 'help'].includes(tab.key)) },
+  { label: '系统', items: tabs.filter((tab) => ['gateway-routes', 'settings', 'about', 'help'].includes(tab.key)) },
 ]
 const tabKeys = new Set(tabs.map((tab) => tab.key))
 const isDark = ref(false)
 const windowMaximised = ref(false)
 const loading = ref(false)
 const codexConfiguring = ref(false)
-const codexSub2APIConfiguring = ref(false)
-const codexNewAPIConfiguring = ref(false)
-const codexAnyRouterConfiguring = ref(false)
-const codexZoConfiguring = ref(false)
-const codexPremConfiguring = ref(false)
 const codexRestoring = ref(false)
-const mimoClaudeConfiguring = ref(false)
-const deepSeekClaudeConfiguring = ref(false)
-const kimiClaudeConfiguring = ref(false)
-const zhipuClaudeConfiguring = ref(false)
-const anyRouterClaudeConfiguring = ref(false)
-const zoClaudeConfiguring = ref(false)
-const premClaudeConfiguring = ref(false)
 const claudeModelsConfiguring = ref(false)
 const claudeDesktopConfiguring = ref(false)
 const claudeDesktopRestoring = ref(false)
@@ -180,7 +157,7 @@ const deepSeekTUIConfiguring = ref(false)
 const geminiConfiguring = ref(false)
 const opencodeConfiguring = ref(false)
 const piConfiguring = ref(false)
-const mimoClaudeRestoring = ref(false)
+const claudeCliRestoring = ref(false)
 const deepSeekTUIRestoring = ref(false)
 const geminiRestoring = ref(false)
 const opencodeRestoring = ref(false)
@@ -305,6 +282,12 @@ const config = reactive({
   xiaomiTokenPlanAmsAnthropicBaseUrl: 'https://token-plan-ams.xiaomimimo.com/anthropic',
   xiaomiCredentialPriority: 'mimo_token_plan',
   codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
+  gatewayRoutes: {
+    codex: { provider: 'openai', credentialType: 'codex_auth_json', model: 'gpt-5.4' },
+    claude: { provider: 'anthropic', credentialType: 'api_key', model: 'claude-sonnet-4-5-20250929' },
+    openai: { provider: 'openai', credentialType: 'api_key', model: 'gpt-5.4' },
+    gemini: { provider: 'gemini', credentialType: 'api_key', model: 'gemini-3-pro-preview' },
+  },
   codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
   switchThreshold: 15,
   maxRetries: 2,
@@ -1472,6 +1455,25 @@ function decodeBase64URL(value) {
   return new TextDecoder().decode(bytes)
 }
 
+function gatewayRoutesPayload(routes) {
+  const source = routes && typeof routes === 'object' ? routes : {}
+  return {
+    codex: gatewayRoutePayload(source.codex),
+    claude: gatewayRoutePayload(source.claude),
+    openai: gatewayRoutePayload(source.openai),
+    gemini: gatewayRoutePayload(source.gemini),
+  }
+}
+
+function gatewayRoutePayload(route) {
+  const source = route && typeof route === 'object' ? route : {}
+  return {
+    provider: String(source.provider || '').trim(),
+    credentialType: String(source.credentialType || '').trim(),
+    model: String(source.model || '').trim(),
+  }
+}
+
 async function persistConfig() {
   try {
     const saved = await saveConfig({
@@ -1524,6 +1526,7 @@ async function persistConfig() {
       xiaomiTokenPlanAmsAnthropicBaseUrl: config.xiaomiTokenPlanAmsAnthropicBaseUrl.trim(),
       xiaomiCredentialPriority: config.xiaomiCredentialPriority,
       codexBaseUrl: config.codexBaseUrl.trim(),
+      gatewayRoutes: gatewayRoutesPayload(config.gatewayRoutes),
       codexUsageEndpoint: config.codexUsageEndpoint.trim(),
       switchThreshold: Number(config.switchThreshold),
       maxRetries: Number(config.maxRetries),
@@ -1633,81 +1636,6 @@ async function configureLocalCodex() {
   }
 }
 
-async function configureLocalCodexSub2API() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  codexSub2APIConfiguring.value = true
-  try {
-    const result = await configureCodexSub2API()
-    await refreshAll()
-    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy sub2api'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    codexSub2APIConfiguring.value = false
-  }
-}
-
-async function configureLocalCodexNewAPI() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  codexNewAPIConfiguring.value = true
-  try {
-    const result = await configureCodexNewAPI()
-    await refreshAll()
-    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy new-api'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    codexNewAPIConfiguring.value = false
-  }
-}
-
-async function configureLocalCodexAnyRouter() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  codexAnyRouterConfiguring.value = true
-  try {
-    const result = await configureCodexAnyRouter()
-    await refreshAll()
-    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy AnyRouter'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    codexAnyRouterConfiguring.value = false
-  }
-}
-
-async function configureLocalCodexZo() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  codexZoConfiguring.value = true
-  try {
-    const result = await configureCodexZo()
-    await refreshAll()
-    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy Zo Computer'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    codexZoConfiguring.value = false
-  }
-}
-
-async function configureLocalCodexPrem() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  codexPremConfiguring.value = true
-  try {
-    const result = await configureCodexPrem()
-    await refreshAll()
-    successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy Prem'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    codexPremConfiguring.value = false
-  }
-}
-
 async function restoreLocalCodex() {
   errorMessage.value = ''
   successMessage.value = ''
@@ -1719,104 +1647,6 @@ async function restoreLocalCodex() {
     errorMessage.value = error.message
   } finally {
     codexRestoring.value = false
-  }
-}
-
-async function configureLocalMimoClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  mimoClaudeConfiguring.value = true
-  try {
-    const result = await configureMimoClaude()
-    successMessage.value = result.message || 'Claude Code 已配置为使用 Xiaomi MiMo'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    mimoClaudeConfiguring.value = false
-  }
-}
-
-async function configureLocalDeepSeekClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  deepSeekClaudeConfiguring.value = true
-  try {
-    const result = await configureDeepSeekClaude()
-    successMessage.value = result.message || 'Claude Code 已配置为使用 DeepSeek'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    deepSeekClaudeConfiguring.value = false
-  }
-}
-
-async function configureLocalKimiClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  kimiClaudeConfiguring.value = true
-  try {
-    const result = await configureKimiClaude()
-    successMessage.value = result.message || 'Claude Code 已配置为使用 Kimi'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    kimiClaudeConfiguring.value = false
-  }
-}
-
-async function configureLocalZhipuClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  zhipuClaudeConfiguring.value = true
-  try {
-    const result = await configureZhipuClaude()
-    successMessage.value = result.message || 'Claude Code 已配置为使用 Zhipu GLM'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    zhipuClaudeConfiguring.value = false
-  }
-}
-
-async function configureLocalAnyRouterClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  anyRouterClaudeConfiguring.value = true
-  try {
-    const result = await configureAnyRouterClaude()
-    successMessage.value = result.message || 'Claude Code 已配置为使用 AnyRouter'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    anyRouterClaudeConfiguring.value = false
-  }
-}
-
-async function configureLocalZoClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  zoClaudeConfiguring.value = true
-  try {
-    const result = await configureZoClaude()
-    successMessage.value = result.message || 'Claude Code 已配置为使用 Zo Computer'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    zoClaudeConfiguring.value = false
-  }
-}
-
-async function configureLocalPremClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  premClaudeConfiguring.value = true
-  try {
-    const result = await configurePremClaude()
-    successMessage.value = result.message || 'Claude Code 已配置为使用 Prem'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    premClaudeConfiguring.value = false
   }
 }
 
@@ -2003,31 +1833,17 @@ async function restoreLocalPi() {
   }
 }
 
-async function restoreLocalMimoClaude() {
+async function restoreLocalClaude() {
   errorMessage.value = ''
   successMessage.value = ''
-  mimoClaudeRestoring.value = true
+  claudeCliRestoring.value = true
   try {
-    const result = await restoreMimoClaude()
+    const result = await restoreClaude()
     successMessage.value = result.message || 'Claude Code 配置已恢复'
   } catch (error) {
     errorMessage.value = error.message
   } finally {
-    mimoClaudeRestoring.value = false
-  }
-}
-
-async function restoreLocalZhipuClaude() {
-  errorMessage.value = ''
-  successMessage.value = ''
-  mimoClaudeRestoring.value = true
-  try {
-    const result = await restoreZhipuClaude()
-    successMessage.value = result.message || 'Claude Code 配置已恢复'
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    mimoClaudeRestoring.value = false
+    claudeCliRestoring.value = false
   }
 }
 
@@ -2927,6 +2743,13 @@ async function refreshQuota(item) {
         @refresh="refreshRealtime"
       />
 
+      <GatewayRoutesView
+        v-else-if="activeTab === 'gateway-routes'"
+        key="gateway-routes"
+        :config="config"
+        @persist-config="persistConfig"
+      />
+
       <SettingsView
         v-else-if="activeTab === 'settings'"
         key="settings"
@@ -2978,23 +2801,11 @@ async function refreshQuota(item) {
         :can-configure-claude-models="canConfigureClaudeModels"
         :is-claude-model-option-disabled="isClaudeModelOptionDisabled"
         :codex-configuring="codexConfiguring"
-        :codex-sub2api-configuring="codexSub2APIConfiguring"
-        :codex-newapi-configuring="codexNewAPIConfiguring"
-        :codex-anyrouter-configuring="codexAnyRouterConfiguring"
-        :codex-zo-configuring="codexZoConfiguring"
-        :codex-prem-configuring="codexPremConfiguring"
         :codex-restoring="codexRestoring"
         :claude-models-configuring="claudeModelsConfiguring"
         :claude-desktop-configuring="claudeDesktopConfiguring"
         :claude-desktop-restoring="claudeDesktopRestoring"
-        :deep-seek-claude-configuring="deepSeekClaudeConfiguring"
-        :mimo-claude-configuring="mimoClaudeConfiguring"
-        :kimi-claude-configuring="kimiClaudeConfiguring"
-        :zhipu-claude-configuring="zhipuClaudeConfiguring"
-        :any-router-claude-configuring="anyRouterClaudeConfiguring"
-        :zo-claude-configuring="zoClaudeConfiguring"
-        :prem-claude-configuring="premClaudeConfiguring"
-        :mimo-claude-restoring="mimoClaudeRestoring"
+        :claude-cli-restoring="claudeCliRestoring"
         :gemini-configuring="geminiConfiguring"
         :gemini-restoring="geminiRestoring"
         :opencode-configuring="opencodeConfiguring"
@@ -3004,23 +2815,11 @@ async function refreshQuota(item) {
         :deep-seek-tui-configuring="deepSeekTUIConfiguring"
         :deep-seek-tui-restoring="deepSeekTUIRestoring"
         @configure-codex="configureLocalCodex"
-        @configure-codex-sub2api="configureLocalCodexSub2API"
-        @configure-codex-newapi="configureLocalCodexNewAPI"
-        @configure-codex-anyrouter="configureLocalCodexAnyRouter"
-        @configure-codex-zo="configureLocalCodexZo"
-        @configure-codex-prem="configureLocalCodexPrem"
         @restore-codex="restoreLocalCodex"
         @configure-claude-models="configureLocalClaudeModels"
         @configure-claude-desktop-models="configureLocalClaudeDesktopModels"
         @restore-claude-desktop="restoreLocalClaudeDesktop"
-        @configure-deepseek-claude="configureLocalDeepSeekClaude"
-        @configure-mimo-claude="configureLocalMimoClaude"
-        @configure-kimi-claude="configureLocalKimiClaude"
-        @configure-zhipu-claude="configureLocalZhipuClaude"
-        @configure-anyrouter-claude="configureLocalAnyRouterClaude"
-        @configure-zo-claude="configureLocalZoClaude"
-        @configure-prem-claude="configureLocalPremClaude"
-        @restore-mimo-claude="restoreLocalMimoClaude"
+        @restore-claude="restoreLocalClaude"
         @configure-gemini="configureLocalGemini"
         @restore-gemini="restoreLocalGemini"
         @configure-opencode="configureLocalOpenCode"

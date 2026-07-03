@@ -40,9 +40,13 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 		return codexConfigureResult{}, err
 	}
 
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/backend-api/codex", cfg.ProxyPort)
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d/codex/v1", cfg.ProxyPort)
+	model := strings.TrimSpace(cfg.GatewayRoutes.Codex.Model)
+	if model == "" {
+		model = "gpt-5.4"
+	}
 	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexOmniProxyConfig(configPath, baseURL); err != nil {
+	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, model); err != nil {
 		return codexConfigureResult{}, err
 	}
 
@@ -102,293 +106,34 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 		return codexConfigureResult{}, err
 	}
 
-	parts := []string{"Codex 已切换到 OmniProxy 本地代理"}
+	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+	switch authState {
+	case "created":
+		if !result.ImportedAuth && !result.AuthAlreadyAdded {
+			result.AuthUpdated = true
+		}
+	case "updated":
+		if !result.ImportedAuth && !result.AuthAlreadyAdded {
+			result.AuthUpdated = true
+		}
+	}
+
+	parts := []string{"Codex 已切换到 OmniProxy 网关入口"}
 	if result.ImportedAuth {
 		parts = append(parts, "已导入 auth.json")
 	} else if result.AuthUpdated {
-		parts = append(parts, "已同步 auth.json")
+		parts = append(parts, "已同步 auth.json / 本地占位 OPENAI_API_KEY")
 	} else if result.AuthAlreadyAdded {
 		parts = append(parts, "auth.json 账号已存在")
 	} else {
 		parts = append(parts, "未找到可导入的 Codex auth.json，请先运行 codex login 或手动添加账号")
 	}
+	parts = append(parts, "后端平台请在 OmniProxy 网关路由中选择")
 	result.Message = strings.Join(parts, "；")
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy"})
-	return result, nil
-}
-
-func (a *appServer) configureCodexSub2API() (codexConfigureResult, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	a.mu.Lock()
-	cfg := a.cfg
-	a.mu.Unlock()
-
-	codexDir := filepath.Join(home, ".codex")
-	if err := os.MkdirAll(codexDir, 0o755); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/sub2api", cfg.ProxyPort)
-	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexSub2APIConfig(configPath, baseURL); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	result := codexConfigureResult{
-		ConfigPath: configPath,
-		AuthPath:   filepath.Join(codexDir, "auth.json"),
-		BackupPath: configPath + ".omniproxy.bak",
-		BaseURL:    baseURL,
-	}
-
-	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-	switch authState {
-	case "created":
-		result.ImportedAuth = true
-	case "updated":
-		result.AuthUpdated = true
-	case "existing":
-		result.AuthAlreadyAdded = true
-	}
-
-	parts := []string{"Codex 已切换到 OmniProxy sub2api 本地代理"}
-	if result.ImportedAuth {
-		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
-	} else if result.AuthUpdated {
-		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
-	} else {
-		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
-	}
-	parts = append(parts, "请在 OmniProxy 的 sub2api 账号中保存真实 API Key")
-	result.Message = strings.Join(parts, "；")
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy sub2api"})
-	return result, nil
-}
-
-func (a *appServer) configureCodexNewAPI() (codexConfigureResult, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	a.mu.Lock()
-	cfg := a.cfg
-	a.mu.Unlock()
-
-	codexDir := filepath.Join(home, ".codex")
-	if err := os.MkdirAll(codexDir, 0o755); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/newapi", cfg.ProxyPort)
-	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexNewAPIConfig(configPath, baseURL); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	result := codexConfigureResult{
-		ConfigPath: configPath,
-		AuthPath:   filepath.Join(codexDir, "auth.json"),
-		BackupPath: configPath + ".omniproxy.bak",
-		BaseURL:    baseURL,
-	}
-
-	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-	switch authState {
-	case "created":
-		result.ImportedAuth = true
-	case "updated":
-		result.AuthUpdated = true
-	case "existing":
-		result.AuthAlreadyAdded = true
-	}
-
-	parts := []string{"Codex 已切换到 OmniProxy new-api 本地代理"}
-	if result.ImportedAuth {
-		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
-	} else if result.AuthUpdated {
-		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
-	} else {
-		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
-	}
-	parts = append(parts, "请在 OmniProxy 的 new-api 账号中保存真实 API Key")
-	result.Message = strings.Join(parts, "；")
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy new-api"})
-	return result, nil
-}
-
-func (a *appServer) configureCodexAnyRouter() (codexConfigureResult, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	a.mu.Lock()
-	cfg := a.cfg
-	a.mu.Unlock()
-
-	codexDir := filepath.Join(home, ".codex")
-	if err := os.MkdirAll(codexDir, 0o755); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/anyrouter/v1", cfg.ProxyPort)
-	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexAnyRouterConfig(configPath, baseURL); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	result := codexConfigureResult{
-		ConfigPath: configPath,
-		AuthPath:   filepath.Join(codexDir, "auth.json"),
-		BackupPath: configPath + ".omniproxy.bak",
-		BaseURL:    baseURL,
-	}
-
-	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-	switch authState {
-	case "created":
-		result.ImportedAuth = true
-	case "updated":
-		result.AuthUpdated = true
-	case "existing":
-		result.AuthAlreadyAdded = true
-	}
-
-	parts := []string{"Codex 已切换到 OmniProxy AnyRouter 本地代理"}
-	if result.ImportedAuth {
-		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
-	} else if result.AuthUpdated {
-		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
-	} else {
-		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
-	}
-	parts = append(parts, "请在 OmniProxy 的 AnyRouter 账号中保存真实 API Key")
-	result.Message = strings.Join(parts, "；")
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy anyrouter"})
-	return result, nil
-}
-
-func (a *appServer) configureCodexZo() (codexConfigureResult, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	a.mu.Lock()
-	cfg := a.cfg
-	a.mu.Unlock()
-
-	codexDir := filepath.Join(home, ".codex")
-	if err := os.MkdirAll(codexDir, 0o755); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/zo", cfg.ProxyPort)
-	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexZoConfig(configPath, baseURL); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	result := codexConfigureResult{
-		ConfigPath: configPath,
-		AuthPath:   filepath.Join(codexDir, "auth.json"),
-		BackupPath: configPath + ".omniproxy.bak",
-		BaseURL:    baseURL,
-	}
-
-	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-	switch authState {
-	case "created":
-		result.ImportedAuth = true
-	case "updated":
-		result.AuthUpdated = true
-	case "existing":
-		result.AuthAlreadyAdded = true
-	}
-
-	parts := []string{"Codex 已切换到 OmniProxy Zo Computer 本地代理"}
-	if result.ImportedAuth {
-		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
-	} else if result.AuthUpdated {
-		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
-	} else {
-		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
-	}
-	parts = append(parts, "请在 OmniProxy 的 Zo Computer 账号中保存真实 Access Token")
-	result.Message = strings.Join(parts, "；")
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy zo"})
-	return result, nil
-}
-
-func (a *appServer) configureCodexPrem() (codexConfigureResult, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	a.mu.Lock()
-	cfg := a.cfg
-	a.mu.Unlock()
-
-	codexDir := filepath.Join(home, ".codex")
-	if err := os.MkdirAll(codexDir, 0o755); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d/prem/v1", cfg.ProxyPort)
-	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexPremConfig(configPath, baseURL); err != nil {
-		return codexConfigureResult{}, err
-	}
-
-	result := codexConfigureResult{
-		ConfigPath: configPath,
-		AuthPath:   filepath.Join(codexDir, "auth.json"),
-		BackupPath: configPath + ".omniproxy.bak",
-		BaseURL:    baseURL,
-	}
-
-	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-	switch authState {
-	case "created":
-		result.ImportedAuth = true
-	case "updated":
-		result.AuthUpdated = true
-	case "existing":
-		result.AuthAlreadyAdded = true
-	}
-
-	parts := []string{"Codex 已切换到 OmniProxy Prem 本地代理"}
-	if result.ImportedAuth {
-		parts = append(parts, "已创建本地占位 OPENAI_API_KEY")
-	} else if result.AuthUpdated {
-		parts = append(parts, "已补齐本地占位 OPENAI_API_KEY")
-	} else {
-		parts = append(parts, "auth.json 已包含 OPENAI_API_KEY")
-	}
-	parts = append(parts, "请在 OmniProxy 的 Prem 账号中保存真实 API Key，并确认 pcci-proxy 正在运行")
-	result.Message = strings.Join(parts, "；")
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy prem"})
 	return result, nil
 }
 
@@ -453,117 +198,6 @@ func writeCodexOmniProxyConfig(path string, baseURL string) error {
 	return os.WriteFile(path, []byte(next), 0o600)
 }
 
-func writeCodexZoConfig(path string, baseURL string) error {
-	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.5")
-}
-
-func writeCodexSub2APIConfig(path string, baseURL string) error {
-	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.4")
-}
-
-func writeCodexNewAPIConfig(path string, baseURL string) error {
-	return writeCodexOpenAIResponsesConfig(path, baseURL, "gpt-5.5")
-}
-
-func writeCodexPremConfig(path string, baseURL string) error {
-	content, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	text := strings.ReplaceAll(string(content), "\r\n", "\n")
-	lines := []string{}
-	if text != "" {
-		lines = strings.Split(strings.TrimRight(text, "\n"), "\n")
-	}
-
-	lines = setRootStringKey(lines, "model_provider", "prem")
-	lines = setRootStringKey(lines, "model", "deepseek-v4-pro")
-	lines = setRootStringKey(lines, "review_model", "deepseek-v4-pro")
-	lines = setRootStringKey(lines, "preferred_auth_method", "apikey")
-	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
-	lines = setRootStringKey(lines, "network_access", "enabled")
-	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
-	lines = removeRootKey(lines, "openai_base_url")
-	lines = removeRootKey(lines, "chatgpt_base_url")
-	lines = removeRootKey(lines, "disable_response_storage")
-	lines = removeRootKey(lines, "model_context_window")
-	lines = removeRootKey(lines, "model_auto_compact_token_limit")
-	lines = removeTomlSection(lines, "[model_providers.openai]")
-	lines = removeTomlSection(lines, "[model_providers.OpenAI]")
-	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
-	lines = removeTomlSection(lines, "[model_providers.sub2api]")
-	lines = removeTomlSection(lines, "[model_providers.newapi]")
-	lines = removeTomlSection(lines, "[model_providers.zo]")
-	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
-	lines = removeTomlSection(lines, "[model_providers.prem]")
-	lines = appendTomlSection(lines, []string{
-		"[model_providers.prem]",
-		`name = "Prem"`,
-		fmt.Sprintf(`base_url = "%s"`, tomlEscape(baseURL)),
-		`wire_api = "responses"`,
-		"requires_openai_auth = true",
-	})
-
-	next := strings.Join(lines, "\n") + "\n"
-	if len(content) > 0 {
-		backupPath := path + ".omniproxy.bak"
-		if _, err := os.Stat(backupPath); errors.Is(err, os.ErrNotExist) {
-			_ = os.WriteFile(backupPath, content, 0o600)
-		}
-	}
-	return os.WriteFile(path, []byte(next), 0o600)
-}
-
-func writeCodexAnyRouterConfig(path string, baseURL string) error {
-	content, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	text := strings.ReplaceAll(string(content), "\r\n", "\n")
-	lines := []string{}
-	if text != "" {
-		lines = strings.Split(strings.TrimRight(text, "\n"), "\n")
-	}
-
-	lines = setRootStringKey(lines, "model_provider", "anyrouter")
-	lines = setRootStringKey(lines, "model", "gpt-5-codex")
-	lines = setRootStringKey(lines, "review_model", "gpt-5-codex")
-	lines = setRootStringKey(lines, "preferred_auth_method", "apikey")
-	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
-	lines = setRootStringKey(lines, "network_access", "enabled")
-	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
-	lines = setRootRawKey(lines, "model_context_window", "1000000")
-	lines = setRootRawKey(lines, "model_auto_compact_token_limit", "900000")
-	lines = removeRootKey(lines, "openai_base_url")
-	lines = removeRootKey(lines, "chatgpt_base_url")
-	lines = removeRootKey(lines, "disable_response_storage")
-	lines = removeTomlSection(lines, "[model_providers.openai]")
-	lines = removeTomlSection(lines, "[model_providers.OpenAI]")
-	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
-	lines = removeTomlSection(lines, "[model_providers.sub2api]")
-	lines = removeTomlSection(lines, "[model_providers.newapi]")
-	lines = removeTomlSection(lines, "[model_providers.zo]")
-	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
-	lines = removeTomlSection(lines, "[model_providers.prem]")
-	lines = appendTomlSection(lines, []string{
-		"[model_providers.anyrouter]",
-		`name = "Any Router"`,
-		fmt.Sprintf(`base_url = "%s"`, tomlEscape(baseURL)),
-		`wire_api = "responses"`,
-	})
-
-	next := strings.Join(lines, "\n") + "\n"
-	if len(content) > 0 {
-		backupPath := path + ".omniproxy.bak"
-		if _, err := os.Stat(backupPath); errors.Is(err, os.ErrNotExist) {
-			_ = os.WriteFile(backupPath, content, 0o600)
-		}
-	}
-	return os.WriteFile(path, []byte(next), 0o600)
-}
-
 func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) error {
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -593,6 +227,7 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) 
 	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
 	lines = removeTomlSection(lines, "[model_providers.sub2api]")
 	lines = removeTomlSection(lines, "[model_providers.newapi]")
+	lines = removeTomlSection(lines, "[model_providers.zo]")
 	lines = removeTomlSection(lines, "[model_providers.anyrouter]")
 	lines = removeTomlSection(lines, "[model_providers.prem]")
 	lines = appendTomlSection(lines, []string{

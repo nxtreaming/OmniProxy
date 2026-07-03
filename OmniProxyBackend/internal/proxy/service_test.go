@@ -140,6 +140,76 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	}
 }
 
+func TestServiceFallsBackToGatewayBackupProviderWhenPrimaryHasNoToken(t *testing.T) {
+	var authHeaders []string
+	var paths []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeaders = append(authHeaders, r.Header.Get("Authorization"))
+		paths = append(paths, r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("backup-ok"))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "deepseek-backup", Provider: token.ProviderDeepSeek, TokenValue: "sk-deepseek-token"}); err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		OpenAIBaseURL:   upstream.URL,
+		DeepSeekBaseURL: upstream.URL,
+		GatewayRoutes: config.GatewayRoutes{
+			OpenAI: config.GatewayRouteConfig{
+				Provider:       token.ProviderOpenAI,
+				CredentialType: token.CredentialTypeAPIKey,
+				Model:          "gpt-route",
+				Fallbacks: []config.GatewayRouteConfig{
+					{Provider: token.ProviderDeepSeek, CredentialType: token.CredentialTypeAPIKey},
+				},
+			},
+		},
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logs.NewRecorder(10), recorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/opencode-router/v1/chat/completions", stringsReader(`{"model":"gpt-5.4","messages":[]}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK || res.Body.String() != "backup-ok" {
+		t.Fatalf("expected backup provider response, status=%d body=%q", res.Code, res.Body.String())
+	}
+	if len(authHeaders) != 1 || authHeaders[0] != "Bearer sk-deepseek-token" {
+		t.Fatalf("expected DeepSeek backup token auth, got %#v", authHeaders)
+	}
+	if len(paths) != 1 || paths[0] != "/v1/chat/completions" {
+		t.Fatalf("expected OpenAI-compatible backup path, got %#v", paths)
+	}
+	entries := recorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 {
+		t.Fatalf("expected one history entry, got %#v", entries)
+	}
+	if entries[0].Provider != token.ProviderDeepSeek {
+		t.Fatalf("expected history to record backup provider, got %#v", entries[0])
+	}
+	if len(entries[0].RetryChain) != 2 || entries[0].RetryChain[0].Provider != token.ProviderOpenAI || entries[0].RetryChain[1].Provider != token.ProviderDeepSeek {
+		t.Fatalf("expected retry chain to include primary miss and backup success, got %#v", entries[0].RetryChain)
+	}
+}
+
 func TestServiceRoutesConfiguredProvidersThroughOutboundProxy(t *testing.T) {
 	upstreamHits := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1682,8 +1752,11 @@ func TestServicePrefersConfiguredXiaomiCredentialType(t *testing.T) {
 				XiaomiTokenPlanBaseURL:          upstream.URL + "/token-plan/v1",
 				XiaomiTokenPlanAnthropicBaseURL: upstream.URL + "/token-plan/anthropic",
 				XiaomiCredentialPriority:        tt.priority,
-				SwitchThreshold:                 15,
-				MaxRetries:                      0,
+				GatewayRoutes: config.GatewayRoutes{
+					Claude: config.GatewayRouteConfig{Provider: token.ProviderXiaomi},
+				},
+				SwitchThreshold: 15,
+				MaxRetries:      0,
 			}, manager, logs.NewRecorder(10))
 			if err != nil {
 				t.Fatal(err)
@@ -1781,8 +1854,11 @@ func TestServiceFallsBackBetweenMimoCredentialTypesOnQuotaResponse(t *testing.T)
 				XiaomiTokenPlanBaseURL:          upstream.URL + "/token-plan/v1",
 				XiaomiTokenPlanAnthropicBaseURL: upstream.URL + "/token-plan/anthropic",
 				XiaomiCredentialPriority:        tt.priority,
-				SwitchThreshold:                 15,
-				MaxRetries:                      0,
+				GatewayRoutes: config.GatewayRoutes{
+					Claude: config.GatewayRouteConfig{Provider: token.ProviderXiaomi},
+				},
+				SwitchThreshold: 15,
+				MaxRetries:      0,
 			}, manager, logs.NewRecorder(10), recorder)
 			if err != nil {
 				t.Fatal(err)
@@ -1832,87 +1908,26 @@ func TestServiceFallsBackBetweenMimoCredentialTypesOnQuotaResponse(t *testing.T)
 	}
 }
 
-func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
-	var mimoPath string
-	var mimoKey string
-	var mimoBodies []string
-	var deepSeekPath string
-	var deepSeekKey string
-	var deepSeekAuthorization string
-	var kimiPath string
-	var kimiKey string
-	var kimiAuthorization string
-	var officialPath string
-	var officialKey string
+func TestServiceRoutesAnthropicRouterByConfiguredGateway(t *testing.T) {
+	var gotPath string
+	var gotKey string
+	var gotBody string
 
-	mimoUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/models") {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"data":[]}`))
-			return
-		}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
-		mimoPath = r.URL.Path
-		mimoKey = r.Header.Get("Api-Key")
-		mimoBodies = append(mimoBodies, string(body))
+		gotPath = r.URL.Path
+		gotKey = r.Header.Get("Api-Key")
+		gotBody = string(body)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
 	}))
-	defer mimoUpstream.Close()
-
-	deepSeekUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/models") {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"data":[]}`))
-			return
-		}
-		deepSeekPath = r.URL.Path
-		deepSeekKey = r.Header.Get("X-Api-Key")
-		deepSeekAuthorization = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"usage":{"input_tokens":2,"output_tokens":2,"total_tokens":4}}`))
-	}))
-	defer deepSeekUpstream.Close()
-
-	kimiUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/models") {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"data":[]}`))
-			return
-		}
-		kimiPath = r.URL.Path
-		kimiKey = r.Header.Get("X-Api-Key")
-		kimiAuthorization = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"usage":{"input_tokens":3,"output_tokens":3,"total_tokens":6}}`))
-	}))
-	defer kimiUpstream.Close()
-
-	officialUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/models") {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"data":[]}`))
-			return
-		}
-		officialPath = r.URL.Path
-		officialKey = r.Header.Get("X-Api-Key")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"usage":{"input_tokens":2,"output_tokens":3,"total_tokens":5}}`))
-	}))
-	defer officialUpstream.Close()
+	defer upstream.Close()
 
 	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "router-tokens.json")), 15)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.Add(token.UpsertRequest{
-		Name:       "anthropic",
-		Provider:   token.ProviderAnthropic,
-		TokenValue: "sk-ant-router-key",
-	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := manager.Add(token.UpsertRequest{
@@ -1922,128 +1937,39 @@ func TestServiceRoutesAnthropicRouterByModel(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.Add(token.UpsertRequest{
-		Name:       "deepseek",
-		Provider:   token.ProviderDeepSeek,
-		TokenValue: "sk-deepseek-router-key",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.Add(token.UpsertRequest{
-		Name:       "kimi",
-		Provider:   token.ProviderKimi,
-		TokenValue: "sk-kimi-router-key",
-	}); err != nil {
-		t.Fatal(err)
-	}
 
 	service, err := NewService(config.Config{
 		ProxyPort:                 3000,
 		ControlPort:               3890,
-		AnthropicBaseURL:          officialUpstream.URL,
-		DeepSeekBaseURL:           deepSeekUpstream.URL,
-		DeepSeekAnthropicBaseURL:  deepSeekUpstream.URL + "/anthropic",
-		KimiBaseURL:               kimiUpstream.URL + "/coding",
-		XiaomiAPIBaseURL:          mimoUpstream.URL + "/v1",
-		XiaomiAPIAnthropicBaseURL: mimoUpstream.URL + "/anthropic",
-		SwitchThreshold:           15,
-		MaxRetries:                0,
+		XiaomiAPIAnthropicBaseURL: upstream.URL + "/anthropic",
+		GatewayRoutes: config.GatewayRoutes{
+			Claude: config.GatewayRouteConfig{Provider: token.ProviderXiaomi},
+		},
+		SwitchThreshold: 15,
+		MaxRetries:      0,
 	}, manager, logs.NewRecorder(10))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	mimoLongReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"mimo-v2.5-pro[1m]","messages":[]}`))
-	mimoLongReq.Header.Set("Authorization", "Bearer caller")
-	mimoLongReq.Header.Set("X-Api-Key", "caller")
-	mimoLongRes := httptest.NewRecorder()
-	service.ServeHTTP(mimoLongRes, mimoLongReq)
+	req := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"mimo-v2.5","messages":[]}`))
+	req.Header.Set("Authorization", "Bearer caller")
+	req.Header.Set("X-Api-Key", "caller")
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
 
-	mimoReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"mimo-v2.5-pro","messages":[]}`))
-	mimoReq.Header.Set("Authorization", "Bearer caller")
-	mimoReq.Header.Set("X-Api-Key", "caller")
-	mimoRes := httptest.NewRecorder()
-	service.ServeHTTP(mimoRes, mimoReq)
-
-	mimoStandardReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"mimo-v2.5","messages":[]}`))
-	mimoStandardReq.Header.Set("Authorization", "Bearer caller")
-	mimoStandardReq.Header.Set("X-Api-Key", "caller")
-	mimoStandardRes := httptest.NewRecorder()
-	service.ServeHTTP(mimoStandardRes, mimoStandardReq)
-
-	deepSeekReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"deepseek-v4-pro[1m]","messages":[]}`))
-	deepSeekReq.Header.Set("Authorization", "Bearer caller")
-	deepSeekReq.Header.Set("Api-Key", "caller")
-	deepSeekRes := httptest.NewRecorder()
-	service.ServeHTTP(deepSeekRes, deepSeekReq)
-
-	kimiReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"kimi-for-coding","messages":[]}`))
-	kimiReq.Header.Set("Authorization", "Bearer caller")
-	kimiReq.Header.Set("Api-Key", "caller")
-	kimiRes := httptest.NewRecorder()
-	service.ServeHTTP(kimiRes, kimiReq)
-
-	officialReq := httptest.NewRequest(http.MethodPost, "/anthropic-router/v1/messages", stringsReader(`{"model":"claude-sonnet-4-5","messages":[]}`))
-	officialReq.Header.Set("Authorization", "Bearer caller")
-	officialReq.Header.Set("Api-Key", "caller")
-	officialRes := httptest.NewRecorder()
-	service.ServeHTTP(officialRes, officialReq)
-
-	if mimoLongRes.Code != http.StatusOK {
-		t.Fatalf("expected long-context mimo route status 200, got %d body=%s", mimoLongRes.Code, mimoLongRes.Body.String())
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
 	}
-	if mimoRes.Code != http.StatusOK {
-		t.Fatalf("expected pro mimo route status 200, got %d body=%s", mimoRes.Code, mimoRes.Body.String())
+	if gotPath != "/anthropic/v1/messages" || gotKey != "sk-mimo-router-key" {
+		t.Fatalf("unexpected configured Claude route path=%q key=%q", gotPath, gotKey)
 	}
-	if mimoStandardRes.Code != http.StatusOK {
-		t.Fatalf("expected standard mimo route status 200, got %d body=%s", mimoStandardRes.Code, mimoStandardRes.Body.String())
-	}
-	if deepSeekRes.Code != http.StatusOK {
-		t.Fatalf("expected deepseek route status 200, got %d body=%s", deepSeekRes.Code, deepSeekRes.Body.String())
-	}
-	if kimiRes.Code != http.StatusOK {
-		t.Fatalf("expected kimi route status 200, got %d body=%s", kimiRes.Code, kimiRes.Body.String())
-	}
-	if officialRes.Code != http.StatusOK {
-		t.Fatalf("expected official route status 200, got %d body=%s", officialRes.Code, officialRes.Body.String())
-	}
-	if mimoPath != "/anthropic/v1/messages" || mimoKey != "sk-mimo-router-key" {
-		t.Fatalf("unexpected mimo route path=%q key=%q", mimoPath, mimoKey)
-	}
-	if len(mimoBodies) != 3 {
-		t.Fatalf("expected 3 mimo requests, got %d", len(mimoBodies))
-	}
-	if !strings.Contains(mimoBodies[0], `"model":"mimo-v2.5-pro[1m]"`) {
-		t.Fatalf("expected long-context pro mimo model to be preserved, got %q", mimoBodies[0])
-	}
-	if !strings.Contains(mimoBodies[1], `"model":"mimo-v2.5-pro"`) {
-		t.Fatalf("expected pro mimo model to be preserved, got %q", mimoBodies[1])
-	}
-	if !strings.Contains(mimoBodies[2], `"model":"mimo-v2.5"`) {
-		t.Fatalf("expected standard mimo model to be preserved, got %q", mimoBodies[2])
-	}
-	if strings.Contains(mimoBodies[2], `"model":"mimo-v2.5-pro"`) {
-		t.Fatalf("standard mimo model was rewritten to pro: %q", mimoBodies[2])
-	}
-	if deepSeekPath != "/anthropic/v1/messages" || deepSeekKey != "sk-deepseek-router-key" || deepSeekAuthorization != "" {
-		t.Fatalf("unexpected deepseek route path=%q key=%q authorization=%q", deepSeekPath, deepSeekKey, deepSeekAuthorization)
-	}
-	if kimiPath != "/coding/v1/messages" || kimiKey != "sk-kimi-router-key" || kimiAuthorization != "" {
-		t.Fatalf("unexpected kimi route path=%q key=%q authorization=%q", kimiPath, kimiKey, kimiAuthorization)
-	}
-	if officialPath != "/v1/messages" || officialKey != "sk-ant-router-key" {
-		t.Fatalf("unexpected official route path=%q key=%q", officialPath, officialKey)
+	if !strings.Contains(gotBody, `"model":"mimo-v2.5"`) {
+		t.Fatalf("expected request model to be preserved, got %q", gotBody)
 	}
 	entries := service.logs.List()
-	hasStandardMimoLog := false
-	for _, entry := range entries {
-		if entry.Model == "mimo-v2.5" {
-			hasStandardMimoLog = true
-			break
-		}
-	}
-	if !hasStandardMimoLog {
-		t.Fatalf("expected logs to include standard mimo model, got %#v", entries)
+	if len(entries) == 0 || entries[0].Model != "mimo-v2.5" {
+		t.Fatalf("expected logs to include routed model, got %#v", entries)
 	}
 }
 
@@ -2716,9 +2642,12 @@ func TestServiceAdaptsZoOpenAIChat(t *testing.T) {
 		t.Fatal(err)
 	}
 	service, err := NewService(config.Config{
-		ProxyPort:       3000,
-		ControlPort:     3890,
-		ZoBaseURL:       upstream.URL,
+		ProxyPort:   3000,
+		ControlPort: 3890,
+		ZoBaseURL:   upstream.URL,
+		GatewayRoutes: config.GatewayRoutes{
+			Claude: config.GatewayRouteConfig{Provider: token.ProviderZo},
+		},
 		SwitchThreshold: 15,
 		MaxRetries:      0,
 	}, manager, logs.NewRecorder(10))
@@ -2895,9 +2824,12 @@ func TestServiceRoutesClaudeDesktopZoModelThroughZoGateway(t *testing.T) {
 		t.Fatal(err)
 	}
 	service, err := NewService(config.Config{
-		ProxyPort:       3000,
-		ControlPort:     3890,
-		ZoBaseURL:       upstream.URL,
+		ProxyPort:   3000,
+		ControlPort: 3890,
+		ZoBaseURL:   upstream.URL,
+		GatewayRoutes: config.GatewayRoutes{
+			Claude: config.GatewayRouteConfig{Provider: token.ProviderZo},
+		},
 		SwitchThreshold: 15,
 		MaxRetries:      0,
 	}, manager, logs.NewRecorder(10))
@@ -3104,9 +3036,12 @@ func TestServiceRoutesOpenCodeRouterToZhipu(t *testing.T) {
 		t.Fatal(err)
 	}
 	service, err := NewService(config.Config{
-		ProxyPort:       3000,
-		ControlPort:     3890,
-		ZhipuBaseURL:    upstream.URL + "/api/paas/v4",
+		ProxyPort:    3000,
+		ControlPort:  3890,
+		ZhipuBaseURL: upstream.URL + "/api/paas/v4",
+		GatewayRoutes: config.GatewayRoutes{
+			OpenAI: config.GatewayRouteConfig{Provider: token.ProviderZhipu},
+		},
 		SwitchThreshold: 15,
 		MaxRetries:      0,
 	}, manager, logs.NewRecorder(10))

@@ -500,68 +500,8 @@ func (a *DesktopApp) ConfigureCodex() (codexConfigureResult, error) {
 	return a.server.configureCodex()
 }
 
-func (a *DesktopApp) ConfigureCodexSub2API() (codexConfigureResult, error) {
-	return a.server.configureCodexSub2API()
-}
-
-func (a *DesktopApp) ConfigureCodexNewAPI() (codexConfigureResult, error) {
-	return a.server.configureCodexNewAPI()
-}
-
-func (a *DesktopApp) ConfigureCodexAnyRouter() (codexConfigureResult, error) {
-	return a.server.configureCodexAnyRouter()
-}
-
-func (a *DesktopApp) ConfigureCodexZo() (codexConfigureResult, error) {
-	return a.server.configureCodexZo()
-}
-
-func (a *DesktopApp) ConfigureCodexPrem() (codexConfigureResult, error) {
-	return a.server.configureCodexPrem()
-}
-
 func (a *DesktopApp) RestoreCodex() (codexConfigureResult, error) {
 	return a.server.restoreCodexConfig()
-}
-
-func (a *DesktopApp) ConfigureMimoClaude() (mimoConfigureResult, error) {
-	return a.server.configureMimoClaude()
-}
-
-func (a *DesktopApp) RestoreMimoClaude() (mimoConfigureResult, error) {
-	return a.server.restoreMimoClaudeConfig()
-}
-
-func (a *DesktopApp) ConfigureDeepSeekClaude() (mimoConfigureResult, error) {
-	return a.server.configureDeepSeekClaude()
-}
-
-func (a *DesktopApp) RestoreDeepSeekClaude() (mimoConfigureResult, error) {
-	return a.server.restoreDeepSeekClaudeConfig()
-}
-
-func (a *DesktopApp) ConfigureKimiClaude() (mimoConfigureResult, error) {
-	return a.server.configureKimiClaude()
-}
-
-func (a *DesktopApp) RestoreKimiClaude() (mimoConfigureResult, error) {
-	return a.server.restoreKimiClaudeConfig()
-}
-
-func (a *DesktopApp) ConfigureZhipuClaude() (mimoConfigureResult, error) {
-	return a.server.configureZhipuClaude()
-}
-
-func (a *DesktopApp) ConfigureAnyRouterClaude() (mimoConfigureResult, error) {
-	return a.server.configureAnyRouterClaude()
-}
-
-func (a *DesktopApp) ConfigureZoClaude() (mimoConfigureResult, error) {
-	return a.server.configureZoClaude()
-}
-
-func (a *DesktopApp) ConfigurePremClaude() (mimoConfigureResult, error) {
-	return a.server.configurePremClaude()
 }
 
 func (a *DesktopApp) ConfigureClaudeModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
@@ -576,8 +516,8 @@ func (a *DesktopApp) RestoreClaudeDesktop() (mimoConfigureResult, error) {
 	return a.server.restoreClaudeDesktopConfig()
 }
 
-func (a *DesktopApp) RestoreZhipuClaude() (mimoConfigureResult, error) {
-	return a.server.restoreZhipuClaudeConfig()
+func (a *DesktopApp) RestoreClaude() (mimoConfigureResult, error) {
+	return a.server.restoreClaudeConfig()
 }
 
 func (a *DesktopApp) ConfigureDeepSeekTUI() (clientConfigureResult, error) {

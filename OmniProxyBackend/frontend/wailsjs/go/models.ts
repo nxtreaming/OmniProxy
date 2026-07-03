@@ -1,5 +1,77 @@
 export namespace config {
 
+	export class GatewayRouteConfig {
+	    provider: string;
+	    credentialType?: string;
+	    model?: string;
+	    fallbacks?: GatewayRouteConfig[];
+
+	    static createFrom(source: any = {}) {
+	        return new GatewayRouteConfig(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.credentialType = source["credentialType"];
+	        this.model = source["model"];
+	        this.fallbacks = this.convertValues(source["fallbacks"], GatewayRouteConfig);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class GatewayRoutes {
+	    codex: GatewayRouteConfig;
+	    claude: GatewayRouteConfig;
+	    openai: GatewayRouteConfig;
+	    gemini: GatewayRouteConfig;
+
+	    static createFrom(source: any = {}) {
+	        return new GatewayRoutes(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.codex = this.convertValues(source["codex"], GatewayRouteConfig);
+	        this.claude = this.convertValues(source["claude"], GatewayRouteConfig);
+	        this.openai = this.convertValues(source["openai"], GatewayRouteConfig);
+	        this.gemini = this.convertValues(source["gemini"], GatewayRouteConfig);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Config {
 	    proxyPort: number;
 	    controlPort: number;
@@ -53,6 +125,7 @@ export namespace config {
 	    xiaomiTokenPlanAmsAnthropicBaseUrl: string;
 	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
+	    gatewayRoutes: GatewayRoutes;
 	    switchThreshold: number;
 	    maxRetries: number;
 	    historyRetentionDays: number;
@@ -116,11 +189,30 @@ export namespace config {
 	        this.xiaomiTokenPlanAmsAnthropicBaseUrl = source["xiaomiTokenPlanAmsAnthropicBaseUrl"];
 	        this.xiaomiCredentialPriority = source["xiaomiCredentialPriority"];
 	        this.codexBaseUrl = source["codexBaseUrl"];
+	        this.gatewayRoutes = this.convertValues(source["gatewayRoutes"], GatewayRoutes);
 	        this.switchThreshold = source["switchThreshold"];
 	        this.maxRetries = source["maxRetries"];
 	        this.historyRetentionDays = source["historyRetentionDays"];
 	        this.codexUsageEndpoint = source["codexUsageEndpoint"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class DataDirectoryChangeResult {
 	    dataDir: string;
@@ -166,6 +258,7 @@ export namespace config {
 	        this.source = source["source"];
 	    }
 	}
+
 
 }
 

@@ -490,94 +490,8 @@ export function configureCodex() {
   return useWailsBindings() ? DesktopApp.ConfigureCodex() : request('/codex/configure', { method: 'POST' })
 }
 
-export function configureCodexSub2API() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigureCodexSub2API()
-    : request('/codex/sub2api/configure', { method: 'POST' })
-}
-
-export function configureCodexNewAPI() {
-  return useWailsBindings() && DesktopApp.ConfigureCodexNewAPI
-    ? DesktopApp.ConfigureCodexNewAPI()
-    : request('/codex/newapi/configure', { method: 'POST' })
-}
-
-export function configureCodexAnyRouter() {
-  return useWailsBindings() && DesktopApp.ConfigureCodexAnyRouter
-    ? DesktopApp.ConfigureCodexAnyRouter()
-    : request('/codex/anyrouter/configure', { method: 'POST' })
-}
-
-export function configureCodexZo() {
-  return useWailsBindings() && DesktopApp.ConfigureCodexZo
-    ? DesktopApp.ConfigureCodexZo()
-    : request('/codex/zo/configure', { method: 'POST' })
-}
-
-export function configureCodexPrem() {
-  return useWailsBindings() && DesktopApp.ConfigureCodexPrem
-    ? DesktopApp.ConfigureCodexPrem()
-    : request('/codex/prem/configure', { method: 'POST' })
-}
-
 export function restoreCodex() {
   return useWailsBindings() ? DesktopApp.RestoreCodex() : request('/codex/restore', { method: 'POST' })
-}
-
-export function configureMimoClaude() {
-  return useWailsBindings() ? DesktopApp.ConfigureMimoClaude() : request('/mimo/claude/configure', { method: 'POST' })
-}
-
-export function restoreMimoClaude() {
-  return useWailsBindings() ? DesktopApp.RestoreMimoClaude() : request('/mimo/claude/restore', { method: 'POST' })
-}
-
-export function configureDeepSeekClaude() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigureDeepSeekClaude()
-    : request('/deepseek/claude/configure', { method: 'POST' })
-}
-
-export function restoreDeepSeekClaude() {
-  return useWailsBindings()
-    ? DesktopApp.RestoreDeepSeekClaude()
-    : request('/deepseek/claude/restore', { method: 'POST' })
-}
-
-export function configureKimiClaude() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigureKimiClaude()
-    : request('/kimi/claude/configure', { method: 'POST' })
-}
-
-export function restoreKimiClaude() {
-  return useWailsBindings()
-    ? DesktopApp.RestoreKimiClaude()
-    : request('/kimi/claude/restore', { method: 'POST' })
-}
-
-export function configureZhipuClaude() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigureZhipuClaude()
-    : request('/zhipu/claude/configure', { method: 'POST' })
-}
-
-export function configureAnyRouterClaude() {
-  return useWailsBindings() && DesktopApp.ConfigureAnyRouterClaude
-    ? DesktopApp.ConfigureAnyRouterClaude()
-    : request('/anyrouter/claude/configure', { method: 'POST' })
-}
-
-export function configureZoClaude() {
-  return useWailsBindings() && DesktopApp.ConfigureZoClaude
-    ? DesktopApp.ConfigureZoClaude()
-    : request('/zo/claude/configure', { method: 'POST' })
-}
-
-export function configurePremClaude() {
-  return useWailsBindings() && DesktopApp.ConfigurePremClaude
-    ? DesktopApp.ConfigurePremClaude()
-    : request('/prem/claude/configure', { method: 'POST' })
 }
 
 export function configureClaudeModels(models) {
@@ -600,10 +514,10 @@ export function restoreClaudeDesktop() {
     : request('/claude/desktop/restore', { method: 'POST' })
 }
 
-export function restoreZhipuClaude() {
-  return useWailsBindings()
-    ? DesktopApp.RestoreZhipuClaude()
-    : request('/zhipu/claude/restore', { method: 'POST' })
+export function restoreClaude() {
+  return useWailsBindings() && DesktopApp.RestoreClaude
+    ? DesktopApp.RestoreClaude()
+    : request('/claude/restore', { method: 'POST' })
 }
 
 export function configureDeepSeekTUI() {

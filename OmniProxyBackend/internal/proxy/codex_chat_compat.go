@@ -144,6 +144,7 @@ func isCodexChatCompletionsRoute(route routeInfo, selected token.Token) bool {
 		return false
 	}
 	path := stripPathPrefix(route.Path, "/backend-api/codex")
+	path = stripPathPrefix(path, "/codex")
 	path = stripPathPrefix(path, "/v1")
 	return path == "/chat/completions"
 }

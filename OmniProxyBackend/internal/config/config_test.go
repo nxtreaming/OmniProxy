@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"OmniProxyBackend/internal/token"
 )
 
 func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
@@ -116,5 +118,34 @@ func TestStoreLoadPreservesPremAutoStartDisabled(t *testing.T) {
 	}
 	if cfg.PremAutoStartPCCIProxy {
 		t.Fatal("expected saved Prem pcci-proxy auto-start=false to be preserved")
+	}
+}
+
+func TestNormalizeGatewayRouteFallbacks(t *testing.T) {
+	cfg := Normalize(Config{
+		GatewayRoutes: GatewayRoutes{
+			OpenAI: GatewayRouteConfig{
+				Provider:       token.ProviderOpenAI,
+				CredentialType: token.CredentialTypeAPIKey,
+				Model:          "gpt-route",
+				Fallbacks: []GatewayRouteConfig{
+					{Provider: "DeepSeek"},
+					{Provider: token.ProviderGemini},
+					{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeAPIKey},
+					{Provider: token.ProviderZhipu, CredentialType: token.CredentialTypeCodingPlan, Model: "glm-route"},
+				},
+			},
+		},
+	})
+
+	fallbacks := cfg.GatewayRoutes.OpenAI.Fallbacks
+	if len(fallbacks) != 2 {
+		t.Fatalf("expected two normalized fallbacks, got %#v", fallbacks)
+	}
+	if fallbacks[0].Provider != token.ProviderDeepSeek || fallbacks[0].CredentialType != "" || fallbacks[0].Model != "gpt-route" {
+		t.Fatalf("unexpected first fallback: %#v", fallbacks[0])
+	}
+	if fallbacks[1].Provider != token.ProviderZhipu || fallbacks[1].CredentialType != token.CredentialTypeCodingPlan || fallbacks[1].Model != "glm-route" {
+		t.Fatalf("unexpected second fallback: %#v", fallbacks[1])
 	}
 }

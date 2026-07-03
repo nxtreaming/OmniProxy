@@ -111,7 +111,7 @@ func pathClientInfo(path string, route routeInfo) (ClientInfo, bool) {
 		return knownClient(clientOpenCode), true
 	case isPiRouterPath(path):
 		return knownClient(clientPi), true
-	case isCodexProxyPath(path) || route.CredentialType == "codex_auth_json":
+	case isCodexProxyPath(path) || strings.HasPrefix(path, "/codex/") || path == "/codex" || route.CredentialType == "codex_auth_json":
 		return knownClient(clientCodex), true
 	case claudedesktop.IsGatewayPath(path):
 		return knownClient(clientClaudeDesktop), true
