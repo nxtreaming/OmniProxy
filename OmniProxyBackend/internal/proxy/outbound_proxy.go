@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/config"
+	"omniproxy/internal/token"
 )
 
 func outboundProxyURL(cfg config.Config) (*url.URL, error) {

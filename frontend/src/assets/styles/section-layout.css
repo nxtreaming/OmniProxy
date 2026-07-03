@@ -1,0 +1,501 @@
+
+.section-kicker {
+  margin-bottom: 6px;
+}
+
+h1 {
+  color: var(--text-strong);
+  font-size: 26px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+h2 {
+  color: var(--text-strong);
+  font-size: 17px;
+  font-weight: 740;
+  letter-spacing: 0;
+}
+
+h3 {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 740;
+}
+
+.topbar-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.topbar-actions {
+  gap: 8px;
+}
+
+.topbar-meta {
+  min-width: 82px;
+  min-height: 38px;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.topbar-meta span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.topbar-meta strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.15;
+}
+
+.proxy-tag {
+  min-height: 34px;
+  padding-inline: 12px;
+  font-weight: 750;
+}
+
+.shell .el-button {
+  min-height: 36px;
+  border-radius: 7px;
+  font-weight: 650;
+}
+
+.shell .el-button--primary {
+  --el-button-bg-color: var(--brand);
+  --el-button-border-color: var(--brand);
+  --el-button-hover-bg-color: var(--brand-strong);
+  --el-button-hover-border-color: var(--brand-strong);
+  --el-button-active-bg-color: var(--brand-strong);
+  --el-button-active-border-color: var(--brand-strong);
+}
+
+.shell .el-button.is-plain {
+  background: var(--surface);
+}
+
+.dashboard-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric-card,
+.panel {
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  border-radius: 12px;
+}
+
+.metric-card {
+  min-height: 122px;
+  padding: 15px;
+  overflow: hidden;
+  border-radius: 12px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.metric-card:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.metric-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metric-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.success-icon {
+  color: var(--success);
+}
+
+.warning-icon {
+  color: var(--warning);
+}
+
+.metric-card span,
+.metric-card small {
+  color: var(--text-muted);
+}
+
+.metric-card strong {
+  color: var(--text-strong);
+  font-size: clamp(24px, 2vw, 30px);
+  font-weight: 780;
+  letter-spacing: 0;
+}
+
+.account-status-metrics {
+  gap: 10px;
+}
+
+.account-status-metrics strong {
+  margin: 6px 0 1px;
+}
+
+.panel {
+  padding: 17px;
+}
+
+.section-heading {
+  align-items: flex-start;
+}
+
+.section-heading p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.section-actions,
+.provider-summary-actions,
+.help-actions,
+.billing-action-buttons {
+  gap: 8px;
+}
+
+.tool-usage-row,
+.log-row,
+.history-summary-grid > div,
+.history-insight-panel,
+.billing-summary-grid > div,
+.quota-limit,
+.quota-stat,
+.quota-fields > div,
+.help-grid article,
+.data-directory-row,
+.update-status-box,
+.about-info-grid > div,
+.about-row-list > div,
+.about-path-row {
+  border-color: var(--line);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.tool-usage-row {
+  min-height: 62px;
+  padding: 12px 13px;
+}
+
+.tool-usage-row.active {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--line));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--success-bg) 72%, var(--surface)) 0, var(--surface-raised) 80%);
+  box-shadow: inset 3px 0 0 var(--success);
+}
+
+.tag,
+.status-pill,
+.current-usage-badge,
+.limit-reached-badge {
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-weight: 750;
+}
+
+.success {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.muted {
+  color: var(--text-muted);
+  background: var(--muted-bg);
+}
+
+.provider-switch {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  gap: 4px;
+  padding: 4px;
+}
+
+.provider-switch button {
+  min-height: 33px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.provider-switch button.active,
+.settings-segmented button.active {
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--line));
+  background: var(--surface);
+  color: var(--brand-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.dark .provider-switch button.active,
+.dark .settings-segmented button.active {
+  border-color: color-mix(in srgb, var(--brand) 32%, var(--line));
+  background: var(--surface-raised);
+}
+
+.provider-switch span {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.provider-summary {
+  min-height: 52px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.openrouter-quota-panel {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+  padding: 13px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.openrouter-quota-panel-head,
+.openrouter-quota-summary-row {
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  gap: 12px;
+}
+
+.openrouter-quota-panel-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.openrouter-quota-panel-head > div,
+.openrouter-quota-account {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.openrouter-quota-panel-head span,
+.openrouter-quota-panel-head small,
+.openrouter-quota-summary-row span,
+.openrouter-quota-summary-row small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.openrouter-quota-panel-head strong {
+  color: var(--text-strong);
+  font-size: 15px;
+}
+
+.openrouter-quota-panel-head small,
+.openrouter-quota-summary-row small,
+.openrouter-quota-account strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.openrouter-quota-summary-list {
+  display: grid;
+  gap: 0;
+}
+
+.openrouter-quota-summary-row {
+  grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(96px, 0.7fr)) auto;
+  min-height: 58px;
+  padding: 9px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+}
+
+.openrouter-quota-summary-row:first-child {
+  border-top: 0;
+}
+
+.openrouter-quota-summary-row.disabled {
+  opacity: 0.64;
+}
+
+.openrouter-quota-summary-row > div:not(.openrouter-quota-account) {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.openrouter-quota-summary-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quota-row {
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.quota-row:hover {
+  background: var(--surface-soft);
+}
+
+.current-quota-row {
+  margin: 2px 0;
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--line));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--success-bg) 76%, var(--surface)) 0, var(--surface-raised) 92%);
+  box-shadow: inset 3px 0 0 var(--success);
+}
+
+.current-quota-row .quota-account-title strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.current-quota-row .quota-percent,
+.current-quota-row .api-quota-value strong {
+  color: var(--success);
+  font-size: 15px;
+}
+
+.progress {
+  height: 8px;
+  background: var(--surface-subtle);
+}
+
+.progress span,
+.trend-bar span {
+  background: linear-gradient(180deg, var(--brand), var(--accent));
+}
+
+.request-trend .trend-bar span {
+  background: linear-gradient(180deg, var(--accent), #60a5fa);
+}
+
+.table-wrap,
+.usage-table {
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+th {
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+td {
+  color: var(--text);
+}
+
+th,
+td {
+  padding: 12px 13px;
+}
+
+tbody tr {
+  transition: background-color 140ms ease;
+}
+
+tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-soft) 70%, transparent);
+}
+
+.quota-card {
+  border-color: var(--line);
+  background: var(--surface-raised);
+}
+
+.quota-card .el-card__body,
+.quota-card-inner {
+  background: transparent;
+}
+
+.quota-card:hover {
+  border-color: var(--line-strong);
+}
+
+.quota-detail strong {
+  color: var(--brand-strong);
+}
+
+.log-row {
+  min-height: 44px;
+}
+
+.log-inline-model {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.usage-trend {
+  border-color: var(--line);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--line) 20%, transparent) 1px, transparent 1px),
+    var(--surface-raised);
+  background-size: 100% 40px, auto;
+}
+
+.trend-bar {
+  background: var(--surface-subtle);
+}
+
+.history-filters input,
+.history-filters select,
+input,
+select,
+textarea,
+.billing-control-row select {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.history-filters input:focus,
+.history-filters select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+
+.history-summary-grid > div,
+.billing-summary-grid > div {
+  min-height: 88px;
+}

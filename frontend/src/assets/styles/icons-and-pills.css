@@ -1,0 +1,504 @@
+
+.metric-icon,
+.help-card-icon,
+.help-section-icon,
+.help-check-icon,
+.about-status-icon,
+.about-info-icon,
+.about-inline-icon {
+  border-radius: 16px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  box-shadow: none;
+}
+
+.dashboard-brief {
+  grid-column: 1 / -1;
+  min-height: 118px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.shell.dark .dashboard-brief {
+  border-color: color-mix(in srgb, var(--line) 92%, transparent);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.brief-status,
+.brief-signal {
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-soft) 66%, var(--surface));
+  box-shadow: none;
+}
+
+.brief-status {
+  padding: 14px 16px;
+}
+
+.brief-signal-grid {
+  gap: 10px;
+}
+
+.brief-signal {
+  padding: 12px 14px;
+}
+
+.brief-signal strong {
+  color: var(--text-strong);
+  font-size: 22px;
+  font-weight: 760;
+  line-height: 1.08;
+}
+
+.brief-status strong {
+  color: var(--text-strong);
+}
+
+.brief-status code,
+.brief-signal span,
+.brief-signal small {
+  color: var(--text-muted);
+}
+
+.brief-dot.online {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 15%, transparent);
+}
+
+.dashboard-grid > .metric-card {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.dashboard-grid > .metric-card:hover {
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--line));
+  box-shadow: var(--shadow);
+  transform: none;
+}
+
+.dashboard-grid .metric-icon {
+  box-sizing: content-box;
+  width: 18px;
+  height: 18px;
+  padding: 8px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  box-shadow: none;
+}
+
+.dashboard-grid .metric-icon.success-icon {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.dashboard-grid .metric-icon.warning-icon {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.dashboard-grid > .metric-card:hover .metric-icon {
+  animation: none;
+  transform: none;
+}
+
+.billing-table {
+  min-width: 0;
+}
+
+.billing-row {
+  grid-template-columns:
+    minmax(0, 1.22fr)
+    minmax(84px, 0.82fr)
+    minmax(84px, 0.78fr)
+    minmax(54px, 0.48fr);
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.billing-row span {
+  min-width: 0;
+}
+
+.billing-row span:last-child {
+  min-width: 0;
+}
+
+.billing-row .price-rate {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar {
+  position: static;
+  z-index: auto;
+  min-height: 58px;
+  margin: 0 0 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.topbar-title {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.topbar-actions {
+  padding: 0;
+}
+
+.topbar-meta {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+.shell.dark .topbar-meta {
+  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+}
+
+.dashboard-grid {
+  align-items: start;
+}
+
+.dashboard-brief {
+  margin-top: 0;
+}
+
+.token-trend-heading {
+  display: none;
+}
+
+.token-trend-toolbar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.token-trend-toolbar p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.token-trend-summary {
+  margin-top: 0;
+}
+
+.billing-report-preview-panel,
+.billing-table-panel,
+.billing-summary-grid > div {
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.billing-template-head {
+  margin-bottom: 16px;
+}
+
+.billing-template-head strong {
+  font-size: 18px;
+  font-weight: 760;
+}
+
+.billing-template-head span {
+  line-height: 1.45;
+}
+
+.billing-template-switch {
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.billing-template-switch button {
+  min-height: 84px;
+  align-content: start;
+  gap: 7px;
+  padding: 17px 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-soft) 62%, var(--surface));
+  box-shadow: none;
+}
+
+.billing-template-switch button:hover {
+  border-color: color-mix(in srgb, var(--brand) 26%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 48%, var(--surface));
+  transform: none;
+}
+
+.billing-template-switch button.active {
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  box-shadow: none;
+}
+
+.billing-template-switch strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.billing-template-switch span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.billing-report-preview,
+.billing-report-preview.template-poster,
+.billing-report-preview.template-neon,
+.billing-report-preview.template-receipt,
+.billing-report-preview.template-summary,
+.billing-report-preview.template-ledger {
+  padding: 26px;
+  gap: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+  color: var(--text-strong);
+  box-shadow: none;
+  font-family: inherit;
+}
+
+.report-preview-top {
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom-color: color-mix(in srgb, var(--line) 82%, transparent);
+}
+
+.report-preview-top div {
+  gap: 6px;
+}
+
+.report-preview-top strong {
+  color: var(--text-strong);
+  font-size: 19px;
+}
+
+.report-preview-top span,
+.report-preview-total span,
+.report-preview-metrics span,
+.report-preview-list small,
+.billing-report-preview p,
+.report-preview-meta span {
+  color: var(--text-muted);
+}
+
+.report-preview-top small {
+  padding: 7px 11px;
+  border: 0;
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  color: var(--brand-strong);
+}
+
+.report-preview-meta {
+  gap: 10px;
+}
+
+.report-preview-meta > div,
+.report-preview-metrics > div,
+.report-preview-list > div,
+.billing-report-preview.template-poster .report-preview-meta > div,
+.billing-report-preview.template-poster .report-preview-metrics > div,
+.billing-report-preview.template-poster .report-preview-list > div,
+.billing-report-preview.template-neon .report-preview-meta > div,
+.billing-report-preview.template-neon .report-preview-metrics > div,
+.billing-report-preview.template-neon .report-preview-list > div,
+.billing-report-preview.template-receipt .report-preview-meta > div,
+.billing-report-preview.template-receipt .report-preview-metrics > div,
+.billing-report-preview.template-receipt .report-preview-list > div {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.report-preview-meta > div,
+.report-preview-metrics > div {
+  padding: 13px 14px;
+}
+
+.report-preview-meta strong,
+.report-preview-total strong,
+.report-preview-metrics strong,
+.report-preview-list strong,
+.billing-report-preview.template-poster .report-preview-top strong,
+.billing-report-preview.template-poster .report-preview-meta strong,
+.billing-report-preview.template-poster .report-preview-total strong,
+.billing-report-preview.template-poster .report-preview-metrics strong,
+.billing-report-preview.template-poster .report-preview-list strong,
+.billing-report-preview.template-neon .report-preview-top strong,
+.billing-report-preview.template-neon .report-preview-total strong,
+.billing-report-preview.template-neon .report-preview-metrics strong,
+.billing-report-preview.template-neon .report-preview-list strong,
+.billing-report-preview.template-neon .report-preview-meta strong {
+  color: var(--text-strong);
+}
+
+.report-preview-total strong {
+  font-size: 28px;
+}
+
+.report-preview-list {
+  gap: 9px;
+}
+
+.report-preview-list > div {
+  padding: 12px 14px;
+}
+
+.report-preview-list > div.report-preview-list-head,
+.billing-report-preview.template-poster .report-preview-list > div.report-preview-list-head,
+.billing-report-preview.template-neon .report-preview-list > div.report-preview-list-head {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-subtle) 54%, transparent);
+  color: var(--text-muted);
+}
+
+.report-preview-list span,
+.billing-report-preview.template-neon .report-preview-list span {
+  color: var(--brand-strong);
+}
+
+.billing-report-preview.template-receipt .report-preview-top {
+  border-bottom-style: solid;
+}
+
+.provider-switch {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.provider-switch button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+  color: var(--text-muted);
+  box-shadow: none;
+  transform: none;
+}
+
+.provider-switch button:hover {
+  border-color: color-mix(in srgb, var(--brand) 26%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+  color: var(--text-strong);
+  transform: none;
+}
+
+.provider-switch button.active,
+.dark .provider-switch button.active,
+.shell.dark .provider-switch button.active {
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  background: color-mix(in srgb, var(--brand) 13%, var(--surface));
+  color: var(--brand-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+.provider-switch span {
+  min-width: 20px;
+  padding: 2px 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 64%, transparent);
+  color: var(--text-muted);
+}
+
+.provider-switch button.active span {
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  color: var(--brand-strong);
+}
+
+.panel {
+  padding: 22px;
+}
+
+.panel,
+.settings-section,
+.settings-section .settings-grid,
+.settings-action-list .data-directory-row,
+.provider-summary,
+.provider-api-balance-summary article,
+.quota-card,
+.quota-stat,
+.quota-limit,
+.log-row,
+.endpoint-row,
+.help-section-block,
+.help-readiness-card,
+.about-version-panel,
+.about-info-panel,
+.about-release-panel {
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.tool-usage-row,
+.quota-row,
+.balance-package-row,
+.rank-row,
+.model-pie-item,
+.billing-row,
+.data-directory-row,
+.maintenance-row {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+}
+
+.primary-button,
+.shell .el-button--primary {
+  border-color: var(--brand);
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--on-primary);
+  font-weight: 720;
+  box-shadow: none;
+}
+
+.primary-button:hover,
+.shell .el-button--primary:hover,
+.shell .el-button--primary:focus {
+  border-color: var(--brand-strong);
+  background: var(--brand-strong);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 20%, transparent);
+}
+
+.ghost-button,
+.shell .el-button,
+.account-action-button.el-button {
+  border-radius: 999px;
+}
+
+.ghost-button:active,
+.primary-button:active,
+.danger-button:active,
+.icon-button:active,
+.shell .el-button:active,
+.account-toggle:active {
+  transform: scale(0.96);
+}

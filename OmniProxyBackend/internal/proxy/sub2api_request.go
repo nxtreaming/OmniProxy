@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/token"
 )
 
 func normalizeSub2APIRequestBody(originalPath string, route routeInfo, body []byte) ([]byte, bool) {

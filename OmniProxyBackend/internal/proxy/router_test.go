@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/config"
+	"omniproxy/internal/token"
 )
 
 func TestRouterReadsRequestBodyModel(t *testing.T) {

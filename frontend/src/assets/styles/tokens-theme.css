@@ -1,0 +1,503 @@
+
+:root {
+  --primary: var(--brand);
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-raised: #f1f5f9;
+  --surface-soft: #f8fafc;
+  --surface-subtle: #e2e8f0;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --text: #334155;
+  --text-strong: #0f172a;
+  --text-muted: #64748b;
+  --brand: #4f46e5;
+  --brand-strong: #4338ca;
+  --brand-soft: #e0e7ff;
+  --accent: #06b6d4;
+  --accent-soft: #ecfeff;
+  --success: #10b981;
+  --success-bg: #ecfdf5;
+  --warning: #f59e0b;
+  --warning-bg: #fffbeb;
+  --danger: #ef4444;
+  --danger-bg: #fef2f2;
+  --toast-danger-bg: #fef2f2;
+  --toast-danger-border: #fca5a5;
+  --toast-success-bg: #ecfdf5;
+  --toast-success-border: #6ee7b7;
+  --muted-bg: #f1f5f9;
+  --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+  --shadow-soft: 0 2px 8px -1px rgba(0, 0, 0, 0.02);
+  --scroll-thumb: rgba(95, 99, 104, 0.2);
+  --scroll-thumb-hover: rgba(95, 99, 104, 0.34);
+  --app-min-width: 1240px;
+  --el-color-primary: #4f46e5;
+  --el-border-radius-base: 12px;
+  --el-font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--scroll-thumb);
+  transition: background 0.3s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: var(--app-min-width);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.shell {
+  height: 100vh;
+  min-width: var(--app-min-width);
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  padding-top: 36px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.window-titlebar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 90;
+  min-width: var(--app-min-width);
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--text);
+  user-select: none;
+  --wails-draggable: drag;
+}
+
+.window-titlebar-drag {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  --wails-draggable: drag;
+}
+
+.window-titlebar-drag img {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.window-titlebar-drag div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-titlebar-drag strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.window-titlebar-drag span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-titlebar-actions {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 6px;
+  --wails-draggable: no-drag;
+}
+
+.titlebar-update-button {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px 0 7px;
+  border: 1px solid color-mix(in srgb, var(--brand) 34%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 94%, #ffffff);
+  color: var(--brand-strong);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: none;
+  --wails-draggable: no-drag;
+}
+
+.titlebar-update-button:hover {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: color-mix(in srgb, var(--brand) 7%, var(--surface));
+}
+
+.titlebar-update-mark {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--brand);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+}
+
+.titlebar-update-mark::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-top: 2px solid var(--brand);
+  border-left: 2px solid var(--brand);
+  transform: translateY(1px) rotate(45deg);
+}
+
+.titlebar-update-mark::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand);
+  transform: translateY(2px);
+}
+
+.titlebar-update-popover {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: -4px;
+  z-index: 160;
+  width: min(360px, calc(100vw - 24px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 3%, transparent), transparent),
+    color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 18px 48px color-mix(in srgb, #020617 15%, transparent);
+  color: var(--text);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  --wails-draggable: no-drag;
+}
+
+.titlebar-update-popover::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 28px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  transform: rotate(45deg);
+}
+
+.titlebar-update-popover-head {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.titlebar-update-popover-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+}
+
+.titlebar-update-popover-icon::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid var(--brand);
+  border-left: 2px solid var(--brand);
+  transform: translateY(2px) rotate(45deg);
+}
+
+.titlebar-update-popover-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.titlebar-update-popover-kicker {
+  color: var(--brand-strong);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.titlebar-update-popover-head strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 780;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-update-popover-close {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.titlebar-update-popover-close:hover {
+  background: color-mix(in srgb, var(--surface-soft) 70%, transparent);
+  color: var(--text-strong);
+}
+
+.titlebar-update-popover-close span {
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+
+.titlebar-update-popover-close span::before,
+.titlebar-update-popover-close span::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 1px;
+  width: 10px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.titlebar-update-popover-close span::before {
+  transform: rotate(45deg);
+}
+
+.titlebar-update-popover-close span::after {
+  transform: rotate(-45deg);
+}
+
+.titlebar-update-popover p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.titlebar-update-popover-meta {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.titlebar-update-popover-meta > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+}
+
+.titlebar-update-popover-meta span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.titlebar-update-popover-meta strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-update-popover-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.titlebar-update-popover-actions .compact-button {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.shell.dark .titlebar-update-popover {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 4%, transparent), transparent),
+    color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 18px 48px color-mix(in srgb, #000000 34%, transparent);
+}
+
+.shell.dark .titlebar-update-popover::before {
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+}
+
+.window-controls {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  --wails-draggable: no-drag;
+}
+
+.window-control {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: default;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+  --wails-draggable: no-drag;
+}
+
+.window-control:hover {
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+}
+
+.window-control.close:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.window-resize-edge {
+  position: fixed;
+  z-index: 110;
+  --wails-draggable: no-drag;
+}
+
+.window-resize-edge-right {
+  top: 36px;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.window-titlebar.maximised + .window-resize-edge-right {
+  display: none;
+}
+
+.control-mark {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.window-control.minimise .control-mark::before,
+.window-control.maximise .control-mark::before,
+.window-control.restore .control-mark::before,
+.window-control.restore .control-mark::after,
+.window-control.close .control-mark::before,
+.window-control.close .control-mark::after {
+  content: '';
+  position: absolute;
+  display: block;
+}
+
+.window-control.minimise .control-mark::before {
+  left: 2px;
+  right: 2px;
+  bottom: 3px;
+  height: 1.5px;
+  background: currentColor;
+}
+
+.window-control.maximise .control-mark::before {
+  left: 2px;
+  top: 2px;
+  width: 10px;
+  height: 9px;
+  border: 1.5px solid currentColor;
+}

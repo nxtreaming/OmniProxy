@@ -3,7 +3,7 @@ package taskautomation
 import (
 	"strings"
 
-	"OmniProxyBackend/internal/config"
+	"omniproxy/internal/config"
 )
 
 type BrowserProfile struct {

@@ -1,0 +1,25 @@
+{
+  "name": "omniproxyfrontend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/split-wails-models.mjs && vite build && node scripts/sync-wails-dist.mjs",
+    "preview": "vite preview",
+    "test": "node --test src/utils/format.test.js src/utils/quota.test.js src/utils/tokenDisplay.test.js src/utils/appUpdate.test.js src/utils/helpContent.test.js src/services/api.test.js src/app/appConfigActions.test.js"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.13.7",
+    "vue": "^3.5.32"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.6",
+    "vite": "^8.0.8",
+    "vite-plugin-vue-devtools": "^8.1.1"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

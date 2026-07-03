@@ -35,10 +35,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: OmniProxyBackend/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: OmniProxyBackend/frontend
+        working-directory: frontend
         run: npm ci
 
       - name: Test backend
@@ -46,11 +46,11 @@ jobs:
         run: go test ./...
 
       - name: Test frontend
-        working-directory: OmniProxyBackend/frontend
+        working-directory: frontend
         run: npm test
 
       - name: Build frontend
-        working-directory: OmniProxyBackend/frontend
+        working-directory: frontend
         run: npm run build
 
       - name: Install Wails CLI
@@ -92,10 +92,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: OmniProxyBackend/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: OmniProxyBackend/frontend
+        working-directory: frontend
         run: npm ci
 
       - name: Test backend
@@ -103,11 +103,11 @@ jobs:
         run: go test ./...
 
       - name: Test frontend
-        working-directory: OmniProxyBackend/frontend
+        working-directory: frontend
         run: npm test
 
       - name: Build frontend
-        working-directory: OmniProxyBackend/frontend
+        working-directory: frontend
         run: npm run build
 
       - name: Install Wails CLI

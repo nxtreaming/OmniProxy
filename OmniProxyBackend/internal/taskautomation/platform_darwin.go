@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"OmniProxyBackend/internal/config"
+	"omniproxy/internal/config"
 )
 
 const darwinLinuxDOURL = "https://linux.do/"

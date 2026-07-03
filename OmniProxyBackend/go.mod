@@ -1,4 +1,4 @@
-module OmniProxyBackend
+module omniproxy
 
 go 1.26
 

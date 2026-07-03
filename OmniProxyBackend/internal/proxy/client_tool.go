@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"OmniProxyBackend/internal/claudedesktop"
+	"omniproxy/internal/claudedesktop"
 )
 
 type ClientInfo struct {

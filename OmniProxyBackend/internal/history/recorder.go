@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"OmniProxyBackend/internal/sanitize"
+	"omniproxy/internal/sanitize"
 )
 
 const (

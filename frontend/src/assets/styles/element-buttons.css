@@ -1,0 +1,507 @@
+
+.shell .el-button {
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.shell .el-button:hover,
+.shell .el-button:focus {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
+  color: var(--text-strong);
+}
+
+.shell .el-button--primary,
+.shell .el-button--primary:hover,
+.shell .el-button--primary:focus {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-primary);
+}
+
+.shell.dark .primary-button,
+.shell.dark .el-button--primary {
+  --el-button-bg-color: color-mix(in srgb, var(--brand) 18%, var(--surface));
+  --el-button-border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  --el-button-text-color: var(--brand-strong);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--brand) 24%, var(--surface));
+  --el-button-hover-border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  --el-button-hover-text-color: var(--brand-strong);
+  --el-button-active-bg-color: color-mix(in srgb, var(--brand) 28%, var(--surface));
+  --el-button-active-border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
+  --el-button-active-text-color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background: color-mix(in srgb, var(--brand) 18%, var(--surface));
+  color: var(--brand-strong);
+}
+
+.shell.dark .primary-button:hover,
+.shell.dark .primary-button:focus,
+.shell.dark .el-button--primary:hover,
+.shell.dark .el-button--primary:focus {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: color-mix(in srgb, var(--brand) 24%, var(--surface));
+  box-shadow: none;
+  color: var(--brand-strong);
+}
+
+.shell .el-input__wrapper,
+.shell .el-select__wrapper,
+.shell input,
+.shell select,
+.shell textarea {
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 18px;
+  background: var(--surface-soft);
+  color: var(--text-strong);
+  box-shadow: none;
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease);
+}
+
+.shell .el-input__wrapper:hover,
+.shell .el-select__wrapper:hover,
+.shell input:hover,
+.shell select:hover,
+.shell textarea:hover {
+  background: color-mix(in srgb, var(--surface-soft) 72%, var(--surface));
+}
+
+.shell .el-input__wrapper.is-focus,
+.shell .el-select__wrapper.is-focused,
+.shell input:focus,
+.shell select:focus,
+.shell textarea:focus {
+  border-color: color-mix(in srgb, var(--brand) 70%, var(--line));
+  outline: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+.settings-panel,
+.settings-section,
+.openrouter-chat-side,
+.openrouter-chat-main,
+.billing-hero-panel,
+.version-hero,
+.release-notes,
+.help-code,
+.endpoint-fields code,
+.report-preview-modal,
+.modal,
+.diagnostic-drawer,
+.first-run-dialog,
+.danger-confirm {
+  background: var(--surface);
+}
+
+.settings-section::before,
+.release-notes::before {
+  display: none;
+}
+
+.settings-section,
+.settings-segmented,
+.settings-segmented-field,
+.settings-chip-field {
+  border-radius: 24px;
+}
+
+.settings-chip-button,
+.provider-switch button,
+.settings-segmented button,
+.billing-template-switch button {
+  border-radius: 999px;
+}
+
+.provider-switch {
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.provider-switch button.active,
+.settings-segmented button.active,
+.settings-chip-button.active {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  box-shadow: none;
+}
+
+.account-list-wrap {
+  margin-top: 18px;
+}
+
+.account-list {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.account-list-item {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) minmax(300px, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  transition:
+    background-color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.account-list-item:last-child {
+  border-bottom: 0;
+}
+
+.account-list-item:hover {
+  background: color-mix(in srgb, var(--surface-soft) 62%, transparent);
+}
+
+.account-list-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.account-list-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.account-list-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.account-list-text {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.account-list-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-list-title strong,
+.account-list-meta strong {
+  min-width: 0;
+  color: var(--text-strong);
+  font-weight: 760;
+}
+
+.account-list-title strong,
+.account-list-text p,
+.account-list-text small,
+.account-list-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-list-text p,
+.account-list-text small,
+.account-list-meta span,
+.account-list-meta small {
+  color: var(--text-muted);
+}
+
+.account-list-meta {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-list-meta div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.account-list-meta span {
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.account-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.account-toggle {
+  width: 50px;
+  height: 30px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  transition:
+    background-color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.account-toggle span {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(60, 64, 67, 0.28);
+  transform: translateX(0);
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.account-toggle.active {
+  background: var(--brand);
+}
+
+.account-toggle.active span {
+  transform: translateX(20px);
+}
+
+.account-list-actions .row-actions {
+  justify-content: flex-end;
+}
+
+.account-list-main,
+.account-list-meta,
+.account-list-actions {
+  min-width: 0;
+}
+
+.account-list-actions {
+  flex-wrap: wrap;
+}
+
+.account-list-actions .row-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-list-actions .account-action-button.el-button {
+  width: auto !important;
+  min-width: 72px !important;
+  max-width: none;
+  flex: 0 1 auto;
+  padding-inline: 12px;
+}
+
+.status-tag,
+.tag,
+.shell .el-tag {
+  border-radius: 999px;
+}
+
+.page-switch-enter-active {
+  transition:
+    opacity 240ms var(--premium-ease),
+    transform 240ms var(--premium-ease);
+}
+
+.page-switch-leave-active {
+  transition:
+    opacity 140ms var(--premium-ease),
+    transform 140ms var(--premium-ease);
+}
+
+.page-switch-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-switch-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    align-items: flex-start;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .account-list-item {
+    grid-template-columns: 1fr;
+  }
+
+  .account-list-actions {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 1440px) {
+  .account-list-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .account-list-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 900px) {
+  body {
+    overflow: auto;
+  }
+
+  .shell {
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .mobile-menu-button {
+    display: grid;
+  }
+
+  .mobile-sidebar-backdrop {
+    display: block;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 36px;
+    bottom: 0;
+    left: 0;
+    z-index: 80;
+    height: auto;
+    transform: translateX(-102%);
+    box-shadow: 18px 0 40px rgba(60, 64, 67, 0.16);
+    transition: transform 220ms var(--premium-ease);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .workspace {
+    width: 100%;
+    height: auto;
+    min-height: calc(100vh - 36px);
+    padding: 20px;
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .topbar-actions {
+    grid-column: 1 / -1;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  .view-grid,
+  .dashboard-grid,
+  .settings-grid,
+  .token-trend-summary,
+  .token-trend-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wide,
+  .full,
+  .dashboard-grid > .metric-card {
+    grid-column: 1 / -1;
+  }
+
+  .account-list-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .account-list-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* Responsive quota cards: avoid inner horizontal scrollbars on medium windows. */
+.provider-switch {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.provider-switch button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+  color: var(--text-muted);
+  box-shadow: none;
+  transform: none;
+}
+
+.provider-switch button:hover {
+  border-color: color-mix(in srgb, var(--brand) 26%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+  color: var(--text-strong);
+  transform: none;
+}
+
+.provider-switch button.active,
+.dark .provider-switch button.active,
+.shell.dark .provider-switch button.active {
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--line));
+  background: color-mix(in srgb, var(--brand) 13%, var(--surface));
+  color: var(--brand-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+.quota-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.quota-card,
+.quota-card .el-card__body,
+.quota-card-inner,
+.quota-card-head,
+.quota-card-body,
+.quota-layout,
+.balance-package-list,
+.balance-package-row,
+.quota-limit,
+.quota-stat,
+.quota-detail,
+.token-usage-detail {
+  min-width: 0;
+  max-width: 100%;
+}

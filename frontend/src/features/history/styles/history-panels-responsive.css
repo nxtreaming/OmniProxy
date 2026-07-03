@@ -1,0 +1,259 @@
+
+.history-page-panel .history-insight-panel {
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  transform: none;
+}
+
+.history-page-panel .history-insight-panel::before {
+  display: none;
+}
+
+.history-page-panel .history-insight-panel:hover {
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--line));
+  box-shadow: var(--shadow-soft);
+  transform: none;
+}
+
+.history-page-panel .history-insight-head strong {
+  color: var(--text-strong);
+  font-size: 18px;
+  font-weight: 720;
+}
+
+.history-page-panel .compact-history-trend {
+  height: 100%;
+  min-height: 248px;
+  padding: 14px 10px 8px;
+  border: 0;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-soft) 46%, transparent);
+}
+
+.history-page-panel .history-trend-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.history-page-panel .compact-history-trend .trend-bar {
+  min-height: 192px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 48%, transparent);
+}
+
+.history-page-panel .compact-history-trend .trend-bar span {
+  background: linear-gradient(180deg, var(--brand), var(--accent));
+}
+
+.history-page-panel .compact-history-trend .trend-column.active .trend-bar {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface-subtle));
+}
+
+.history-page-panel .compact-history-trend .trend-column.active .trend-bar span:not(.empty) {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+.history-page-panel .compact-history-trend .trend-bar span.empty {
+  background: color-mix(in srgb, var(--line) 62%, transparent);
+  box-shadow: none;
+}
+
+.history-page-panel .compact-history-trend .trend-column small {
+  font-size: 10px;
+}
+
+.history-page-panel .model-pie-chart,
+.history-page-panel .model-pie-item,
+.history-page-panel .rank-row {
+  border: 0;
+  background: color-mix(in srgb, var(--surface-soft) 50%, transparent);
+  box-shadow: none;
+}
+
+.history-page-panel .model-pie-item,
+.history-page-panel .rank-row {
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.history-page-panel .model-pie-chart::after {
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.history-page-panel .model-pie-layout {
+  grid-template-columns: minmax(118px, 142px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.history-page-panel .model-pie-chart {
+  width: min(142px, 100%);
+}
+
+.history-page-panel .model-pie-chart::after {
+  inset: 34px;
+}
+
+.history-page-panel .model-pie-chart > div {
+  max-width: 76px;
+}
+
+.history-page-panel .model-pie-chart span {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-page-panel .model-pie-chart small {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.history-page-panel .model-pie-legend {
+  gap: 8px;
+}
+
+.history-page-panel .table-wrap.history-table-wrap {
+  height: clamp(360px, 46vh, 560px);
+  min-height: 360px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  margin-top: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.history-table-scroll {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 24%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.history-table-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.history-table-scroll::-webkit-scrollbar-track {
+  margin: 10px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.history-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+}
+
+.history-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-muted) 36%, transparent);
+}
+
+.history-table-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.history-page-panel .history-table {
+  width: max(100%, 1040px);
+  min-width: 1040px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: transparent;
+}
+
+.history-page-panel .history-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 14px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.history-page-panel .history-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: transparent;
+}
+
+.history-page-panel .history-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.history-page-panel .clickable-history-row:hover,
+.history-page-panel .clickable-history-row:hover td {
+  background: color-mix(in srgb, var(--surface-soft) 54%, transparent);
+  box-shadow: none;
+}
+
+.history-page-panel .history-time-cell span,
+.history-page-panel .history-table td > strong {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.history-page-panel .history-table td small,
+.history-page-panel .history-time-cell small {
+  color: var(--text-muted);
+}
+
+.history-page-panel .history-table .el-button {
+  min-height: 30px;
+  padding-inline: 12px;
+}
+
+.history-page-panel .history-pagination {
+  min-height: 54px;
+  margin-top: 0;
+  padding: 10px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: none;
+}
+
+@media (max-width: 1180px) {
+  .history-filters,
+  .history-summary-grid,
+  .history-insights {
+    grid-template-columns: 1fr;
+  }
+
+  .history-search,
+  .history-trend-panel,
+  .wide-history-panel {
+    grid-column: span 1;
+  }
+
+  .model-pie-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .history-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .history-page-panel .table-wrap.history-table-wrap {
+    height: 520px;
+  }
+}

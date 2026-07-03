@@ -1,0 +1,501 @@
+
+.report-preview-list span {
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.report-preview-list strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #0f172a;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-preview-list small {
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.billing-report-preview p {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.report-preview-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  padding: 28px;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.report-preview-modal {
+  width: min(920px, 100%);
+  max-height: min(90vh, 980px);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+}
+
+.report-preview-modal-head,
+.report-preview-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.report-preview-modal-head div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.report-preview-modal-head strong {
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.report-preview-modal-head span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.report-preview-modal-head button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.report-preview-modal-head button:hover {
+  color: var(--text-strong);
+  background: var(--surface);
+}
+
+.report-preview-image-frame {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  display: grid;
+  justify-items: center;
+  background:
+    linear-gradient(45deg, rgba(148, 163, 184, 0.18) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(148, 163, 184, 0.18) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(148, 163, 184, 0.18) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(148, 163, 184, 0.18) 75%);
+  background-color: #eef2f7;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size: 16px 16px;
+}
+
+.report-preview-image-frame img {
+  width: min(100%, 560px);
+  height: auto;
+  display: block;
+  border-radius: 6px;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.22);
+}
+
+.report-preview-modal-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.billing-table {
+  margin-top: 18px;
+  display: grid;
+  gap: 9px;
+}
+
+.billing-side-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.billing-side-section {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 84%, transparent);
+}
+
+.billing-side-total {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 11%, transparent), transparent 70%),
+    color-mix(in srgb, var(--surface-soft) 88%, transparent);
+}
+
+.billing-side-total > span,
+.billing-side-total > small,
+.billing-side-section-head span,
+.billing-rank-bar span,
+.billing-ignored-list span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.billing-side-total > strong {
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  font-size: clamp(24px, 2vw, 32px);
+  line-height: 1.08;
+}
+
+.billing-side-section-head {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.billing-side-section-head strong,
+.billing-rank-bar strong,
+.billing-ignored-list strong {
+  min-width: 0;
+  color: var(--text-strong);
+}
+
+.billing-rank-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.billing-rank-bar {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.billing-rank-bar > div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.billing-rank-bar strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-rank-bar span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.billing-rank-bar i {
+  height: 8px;
+  min-width: 24px;
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.billing-ignored-list {
+  display: grid;
+  gap: 8px;
+}
+
+.billing-ignored-list > div {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.billing-ignored-list strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, 1.15fr) minmax(120px, 0.9fr) minmax(130px, 0.85fr) minmax(82px, max-content);
+  gap: 10px;
+  align-items: center;
+  padding: 13px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.billing-row.header {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.billing-row span {
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.billing-row span:last-child {
+  justify-self: end;
+  min-width: 82px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.billing-row strong {
+  color: var(--text-strong);
+}
+
+.billing-row .price-rate {
+  white-space: nowrap;
+}
+
+.billing-row small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-empty {
+  padding: 12px 0;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  top: 36px;
+  right: 0;
+  bottom: 0;
+  left: 236px;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(6, 12, 20, 0.34);
+}
+
+.diagnostic-panel-enter-active,
+.diagnostic-panel-leave-active {
+  transition: background-color 180ms ease;
+}
+
+.diagnostic-panel-enter-from,
+.diagnostic-panel-leave-to {
+  background: rgba(6, 12, 20, 0);
+}
+
+.diagnostic-panel-enter-active .diagnostic-drawer,
+.diagnostic-panel-leave-active .diagnostic-drawer {
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    box-shadow 240ms ease;
+  will-change: transform, opacity;
+}
+
+.diagnostic-panel-enter-from .diagnostic-drawer,
+.diagnostic-panel-leave-to .diagnostic-drawer {
+  opacity: 0.82;
+  transform: translateX(100%);
+  box-shadow: none;
+}
+
+.diagnostic-drawer {
+  width: min(560px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: -18px 0 44px rgba(20, 32, 51, 0.2);
+  padding: 20px;
+}
+
+.diagnostic-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diagnostic-head p,
+.diagnostic-grid span,
+.diagnostic-section > span,
+.retry-step small {
+  color: var(--text-muted);
+}
+
+.diagnostic-head p {
+  margin-top: 4px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-head button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.diagnostic-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.diagnostic-grid > div,
+.diagnostic-section,
+.retry-step {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.diagnostic-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.diagnostic-grid strong,
+.diagnostic-section p,
+.retry-step p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.diagnostic-section {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.diagnostic-section > span,
+.diagnostic-grid span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.diagnostic-section p {
+  line-height: 1.5;
+}
+
+.retry-chain {
+  display: grid;
+  gap: 8px;
+}
+
+.retry-step {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.retry-step > strong {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--muted-bg);
+}
+
+.retry-step div {
+  min-width: 0;
+}
+
+.retry-step b,
+.retry-step small {
+  display: block;
+}
+
+.retry-step small {
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.retry-step p {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diagnostic-panel-enter-active,
+  .diagnostic-panel-leave-active,
+  .diagnostic-panel-enter-active .diagnostic-drawer,
+  .diagnostic-panel-leave-active .diagnostic-drawer {
+    transition: none;
+  }
+
+  .diagnostic-panel-enter-from .diagnostic-drawer,
+  .diagnostic-panel-leave-to .diagnostic-drawer {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.dot.info {
+  background: var(--brand);
+}
+
+.dot.warn {
+  background: var(--warning);
+}
+
+.dot.error {
+  background: var(--danger);
+}
+
+.settings-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}

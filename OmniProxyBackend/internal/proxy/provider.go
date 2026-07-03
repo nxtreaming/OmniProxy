@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"strings"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/config"
+	"omniproxy/internal/token"
 )
 
 type providerURLField struct {

@@ -1,0 +1,508 @@
+
+.balance-package-list {
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.balance-package-row {
+  border-color: color-mix(in srgb, var(--line) 72%, transparent);
+  background: var(--row-bg);
+}
+
+.package-type {
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.account-action-button.el-button,
+.quota-chip.el-tag {
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.account-action-button.el-button:not(.is-disabled):hover {
+  box-shadow: var(--interactive-shadow);
+  transform: translateY(-1px);
+}
+
+.openrouter-chat-view {
+  min-height: 0;
+}
+
+.openrouter-chat-layout {
+  gap: 16px;
+}
+
+.openrouter-chat-side,
+.openrouter-chat-main {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background:
+    radial-gradient(circle at 18% 0, color-mix(in srgb, var(--brand) 8%, transparent) 0, transparent 220px),
+    var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.openrouter-chat-side {
+  position: relative;
+}
+
+.openrouter-chat-search {
+  gap: 8px;
+}
+
+.openrouter-chat-model-box,
+.openrouter-chat-controls,
+.openrouter-chat-toolbar,
+.openrouter-chat-quota-strip > div,
+.openrouter-chat-composer,
+.openrouter-model-detail,
+.openrouter-model-meta div {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.openrouter-chat-model-button {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.openrouter-chat-model-button:hover,
+.openrouter-chat-model-button:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: var(--row-bg-hover);
+  box-shadow: var(--interactive-shadow);
+  transform: translateY(-1px);
+}
+
+.openrouter-chat-model-button.active {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 18%, transparent), transparent),
+    var(--glass-bg-strong);
+  box-shadow:
+    inset 3px 0 0 var(--brand),
+    var(--interactive-shadow);
+}
+
+.openrouter-model-skeleton-row {
+  background:
+    linear-gradient(90deg, var(--row-bg), color-mix(in srgb, var(--surface) 92%, transparent), var(--row-bg));
+  background-size: 220% 100%;
+  animation: skeleton-sweep 1.6s var(--premium-ease) infinite;
+}
+
+.openrouter-chat-transcript {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 70%, transparent), transparent 80px),
+    color-mix(in srgb, var(--bg) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 66%, transparent);
+  border-radius: 14px;
+}
+
+.openrouter-chat-bubble {
+  border-color: color-mix(in srgb, var(--line) 72%, transparent);
+  background: var(--glass-bg-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.openrouter-chat-message.user .openrouter-chat-bubble {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 22%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)),
+    color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.openrouter-chat-message.pending .openrouter-chat-bubble,
+.openrouter-chat-message.streaming .openrouter-chat-bubble {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.openrouter-generation {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+.openrouter-chat-composer textarea {
+  background: transparent;
+}
+
+.openrouter-chat-send-button.el-button {
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.log-list {
+  gap: 8px;
+}
+
+.log-row {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.log-row:hover {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  box-shadow: var(--interactive-shadow);
+  transform: translateY(-1px);
+}
+
+.dot,
+.log-list.compact .dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.dot.info {
+  color: var(--brand);
+}
+
+.dot.warn {
+  color: var(--warning);
+}
+
+.dot.error {
+  color: var(--danger);
+}
+
+.token-trend-summary article,
+.token-trend-chart-card,
+.token-trend-table-panel,
+.token-trend-chart-frame,
+.compact-trend-panel {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.token-trend-summary article {
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--brand) 12%, transparent), transparent 150px),
+    var(--glass-bg);
+}
+
+.token-trend-summary-icon {
+  padding: 8px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent) inset;
+}
+
+.token-trend-chart-frame {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 66%, transparent), transparent),
+    color-mix(in srgb, var(--bg) 44%, transparent);
+}
+
+.token-trend-grid-line {
+  stroke: color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.token-trend-area {
+  opacity: 0.55;
+}
+
+.token-trend-point {
+  filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--brand) 24%, transparent));
+}
+
+.token-trend-point:hover {
+  filter: drop-shadow(0 6px 12px color-mix(in srgb, var(--brand) 34%, transparent));
+}
+
+.billing-hero-panel,
+.billing-report-preview-panel,
+.billing-table-panel,
+.billing-summary-grid > div,
+.billing-template-switch button,
+.billing-row,
+.report-preview-modal {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+.billing-hero-panel {
+  background:
+    radial-gradient(circle at 92% 0, color-mix(in srgb, var(--brand) 13%, transparent) 0, transparent 240px),
+    linear-gradient(135deg, var(--glass-bg-strong), color-mix(in srgb, var(--surface) 82%, transparent));
+}
+
+.billing-summary-grid > div {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 68%),
+    var(--glass-bg);
+}
+
+.billing-total-card {
+  border-color: color-mix(in srgb, var(--brand) 26%, var(--line));
+}
+
+.billing-template-switch button {
+  background: var(--row-bg);
+}
+
+.billing-report-preview {
+  border-color: color-mix(in srgb, var(--line) 80%, transparent);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+}
+
+.shell.dark .billing-report-preview {
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.32);
+}
+
+.billing-report-preview.template-poster .report-preview-meta > div,
+.billing-report-preview.template-poster .report-preview-metrics > div,
+.billing-report-preview.template-poster .report-preview-list > div {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.billing-report-preview.template-poster .report-preview-list > div.report-preview-list-head {
+  border-color: transparent;
+  background: #f1f5f9;
+}
+
+.billing-report-preview.template-poster .report-preview-meta span,
+.billing-report-preview.template-poster .report-preview-total span,
+.billing-report-preview.template-poster .report-preview-metrics span,
+.billing-report-preview.template-poster .report-preview-list small,
+.billing-report-preview.template-poster p {
+  color: #64748b;
+}
+
+.billing-report-preview.template-poster .report-preview-top strong,
+.billing-report-preview.template-poster .report-preview-meta strong,
+.billing-report-preview.template-poster .report-preview-total strong,
+.billing-report-preview.template-poster .report-preview-metrics strong,
+.billing-report-preview.template-poster .report-preview-list strong {
+  color: #0f172a;
+}
+
+.billing-row {
+  background: var(--row-bg);
+}
+
+.report-preview-modal-backdrop,
+.modal-backdrop,
+.drawer-backdrop,
+.danger-confirm-backdrop {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--brand) 12%, transparent), transparent 360px),
+    rgba(3, 7, 18, 0.54);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.report-preview-modal,
+.modal,
+.diagnostic-drawer,
+.first-run-dialog,
+.danger-confirm {
+  border-color: color-mix(in srgb, var(--line) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 92%, transparent), color-mix(in srgb, var(--surface) 88%, transparent));
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+}
+
+.shell.dark .report-preview-modal,
+.shell.dark .modal,
+.shell.dark .diagnostic-drawer,
+.shell.dark .first-run-dialog,
+.shell.dark .danger-confirm {
+  box-shadow: 0 26px 68px rgba(0, 0, 0, 0.44);
+}
+
+.report-preview-image-frame {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 5%, transparent), transparent),
+    color-mix(in srgb, var(--bg) 72%, transparent);
+}
+
+.settings-panel {
+  background:
+    radial-gradient(circle at 92% 0, color-mix(in srgb, var(--brand) 8%, transparent) 0, transparent 260px),
+    var(--glass-bg);
+}
+
+.settings-section,
+.settings-action-list .data-directory-row,
+.settings-section .settings-grid,
+.settings-segmented,
+.settings-segmented-field,
+.settings-chip-field,
+.maintenance-row,
+.inline-number-field,
+.toggle-field {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.settings-section {
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-section::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--brand) 24%, transparent), transparent);
+}
+
+.data-directory-row,
+.maintenance-row {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 4%, transparent), transparent),
+    var(--row-bg);
+}
+
+.danger-button {
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.danger-button:hover:not(:disabled) {
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--danger) 14%, transparent);
+  transform: translateY(-1px);
+}
+
+.help-panel,
+.first-run-body,
+.first-run-progress button,
+.first-run-endpoint,
+.endpoint-reference-note,
+.endpoint-group,
+.endpoint-row,
+.endpoint-fields code,
+.help-grid article,
+.help-readiness-card,
+.help-section-block,
+.help-flow-step,
+.help-credential-grid article,
+.help-route-list article,
+.help-troubleshooting-list article,
+.claude-model-config,
+.claude-model-choice,
+.claude-action-panel {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.help-grid article,
+.first-run-progress button,
+.endpoint-row,
+.help-readiness-card,
+.help-flow-step,
+.help-credential-grid article,
+.help-route-list article,
+.help-troubleshooting-list article,
+.claude-model-choice {
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.help-grid article:hover,
+.first-run-progress button:hover,
+.endpoint-row:hover,
+.help-readiness-card:hover,
+.help-flow-step:hover,
+.help-credential-grid article:hover,
+.help-route-list article:hover,
+.help-troubleshooting-list article:hover,
+.claude-model-choice:hover {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  box-shadow: var(--interactive-shadow);
+  transform: translateY(-1px);
+}
+
+.help-code,
+.help-grid code,
+.endpoint-reference-note code,
+.endpoint-fields code,
+.help-credential-grid code,
+.help-route-list code,
+.release-note-code {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 7%, transparent), transparent),
+    color-mix(in srgb, var(--bg) 72%, transparent);
+  color: var(--text-strong);
+}
+
+.help-card-icon,
+.help-section-icon,
+.help-check-icon,
+.about-status-icon,
+.about-info-icon,
+.about-inline-icon {
+  padding: 7px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 18%, transparent) inset;
+}
+
+.help-readiness-card.ok .help-card-icon,
+.help-check-icon {
+  background: color-mix(in srgb, var(--success) 13%, transparent);
+  color: var(--success);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 20%, transparent) inset;
+}
+
+.help-readiness-card.warning .help-card-icon {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 20%, transparent) inset;
+}
+
+.help-step-index {
+  background:
+    linear-gradient(135deg, var(--brand), var(--accent));
+  color: #ffffff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.claude-model-choice.selected {
+  border-color: color-mix(in srgb, var(--brand) 50%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 14%, transparent), transparent),
+    var(--glass-bg-strong);
+  box-shadow: var(--interactive-shadow);
+}
+
+.about-version-panel,
+.about-info-panel,
+.about-release-panel,
+.version-hero,
+.update-status-box,
+.about-info-grid > div,
+.about-row-list > div,
+.about-path-row,
+.release-notes {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+}

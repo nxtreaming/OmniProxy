@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"OmniProxyBackend/internal/config"
+	"omniproxy/internal/config"
 )
 
 type RetryPolicy struct {

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/token"
 )
 
 const maxUsageCaptureBytes = 2 * 1024 * 1024

@@ -223,7 +223,7 @@ go test ./...
 ```
 
 ```powershell
-cd .\OmniProxyBackend\frontend
+cd .\frontend
 npm test
 npm run build
 ```
@@ -258,11 +258,16 @@ The Dev build uses the `omniproxy_dev` build tag. App title, single-instance ID,
 .
 ├── OmniProxyBackend/              # Wails desktop app and Go backend
 │   ├── internal/config/           # Local config, data directory, defaults
+│   ├── internal/clientconfig/     # Local client configuration file helpers
 │   ├── internal/logs/             # Request and diagnostic logs
 │   ├── internal/proxy/            # Proxy, routing, auth, usage parsing, WebSocket
 │   ├── internal/storage/          # JSON / SQLite local persistence
 │   ├── internal/token/            # Account model, token pool, scheduling, quota state
-│   └── frontend/                  # Vue 3 + Vite + Element Plus frontend
+│   └── frontend-dist/             # Embedded frontend build output
+├── frontend/                      # Vue 3 + Vite + Element Plus frontend
+│   ├── src/features/              # Page-level feature modules
+│   ├── src/domain/                # Shared frontend domain rules
+│   └── src/components/            # Reusable UI components
 ├── docs/releases/                 # Curated release notes
 ├── scripts/dev.ps1                # Desktop development launcher
 ├── scripts/build-dev.ps1          # Coexisting Dev exe build script
@@ -313,7 +318,7 @@ go test ./...
 ```
 
 ```powershell
-cd .\OmniProxyBackend\frontend
+cd .\frontend
 npm test
 npm run build
 ```

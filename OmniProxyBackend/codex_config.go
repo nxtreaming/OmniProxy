@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/logs"
+	"omniproxy/internal/token"
 )
 
 const codexSub2APILocalAPIKey = "sk-omniproxy-local-sub2api"

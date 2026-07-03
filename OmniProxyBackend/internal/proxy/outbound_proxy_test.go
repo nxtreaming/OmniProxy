@@ -3,8 +3,8 @@ package proxy
 import (
 	"testing"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/config"
+	"omniproxy/internal/token"
 )
 
 func TestOutboundProxyMatchesRouteProviders(t *testing.T) {

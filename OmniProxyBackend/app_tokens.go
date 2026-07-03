@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/logs"
+	"omniproxy/internal/token"
 )
 
 func (a *appServer) createToken(ctx context.Context, req token.UpsertRequest) (tokenResponse, error) {

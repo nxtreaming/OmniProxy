@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/token"
 )
 
 func applyAuth(header http.Header, selected token.Token) error {

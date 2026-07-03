@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"OmniProxyBackend/internal/sanitize"
+	"omniproxy/internal/sanitize"
 )
 
 type Level string

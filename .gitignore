@@ -22,7 +22,9 @@ OmniProxyBackend/build/windows/installer/
 !OmniProxyBackend/build/windows/installer/
 OmniProxyBackend/build/windows/installer/*
 !OmniProxyBackend/build/windows/installer/project.nsi
-OmniProxyBackend/frontend/package.json.md5
+frontend/package.json.md5
+OmniProxyBackend/frontend-dist/*
+!OmniProxyBackend/frontend-dist/.gitkeep
 wails_reference/
 wails_reference2/
 

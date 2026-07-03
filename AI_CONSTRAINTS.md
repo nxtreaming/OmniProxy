@@ -5,9 +5,9 @@ This document is for AI coding agents and automation tools working in this repos
 ## Project Identity
 
 - OmniProxy is a local desktop application, not a hosted web app.
-- The main project lives in `OmniProxyBackend/`.
+- The backend project lives in `OmniProxyBackend/`; the Vue frontend lives in root `frontend/`.
 - The desktop shell is Wails v2. The backend is Go. The UI is Vue 3 + Vite + Element Plus.
-- The frontend is embedded into the Wails executable from `OmniProxyBackend/frontend/dist`.
+- The frontend is built from `frontend/` and copied into `OmniProxyBackend/frontend-dist/` for Go embed.
 - Default local ports are:
   - Proxy: `127.0.0.1:3000`
   - Control API: `127.0.0.1:3890/api`
@@ -43,7 +43,7 @@ C:\Users\mimanchi\go\bin\wails.exe build -s -clean -nopackage -tags omniproxy_de
 
 Notes:
 
-- `-s` skips the frontend build and embeds the existing `frontend/dist`.
+- `-s` skips the frontend build and embeds the existing `OmniProxyBackend/frontend-dist`.
 - `-tags omniproxy_dev` marks the executable as the dev instance, with a separate single-instance lock, data directory, bootstrap file, autostart key, and default ports.
 - If the UI source changed and the user wants those changes inside the exe, build the frontend first or run Wails without `-s`.
 - Do not run `npm run build` when the user explicitly asks not to build the web/frontend side.
@@ -108,14 +108,14 @@ go test ./...
 Frontend tests:
 
 ```powershell
-cd .\OmniProxyBackend\frontend
+cd .\frontend
 cmd /c npm test
 ```
 
 Frontend production build, only when needed:
 
 ```powershell
-cd .\OmniProxyBackend\frontend
+cd .\frontend
 cmd /c npm run build
 ```
 
@@ -142,12 +142,13 @@ Use the smallest verification set that matches the change:
 
 ## Frontend Constraints
 
-- Use Vue 3 composition API patterns already present in `frontend/src/App.vue` and `frontend/src/components/`.
+- Use Vue 3 composition API patterns already present in `frontend/src/App.vue`, `frontend/src/components/`, and `frontend/src/features/`.
 - Use `frontend/src/services/api.js` for backend access. It must prefer Wails bindings and fall back to the local HTTP control API.
 - Do not fetch backend endpoints directly from components unless there is a clear local precedent.
 - Keep Element Plus as the UI component system.
 - Keep navigation tabs in `frontend/src/constants/app.js`.
 - Keep shared formatting in `frontend/src/utils/format.js`.
+- Keep page-specific views under `frontend/src/features/`; keep reusable widgets in `frontend/src/components/`.
 - Avoid adding large global state libraries unless the user asks for a larger frontend architecture change.
 - Design should remain a dense desktop control console, not a marketing landing page.
 

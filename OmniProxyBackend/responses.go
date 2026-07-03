@@ -3,10 +3,10 @@ package main
 import (
 	"time"
 
-	"OmniProxyBackend/internal/history"
-	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/proxy"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/history"
+	"omniproxy/internal/logs"
+	"omniproxy/internal/proxy"
+	"omniproxy/internal/token"
 )
 
 type tokenResponse struct {

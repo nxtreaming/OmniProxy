@@ -1,0 +1,501 @@
+
+.quota-card-disabled .account-name {
+  color: var(--text-muted);
+}
+
+.quota-card-inner {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.quota-card-head {
+  display: grid;
+  gap: 5px;
+}
+
+.quota-card-head > div {
+  min-width: 0;
+}
+
+.quota-card-title-row,
+.quota-card-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quota-status-tags {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quota-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 58px);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.quota-chip.el-tag,
+.quota-card-actions .account-action-button.el-button {
+  --el-button-size: 24px;
+  box-sizing: border-box;
+  width: 58px !important;
+  min-width: 58px !important;
+  max-width: 58px;
+  height: 24px !important;
+  min-height: 24px;
+  max-height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 58px;
+  gap: 4px;
+}
+
+.quota-chip.el-tag .el-tag__content {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quota-card-actions .account-action-button.el-button > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.account-select-button.el-button {
+  --el-button-hover-bg-color: color-mix(in srgb, var(--surface) 78%, var(--primary) 22%);
+  --el-button-hover-border-color: color-mix(in srgb, var(--primary) 52%, var(--line) 48%);
+  --el-button-hover-text-color: var(--primary);
+  border-color: color-mix(in srgb, var(--line) 76%, var(--primary) 24%);
+  color: color-mix(in srgb, var(--text) 80%, var(--primary) 20%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--primary) 12%);
+}
+
+.account-select-button.el-button.selected,
+.account-select-button.el-button.selected:hover,
+.account-select-button.el-button.selected:focus {
+  --el-button-bg-color: var(--primary);
+  --el-button-border-color: color-mix(in srgb, var(--primary) 82%, #111827 18%);
+  --el-button-text-color: #fff;
+  --el-button-hover-bg-color: color-mix(in srgb, var(--primary) 86%, #111827 14%);
+  --el-button-hover-border-color: color-mix(in srgb, var(--primary) 76%, #111827 24%);
+  --el-button-hover-text-color: #fff;
+  border-color: var(--el-button-border-color);
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 80%, #111827 20%));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff 18%, transparent),
+    0 7px 16px color-mix(in srgb, var(--primary) 26%, transparent);
+}
+
+.account-select-button.el-button .el-icon {
+  font-size: 12px;
+}
+
+.account-select-button.el-button.selected .el-icon {
+  color: #fff;
+}
+
+.account-action-button.el-button + .account-action-button.el-button {
+  margin-left: 0;
+}
+
+.account-name {
+  display: block;
+  max-width: 100%;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.quota-card-meta-row > span,
+.quota-fields span,
+.quota-fields small,
+.quota-limit span,
+.quota-limit small,
+.quota-stat span,
+.quota-stat small {
+  color: var(--text-muted);
+}
+
+.quota-layout {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quota-layout.codex-layout {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quota-layout.single-window-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quota-layout.api-only-layout {
+  grid-template-columns: minmax(180px, 0.9fr) minmax(260px, 1.3fr);
+}
+
+.quota-limit,
+.quota-stat {
+  min-width: 0;
+  min-height: 88px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.quota-limit-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quota-limit-title strong,
+.quota-stat strong {
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.quota-stat strong,
+.quota-stat small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quota-layout.api-only-layout .quota-stat {
+  min-height: 108px;
+  padding: 12px;
+}
+
+.quota-layout.api-only-layout .quota-stat strong {
+  font-size: clamp(20px, 1.8vw, 24px);
+}
+
+.balance-package-list {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.balance-package-head,
+.balance-package-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.balance-package-head {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.balance-package-head small {
+  font-weight: 650;
+}
+
+.balance-package-row {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.balance-package-row.muted {
+  opacity: 0.72;
+}
+
+.balance-package-row > div:first-child {
+  min-width: 0;
+}
+
+.balance-package-row strong,
+.balance-package-row small {
+  display: block;
+  max-width: 100%;
+}
+
+.balance-package-row > div:first-child strong,
+.balance-package-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.balance-package-row > div:last-child {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  min-width: 112px;
+  text-align: right;
+}
+
+.balance-package-row small,
+.package-type {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.package-type {
+  font-weight: 800;
+}
+
+.quota-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: var(--text) !important;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.quota-detail strong {
+  color: var(--brand-strong);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.token-usage-detail {
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.token-usage-detail span {
+  white-space: nowrap;
+}
+
+.token-usage-detail strong {
+  font-size: inherit;
+}
+
+.shell.dark .quota-detail strong {
+  color: #9bb8ff;
+}
+
+.quota-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quota-fields > div {
+  min-height: 64px;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.quota-fields strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.quota-fields small {
+  line-height: 1.35;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.account-table {
+  width: max(100%, 1254px);
+  min-width: 1254px;
+  table-layout: fixed;
+}
+
+.account-col-name {
+  width: 270px;
+}
+
+.account-col-credential-type {
+  width: 118px;
+}
+
+.account-col-credential {
+  width: 110px;
+}
+
+.account-col-quota {
+  width: 72px;
+}
+
+.account-col-usage {
+  width: 110px;
+}
+
+.account-col-status {
+  width: 94px;
+}
+
+.account-col-last-used {
+  width: 100px;
+}
+
+.account-col-actions {
+  width: 380px;
+}
+
+th,
+td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+th {
+  color: var(--text-muted);
+  background: var(--surface-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+td small {
+  display: block;
+  margin-top: 2px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+.account-table td strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+.row-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.row-actions .el-button {
+  width: 86px !important;
+  min-width: 86px !important;
+  max-width: 86px;
+  height: 30px !important;
+  min-height: 30px;
+  max-height: 30px;
+  flex: 0 0 86px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) minmax(220px, 520px);
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.log-row > * {
+  min-width: 0;
+}
+
+.log-main {
+  min-width: 0;
+}
+
+.log-row p {
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.log-row strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-row small,
+.log-row time {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 14px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.log-token,
+.log-model,
+.log-client {
+  min-width: 0;
+  max-width: 180px;
+}
+
+.log-status,
+.log-duration,
+.log-time {
+  flex: 0 0 auto;
+}

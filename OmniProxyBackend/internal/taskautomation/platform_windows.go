@@ -14,7 +14,7 @@ import (
 	"time"
 	"unsafe"
 
-	"OmniProxyBackend/internal/config"
+	"omniproxy/internal/config"
 )
 
 const (

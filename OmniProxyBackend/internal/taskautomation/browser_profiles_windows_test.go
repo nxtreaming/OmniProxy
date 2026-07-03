@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"OmniProxyBackend/internal/config"
+	"omniproxy/internal/config"
 )
 
 func TestChromiumBrowserProfiles(t *testing.T) {

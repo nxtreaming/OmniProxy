@@ -1,0 +1,503 @@
+
+.shell.dark .dashboard-brief {
+  background:
+    radial-gradient(circle at 88% 0, rgba(108, 140, 255, 0.18) 0, transparent 210px),
+    radial-gradient(circle at 18% 100%, rgba(56, 217, 169, 0.1) 0, transparent 230px),
+    linear-gradient(135deg, #111827 0, #0b1020 100%);
+}
+
+.brief-status,
+.brief-signal {
+  border-color: color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 82%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.brief-signal strong {
+  color: var(--text-strong);
+  font-size: clamp(19px, 1.6vw, 25px);
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card strong,
+.quota-stat strong,
+.quota-limit-title strong,
+.topbar-meta strong,
+.brief-status strong,
+.brief-signal strong,
+strong {
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card-head {
+  align-items: center;
+}
+
+.metric-icon {
+  box-sizing: content-box;
+  width: 18px;
+  height: 18px;
+  padding: 8px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent) inset;
+  transition:
+    background-color 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 220ms var(--premium-ease);
+}
+
+.metric-card:hover .metric-icon {
+  animation: icon-breathe 1.6s var(--premium-ease) infinite;
+  transform: rotate(-5deg) scale(1.04);
+}
+
+.metric-icon.success-icon {
+  background: color-mix(in srgb, var(--success) 13%, transparent);
+  color: var(--success);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 20%, transparent) inset;
+}
+
+.metric-icon.warning-icon {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 20%, transparent) inset;
+}
+
+.progress,
+.trend-bar {
+  background: color-mix(in srgb, var(--line) 48%, transparent);
+  overflow: hidden;
+}
+
+.progress span,
+.trend-bar span,
+.request-trend .trend-bar span {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
+.progress span::after,
+.trend-bar span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 2.6s var(--premium-ease) infinite;
+}
+
+.shell .el-progress-bar__outer {
+  background-color: color-mix(in srgb, var(--line) 48%, transparent);
+}
+
+.shell .el-progress-bar__inner {
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
+.tool-usage-row.active,
+.current-quota-row {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--success) 12%, transparent), transparent 66%),
+    color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow:
+    inset 3px 0 0 var(--success),
+    var(--shadow-soft);
+}
+
+.contribution-day,
+.contribution-legend i {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 90%, transparent);
+}
+
+.contribution-day:hover {
+  border-color: color-mix(in srgb, var(--brand) 44%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
+  transform: scale(1.16);
+}
+
+.contribution-day.level-1,
+.contribution-legend .level-1 {
+  background: color-mix(in srgb, var(--success) 24%, var(--surface));
+}
+
+.contribution-day.level-2,
+.contribution-legend .level-2 {
+  background: color-mix(in srgb, var(--success) 42%, var(--surface));
+}
+
+.contribution-day.level-3,
+.contribution-legend .level-3 {
+  background: color-mix(in srgb, var(--success) 64%, var(--surface));
+}
+
+.contribution-day.level-4,
+.contribution-legend .level-4 {
+  background: linear-gradient(135deg, var(--success), var(--accent));
+}
+
+.shell .el-button {
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.shell .el-button:not(.is-disabled):hover {
+  transform: translateY(-1px);
+}
+
+.shell .el-button--primary {
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 20%, transparent);
+}
+
+.provider-switch button.active,
+.billing-template-option.active,
+.account-select-button.el-button.selected {
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--brand) 13%, transparent);
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes premium-status-pulse {
+  0% {
+    transform: scale(0.96);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent);
+  }
+  55% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--success) 0%, transparent);
+  }
+  100% {
+    transform: scale(0.96);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes icon-breathe {
+  0%,
+  100% {
+    filter: saturate(1);
+  }
+  50% {
+    filter: saturate(1.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .metric-card,
+  .quota-card,
+  .history-insight-panel,
+  .billing-summary-grid > div,
+  .history-summary-grid > div,
+  .help-grid article,
+  .about-info-grid > div,
+  .compact-trend-panel,
+  .status-light.online,
+  .brief-dot.online,
+  .command-dot.online,
+  .metric-card:hover .metric-icon,
+  .progress span::after,
+  .trend-bar span::after {
+    animation: none !important;
+  }
+
+  .metric-card:hover,
+  .quota-card:hover,
+  .history-insight-panel:hover,
+  .billing-summary-grid > div:hover,
+  .history-summary-grid > div:hover,
+  .compact-trend-panel:hover,
+  .shell .el-button:not(.is-disabled):hover,
+  .sidebar-tools .ghost-button:hover,
+  .contribution-day:hover {
+    transform: none;
+  }
+}
+
+/* Full-page quality pass: explicit coverage for every application view. */
+:root {
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+  --interactive-shadow: 0 10px 24px color-mix(in srgb, var(--brand) 10%, transparent);
+  --glass-bg: color-mix(in srgb, var(--surface) 90%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+  --row-bg: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+  --row-bg-hover: color-mix(in srgb, var(--brand) 7%, var(--surface));
+}
+
+.shell.dark {
+  --glass-bg: color-mix(in srgb, var(--surface) 84%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  --row-bg: color-mix(in srgb, var(--surface-soft) 74%, transparent);
+  --row-bg-hover: color-mix(in srgb, var(--brand) 10%, var(--surface));
+}
+
+button,
+[role='button'],
+.clickable-history-row,
+.openrouter-chat-model-button,
+.openrouter-chat-filter-button,
+.billing-language-switch button,
+.billing-template-switch button,
+.settings-segmented button,
+.claude-model-choice,
+.contribution-day,
+.provider-switch button {
+  cursor: pointer;
+}
+
+button:disabled,
+.el-button.is-disabled,
+.claude-model-choice.disabled {
+  cursor: not-allowed;
+}
+
+.shell :is(input, select, textarea),
+.shell .el-input__wrapper,
+.shell .el-select__wrapper,
+.openrouter-chat-number,
+.openrouter-chat-search input,
+.history-filters input,
+.history-filters select,
+.billing-control-row select,
+.inline-number-field input {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  color: var(--text-strong);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease);
+}
+
+.shell :is(input, select, textarea):hover:not(:disabled),
+.shell .el-input__wrapper:hover,
+.shell .el-select__wrapper:hover,
+.openrouter-chat-number:hover,
+.openrouter-chat-search input:hover,
+.history-filters input:hover,
+.history-filters select:hover,
+.billing-control-row select:hover,
+.inline-number-field input:hover {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.shell :is(input, select, textarea):focus,
+.shell :is(input, select, textarea):focus-visible,
+.shell .el-input__wrapper.is-focus,
+.shell .el-select__wrapper.is-focused,
+.openrouter-chat-number:focus,
+.openrouter-chat-number:focus-visible,
+.openrouter-chat-search input:focus,
+.openrouter-chat-search input:focus-visible,
+.history-filters input:focus,
+.history-filters input:focus-visible,
+.history-filters select:focus,
+.history-filters select:focus-visible,
+.billing-control-row select:focus,
+.billing-control-row select:focus-visible,
+.inline-number-field input:focus,
+.inline-number-field input:focus-visible {
+  border-color: color-mix(in srgb, var(--brand) 58%, var(--line));
+  box-shadow: var(--focus-ring);
+  outline: 0;
+}
+
+.shell :is(button, a, input, select, textarea):focus-visible,
+.openrouter-chat-model-button:focus-visible,
+.billing-language-switch button:focus-visible,
+.billing-template-switch button:focus-visible,
+.settings-segmented button:focus-visible,
+.provider-switch button:focus-visible,
+.claude-model-choice:focus-within {
+  box-shadow: var(--focus-ring);
+  outline: 0;
+}
+
+.empty,
+.compact-empty,
+.openrouter-chat-model-empty,
+.openrouter-chat-empty,
+.token-trend-empty {
+  border: 1px dashed color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 5%, transparent), transparent),
+    color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  color: var(--text-muted);
+}
+
+.tag,
+.shell .el-tag,
+.quota-chip.el-tag,
+.status-tag {
+  border-color: color-mix(in srgb, currentColor 18%, var(--line));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+.table-wrap,
+.account-table,
+.history-table,
+.usage-table,
+.billing-table {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background: var(--glass-bg);
+}
+
+.account-table th,
+.history-table th,
+.usage-row.header,
+.billing-row.header,
+.token-trend-table .usage-row.header {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 92%, transparent), color-mix(in srgb, var(--surface-soft) 80%, transparent));
+  color: var(--text-strong);
+}
+
+.account-table tbody tr,
+.clickable-history-row,
+.usage-row,
+.billing-row,
+.rank-row,
+.openrouter-model-row,
+.openrouter-quota-summary-row,
+.balance-package-row,
+.retry-step {
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.account-table tbody tr:hover,
+.clickable-history-row:hover,
+.usage-row:not(.header):hover,
+.billing-row:not(.header):hover,
+.rank-row:hover,
+.openrouter-model-row:hover,
+.openrouter-quota-summary-row:hover,
+.balance-package-row:hover,
+.retry-step:hover {
+  background: var(--row-bg-hover);
+}
+
+.provider-summary,
+.provider-api-balance-summary article,
+.openrouter-model-panel,
+.openrouter-quota-panel,
+.openrouter-quota-panel-head,
+.openrouter-quota-summary-row,
+.balance-package-list,
+.balance-package-row,
+.quota-fields > div,
+.quota-limit,
+.quota-stat {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+.provider-summary,
+.openrouter-model-panel,
+.openrouter-quota-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.provider-summary::before,
+.openrouter-model-panel::before,
+.openrouter-quota-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand) 28%, transparent), transparent);
+  pointer-events: none;
+}
+
+.provider-switch button,
+.settings-segmented button,
+.billing-language-switch button,
+.billing-template-switch button,
+.openrouter-chat-filter-button {
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.provider-switch button:hover,
+.settings-segmented button:hover,
+.billing-language-switch button:hover,
+.billing-template-switch button:hover,
+.openrouter-chat-filter-button:hover {
+  transform: translateY(-1px);
+}
+
+.provider-switch button.active,
+.settings-segmented button.active,
+.billing-language-switch button.active,
+.billing-template-switch button.active,
+.openrouter-chat-filter-button.active {
+  border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 16%, transparent), transparent),
+    var(--glass-bg-strong);
+  color: var(--brand-strong);
+  box-shadow: var(--interactive-shadow);
+}
+
+.quota-card {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-raised) 82%, transparent));
+}
+
+.quota-card-head {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 4%, transparent), transparent);
+}
+
+.quota-limit,
+.quota-stat {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 5%, transparent), transparent 68%),
+    var(--row-bg);
+}
+
+.quota-stat strong,
+.quota-limit-title strong,
+.api-quota-value strong,
+.quota-percent {
+  color: var(--text-strong);
+}

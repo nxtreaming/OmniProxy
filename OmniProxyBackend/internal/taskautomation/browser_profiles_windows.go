@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"OmniProxyBackend/internal/config"
+	"omniproxy/internal/config"
 )
 
 type chromiumProfileMeta struct {

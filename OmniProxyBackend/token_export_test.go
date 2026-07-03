@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/token"
 )
 
 func TestEncodeTokenExportIncludesCredentials(t *testing.T) {

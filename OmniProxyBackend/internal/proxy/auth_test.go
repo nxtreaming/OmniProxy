@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/token"
 )
 
 func TestApplyAuthUsesCodexAuthJSONAccessTokenAndAccountID(t *testing.T) {

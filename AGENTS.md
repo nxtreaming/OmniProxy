@@ -9,19 +9,23 @@ OmniProxy is a local desktop gateway for AI API clients. It manages multiple pro
 Main stack:
 
 - Backend and desktop shell: Go + Wails v2 in `OmniProxyBackend/`.
-- Frontend: Vue 3 + Vite + Element Plus in `OmniProxyBackend/frontend/`.
+- Frontend: Vue 3 + Vite + Element Plus in `frontend/`.
 - Local data: `%USERPROFILE%\.omniproxy` by default.
 - Main README: `README.md`.
 
 ## Repository Layout
 
-- `OmniProxyBackend/`: Wails app, Go backend, generated bindings, resources.
+- `OmniProxyBackend/`: Wails app and Go backend.
+- `OmniProxyBackend/frontend-dist/`: generated frontend bundle copied in for Go embed.
 - `OmniProxyBackend/internal/config/`: local config, defaults, data directory handling.
+- `OmniProxyBackend/internal/clientconfig/`: file helpers for local client configuration writers.
 - `OmniProxyBackend/internal/proxy/`: HTTP proxy, provider routing, auth injection, retry behavior, WebSocket proxying.
 - `OmniProxyBackend/internal/token/`: account models, token pool, scheduling, quota and usage state.
 - `OmniProxyBackend/internal/storage/`: local JSON persistence.
 - `OmniProxyBackend/internal/logs/`: in-memory request and diagnostic logs.
-- `OmniProxyBackend/frontend/`: Vue frontend.
+- `frontend/`: Vue frontend, Wails frontend bindings, Vite config, and frontend tests.
+- `frontend/src/features/`: page-level feature modules such as billing, gateway routing, history, settings, tokens, and quotas.
+- `frontend/src/domain/`: shared domain rules used across frontend features.
 - `scripts/dev.ps1`: Wails desktop development launcher.
 
 ## Working Rules
@@ -52,14 +56,14 @@ go test ./...
 Run frontend tests:
 
 ```powershell
-cd .\OmniProxyBackend\frontend
+cd .\frontend
 npm test
 ```
 
 Build frontend:
 
 ```powershell
-cd .\OmniProxyBackend\frontend
+cd .\frontend
 npm run build
 ```
 
@@ -73,7 +77,7 @@ C:\Users\mimanchi\go\bin\wails.exe build
 ## Validation Guidance
 
 - For backend routing, scheduling, quota refresh, storage, or model changes, run `go test ./...` from `OmniProxyBackend/`.
-- For frontend service utilities or formatting helpers, run `npm test` from `OmniProxyBackend/frontend/`.
+- For frontend service utilities or formatting helpers, run `npm test` from `frontend/`.
 - For frontend component or CSS changes, run `npm run build` when feasible.
 - For Wails binding changes, run a desktop build or development launch when feasible.
 - If a command cannot be run in the current environment, report that clearly with the reason.

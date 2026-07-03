@@ -1,0 +1,501 @@
+
+/* Custom Gemini dropdown for billing date; native select popups cannot be themed reliably. */
+.billing-control-row > .billing-date-select + select {
+  display: none;
+}
+
+.gemini-select {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.billing-date-select {
+  flex: 1 1 auto;
+}
+
+.gemini-select-trigger {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 36%, var(--surface));
+  color: var(--text-strong);
+  box-shadow: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+  cursor: pointer;
+}
+
+.gemini-select-trigger:hover,
+.gemini-select.open .gemini-select-trigger {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 24%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+.gemini-select-trigger:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--brand) 58%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+
+.gemini-select.disabled .gemini-select-trigger,
+.gemini-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.gemini-select-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gemini-select-trigger i {
+  width: 8px;
+  height: 8px;
+  justify-self: center;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--text-muted);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 160ms ease;
+}
+
+.gemini-select.open .gemini-select-trigger i {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.gemini-select-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 80;
+  display: grid;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 18px 44px -24px rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.gemini-select-option {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.gemini-select-option > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.gemini-select-option strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gemini-select-option small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gemini-select-option:hover {
+  background: color-mix(in srgb, var(--surface-soft) 64%, transparent);
+  color: var(--text-strong);
+}
+
+.gemini-select-option.selected {
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface));
+  color: var(--brand-strong);
+  font-weight: 760;
+}
+
+.gemini-select-option.disabled,
+.gemini-select-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.shell.dark .gemini-select-trigger {
+  border-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+}
+
+.shell.dark .gemini-select-menu {
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+
+.history-filters .gemini-select,
+.modal .gemini-select,
+.token-editor-modal .gemini-select,
+.billing-control-row .gemini-select {
+  width: 100%;
+}
+
+.history-filters .gemini-select-trigger,
+.modal .gemini-select-trigger,
+.token-editor-modal .gemini-select-trigger {
+  min-height: 44px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 40%, var(--surface));
+}
+
+.history-filters .gemini-select-menu,
+.modal .gemini-select-menu,
+.token-editor-modal .gemini-select-menu {
+  z-index: 120;
+}
+
+.modal .gemini-select-menu,
+.token-editor-modal .gemini-select-menu {
+  max-height: 220px;
+}
+
+/* Final modal pass: consistent Gemini-style overlays and surfaces. */
+.report-preview-modal-backdrop,
+.modal-backdrop,
+.danger-confirm-backdrop,
+.first-run-backdrop,
+.drawer-backdrop {
+  background:
+    radial-gradient(circle at 50% 16%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 360px),
+    color-mix(in srgb, var(--bg) 54%, rgba(3, 7, 18, 0.62));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.shell.dark .report-preview-modal-backdrop,
+.shell.dark .modal-backdrop,
+.shell.dark .danger-confirm-backdrop,
+.shell.dark .first-run-backdrop,
+.shell.dark .drawer-backdrop {
+  background:
+    radial-gradient(circle at 50% 16%, color-mix(in srgb, var(--brand) 12%, transparent), transparent 380px),
+    rgba(5, 8, 13, 0.64);
+}
+
+.report-preview-modal,
+.modal:not(.token-editor-modal),
+.danger-confirm,
+.first-run-dialog,
+.diagnostic-drawer {
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: 0 28px 88px color-mix(in srgb, #000 30%, transparent);
+}
+
+.shell.dark .report-preview-modal,
+.shell.dark .modal:not(.token-editor-modal),
+.shell.dark .danger-confirm,
+.shell.dark .first-run-dialog,
+.shell.dark .diagnostic-drawer {
+  border-color: color-mix(in srgb, var(--line) 90%, transparent);
+  background: #1e1e20;
+  box-shadow: 0 30px 92px rgba(0, 0, 0, 0.56);
+}
+
+.modal:not(.token-editor-modal) {
+  width: min(520px, calc(100vw - 48px));
+  max-height: calc(100vh - 92px);
+  overflow: hidden auto;
+  gap: 16px;
+  padding: 20px;
+}
+
+.modal:not(.token-editor-modal) .section-heading,
+.danger-confirm .section-heading {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.modal:not(.token-editor-modal) input,
+.modal:not(.token-editor-modal) select,
+.modal:not(.token-editor-modal) textarea {
+  border-color: color-mix(in srgb, var(--line) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 36%, var(--surface));
+  color: var(--text-strong);
+  box-shadow: none;
+}
+
+.modal:not(.token-editor-modal) textarea {
+  min-height: 180px;
+  border-radius: 20px;
+}
+
+.modal:not(.token-editor-modal) input:focus,
+.modal:not(.token-editor-modal) select:focus,
+.modal:not(.token-editor-modal) textarea:focus {
+  border-color: color-mix(in srgb, var(--brand) 52%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 28%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
+}
+
+.modal:not(.token-editor-modal) .modal-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 1;
+  margin: 4px -20px -20px;
+  padding: 14px 20px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.shell.dark .modal:not(.token-editor-modal) input,
+.shell.dark .modal:not(.token-editor-modal) select,
+.shell.dark .modal:not(.token-editor-modal) textarea {
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  background: color-mix(in srgb, #2a2b2f 88%, var(--surface));
+}
+
+.shell.dark .modal:not(.token-editor-modal) .modal-actions {
+  background: color-mix(in srgb, #1e1e20 92%, transparent);
+}
+
+.report-preview-modal {
+  width: min(920px, calc(100vw - 96px));
+  max-height: min(86vh, 920px);
+  border-radius: 26px;
+}
+
+.report-preview-modal-head,
+.report-preview-modal-actions {
+  padding: 18px 20px;
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  background: var(--surface);
+}
+
+.report-preview-modal-head button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 42%, var(--surface));
+  color: var(--text-muted);
+}
+
+.report-preview-modal-head button:hover {
+  background: color-mix(in srgb, var(--surface-soft) 64%, var(--surface));
+  color: var(--text-strong);
+}
+
+.report-preview-image-frame {
+  padding: 20px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 4%, transparent), transparent),
+    color-mix(in srgb, var(--surface-soft) 36%, var(--surface));
+  scrollbar-gutter: stable;
+}
+
+.report-preview-image-frame img {
+  width: min(100%, 560px);
+  border-radius: 8px;
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 20%, transparent);
+}
+
+.report-preview-modal-actions {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.shell.dark .report-preview-modal-head,
+.shell.dark .report-preview-modal-actions {
+  background: #1e1e20;
+}
+
+.shell.dark .report-preview-image-frame {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 5%, transparent), transparent),
+    #202124;
+}
+
+.danger-confirm-backdrop {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--danger) 8%, transparent), transparent 360px),
+    color-mix(in srgb, var(--bg) 44%, rgba(3, 7, 18, 0.48)) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+.shell.dark .danger-confirm-backdrop {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--danger) 9%, transparent), transparent 380px),
+    rgba(5, 8, 13, 0.5) !important;
+}
+
+.danger-confirm-actions {
+  margin: 2px -4px -4px;
+  padding: 14px 4px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  background: transparent !important;
+}
+
+.shell.dark .danger-confirm {
+  background: #1f2023;
+}
+
+.shell.dark .danger-confirm-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--danger) 8%, transparent), transparent),
+    #25262a;
+}
+
+.shell.dark .danger-confirm-actions {
+  border-top-color: color-mix(in srgb, var(--line) 86%, transparent);
+  background: transparent !important;
+}
+
+@media (max-width: 760px) {
+  .report-preview-modal-backdrop,
+  .modal-backdrop,
+  .danger-confirm-backdrop,
+  .first-run-backdrop {
+    padding: 16px;
+  }
+
+  .report-preview-modal {
+    width: min(100%, calc(100vw - 32px));
+    max-height: calc(100vh - 72px);
+  }
+}
+
+/* Final request diagnostic drawer pass. */
+.drawer-backdrop {
+  left: 256px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--bg) 34%, transparent), color-mix(in srgb, var(--bg) 56%, rgba(3, 7, 18, 0.58))) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+.diagnostic-drawer {
+  border-left: 1px solid color-mix(in srgb, var(--line) 84%, transparent) !important;
+  background: var(--surface) !important;
+  box-shadow: -28px 0 88px color-mix(in srgb, #000 22%, transparent) !important;
+}
+
+.diagnostic-grid > div,
+.diagnostic-section,
+.retry-step {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent) !important;
+  border-radius: 18px !important;
+  background: color-mix(in srgb, var(--surface-soft) 38%, var(--surface)) !important;
+  box-shadow: none !important;
+}
+
+.diagnostic-head button {
+  background: color-mix(in srgb, var(--surface-soft) 46%, var(--surface)) !important;
+}
+
+.shell.dark .drawer-backdrop {
+  background:
+    linear-gradient(90deg, rgba(5, 8, 13, 0.22), rgba(5, 8, 13, 0.68)) !important;
+}
+
+.shell.dark .diagnostic-drawer {
+  border-left-color: color-mix(in srgb, var(--line) 90%, transparent) !important;
+  background: #1e1e20 !important;
+  box-shadow: -30px 0 92px rgba(0, 0, 0, 0.58) !important;
+}
+
+.shell.dark .diagnostic-grid > div,
+.shell.dark .diagnostic-section,
+.shell.dark .retry-step {
+  border-color: color-mix(in srgb, var(--line) 88%, transparent) !important;
+  background: #2a2b2f !important;
+}
+
+.shell.dark .diagnostic-head button {
+  background: #2a2b2f !important;
+}
+
+.shell.dark .diagnostic-head button:hover {
+  background: #303134 !important;
+}
+
+/* Main content scrollbar: hidden by default, delayed Gemini-style reveal on hover. */
+.workspace {
+  --workspace-scroll-thumb: color-mix(in srgb, var(--text-muted) 28%, transparent);
+  --workspace-scroll-thumb-hover: color-mix(in srgb, var(--text-muted) 44%, transparent);
+  scrollbar-color: transparent transparent !important;
+}
+
+.workspace::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.workspace::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.workspace::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background-color: transparent !important;
+  transition: background-color 500ms ease;
+}
+
+.workspace:hover {
+  scrollbar-color: transparent transparent !important;
+}
+
+.workspace.workspace-scrollbar-visible {
+  scrollbar-color: var(--workspace-scroll-thumb) transparent !important;
+}

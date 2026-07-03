@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/token"
 )
 
 func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {

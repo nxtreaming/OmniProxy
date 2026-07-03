@@ -1,6 +1,6 @@
 package token
 
-import "OmniProxyBackend/internal/securestore"
+import "omniproxy/internal/securestore"
 
 var (
 	protectTokenValue   = securestore.ProtectString

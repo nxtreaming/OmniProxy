@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"strings"
 
-	"OmniProxyBackend/internal/claudedesktop"
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/claudedesktop"
+	"omniproxy/internal/config"
+	"omniproxy/internal/token"
 )
 
 type Router struct {

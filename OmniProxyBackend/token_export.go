@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode"
 
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/token"
 )
 
 type tokenExportResult struct {

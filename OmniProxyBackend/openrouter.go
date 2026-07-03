@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/proxy"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/config"
+	"omniproxy/internal/logs"
+	"omniproxy/internal/proxy"
+	"omniproxy/internal/token"
 )
 
 const openRouterModelsCacheTTL = 6 * time.Hour

@@ -1,7 +1,8 @@
 param(
     [string]$Version = "dev",
     [string]$OutputName = "OmniProxy-Dev.exe",
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$Restart
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,3 +52,23 @@ if (-not (Test-Path $outputPath)) {
 
 Write-Host "Built dev executable: $outputPath"
 Write-Host "Dev profile uses separate data and ports: .omniproxy-dev, 127.0.0.1:3001, control 127.0.0.1:3891"
+
+if ($Restart) {
+    $processName = [System.IO.Path]::GetFileNameWithoutExtension($OutputName)
+    $running = Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object {
+        try {
+            $_.Path -eq $outputPath
+        } catch {
+            $false
+        }
+    }
+
+    foreach ($process in $running) {
+        Write-Host "Stopping existing dev process $($process.Id)..."
+        Stop-Process -Id $process.Id -Force
+        Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "Starting dev executable..."
+    Start-Process -FilePath $outputPath -WorkingDirectory (Split-Path -Parent $outputPath) -WindowStyle Hidden
+}

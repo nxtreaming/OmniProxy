@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/proxy"
+	"omniproxy/internal/config"
+	"omniproxy/internal/proxy"
 )
 
 type fakePlatform struct {

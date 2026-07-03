@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/config"
+	"omniproxy/internal/logs"
+	"omniproxy/internal/token"
 )
 
 const (

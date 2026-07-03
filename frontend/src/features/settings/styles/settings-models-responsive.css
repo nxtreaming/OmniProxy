@@ -1,0 +1,202 @@
+
+.settings-panel .outbound-model-selector-head {
+  gap: 12px;
+}
+
+.settings-panel .outbound-model-group {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.settings-panel .outbound-model-selector-head + .outbound-model-group {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings-panel .outbound-model-group-head strong {
+  color: var(--text-strong);
+}
+
+.settings-panel .outbound-model-options {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+}
+
+.settings-panel .outbound-model-option {
+  min-height: 108px;
+  padding: 14px;
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));
+  box-shadow: none;
+}
+
+.settings-panel .outbound-model-option:hover {
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  background: color-mix(in srgb, var(--surface-soft) 50%, var(--surface));
+  transform: none;
+}
+
+.settings-panel .outbound-model-option.active {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--line));
+  background: color-mix(in srgb, var(--brand) 9%, var(--surface));
+  box-shadow: none;
+}
+
+.settings-panel .outbound-model-option code {
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.settings-panel .toggle-field {
+  min-height: 42px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.settings-panel .toggle-switch {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 52%, var(--surface));
+  box-shadow: none;
+}
+
+.settings-panel .toggle-field:has(.toggle-input:checked) .toggle-switch {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--line));
+  background: var(--brand);
+}
+
+.settings-panel .toggle-field:has(.toggle-input:checked) .toggle-thumb {
+  background: var(--on-primary);
+}
+
+.shell.dark .settings-panel {
+  background: transparent;
+  box-shadow: none;
+}
+
+.shell.dark .settings-panel .settings-section {
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  background: var(--surface);
+}
+
+.shell.dark .settings-panel .settings-grid input,
+.shell.dark .settings-panel .settings-grid select,
+.shell.dark .settings-panel .inline-number-field input,
+.shell.dark .settings-panel .settings-chip-button,
+.shell.dark .settings-panel .browser-profile-option,
+.shell.dark .settings-panel .outbound-model-option {
+  background: color-mix(in srgb, var(--surface-soft) 40%, var(--surface));
+}
+
+@media (min-width: 1440px) {
+  .settings-panel .settings-maintenance-section .settings-action-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .settings-panel .outbound-model-selector,
+  .shell.dark .settings-panel .outbound-model-selector {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .settings-panel .outbound-model-selector-head,
+  .settings-panel .outbound-model-selector > .settings-chip-field {
+    grid-column: 1 / -1;
+  }
+
+  .settings-panel .outbound-model-group {
+    min-width: 0;
+    padding-top: 0;
+    padding-left: 18px;
+    border-top: 0;
+    border-left: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  }
+
+  .settings-panel .outbound-model-selector-head + .outbound-model-group {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .settings-panel .outbound-model-group .outbound-model-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1280px) {
+  .settings-panel .settings-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .settings-maintenance-section,
+  .settings-panel .settings-service-section,
+  .settings-panel .settings-outbound-section,
+  .settings-panel .settings-scheduling-section,
+  .settings-panel .settings-gateway-section,
+  .settings-panel .settings-task-automation-section,
+  .settings-panel .settings-url-section {
+    grid-column: 1 / -1;
+  }
+
+  .settings-panel .settings-grid,
+  .settings-panel .settings-service-section .settings-grid,
+  .settings-panel .settings-scheduling-section .settings-grid,
+  .settings-panel .settings-url-section .settings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-page-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-panel .settings-stack,
+  .settings-panel .settings-columns,
+  .settings-panel .settings-grid,
+  .settings-panel .settings-maintenance-section .settings-action-list,
+  .settings-panel .settings-service-section .settings-grid,
+  .settings-panel .settings-scheduling-section .settings-grid,
+  .settings-panel .settings-url-section .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .settings-section {
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .settings-panel .browser-profile-head {
+    flex-direction: column;
+  }
+
+  .settings-panel .data-directory-row,
+  .settings-panel .maintenance-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .settings-panel .settings-maintenance-section .maintenance-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .settings-panel .settings-maintenance-section .data-directory-row,
+  .settings-panel .settings-maintenance-section .maintenance-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .settings-panel .settings-maintenance-section .data-directory-row > button,
+  .settings-panel .settings-maintenance-section .maintenance-row .inline-number-field,
+  .settings-panel .settings-maintenance-section .maintenance-actions {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .settings-panel .maintenance-actions {
+    justify-content: flex-start;
+  }
+}

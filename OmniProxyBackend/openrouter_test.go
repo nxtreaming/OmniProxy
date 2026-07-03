@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/storage"
-	"OmniProxyBackend/internal/token"
+	"omniproxy/internal/config"
+	"omniproxy/internal/logs"
+	"omniproxy/internal/storage"
+	"omniproxy/internal/token"
 )
 
 func TestOpenRouterChatUsesSavedKeyAndRecordsUsage(t *testing.T) {

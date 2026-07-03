@@ -1,0 +1,507 @@
+
+@media (max-width: 1180px) {
+  body {
+    min-width: 0;
+  }
+
+  .sidebar {
+    height: 100vh;
+  }
+
+  .workspace {
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .view-grid,
+  .settings-grid,
+  .help-grid,
+  .token-trend-summary,
+  .token-trend-chart-grid,
+  .help-readiness-grid,
+  .help-flow,
+  .help-credential-grid,
+  .first-run-progress,
+  .first-run-body,
+  .endpoint-row,
+  .endpoint-fields > div,
+  .claude-model-picker,
+  .claude-action-row,
+  .about-page,
+  .about-page-column,
+  .about-info-grid,
+  .about-row-list,
+  .about-row-list.compact,
+  .quota-card-grid,
+  .quota-fields,
+  .quota-overview-grid,
+  .quota-layout,
+  .quota-layout.codex-layout,
+  .quota-layout.single-window-layout,
+  .quota-layout.api-only-layout,
+  .quota-row,
+  .api-quota-row,
+  .tool-usage-row,
+  .usage-row,
+  .trend-panels,
+  .history-filters,
+  .history-summary-grid,
+  .history-insights,
+  .billing-summary-grid,
+  .billing-layout,
+  .billing-row,
+  .dashboard-usage-summary,
+  .compact-trend-panels,
+  .openrouter-chat-layout,
+  .openrouter-chat-quota-strip,
+  .openrouter-quota-panel-head,
+  .openrouter-quota-summary-row,
+  .openrouter-model-list,
+  .outbound-model-options {
+    grid-template-columns: 1fr;
+  }
+
+  .quota-card-title-row,
+  .quota-card-meta-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .quota-card-actions,
+  .quota-status-tags {
+    justify-content: flex-start;
+  }
+
+  .usage-trend {
+    grid-template-columns: repeat(7, minmax(28px, 1fr));
+    height: auto;
+  }
+
+  .quota-percent {
+    text-align: left;
+  }
+
+  .api-quota-value {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .wide,
+  .full,
+  .wide-help,
+  .wide-field {
+    grid-column: span 1;
+  }
+
+  .dashboard-grid > .metric-card,
+  .dashboard-grid > .tool-usage-panel,
+  .dashboard-grid > .quota-overview-panel,
+  .dashboard-grid > .recent-log-panel,
+  .dashboard-grid > .contribution-panel,
+  .dashboard-grid > .usage-overview-panel {
+    grid-column: span 1;
+  }
+
+  .history-search {
+    grid-column: span 1;
+  }
+
+  .data-directory-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .help-route-list article {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .first-run-head,
+  .first-run-actions,
+  .first-run-actions > div {
+    flex-direction: column;
+  }
+
+  .version-hero {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .about-release-panel {
+    grid-column: span 1;
+  }
+
+  .release-notes-body {
+    grid-template-columns: 1fr;
+  }
+
+  .about-actions {
+    justify-content: flex-start;
+  }
+
+  .billing-heading-row,
+  .billing-control-row {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  .billing-action-buttons {
+    justify-content: flex-start;
+  }
+
+  .billing-template-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .report-preview-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .report-preview-modal-backdrop {
+    padding: 12px;
+  }
+
+  .report-preview-modal {
+    max-height: 94vh;
+  }
+
+  .report-preview-image-frame {
+    padding: 12px;
+  }
+
+  .report-preview-modal-actions {
+    flex-wrap: wrap;
+  }
+
+  .data-directory-row > button,
+  .data-directory-row > .el-button {
+    justify-self: start;
+  }
+
+  .openrouter-chat-side {
+    padding-right: 0;
+    padding-bottom: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .openrouter-chat-transcript {
+    max-height: none;
+  }
+
+  .history-trend-panel,
+  .wide-history-panel {
+    grid-column: span 1;
+  }
+
+  .model-pie-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .history-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+/* Premium visual enhancement: final cascade over the native utility pass. */
+:root {
+  --bg: #f7f9fd;
+  --surface: #ffffff;
+  --surface-raised: #fbfcff;
+  --surface-soft: #f2f5fb;
+  --surface-subtle: #e8edf7;
+  --line: #dce4f0;
+  --line-strong: #b9c6dc;
+  --text: #334155;
+  --text-strong: #111827;
+  --text-muted: #66758a;
+  --brand: #4f46e5;
+  --brand-strong: #4338ca;
+  --brand-soft: rgba(79, 70, 229, 0.1);
+  --accent: #0891b2;
+  --accent-soft: rgba(8, 145, 178, 0.1);
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.12);
+  --warning: #d97706;
+  --warning-bg: rgba(217, 119, 6, 0.12);
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.1);
+  --muted-bg: #eef3fa;
+  --sidebar-bg: #f6f8fc;
+  --sidebar-panel: rgba(255, 255, 255, 0.82);
+  --sidebar-line: #dce4f0;
+  --sidebar-text: #1f2937;
+  --sidebar-muted: #64748b;
+  --shadow: 0 8px 24px rgba(79, 70, 229, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
+  --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.035);
+  --premium-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.shell.dark {
+  --bg: #080b12;
+  --surface: #0f1420;
+  --surface-raised: #151c2c;
+  --surface-soft: #1a2233;
+  --surface-subtle: #243044;
+  --line: #1e2a3e;
+  --line-strong: #2d3f5a;
+  --text: #c8d4e6;
+  --text-strong: #f0f4f8;
+  --text-muted: #7a8ba3;
+  --brand: #6c8cff;
+  --brand-strong: #96b0ff;
+  --brand-soft: rgba(108, 140, 255, 0.12);
+  --accent: #38d9a9;
+  --accent-soft: rgba(56, 217, 169, 0.12);
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.12);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.12);
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.12);
+  --muted-bg: #1a2233;
+  --sidebar-bg: rgba(8, 11, 18, 0.96);
+  --sidebar-panel: rgba(21, 28, 44, 0.78);
+  --sidebar-line: #22304a;
+  --sidebar-text: #eef4ff;
+  --sidebar-muted: #8899b3;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.2);
+  --el-bg-color: #0f1420;
+  --el-bg-color-overlay: #151c2c;
+  --el-border-color: #1e2a3e;
+  --el-text-color-primary: #f0f4f8;
+  --el-text-color-regular: #c8d4e6;
+  --el-text-color-secondary: #7a8ba3;
+}
+
+.shell {
+  background:
+    radial-gradient(circle at 78% 0, color-mix(in srgb, var(--brand) 8%, transparent) 0, transparent 300px),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 88%, var(--bg)) 0, var(--bg) 260px);
+  color: var(--text);
+}
+
+.workspace {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 76%, transparent) 0, transparent 240px),
+    var(--bg);
+}
+
+.topbar,
+.window-titlebar {
+  background: color-mix(in srgb, var(--surface-raised) 84%, transparent);
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.sidebar {
+  border-right-color: var(--sidebar-line);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sidebar-panel) 62%, transparent) 0, transparent 180px),
+    var(--sidebar-bg);
+  color: var(--sidebar-text);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.brand {
+  border-bottom-color: color-mix(in srgb, var(--sidebar-line) 82%, transparent);
+}
+
+.brand-mark,
+.sidebar-status,
+.sidebar-tools .ghost-button {
+  border-color: color-mix(in srgb, var(--sidebar-line) 78%, transparent);
+  background: var(--sidebar-panel);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+}
+
+.brand strong,
+.sidebar-status strong {
+  color: var(--sidebar-text);
+}
+
+.brand span,
+.sidebar-status span,
+.nav-section-label {
+  color: var(--sidebar-muted);
+}
+
+.status-light,
+.brief-dot,
+.command-dot {
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-muted) 16%, transparent);
+}
+
+.status-light.online,
+.brief-dot.online,
+.command-dot.online {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
+  animation: premium-status-pulse 2.4s var(--premium-ease) infinite;
+}
+
+.nav-list button {
+  overflow: hidden;
+  min-height: 34px;
+  border-radius: 8px;
+  color: var(--sidebar-muted);
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.nav-list button::before {
+  content: '';
+  position: absolute;
+  inset: 6px auto 6px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: transparent;
+  transition: background-color 180ms var(--premium-ease);
+}
+
+.nav-list button:hover {
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--sidebar-line));
+  background: color-mix(in srgb, var(--brand) 8%, var(--sidebar-panel));
+  color: var(--sidebar-text);
+}
+
+.nav-list button.active,
+.dark .nav-list button.active,
+.shell.dark .nav-list button.active {
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--sidebar-line));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand) 17%, transparent), transparent 76%),
+    var(--sidebar-panel);
+  color: var(--sidebar-text);
+  box-shadow:
+    inset 3px 0 0 var(--brand),
+    0 8px 18px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+.nav-list button.active::before {
+  background: var(--brand);
+}
+
+.nav-icon,
+.button-icon {
+  color: currentColor;
+  transition: transform 180ms var(--premium-ease);
+}
+
+.nav-list button:hover .nav-icon,
+.sidebar-tools .ghost-button:hover .button-icon {
+  transform: translateY(-1px);
+}
+
+.sidebar-tools {
+  gap: 10px;
+}
+
+.sidebar-tools .ghost-button {
+  min-height: 38px;
+  color: var(--sidebar-text);
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.sidebar-tools .ghost-button:hover {
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--sidebar-line));
+  background: color-mix(in srgb, var(--brand) 11%, var(--sidebar-panel));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--sidebar-text);
+  transform: translateY(-1px);
+}
+
+.panel,
+.metric-card,
+.quota-card,
+.table-wrap,
+.usage-table,
+.history-insight-panel,
+.billing-summary-grid > div,
+.history-summary-grid > div,
+.tool-usage-row,
+.log-row,
+.quota-limit,
+.quota-stat,
+.help-grid article,
+.data-directory-row,
+.about-info-grid > div,
+.about-row-list > div,
+.about-path-row,
+.openrouter-quota-panel,
+.openrouter-model-panel,
+.openrouter-chat-side,
+.openrouter-chat-main,
+.compact-trend-panel {
+  border-color: color-mix(in srgb, var(--line) 76%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.panel,
+.metric-card,
+.quota-card,
+.history-insight-panel,
+.billing-summary-grid > div,
+.history-summary-grid > div,
+.help-grid article,
+.about-info-grid > div,
+.compact-trend-panel {
+  animation: card-enter 280ms var(--premium-ease) both;
+}
+
+.metric-card,
+.quota-card,
+.history-insight-panel,
+.billing-summary-grid > div,
+.history-summary-grid > div,
+.tool-usage-row,
+.log-row,
+.compact-trend-panel,
+.contribution-day {
+  transition:
+    background-color 180ms var(--premium-ease),
+    border-color 180ms var(--premium-ease),
+    box-shadow 180ms var(--premium-ease),
+    color 180ms var(--premium-ease),
+    transform 180ms var(--premium-ease);
+}
+
+.metric-card:hover,
+.quota-card:hover,
+.history-insight-panel:hover,
+.billing-summary-grid > div:hover,
+.history-summary-grid > div:hover,
+.compact-trend-panel:hover {
+  border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--brand) 12%, transparent), var(--shadow-soft);
+  transform: translateY(-2px);
+}
+
+.dashboard-brief {
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+  background:
+    radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--brand) 14%, transparent) 0, transparent 190px),
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-raised) 82%, transparent));
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}

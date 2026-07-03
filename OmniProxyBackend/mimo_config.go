@@ -1,16 +1,15 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"OmniProxyBackend/internal/claudedesktop"
-	"OmniProxyBackend/internal/logs"
+	"omniproxy/internal/claudedesktop"
+	"omniproxy/internal/clientconfig"
+	"omniproxy/internal/logs"
 )
 
 const (
@@ -208,11 +207,11 @@ func (a *appServer) restoreClaudeConfig() (mimoConfigureResult, error) {
 	}
 
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
-	if err := restoreBackup(settingsPath, settingsPath+".omniproxy.bak"); err != nil {
+	if err := clientconfig.RestoreBackup(settingsPath, settingsPath+".omniproxy.bak"); err != nil {
 		return mimoConfigureResult{}, err
 	}
 	claudePath := filepath.Join(home, ".claude.json")
-	if err := restoreBackup(claudePath, claudePath+".omniproxy.bak"); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := clientconfig.RestoreBackup(claudePath, claudePath+".omniproxy.bak"); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return mimoConfigureResult{}, err
 	}
 
@@ -259,11 +258,11 @@ func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeMo
 		return &claudeModelSelectionError{message: "至少选择一个 Claude Code 模型"}
 	}
 
-	data, err := readJSONObject(path)
+	data, err := clientconfig.ReadJSONObject(path)
 	if err != nil {
 		return err
 	}
-	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+	if err := clientconfig.BackupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
 		return err
 	}
 
@@ -282,7 +281,7 @@ func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeMo
 		env["CLAUDE_CODE_EFFORT_LEVEL"] = "max"
 	}
 	data["env"] = env
-	return writeJSONObject(path, data)
+	return clientconfig.WriteJSONObject(path, data)
 }
 
 func setClaudeModelGroup(env map[string]any, key string, target claudeModelTarget) {
@@ -437,7 +436,7 @@ func writeClaudeDesktopProfile(paths claudedesktop.Paths, baseURL string, routes
 	if err := writeClaudeDesktopDeploymentMode(paths.ThreePConfigPath, "3p"); err != nil {
 		return err
 	}
-	if err := writeJSONObject(paths.ProfilePath, claudedesktop.BuildGatewayProfile(baseURL, routes)); err != nil {
+	if err := clientconfig.WriteJSONObject(paths.ProfilePath, claudedesktop.BuildGatewayProfile(baseURL, routes)); err != nil {
 		return err
 	}
 	if err := claudedesktop.WriteRoutes(paths.RoutesPath, routes); err != nil {
@@ -447,16 +446,16 @@ func writeClaudeDesktopProfile(paths claudedesktop.Paths, baseURL string, routes
 }
 
 func writeClaudeDesktopDeploymentMode(path string, mode string) error {
-	data, err := readJSONObject(path)
+	data, err := clientconfig.ReadJSONObject(path)
 	if err != nil {
 		return err
 	}
 	data["deploymentMode"] = mode
-	return writeJSONObject(path, data)
+	return clientconfig.WriteJSONObject(path, data)
 }
 
 func writeClaudeDesktopMeta(path string, apply bool) error {
-	data, err := readJSONObject(path)
+	data, err := clientconfig.ReadJSONObject(path)
 	if err != nil {
 		return err
 	}
@@ -480,7 +479,7 @@ func writeClaudeDesktopMeta(path string, apply bool) error {
 		delete(data, "appliedId")
 	}
 	data["entries"] = entries
-	return writeJSONObject(path, data)
+	return clientconfig.WriteJSONObject(path, data)
 }
 
 func removeFileIfExists(path string) error {
@@ -647,74 +646,13 @@ func isKnownRouterDefaultModel(value string) bool {
 }
 
 func writeMimoClaudeOnboarding(path string) error {
-	data, err := readJSONObject(path)
+	data, err := clientconfig.ReadJSONObject(path)
 	if err != nil {
 		return err
 	}
-	if err := backupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
+	if err := clientconfig.BackupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
 		return err
 	}
 	data["hasCompletedOnboarding"] = true
-	return writeJSONObject(path, data)
-}
-
-func readJSONObject(path string) (map[string]any, error) {
-	data := map[string]any{}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return data, nil
-		}
-		return nil, err
-	}
-	if len(strings.TrimSpace(string(raw))) == 0 {
-		return data, nil
-	}
-	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
-	if err := json.Unmarshal(raw, &data); err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-func writeJSONObject(path string, data map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	raw, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(raw, '\n'), 0o600)
-}
-
-func backupFile(path string, backupPath string, missingContent []byte) error {
-	if _, err := os.Stat(backupPath); err == nil {
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		raw = missingContent
-	}
-	if err := os.MkdirAll(filepath.Dir(backupPath), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(backupPath, raw, 0o600)
-}
-
-func restoreBackup(path string, backupPath string) error {
-	raw, err := os.ReadFile(backupPath)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, raw, 0o600)
+	return clientconfig.WriteJSONObject(path, data)
 }

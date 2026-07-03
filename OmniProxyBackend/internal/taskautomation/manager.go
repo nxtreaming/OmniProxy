@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"OmniProxyBackend/internal/config"
-	"OmniProxyBackend/internal/logs"
-	"OmniProxyBackend/internal/proxy"
+	"omniproxy/internal/config"
+	"omniproxy/internal/logs"
+	"omniproxy/internal/proxy"
 )
 
 type windowHandle uintptr
