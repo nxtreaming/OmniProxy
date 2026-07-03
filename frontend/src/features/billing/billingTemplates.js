@@ -1,0 +1,106 @@
+export const billingLanguages = [
+  { key: 'zh', label: '中文' },
+  { key: 'en', label: 'English' },
+]
+
+export const reportTemplates = [
+  {
+    key: 'poster',
+    label: '费用海报',
+    badge: 'POSTER',
+    description: '大数字、强排版，适合保存当天用量截图。',
+    previewTitle: '费用海报',
+    previewSubtitle: '把一天的模型开销做成分享图',
+    note: '偏视觉展示的模拟账单，不作为正式对账凭证。',
+  },
+  {
+    key: 'neon',
+    label: '午夜霓虹',
+    badge: 'NEON',
+    description: '深色背景和高亮数据，适合夜间主题。',
+    previewTitle: '午夜霓虹',
+    previewSubtitle: '更像一张模型消费战报',
+    note: '深色霓虹模板突出总额、Token 与模型排行。',
+  },
+  {
+    key: 'receipt',
+    label: '复古小票',
+    badge: 'RECEIPT',
+    description: '像便利店小票一样轻松，有点生活感。',
+    previewTitle: '复古小票',
+    previewSubtitle: '把 Token 消耗打印成一张小票',
+    note: '小票模板用于趣味记录，只展示本地估算结果。',
+  },
+  {
+    key: 'standard',
+    label: '清爽卡片',
+    badge: 'CARD',
+    description: '留白多、信息完整，适合普通保存。',
+    previewTitle: '模拟账单卡',
+    previewSubtitle: 'OmniProxy local usage snapshot',
+    note: '卡片模板包含编号、日期、模型明细与合计金额。',
+  },
+  {
+    key: 'summary',
+    label: '能量仪表',
+    badge: 'METER',
+    description: '更像今日仪表盘，突出 Token 能量条。',
+    previewTitle: '能量仪表',
+    previewSubtitle: '当天模型调用的状态面板',
+    note: '仪表模板突出总额、Token、请求数和主要模型占比。',
+  },
+  {
+    key: 'ledger',
+    label: '数据长图',
+    badge: 'DATA',
+    description: '保留表格秩序，但不做正式对账用途。',
+    previewTitle: '数据长图',
+    previewSubtitle: '模型、Token 和估算金额一屏看完',
+    note: '数据模板更紧凑，优先展示更多模型明细和合计。',
+  },
+]
+
+export const englishTemplateText = {
+  poster: {
+    label: 'Cost Poster',
+    description: 'Large numbers and bold layout for daily usage snapshots.',
+    previewTitle: 'Cost Poster',
+    previewSubtitle: 'Turn a day of model spend into a shareable card',
+    note: 'A visual mock bill for sharing, not an official settlement document.',
+  },
+  neon: {
+    label: 'Midnight Neon',
+    description: 'Dark background and bright data highlights for night mode.',
+    previewTitle: 'Midnight Neon',
+    previewSubtitle: 'A battle-report style view of model spend',
+    note: 'Neon template highlights total cost, tokens, and model ranking.',
+  },
+  receipt: {
+    label: 'Retro Receipt',
+    description: 'A casual receipt-style record with a bit of personality.',
+    previewTitle: 'Retro Receipt',
+    previewSubtitle: 'Print token usage like a tiny store receipt',
+    note: 'Receipt template is for fun local records and estimated results only.',
+  },
+  standard: {
+    label: 'Clean Card',
+    description: 'More whitespace and complete information for regular saving.',
+    previewTitle: 'Mock Bill Card',
+    previewSubtitle: 'OmniProxy local usage snapshot',
+    note: 'Card template includes ID, date, model details, and total estimate.',
+  },
+  summary: {
+    label: 'Energy Meter',
+    description: 'Dashboard-like view focused on token energy bars.',
+    previewTitle: 'Energy Meter',
+    previewSubtitle: 'A status panel for daily model calls',
+    note: 'Meter template highlights total, tokens, requests, and top models.',
+  },
+  ledger: {
+    label: 'Data Longform',
+    description: 'Keeps table order without implying formal reconciliation.',
+    previewTitle: 'Data Longform',
+    previewSubtitle: 'Models, tokens, and estimated cost in one image',
+    note: 'Data template is more compact and shows more model rows.',
+  },
+}

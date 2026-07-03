@@ -1,5 +1,8 @@
 <script setup>
 import { defineAsyncComponent } from 'vue'
+import AppSidebar from './AppSidebar.vue'
+import AppWindowTitlebar from './AppWindowTitlebar.vue'
+import AppWorkspaceToasts from './AppWorkspaceToasts.vue'
 import DiagnosticDrawer from '../DiagnosticDrawer.vue'
 import appIconUrl from '../../assets/appicon.png'
 import { providers } from '../../constants/app'
@@ -20,7 +23,6 @@ import {
   weeklyLimitReached,
 } from '../../utils/tokenDisplay'
 import { openExternalURL } from '../../services/api'
-import { Moon, Sunny, SwitchButton } from '@element-plus/icons-vue'
 import { useOmniProxyApp } from '../../app/useOmniProxyApp'
 
 const DashboardView = defineAsyncComponent(() => import('../DashboardView.vue'))
@@ -74,96 +76,21 @@ const {
 
 <template>
   <div class="shell" :class="{ dark: isDark }">
-    <header
-      class="window-titlebar"
-      :class="{ maximised: windowMaximised }"
-      aria-label="窗口控制栏"
-      @dblclick="toggleWindowMaximise"
-    >
-      <div class="window-titlebar-drag">
-        <img :src="appIconUrl" alt="" />
-        <div>
-          <strong>OmniProxy</strong>
-          <span>{{ appInfo.isDevelopment ? 'Dev' : appInfo.version }} · {{ proxyStatus.running ? '代理运行中' : '代理未启动' }}</span>
-        </div>
-      </div>
-      <div
-        v-if="titlebarUpdateVisible"
-        class="window-titlebar-actions"
-        aria-label="应用状态"
-        @pointerdown.stop
-      >
-        <button
-          type="button"
-          class="titlebar-update-button"
-          :title="titlebarUpdatePrompt.tooltip"
-          aria-haspopup="dialog"
-          :aria-expanded="titlebarUpdatePopoverOpen"
-          @click.stop="toggleTitlebarUpdatePopover"
-          @dblclick.stop
-        >
-          <span class="titlebar-update-mark" aria-hidden="true"></span>
-          <span>新版本</span>
-        </button>
-        <div
-          v-if="titlebarUpdatePopoverOpen"
-          class="titlebar-update-popover"
-          role="dialog"
-          aria-label="新版本提示"
-          @click.stop
-          @dblclick.stop
-        >
-          <div class="titlebar-update-popover-head">
-            <span class="titlebar-update-popover-icon" aria-hidden="true"></span>
-            <div>
-              <span class="titlebar-update-popover-kicker">{{ titlebarUpdatePrompt.badge }}</span>
-              <strong>{{ titlebarUpdatePrompt.title }}</strong>
-            </div>
-            <button
-              type="button"
-              class="titlebar-update-popover-close"
-              aria-label="关闭更新提示"
-              @click="closeTitlebarUpdatePopover"
-            >
-              <span aria-hidden="true"></span>
-            </button>
-          </div>
-          <p>{{ titlebarUpdatePrompt.description }}</p>
-          <div class="titlebar-update-popover-meta">
-            <div>
-              <span>当前版本</span>
-              <strong>{{ titlebarUpdatePrompt.currentVersion }}</strong>
-            </div>
-            <div>
-              <span>最新版本</span>
-              <strong>{{ titlebarUpdatePrompt.latestVersion }}</strong>
-            </div>
-          </div>
-          <div class="titlebar-update-popover-actions">
-            <button type="button" class="ghost-button compact-button" @click="closeTitlebarUpdatePopover">稍后</button>
-            <button type="button" class="primary-button compact-button" @click="confirmTitlebarUpdatePopover">
-              {{ titlebarUpdatePrompt.primaryText }}
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="window-controls" aria-label="窗口操作">
-        <button type="button" class="window-control minimise" aria-label="最小化" @click.stop="minimiseWindow">
-          <span class="control-mark" aria-hidden="true"></span>
-        </button>
-        <button
-          type="button"
-          :class="['window-control', windowMaximised ? 'restore' : 'maximise']"
-          :aria-label="windowMaximised ? '还原窗口' : '最大化'"
-          @click.stop="toggleWindowMaximise"
-        >
-          <span class="control-mark" aria-hidden="true"></span>
-        </button>
-        <button type="button" class="window-control close" aria-label="关闭窗口" @click.stop="closeWindow">
-          <span class="control-mark" aria-hidden="true"></span>
-        </button>
-      </div>
-    </header>
+    <AppWindowTitlebar
+      :app-icon-url="appIconUrl"
+      :app-info="appInfo"
+      :proxy-status="proxyStatus"
+      :window-maximised="windowMaximised"
+      :titlebar-update-visible="titlebarUpdateVisible"
+      :titlebar-update-prompt="titlebarUpdatePrompt"
+      :titlebar-update-popover-open="titlebarUpdatePopoverOpen"
+      @toggle-window-maximise="toggleWindowMaximise"
+      @toggle-titlebar-update-popover="toggleTitlebarUpdatePopover"
+      @close-titlebar-update-popover="closeTitlebarUpdatePopover"
+      @confirm-titlebar-update-popover="confirmTitlebarUpdatePopover"
+      @minimise-window="minimiseWindow"
+      @close-window="closeWindow"
+    />
     <div
       v-if="hasWailsRuntime()"
       class="window-resize-edge window-resize-edge-right"
@@ -171,75 +98,24 @@ const {
       @mousedown.prevent.stop="startWindowResize('e-resize')"
     ></div>
 
-    <div
-      v-if="mobileSidebarOpen"
-      class="mobile-sidebar-backdrop"
-      aria-hidden="true"
-      @click="mobileSidebarOpen = false"
-    ></div>
-
-    <aside class="sidebar" :class="{ open: mobileSidebarOpen }">
-      <div class="brand">
-        <div class="brand-mark">
-          <img :src="appIconUrl" alt="" />
-        </div>
-        <div>
-          <strong>OmniProxy</strong>
-          <span>本地 API 网关</span>
-        </div>
-      </div>
-
-      <div class="sidebar-status">
-        <div class="sidebar-status-main">
-          <div :class="['status-light', { online: proxyStatus.running }]"></div>
-          <div>
-            <strong>{{ proxyStatus.running ? '代理运行中' : '代理未启动' }}</strong>
-            <span>{{ proxyEndpoint }} · {{ tokens.length }} 个账号</span>
-          </div>
-        </div>
-        <div class="sidebar-status-meta">
-          <div>
-            <span>端口</span>
-            <strong>{{ proxyStatus.port || config.proxyPort }}</strong>
-          </div>
-          <div>
-            <span>可用账号</span>
-            <strong>{{ activeTokens.length }}</strong>
-          </div>
-          <div>
-            <span>状态</span>
-            <strong>{{ proxyStatus.running ? '运行中' : '已停止' }}</strong>
-          </div>
-        </div>
-        <button type="button" class="sidebar-proxy-button" @click="toggleProxy">
-          <component :is="SwitchButton" class="button-icon" aria-hidden="true" />
-          <span>{{ proxyStatus.running ? '停止代理' : '启动代理' }}</span>
-        </button>
-      </div>
-
-      <nav class="nav-list">
-        <section v-for="section in navSections" :key="section.label" class="nav-section">
-          <span class="nav-section-label">{{ section.label }}</span>
-          <button
-            v-for="tab in section.items"
-            :key="tab.key"
-            type="button"
-            :class="{ active: activeTab === tab.key }"
-            @click="selectTab(tab.key)"
-          >
-            <component :is="tabIcons[tab.key]" class="nav-icon" aria-hidden="true" />
-            <span>{{ tab.label }}</span>
-          </button>
-        </section>
-      </nav>
-
-      <div class="sidebar-tools">
-        <button type="button" class="ghost-button" @click="toggleAppTheme">
-          <component :is="isDark ? Sunny : Moon" class="button-icon" aria-hidden="true" />
-          <span>{{ appThemeLabel }}</span>
-        </button>
-      </div>
-    </aside>
+    <AppSidebar
+      :app-icon-url="appIconUrl"
+      :mobile-sidebar-open="mobileSidebarOpen"
+      :proxy-status="proxyStatus"
+      :proxy-endpoint="proxyEndpoint"
+      :tokens-count="tokens.length"
+      :active-tokens-count="activeTokens.length"
+      :config-proxy-port="config.proxyPort"
+      :nav-sections="navSections"
+      :active-tab="activeTab"
+      :tab-icons="tabIcons"
+      :is-dark="isDark"
+      :app-theme-label="appThemeLabel"
+      @close-mobile-sidebar="mobileSidebarOpen = false"
+      @toggle-proxy="toggleProxy"
+      @select-tab="selectTab"
+      @toggle-app-theme="toggleAppTheme"
+    />
 
     <main
       ref="workspaceRef"
@@ -274,41 +150,13 @@ const {
         </div>
       </header>
 
-      <TransitionGroup name="quota-refresh" tag="div" class="toast-stack quota-refresh-stack" aria-live="polite">
-        <div v-if="quotaRefreshProgress.visible" key="quota-refresh" class="notice quota-refresh-toast" role="status">
-          <div class="quota-refresh-orb" aria-hidden="true">
-            <span></span>
-          </div>
-          <div class="quota-refresh-body">
-            <div class="quota-refresh-title-row">
-              <strong>刷新中{{ quotaRefreshProgress.percent }}%</strong>
-              <span>{{ quotaRefreshProgress.completed }} / {{ quotaRefreshProgress.total }}</span>
-            </div>
-            <div
-              class="quota-refresh-track"
-              role="progressbar"
-              aria-label="额度刷新进度"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              :aria-valuenow="quotaRefreshProgress.percent"
-            >
-              <span :style="{ width: `${quotaRefreshProgress.percent}%` }"></span>
-            </div>
-            <small>{{ quotaRefreshProgress.currentName || `${quotaRefreshProgress.providerLabel} 额度刷新中` }}</small>
-          </div>
-        </div>
-      </TransitionGroup>
-
-      <TransitionGroup name="snackbar" tag="div" class="toast-stack" aria-live="polite">
-        <div v-if="errorMessage" key="error" class="alert" role="alert">
-          <span class="toast-message">{{ errorMessage }}</span>
-          <button type="button" aria-label="关闭错误提示" @click="errorMessage = ''">×</button>
-        </div>
-        <div v-if="successMessage" key="success" class="notice" role="status">
-          <span class="toast-message">{{ successMessage }}</span>
-          <button type="button" aria-label="关闭成功提示" @click="successMessage = ''">×</button>
-        </div>
-      </TransitionGroup>
+      <AppWorkspaceToasts
+        :quota-refresh-progress="quotaRefreshProgress"
+        :error-message="errorMessage"
+        :success-message="successMessage"
+        @clear-error="errorMessage = ''"
+        @clear-success="successMessage = ''"
+      />
 
       <Transition
         name="page-switch"

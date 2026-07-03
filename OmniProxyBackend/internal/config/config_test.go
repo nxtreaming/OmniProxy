@@ -121,6 +121,38 @@ func TestStoreLoadPreservesPremAutoStartDisabled(t *testing.T) {
 	}
 }
 
+func TestStoreLoadLegacyGatewayRoutesWithoutFallbacks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	raw := []byte(`{
+  "gatewayRoutes": {
+    "openai": {
+      "provider": "DeepSeek",
+      "model": "deepseek-v4-pro[1m]"
+    }
+  }
+}`)
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.GatewayRoutes.OpenAI.Provider != token.ProviderDeepSeek || cfg.GatewayRoutes.OpenAI.CredentialType != "" {
+		t.Fatalf("expected legacy OpenAI route to normalize to DeepSeek without forced credential, got %#v", cfg.GatewayRoutes.OpenAI)
+	}
+	if cfg.GatewayRoutes.OpenAI.Model != "deepseek-v4-pro[1m]" {
+		t.Fatalf("expected legacy route model to be preserved, got %q", cfg.GatewayRoutes.OpenAI.Model)
+	}
+	if cfg.GatewayRoutes.OpenAI.Fallbacks != nil {
+		t.Fatalf("expected omitted legacy fallbacks to stay empty, got %#v", cfg.GatewayRoutes.OpenAI.Fallbacks)
+	}
+	if cfg.GatewayRoutes.Codex.Provider == "" || cfg.GatewayRoutes.Claude.Provider == "" || cfg.GatewayRoutes.Gemini.Provider == "" {
+		t.Fatalf("expected missing gateway routes to receive defaults, got %#v", cfg.GatewayRoutes)
+	}
+}
+
 func TestNormalizeGatewayRouteFallbacks(t *testing.T) {
 	cfg := Normalize(Config{
 		GatewayRoutes: GatewayRoutes{
@@ -146,6 +178,39 @@ func TestNormalizeGatewayRouteFallbacks(t *testing.T) {
 		t.Fatalf("unexpected first fallback: %#v", fallbacks[0])
 	}
 	if fallbacks[1].Provider != token.ProviderZhipu || fallbacks[1].CredentialType != token.CredentialTypeCodingPlan || fallbacks[1].Model != "glm-route" {
+		t.Fatalf("unexpected second fallback: %#v", fallbacks[1])
+	}
+}
+
+func TestNormalizeGatewayRouteFallbacksDropsNestedAndDuplicateEntries(t *testing.T) {
+	cfg := Normalize(Config{
+		GatewayRoutes: GatewayRoutes{
+			OpenAI: GatewayRouteConfig{
+				Provider:       token.ProviderOpenAI,
+				CredentialType: token.CredentialTypeAPIKey,
+				Model:          "gpt-route",
+				Fallbacks: []GatewayRouteConfig{
+					{
+						Provider: token.ProviderDeepSeek,
+						Fallbacks: []GatewayRouteConfig{
+							{Provider: token.ProviderZhipu},
+						},
+					},
+					{Provider: " DEEPSEEK ", Model: "duplicate-should-drop"},
+					{Provider: token.ProviderZhipu, CredentialType: token.CredentialTypeAPIKey},
+				},
+			},
+		},
+	})
+
+	fallbacks := cfg.GatewayRoutes.OpenAI.Fallbacks
+	if len(fallbacks) != 2 {
+		t.Fatalf("expected duplicate fallback to be dropped, got %#v", fallbacks)
+	}
+	if fallbacks[0].Provider != token.ProviderDeepSeek || len(fallbacks[0].Fallbacks) != 0 {
+		t.Fatalf("expected nested fallback chain to be cleared, got %#v", fallbacks[0])
+	}
+	if fallbacks[1].Provider != token.ProviderZhipu || fallbacks[1].CredentialType != token.CredentialTypeAPIKey {
 		t.Fatalf("unexpected second fallback: %#v", fallbacks[1])
 	}
 }

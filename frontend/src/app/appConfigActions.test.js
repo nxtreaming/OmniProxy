@@ -27,3 +27,36 @@ test('gatewayRoutesPayload preserves ordered fallback route settings', () => {
     ],
   })
 })
+
+test('gatewayRoutesPayload keeps legacy routes compatible when fallbacks are omitted', () => {
+  const payload = gatewayRoutesPayload({
+    openai: {
+      provider: ' deepseek ',
+      model: ' deepseek-v4-pro[1m] ',
+    },
+  })
+
+  assert.deepEqual(payload.openai, {
+    provider: 'deepseek',
+    credentialType: '',
+    model: 'deepseek-v4-pro[1m]',
+    fallbacks: [],
+  })
+})
+
+test('gatewayRoutesPayload skips malformed fallback entries', () => {
+  const payload = gatewayRoutesPayload({
+    openai: {
+      provider: 'openai',
+      fallbacks: [
+        null,
+        'deepseek',
+        { provider: ' kimi ', credentialType: ' api_key ', model: ' kimi-for-coding ' },
+      ],
+    },
+  })
+
+  assert.deepEqual(payload.openai.fallbacks, [
+    { provider: 'kimi', credentialType: 'api_key', model: 'kimi-for-coding' },
+  ])
+})

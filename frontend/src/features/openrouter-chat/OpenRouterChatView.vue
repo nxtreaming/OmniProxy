@@ -1,6 +1,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { Connection, Delete, Refresh } from '@element-plus/icons-vue'
+import { Connection } from '@element-plus/icons-vue'
+import OpenRouterChatHeader from './OpenRouterChatHeader.vue'
+import OpenRouterModelSidebar from './OpenRouterModelSidebar.vue'
 import { sendOpenRouterChat } from '../../services/api'
 import {
   isFreeModel,
@@ -478,123 +480,48 @@ async function sendMessage() {
 <template>
   <section class="openrouter-chat-view">
     <div class="openrouter-chat-layout">
-      <aside class="openrouter-chat-side">
-        <div class="openrouter-chat-search">
-          <input v-model="modelSearch" type="search" placeholder="搜索模型" />
-          <button
-            type="button"
-            :class="['openrouter-chat-filter-button', { active: freeOnly }]"
-            @click="toggleFreeOnly"
-          >
-            免费 {{ formatNumber(freeModelCount) }}
-          </button>
-        </div>
-
-        <div v-if="modelsError" class="openrouter-chat-error">
-          <div class="inline-error">{{ modelsError }}</div>
-          <el-button type="primary" plain @click="$emit('open-create-key')">添加 API Key</el-button>
-        </div>
-
-        <div class="openrouter-chat-model-box">
-          <div class="openrouter-chat-model-count">
-            <span class="openrouter-chat-model-count-text">
-              <span v-if="modelsLoading" class="openrouter-loading-dot" aria-hidden="true"></span>
-              {{
-                modelsLoading
-                  ? props.models.length
-                    ? `刷新中 · ${formatNumber(filteredModels.length)} / ${formatNumber(models.length)} 个模型`
-                    : '加载模型中'
-                  : `${formatNumber(filteredModels.length)} / ${formatNumber(models.length)} 个模型`
-              }}
-            </span>
-          </div>
-          <div class="openrouter-chat-model-list">
-            <div v-if="showModelLoadingSkeleton" class="openrouter-model-skeleton-list" aria-label="模型加载中">
-              <div v-for="index in 8" :key="index" class="openrouter-model-skeleton-row">
-                <span></span>
-                <small></small>
-              </div>
-            </div>
-            <template v-else>
-              <button
-                v-for="model in filteredModels"
-                :key="model.id"
-                type="button"
-                :class="['openrouter-chat-model-button', { active: model.id === selectedModelId }]"
-                @click="selectModel(model)"
-              >
-                <strong>{{ model.id }}</strong>
-                <small>
-                  {{ model.name || model.id }}
-                  <template v-if="isFreeModel(model)"> · free</template>
-                </small>
-              </button>
-            </template>
-            <div v-if="!filteredModels.length && !modelsLoading" class="openrouter-chat-model-empty">
-              未找到匹配模型
-            </div>
-          </div>
-        </div>
-
-        <div class="openrouter-chat-controls">
-          <label class="openrouter-chat-field">
-            <span>温度</span>
-            <input v-model.number="temperature" class="openrouter-chat-number" type="number" min="0" max="2" step="0.1" />
-          </label>
-          <label class="openrouter-chat-field">
-            <span>输出上限</span>
-            <input v-model.number="maxTokens" class="openrouter-chat-number" type="number" min="1" max="200000" step="256" />
-          </label>
-        </div>
-      </aside>
+      <OpenRouterModelSidebar
+        :models="models"
+        :filtered-models="filteredModels"
+        :model-search="modelSearch"
+        :free-only="freeOnly"
+        :free-model-count="freeModelCount"
+        :models-loading="modelsLoading"
+        :models-error="modelsError"
+        :show-model-loading-skeleton="showModelLoadingSkeleton"
+        :selected-model-id="selectedModelId"
+        :temperature="temperature"
+        :max-tokens="maxTokens"
+        :format-number="formatNumber"
+        @update:model-search="modelSearch = $event"
+        @update:temperature="temperature = $event"
+        @update:max-tokens="maxTokens = $event"
+        @toggle-free-only="toggleFreeOnly"
+        @select-model="selectModel"
+        @open-create-key="$emit('open-create-key')"
+      />
 
       <div class="openrouter-chat-main">
-        <div class="openrouter-chat-toolbar">
-          <div class="openrouter-chat-current">
-            <strong>{{ selectedModelInfo?.name || selectedModelId || '选择模型' }}</strong>
-            <span>{{ selectedModelId || '未选择模型' }}</span>
-          </div>
-          <div class="openrouter-chat-metrics">
-            <span>{{ selectedModelInfo?.contextLength ? `${formatNumber(selectedModelInfo.contextLength)} ctx` : 'ctx -' }}</span>
-            <span>{{ modelPriceLine }}</span>
-            <span>{{ conversationUsageLine }}</span>
-          </div>
-          <div class="openrouter-chat-actions">
-            <el-button :icon="Refresh" :loading="modelsLoading" @click="$emit('refresh-models')">
-              {{ modelsLoading ? '刷新中' : '刷新' }}
-            </el-button>
-            <el-button
-              :icon="Refresh"
-              :loading="openRouterQuotaLoading"
-              @click="refreshOpenRouterQuota"
-            >
-              {{ openRouterQuotaToken ? '额度' : '添加 Key' }}
-            </el-button>
-            <el-button :icon="Delete" :disabled="!messages.length || sending || typing" @click="resetConversation()">
-              清空
-            </el-button>
-          </div>
-        </div>
-
-        <div class="openrouter-chat-quota-strip">
-          <div class="openrouter-chat-quota-title">
-            <span>OpenRouter 额度</span>
-            <strong>{{ openRouterQuotaToken?.name || '未配置 API Key' }}</strong>
-            <small>{{ openRouterQuotaMeta }}</small>
-          </div>
-          <div>
-            <span>剩余</span>
-            <strong>{{ openRouterQuotaRemainingText }}</strong>
-          </div>
-          <div>
-            <span>已用</span>
-            <strong>{{ openRouterQuotaUsedText }}</strong>
-          </div>
-          <div>
-            <span>上限</span>
-            <strong>{{ openRouterQuotaLimitText }}</strong>
-          </div>
-        </div>
+        <OpenRouterChatHeader
+          :selected-model-info="selectedModelInfo"
+          :selected-model-id="selectedModelId"
+          :model-price-line="modelPriceLine"
+          :conversation-usage-line="conversationUsageLine"
+          :models-loading="modelsLoading"
+          :open-router-quota-loading="openRouterQuotaLoading"
+          :open-router-quota-token="openRouterQuotaToken"
+          :open-router-quota-meta="openRouterQuotaMeta"
+          :open-router-quota-remaining-text="openRouterQuotaRemainingText"
+          :open-router-quota-used-text="openRouterQuotaUsedText"
+          :open-router-quota-limit-text="openRouterQuotaLimitText"
+          :messages-count="messages.length"
+          :sending="sending"
+          :typing="typing"
+          :format-number="formatNumber"
+          @refresh-models="$emit('refresh-models')"
+          @refresh-quota="refreshOpenRouterQuota"
+          @reset-conversation="resetConversation()"
+        />
 
         <div ref="transcriptRef" class="openrouter-chat-transcript">
           <div v-if="!messages.length" class="openrouter-chat-empty">
