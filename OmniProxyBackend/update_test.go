@@ -163,6 +163,18 @@ func TestLatestVersionedReleaseSkipsPrereleaseWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestLatestVersionedReleaseSortsNumericPrereleaseIdentifiers(t *testing.T) {
+	releases := []githubRelease{
+		{TagName: "v1.2.1-beta.9", Prerelease: true},
+		{TagName: "v1.2.1-beta.10", Prerelease: true},
+		{TagName: "v1.2.1-beta.2", Prerelease: true},
+	}
+	release, ok := latestVersionedRelease(releases, true)
+	if !ok || release.TagName != "v1.2.1-beta.10" {
+		t.Fatalf("expected beta.10 candidate, got ok=%v release=%#v", ok, release)
+	}
+}
+
 func TestUpdateDownloadAssetFromAssetsSelectsInstallerAndChecksum(t *testing.T) {
 	asset := updateDownloadAssetFromAssetsForPlatform([]githubReleaseAsset{
 		{Name: "source.zip", BrowserDownloadURL: "https://example.com/source.zip"},
@@ -183,6 +195,20 @@ func TestUpdateDownloadAssetFromAssetsSelectsDarwinUniversal(t *testing.T) {
 	}, "darwin", "arm64")
 	if asset.URL != "https://example.com/universal.dmg" || asset.ChecksumURL != "https://example.com/universal.dmg.sha256" || asset.FileName != "OmniProxy-v1.2.3-darwin-universal.dmg" || asset.Size != 84 {
 		t.Fatalf("unexpected darwin asset selection: %#v", asset)
+	}
+}
+
+func TestUpdateDownloadAssetFromAssetsDoesNotUseOtherPlatformChecksum(t *testing.T) {
+	asset := updateDownloadAssetFromAssetsForPlatform([]githubReleaseAsset{
+		{Name: "OmniProxy-Setup-v1.2.3-windows-amd64.exe", BrowserDownloadURL: "https://example.com/setup.exe"},
+		{Name: "OmniProxy-Setup-v1.2.3-windows-amd64.exe.sha256", BrowserDownloadURL: "https://example.com/setup.exe.sha256"},
+		{Name: "OmniProxy-v1.2.3-darwin-universal.dmg", BrowserDownloadURL: "https://example.com/universal.dmg"},
+	}, "darwin", "arm64")
+	if asset.URL != "https://example.com/universal.dmg" {
+		t.Fatalf("expected darwin dmg to be selected, got %#v", asset)
+	}
+	if asset.ChecksumURL != "" {
+		t.Fatalf("expected missing darwin checksum to stay empty, got %#v", asset)
 	}
 }
 
@@ -244,6 +270,51 @@ func TestUpdateDownloaderDownloadsAndVerifiesInstaller(t *testing.T) {
 	}
 	if string(saved) != string(content) {
 		t.Fatalf("unexpected saved content: %q", saved)
+	}
+}
+
+func TestUpdateDownloaderFailsHungDownloadAfterTimeout(t *testing.T) {
+	oldTimeout := updateDownloadTimeout
+	updateDownloadTimeout = 20 * time.Millisecond
+	defer func() {
+		updateDownloadTimeout = oldTimeout
+	}()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/installer.exe":
+			time.Sleep(200 * time.Millisecond)
+			_, _ = w.Write([]byte("late installer bytes"))
+		case "/installer.exe.sha256":
+			t.Fatal("checksum should not be requested after a timed-out installer download")
+		default:
+			t.Fatalf("unexpected download path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	downloader := newUpdateDownloader()
+	_, err := downloader.Start(context.Background(), server.Client(), updateDownloadRequest{
+		Version:     "v9.9.9",
+		DownloadURL: server.URL + "/installer.exe",
+		ChecksumURL: server.URL + "/installer.exe.sha256",
+		FileName:    testInstallerFileName(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	status := downloader.Status()
+	for time.Now().Before(deadline) {
+		status = downloader.Status()
+		if status.State == "failed" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status.State != "failed" || status.Error == "" {
+		t.Fatalf("expected timed-out download to fail, got %#v", status)
 	}
 }
 
@@ -334,6 +405,10 @@ func TestCompareVersions(t *testing.T) {
 		{left: "v1.0.2", right: "v1.0.3", want: -1},
 		{left: "v1.0.9", right: "v1.0.9-beta.1", want: 1},
 		{left: "v1.0.9-beta.2", right: "v1.0.9-beta.1", want: 1},
+		{left: "v1.0.9-beta.10", right: "v1.0.9-beta.9", want: 1},
+		{left: "v1.0.9-beta.2", right: "v1.0.9-beta.10", want: -1},
+		{left: "v1.0.9-beta.1.1", right: "v1.0.9-beta.1", want: 1},
+		{left: "v1.0.9-rc.1", right: "v1.0.9-beta.10", want: 1},
 		{left: "dev", right: "v1.0.3", want: 0},
 	}
 	for _, tt := range tests {

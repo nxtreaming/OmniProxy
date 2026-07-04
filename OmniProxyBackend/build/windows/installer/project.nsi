@@ -37,6 +37,7 @@
 !define WAILS_WIN10_REQUIRED "OmniProxy 仅支持 Windows 10（Server 2016）及更新版本。"
 !define WAILS_ARCHITECTURE_NOT_SUPPORTED "OmniProxy 无法安装在当前 Windows 架构上。支持架构：${ARCH}"
 !define WAILS_INSTALL_WEBVIEW_DETAILPRINT "正在安装：WebView2 Runtime"
+!define OMNIPROXY_HOMEPAGE "https://github.com/mibgb65-cloud/OmniProxy"
 
 # The version information for this two must consist of 4 parts
 VIProductVersion "${INFO_PRODUCTVERSION}.0"
@@ -84,23 +85,28 @@ ShowInstDetails show # This will always show the installation details.
 
 Var RemoveUserData
 Var AutoUpdate
+Var ExistingInstall
 
 Function .onInit
    !insertmacro wails.checkArchitecture
    SetRegView 64
    StrCpy $AutoUpdate "0"
+   StrCpy $ExistingInstall "0"
    ${GetParameters} $0
    ClearErrors
    ${GetOptions} $0 "/OMNIPROXY_AUTOUPDATE=" $1
    IfErrors noAutoUpdate
    StrCmp $1 "1" 0 noAutoUpdate
    StrCpy $AutoUpdate "1"
+   SetSilent silent
+   SetAutoClose true
 
 noAutoUpdate:
 
    ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
    ${If} $0 != ""
        StrCpy $INSTDIR "$0"
+       StrCpy $ExistingInstall "1"
        Return
    ${EndIf}
 
@@ -109,6 +115,7 @@ noAutoUpdate:
    ReadRegStr $0 HKLM "${UNINST_KEY}" "DisplayIcon"
    ${If} $0 != ""
        ${GetParent} "$0" $INSTDIR
+       StrCpy $ExistingInstall "1"
    ${EndIf}
 FunctionEnd
 
@@ -125,7 +132,7 @@ autoUpdateWait:
     IntCmp $0 0 autoUpdateRunning autoUpdateDone autoUpdateDone
 
 autoUpdateRunning:
-    IntCmp $2 30 autoUpdateSleep autoUpdateForce autoUpdateForce
+    IntCmp $2 30 autoUpdateForce autoUpdateSleep autoUpdateForce
 
 autoUpdateSleep:
     DetailPrint "正在等待 OmniProxy 退出..."
@@ -181,10 +188,102 @@ FunctionEnd
 
 Function un.onInit
     StrCpy $RemoveUserData "0"
+    ${GetParameters} $0
+    ClearErrors
+    ${GetOptions} $0 "/OMNIPROXY_REMOVE_DATA=" $1
+    IfErrors noRemoveOption
+    StrCmp $1 "1" 0 noRemoveOption
+    StrCpy $RemoveUserData "1"
+
+noRemoveOption:
+    IfSilent done ask
+
+ask:
     MessageBox MB_YESNO|MB_ICONQUESTION "是否保留 OmniProxy 本地数据？$\r$\n$\r$\n选择“是”会保留账号、配置和请求历史；选择“否”会删除默认数据目录和数据目录配置。" IDYES keep IDNO remove
 remove:
     StrCpy $RemoveUserData "1"
 keep:
+done:
+FunctionEnd
+
+Function createOrRefreshShortcuts
+    CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+
+    ${If} $ExistingInstall == "1"
+        IfFileExists "$DESKTOP\${INFO_PRODUCTNAME}.lnk" refreshDesktop done
+refreshDesktop:
+        CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+        Goto done
+    ${EndIf}
+
+    CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+
+done:
+FunctionEnd
+
+Function un.ensureAppNotRunning
+    IfSilent silentCheck interactiveCheck
+
+silentCheck:
+    nsExec::ExecToStack 'cmd /C tasklist /FI $\"IMAGENAME eq ${PRODUCT_EXECUTABLE}$\" /NH | find /I $\"${PRODUCT_EXECUTABLE}$\" >NUL'
+    Pop $0
+    Pop $1
+    ${If} $0 == 0
+        DetailPrint "正在关闭 OmniProxy..."
+        nsExec::ExecToLog 'taskkill /F /IM "${PRODUCT_EXECUTABLE}"'
+        Sleep 1000
+    ${EndIf}
+    Return
+
+interactiveCheck:
+check:
+    nsExec::ExecToStack 'cmd /C tasklist /FI $\"IMAGENAME eq ${PRODUCT_EXECUTABLE}$\" /NH | find /I $\"${PRODUCT_EXECUTABLE}$\" >NUL'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
+        Return
+    ${EndIf}
+
+    MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "检测到 OmniProxy 正在运行。$\r$\n$\r$\n选择“是”将关闭后继续卸载；选择“否”可手动关闭后重试；选择“取消”退出卸载。" IDYES close IDNO manual
+
+cancel:
+    Abort
+
+close:
+    DetailPrint "正在关闭 OmniProxy..."
+    nsExec::ExecToLog 'taskkill /IM "${PRODUCT_EXECUTABLE}"'
+    Sleep 2000
+    nsExec::ExecToStack 'cmd /C tasklist /FI $\"IMAGENAME eq ${PRODUCT_EXECUTABLE}$\" /NH | find /I $\"${PRODUCT_EXECUTABLE}$\" >NUL'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
+        Return
+    ${EndIf}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION "OmniProxy 主进程仍在运行。$\r$\n$\r$\n是否强制关闭 OmniProxy.exe 后继续卸载？" IDYES force IDNO manual
+
+force:
+    DetailPrint "正在强制关闭 OmniProxy 主进程..."
+    nsExec::ExecToLog 'taskkill /F /IM "${PRODUCT_EXECUTABLE}"'
+    Sleep 1000
+    Goto check
+
+manual:
+    MessageBox MB_OK "请关闭 OmniProxy 后点击确定继续。"
+    Goto check
+FunctionEnd
+
+Function un.deleteAppShortcuts
+    SetShellVarContext all
+    Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
+    Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
+    SetShellVarContext current
+    Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
+    Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
+    !insertmacro wails.setShellContext
+FunctionEnd
+
+Function un.clearUserAutoStart
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OmniProxy"
 FunctionEnd
 
 Section
@@ -197,8 +296,7 @@ Section
 
     !insertmacro wails.files
 
-    CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
-    CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    Call createOrRefreshShortcuts
 
     !insertmacro wails.associateFiles
     !insertmacro wails.associateCustomProtocols
@@ -207,6 +305,10 @@ Section
 
     SetRegView 64
     WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+    WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
+    WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
+    WriteRegStr HKLM "${UNINST_KEY}" "URLInfoAbout" "${OMNIPROXY_HOMEPAGE}"
+    WriteRegStr HKLM "${UNINST_KEY}" "HelpLink" "${OMNIPROXY_HOMEPAGE}/issues"
 
     ${If} $AutoUpdate == "1"
         Exec '"$INSTDIR\${PRODUCT_EXECUTABLE}"'
@@ -215,21 +317,21 @@ SectionEnd
 
 Section "uninstall"
     !insertmacro wails.setShellContext
+    Call un.ensureAppNotRunning
+    Call un.clearUserAutoStart
+    Call un.deleteAppShortcuts
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
-
-    RMDir /r $INSTDIR
 
     ${If} $RemoveUserData == "1"
         RMDir /r "$PROFILE\.omniproxy"
         RMDir /r "$APPDATA\OmniProxy"
+        Delete "$PROFILE\.omniproxy-bootstrap.json"
     ${EndIf}
-
-    Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
-    Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
 
     !insertmacro wails.unassociateFiles
     !insertmacro wails.unassociateCustomProtocols
 
     !insertmacro wails.deleteUninstaller
+    RMDir /r "$INSTDIR"
 SectionEnd

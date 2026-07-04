@@ -15,6 +15,8 @@ import (
 	"unicode"
 )
 
+var updateDownloadTimeout = 30 * time.Minute
+
 func newUpdateDownloader() *updateDownloader {
 	return &updateDownloader{status: updateDownloadStatus{State: "idle"}}
 }
@@ -60,7 +62,15 @@ func (d *updateDownloader) Start(ctx context.Context, client *http.Client, req u
 	d.status = status
 	d.mu.Unlock()
 
-	go d.download(ctx, client, req, fileName)
+	downloadCtx := ctx
+	if downloadCtx == nil {
+		downloadCtx = context.Background()
+	}
+	downloadCtx, cancel := context.WithTimeout(downloadCtx, updateDownloadTimeout)
+	go func() {
+		defer cancel()
+		d.download(downloadCtx, client, req, fileName)
+	}()
 	return status, nil
 }
 

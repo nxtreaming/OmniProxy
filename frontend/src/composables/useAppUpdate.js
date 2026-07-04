@@ -134,7 +134,7 @@ export function useAppUpdate({
         updateInstallPromptVersion = update.latestVersion
         if (manual) {
           successMessage.value = isMacOS()
-            ? `新版本 ${update.latestVersion} 已准备好，请打开安装包完成更新`
+            ? `新版本 ${update.latestVersion} 已准备好，请退出当前 OmniProxy 后打开 DMG 完成替换`
             : `新版本 ${update.latestVersion} 已准备好，请重启 OmniProxy 以完成更新`
         }
         await promptInstallDownloadedUpdate(updateDownloadStatus.value)
@@ -150,7 +150,7 @@ export function useAppUpdate({
       }
       if (downloadState === 'installing') {
         if (manual) {
-          successMessage.value = isMacOS() ? '更新安装包已打开，请按安装提示完成更新' : '更新安装器已启动，请按安装器提示完成更新'
+          successMessage.value = isMacOS() ? '更新 DMG 已打开，请退出当前 OmniProxy 后完成应用替换' : '更新安装器已启动，请按安装器提示完成更新'
         }
         return
       }
@@ -284,7 +284,7 @@ export function useAppUpdate({
       if (!skipConfirm) {
         await ElMessageBox.confirm(
           isMacOS()
-            ? '将打开已下载的 DMG 安装包，请将 OmniProxy 拖入 Applications 以完成更新。'
+            ? '将打开已下载的 DMG。请先退出当前 OmniProxy，再将 OmniProxy 拖入 Applications 完成替换。'
             : '将关闭当前 OmniProxy，启动安装器，并在安装完成后重新打开应用。',
           '新版本已准备好',
           {
@@ -300,7 +300,7 @@ export function useAppUpdate({
       }
       const status = await installDownloadedUpdate()
       updateDownloadStatus.value = status || updateDownloadStatus.value
-      successMessage.value = isMacOS() ? '已打开更新安装包，请完成应用替换' : '正在重启并安装更新'
+      successMessage.value = isMacOS() ? '已打开更新 DMG，请退出当前 OmniProxy 后完成应用替换' : '正在重启并安装更新'
     } catch (action) {
       if (pendingVersion && typeof window !== 'undefined') {
         window.localStorage?.removeItem(pendingUpdateVersionKey)

@@ -69,6 +69,6 @@ test('buildTitlebarUpdatePrompt reflects downloaded macOS update', () => {
 
   assert.equal(prompt.canInstall, true)
   assert.equal(prompt.badge, 'Beta 已准备好')
-  assert.equal(prompt.primaryText, '打开安装包')
+  assert.equal(prompt.primaryText, '打开 DMG')
   assert.match(prompt.description, /拖入 Applications/)
 })

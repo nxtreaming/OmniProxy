@@ -93,8 +93,8 @@ const updateDownloadPercent = computed(() =>
 )
 const releaseActionLabel = computed(() => {
   if (updateDownloadActive.value) return `下载中 ${updateDownloadPercent.value}%`
-  if (updateDownloadInstalling.value) return isMacOSPlatform.value ? '安装包已打开' : '安装器已启动'
-  if (updateDownloadReady.value) return isMacOSPlatform.value ? '打开安装包' : '重启安装'
+  if (updateDownloadInstalling.value) return isMacOSPlatform.value ? 'DMG 已打开' : '安装器已启动'
+  if (updateDownloadReady.value) return isMacOSPlatform.value ? '打开 DMG' : '重启安装'
   if (updateDownloadFailed.value) return '重新下载'
   if (props.updateInfo?.updateAvailable && (!props.updateInfo?.downloadUrl || !props.updateInfo?.checksumUrl)) return '打开发布页'
   return props.updateInfo?.updateAvailable ? '下载更新' : '打开发布页'
@@ -130,12 +130,12 @@ const updateDescription = computed(() => {
   if (props.updateInfo.updateAvailable) {
     if (updateDownloadReady.value) {
       return isMacOSPlatform.value
-        ? `新版本已准备好，请打开安装包完成更新：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
+        ? `新版本已准备好，请退出当前 OmniProxy 后打开 DMG 完成替换：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
         : `新版本已准备好，请重启 OmniProxy 以完成更新：${props.updateDownloadStatus?.fileName || props.updateInfo.downloadFileName || '-'}`
     }
     if (updateDownloadInstalling.value) {
       return isMacOSPlatform.value
-        ? '更新安装包已打开，请将 OmniProxy 拖入 Applications 以完成更新。'
+        ? '更新 DMG 已打开，请退出当前 OmniProxy 后将 OmniProxy 拖入 Applications 完成替换。'
         : '正在启动更新安装器，OmniProxy 将自动退出并在安装完成后重新打开。'
     }
     if (updateDownloadActive.value) {
@@ -144,7 +144,9 @@ const updateDescription = computed(() => {
     if (updateDownloadFailed.value) {
       return props.updateDownloadStatus?.error || '更新安装包下载失败。'
     }
-    return `当前版本 ${props.updateInfo.currentVersion || currentVersion.value}，最新版本 ${props.updateInfo.latestVersion || '-'}，将自动下载安装包。`
+    return isMacOSPlatform.value
+      ? `当前版本 ${props.updateInfo.currentVersion || currentVersion.value}，最新版本 ${props.updateInfo.latestVersion || '-'}，将自动下载 DMG。`
+      : `当前版本 ${props.updateInfo.currentVersion || currentVersion.value}，最新版本 ${props.updateInfo.latestVersion || '-'}，将自动下载安装包。`
   }
   return '未发现可用更新。'
 })

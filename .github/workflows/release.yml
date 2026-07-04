@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   macos_preview:
-    name: macOS universal unsigned preview
+    name: macOS universal unsigned DMG
     runs-on: macos-latest
     needs: windows
 
@@ -98,7 +98,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $clean_version" build/bin/OmniProxy.app/Contents/Info.plist
           codesign --force --deep --sign - build/bin/OmniProxy.app
 
-      - name: Package unsigned DMG for beta testing
+      - name: Package unsigned DMG
         working-directory: OmniProxyBackend
         shell: bash
         run: |
@@ -110,7 +110,7 @@ jobs:
           hdiutil create -volname "OmniProxy" -srcfolder build/dmg-root -ov -format UDZO "$asset"
           shasum -a 256 "$asset" > "$asset.sha256"
 
-      - name: Upload macOS preview artifact
+      - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v6
         with:
           name: OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned
@@ -119,8 +119,7 @@ jobs:
             OmniProxyBackend/OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned.dmg.sha256
           retention-days: 14
 
-      - name: Attach macOS unsigned DMG to beta release
-        if: steps.release.outputs.prerelease == 'true'
+      - name: Attach macOS unsigned DMG to release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -307,8 +306,8 @@ jobs:
             "",
             "##  Features / 新特性",
             "",
-            "- **Release**: Published Windows installer and checksum assets.",
-            "  - 发布 Windows 安装包和 SHA256 校验文件。",
+            "- **Release**: Published Windows installer, macOS unsigned DMG, and checksum assets.",
+            "  - 发布 Windows 安装包、macOS 未签名 DMG 和 SHA256 校验文件。",
             "",
             "##  Bug Fixes / 问题修复",
             "",

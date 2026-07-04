@@ -62,13 +62,7 @@ func compareVersions(left string, right string) int {
 	if leftVersion.prerelease != "" && rightVersion.prerelease == "" {
 		return -1
 	}
-	if leftVersion.prerelease > rightVersion.prerelease {
-		return 1
-	}
-	if leftVersion.prerelease < rightVersion.prerelease {
-		return -1
-	}
-	return 0
+	return comparePrereleaseVersions(leftVersion.prerelease, rightVersion.prerelease)
 }
 
 type parsedVersion struct {
@@ -110,6 +104,84 @@ func parseVersion(version string) (parsedVersion, bool) {
 		parts = append(parts, value)
 	}
 	return parsedVersion{parts: parts, prerelease: prerelease}, len(parts) > 0
+}
+
+func comparePrereleaseVersions(left string, right string) int {
+	leftParts := strings.Split(left, ".")
+	rightParts := strings.Split(right, ".")
+	maxLen := len(leftParts)
+	if len(rightParts) > maxLen {
+		maxLen = len(rightParts)
+	}
+	for i := 0; i < maxLen; i++ {
+		if i >= len(leftParts) {
+			return -1
+		}
+		if i >= len(rightParts) {
+			return 1
+		}
+		if result := comparePrereleaseIdentifier(leftParts[i], rightParts[i]); result != 0 {
+			return result
+		}
+	}
+	return 0
+}
+
+func comparePrereleaseIdentifier(left string, right string) int {
+	leftNumeric := isNumericPrereleaseIdentifier(left)
+	rightNumeric := isNumericPrereleaseIdentifier(right)
+	if leftNumeric && rightNumeric {
+		return compareNumericStrings(left, right)
+	}
+	if leftNumeric && !rightNumeric {
+		return -1
+	}
+	if !leftNumeric && rightNumeric {
+		return 1
+	}
+	if left > right {
+		return 1
+	}
+	if left < right {
+		return -1
+	}
+	return 0
+}
+
+func isNumericPrereleaseIdentifier(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, char := range value {
+		if !unicode.IsDigit(char) {
+			return false
+		}
+	}
+	return true
+}
+
+func compareNumericStrings(left string, right string) int {
+	left = strings.TrimLeft(left, "0")
+	right = strings.TrimLeft(right, "0")
+	if left == "" {
+		left = "0"
+	}
+	if right == "" {
+		right = "0"
+	}
+	if len(left) > len(right) {
+		return 1
+	}
+	if len(left) < len(right) {
+		return -1
+	}
+	if left > right {
+		return 1
+	}
+	if left < right {
+		return -1
+	}
+	return 0
 }
 
 func versionParts(version string) ([]int, bool) {

@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import GeminiSelect from '../../components/GeminiSelect.vue'
 import { credentialTypes, providers } from '../../constants/app'
+import { gatewayPlatformPresets, routeDefinitions } from './gatewayRoutePresets'
 
 const props = defineProps({
   config: {
@@ -10,85 +11,14 @@ const props = defineProps({
   },
 })
 
+const emit = defineEmits(['persist-config'])
+
 const providerLabelMap = computed(() => Object.fromEntries(providers.map((item) => [item.key, item.label])))
 const credentialLabelMap = computed(() => credentialTypes)
-
-const openAICompatibleProviders = [
-  'openai',
-  'deepseek',
-  'kimi',
-  'xiaomi',
-  'zhipu',
-  'minimax',
-  'openrouter',
-  'tokenrouter',
-  'sub2api',
-  'newapi',
-  'anyrouter',
-  'zo',
-  'prem',
-  'custom',
-]
-
-const routeDefinitions = [
-  {
-    key: 'codex',
-    title: 'Codex',
-    protocol: 'OpenAI Responses',
-    endpoint: (port) => `http://127.0.0.1:${port}/codex/v1`,
-    fallback: { provider: 'openai', credentialType: 'codex_auth_json', model: 'gpt-5.4' },
-    providers: openAICompatibleProviders,
-    modelPresets: ['gpt-5.4', 'gpt-5.4-high', 'gpt-5.5', 'gpt-5.5-high', 'gpt-5-codex'],
-  },
-  {
-    key: 'claude',
-    title: 'Claude Code / Desktop',
-    protocol: 'Anthropic Messages',
-    endpoint: (port) => `http://127.0.0.1:${port}/anthropic-router`,
-    fallback: { provider: 'anthropic', credentialType: 'api_key', model: 'claude-sonnet-4-5-20250929' },
-    providers: [
-      'anthropic',
-      'deepseek',
-      'kimi',
-      'xiaomi',
-      'zhipu',
-      'minimax',
-      'sub2api',
-      'newapi',
-      'anyrouter',
-      'zo',
-      'prem',
-      'custom',
-    ],
-    modelPresets: [
-      'claude-sonnet-4-5-20250929',
-      'claude-opus-4-7',
-      'claude-sonnet-4-6',
-      'deepseek-v4-pro[1m]',
-      'mimo-v2.5-pro[1m]',
-      'kimi-for-coding',
-      'glm-5.1',
-    ],
-  },
-  {
-    key: 'openai',
-    title: 'OpenAI 兼容',
-    protocol: 'Chat / Responses',
-    endpoint: (port) => `http://127.0.0.1:${port}/opencode-router/v1`,
-    fallback: { provider: 'openai', credentialType: 'api_key', model: 'gpt-5.4' },
-    providers: openAICompatibleProviders,
-    modelPresets: ['gpt-5.4', 'gpt-5.4-high', 'gpt-5.5', 'gpt-5.5-high', 'deepseek-v4-pro[1m]', 'kimi-for-coding', 'glm-5.1', 'MiniMax-M2.7'],
-  },
-  {
-    key: 'gemini',
-    title: 'Gemini CLI',
-    protocol: 'Gemini Native',
-    endpoint: (port) => `http://127.0.0.1:${port}/gemini`,
-    fallback: { provider: 'gemini', credentialType: 'api_key', model: 'gemini-3-pro-preview' },
-    providers: ['gemini', 'sub2api', 'newapi'],
-    modelPresets: ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
-  },
-]
+const selectedPlatformKey = ref(initialPlatformKey())
+const activePlatform = computed(
+  () => gatewayPlatformPresets.find((platform) => platform.key === selectedPlatformKey.value) || gatewayPlatformPresets[0],
+)
 
 function routeConfig(route) {
   if (!props.config.gatewayRoutes || typeof props.config.gatewayRoutes !== 'object') {
@@ -101,6 +31,64 @@ function routeConfig(route) {
     props.config.gatewayRoutes[route.key].fallbacks = []
   }
   return props.config.gatewayRoutes[route.key]
+}
+
+function initialPlatformKey() {
+  const candidates = [
+    props.config.gatewayRoutes?.openai?.provider,
+    props.config.gatewayRoutes?.claude?.provider,
+    props.config.gatewayRoutes?.codex?.provider,
+    props.config.gatewayRoutes?.gemini?.provider,
+  ].map(normalizeProviderKey)
+  return candidates.find((key) => gatewayPlatformPresets.some((platform) => platform.key === key)) || 'deepseek'
+}
+
+function platformLabel(platform) {
+  return providerLabel(platform.key)
+}
+
+function platformNote(platform) {
+  return providerNote(platform.key)
+}
+
+function routeDefinitionFor(key) {
+  return routeDefinitions.find((route) => route.key === key)
+}
+
+function routeTitle(key) {
+  return routeDefinitionFor(key)?.title || key
+}
+
+function modelRouteEntries(model) {
+  return Object.entries(model.routeModels || {})
+    .map(([key, modelValue]) => ({ key, model: modelValue, title: routeTitle(key) }))
+    .filter((entry) => routeDefinitionFor(entry.key))
+}
+
+function applyPlatformModel(model) {
+  const platform = activePlatform.value
+  for (const entry of modelRouteEntries(model)) {
+    const route = routeDefinitionFor(entry.key)
+    const current = routeConfig(route)
+    current.provider = platform.key
+    current.credentialType = platform.routeCredentials?.[entry.key] || ''
+    current.model = entry.model
+    current.fallbacks = fallbackConfigs(route).filter(
+      (fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(platform.key),
+    )
+  }
+  emit('persist-config')
+}
+
+function isModelApplied(model) {
+  const platform = activePlatform.value
+  const entries = modelRouteEntries(model)
+  return entries.length > 0 && entries.every((entry) => {
+    const route = routeDefinitionFor(entry.key)
+    const current = routeConfig(route)
+    return normalizeProviderKey(current.provider) === platform.key &&
+      String(current.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
+  })
 }
 
 function routeProviderOptions(route) {
@@ -237,8 +225,56 @@ function moveFallbackProvider(route, provider, direction) {
     <div class="settings-section-head">
       <div>
         <h3>网关路由</h3>
-        <p>客户端固定接入本地网关；后端厂商、凭据类型和默认模型在这里统一切换。</p>
+        <p>按平台选择模型，一键写入对应网关入口。</p>
       </div>
+    </div>
+    <div class="gateway-quick-config">
+      <div class="gateway-quick-platforms" aria-label="选择后端平台">
+        <button
+          v-for="platform in gatewayPlatformPresets"
+          :key="platform.key"
+          type="button"
+          :class="['gateway-platform-card', { active: activePlatform.key === platform.key }]"
+          @click="selectedPlatformKey = platform.key"
+        >
+          <strong>{{ platformLabel(platform) }}</strong>
+          <small>{{ platformNote(platform) }}</small>
+        </button>
+      </div>
+
+      <div class="gateway-model-config-panel">
+        <div class="gateway-model-config-head">
+          <div>
+            <strong>{{ platformLabel(activePlatform) }}</strong>
+            <span>{{ platformNote(activePlatform) }}</span>
+          </div>
+          <small>{{ activePlatform.models.length }} 个模型</small>
+        </div>
+        <div class="gateway-model-card-list">
+          <button
+            v-for="model in activePlatform.models"
+            :key="model.id"
+            type="button"
+            :class="['gateway-model-card', { active: isModelApplied(model) }]"
+            @click="applyPlatformModel(model)"
+          >
+            <span>
+              <strong>{{ model.label }}</strong>
+              <small>{{ Object.values(model.routeModels).join(' / ') }}</small>
+            </span>
+            <span class="gateway-model-targets">
+              <small v-for="entry in modelRouteEntries(model)" :key="`${model.id}-${entry.key}`">
+                {{ entry.title }}
+              </small>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="gateway-advanced-head">
+      <strong>高级路由微调</strong>
+      <span>备用链、凭据类型和自定义模型</span>
     </div>
     <div class="gateway-route-list">
       <article v-for="route in routeDefinitions" :key="route.key" class="gateway-route-row">

@@ -265,14 +265,6 @@ func updateDownloadAssetFromAssetsForPlatform(assets []githubReleaseAsset, goos 
 			}
 		}
 	}
-	if checksumURL == "" {
-		for _, asset := range assets {
-			if strings.HasSuffix(strings.ToLower(asset.Name), ".sha256") {
-				checksumURL = asset.BrowserDownloadURL
-				break
-			}
-		}
-	}
 
 	return updateDownloadAsset{
 		URL:         installer.BrowserDownloadURL,

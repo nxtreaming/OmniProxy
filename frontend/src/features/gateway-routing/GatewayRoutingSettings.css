@@ -2,6 +2,151 @@
   gap: 18px;
 }
 
+.settings-panel .gateway-quick-config {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 22%, var(--surface));
+}
+
+.settings-panel .gateway-quick-platforms {
+  min-width: 0;
+  max-height: 520px;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.settings-panel .gateway-platform-card,
+.settings-panel .gateway-model-card {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  box-shadow: none;
+}
+
+.settings-panel .gateway-platform-card:hover,
+.settings-panel .gateway-model-card:hover {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+  transform: none;
+}
+
+.settings-panel .gateway-platform-card.active,
+.settings-panel .gateway-model-card.active {
+  border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+}
+
+.settings-panel .gateway-platform-card strong,
+.settings-panel .gateway-model-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-panel .gateway-platform-card small,
+.settings-panel .gateway-model-card small,
+.settings-panel .gateway-model-config-head span,
+.settings-panel .gateway-advanced-head span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.settings-panel .gateway-model-config-panel {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+.settings-panel .gateway-model-config-head,
+.settings-panel .gateway-advanced-head {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-panel .gateway-model-config-head > div,
+.settings-panel .gateway-advanced-head {
+  min-width: 0;
+}
+
+.settings-panel .gateway-model-config-head strong,
+.settings-panel .gateway-advanced-head strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-model-config-head small {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-model-card-list {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+}
+
+.settings-panel .gateway-model-card {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: space-between;
+  min-height: 112px;
+}
+
+.settings-panel .gateway-model-card > span:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-panel .gateway-model-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-panel .gateway-model-targets small {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--surface));
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.settings-panel .gateway-advanced-head {
+  padding-top: 4px;
+}
+
 .settings-panel .gateway-route-list {
   display: grid;
   gap: 0;
@@ -329,6 +474,10 @@
 .shell.dark .settings-panel .gateway-route-controls input,
 .shell.dark .settings-panel .gateway-route-controls .gemini-select-trigger,
 .shell.dark .settings-panel .gateway-fallback-row,
+.shell.dark .settings-panel .gateway-quick-config,
+.shell.dark .settings-panel .gateway-platform-card,
+.shell.dark .settings-panel .gateway-model-card,
+.shell.dark .settings-panel .gateway-model-targets small,
 .shell.dark .settings-panel .gateway-provider-chip,
 .shell.dark .settings-panel .gateway-route-chain-item,
 .shell.dark .settings-panel .gateway-route-summary code {
@@ -340,6 +489,15 @@
 }
 
 @media (max-width: 900px) {
+  .settings-panel .gateway-quick-config {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .gateway-quick-platforms {
+    max-height: none;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  }
+
   .settings-panel .gateway-route-summary,
   .settings-panel .gateway-route-controls {
     grid-template-columns: 1fr;
