@@ -194,6 +194,8 @@ export function createAppShellActions({
       dataActions.refreshOpenRouterModels()
     } else if (tab === 'settings') {
       dataActions.refreshTaskAutomationBrowserProfiles()
+    } else if (tab === 'about') {
+      dataActions.refreshUpdateDiagnostics()
     }
   })
 

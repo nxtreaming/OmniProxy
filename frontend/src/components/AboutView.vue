@@ -6,6 +6,7 @@ import {
   FolderOpened,
   InfoFilled,
   Link as LinkIcon,
+  Memo,
   Monitor,
   RefreshRight,
   Setting,
@@ -49,13 +50,28 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  updateDiagnostics: {
+    type: Object,
+    default: null,
+  },
+  updateDiagnosticsLoading: {
+    type: Boolean,
+    default: false,
+  },
   formatTime: {
     type: Function,
     default: null,
   },
 })
 
-defineEmits(['manual-check-for-updates', 'download-update', 'install-update', 'open-url'])
+defineEmits([
+  'manual-check-for-updates',
+  'download-update',
+  'install-update',
+  'open-url',
+  'refresh-update-diagnostics',
+  'copy-update-diagnostics',
+])
 
 const currentVersion = computed(
   () => props.appInfo?.version || props.updateInfo?.currentVersion || 'dev',
@@ -165,6 +181,40 @@ const updateDownloadDetail = computed(() => {
   return parts.join(' · ')
 })
 const releaseNotesBlocks = computed(() => parseReleaseNotes(props.updateInfo?.body))
+const updateDiagnosticsRows = computed(() => {
+  const diagnostics = props.updateDiagnostics || {}
+  const status = diagnostics.status || props.updateDownloadStatus || {}
+  return [
+    { label: '当前状态', value: status.state || 'idle' },
+    { label: '目标版本', value: status.version || props.updateInfo?.latestVersion || '-' },
+    { label: '安装包', value: `${diagnostics.installerCount || 0} 个`, detail: `临时文件 ${diagnostics.partialCount || 0} 个` },
+    { label: '日志大小', value: formatBytes(diagnostics.logSize || 0), detail: diagnostics.logExists ? '日志可读取' : '暂无日志' },
+  ]
+})
+const updateDiagnosticsLogLines = computed(() => {
+  const text = String(props.updateDiagnostics?.logTail || '').trim()
+  return text ? text.split(/\r?\n/).slice(-8) : []
+})
+const updateDiagnosticsText = computed(() => {
+  const diagnostics = props.updateDiagnostics || {}
+  const status = diagnostics.status || props.updateDownloadStatus || {}
+  return [
+    `OmniProxy 更新诊断`,
+    `版本: ${currentVersion.value}`,
+    `平台: ${props.appInfo?.platform || '-'}`,
+    `状态: ${status.state || 'idle'}`,
+    `目标版本: ${status.version || props.updateInfo?.latestVersion || '-'}`,
+    `错误: ${status.error || diagnostics.error || '-'}`,
+    `更新目录: ${diagnostics.directory || '-'}`,
+    `状态文件: ${diagnostics.statusPath || '-'} (${diagnostics.statusExists ? '存在' : '不存在'})`,
+    `日志文件: ${diagnostics.logPath || '-'} (${diagnostics.logExists ? '存在' : '不存在'})`,
+    `安装包数量: ${diagnostics.installerCount || 0}`,
+    `临时文件数量: ${diagnostics.partialCount || 0}`,
+    '',
+    '日志尾部:',
+    diagnostics.logTail || '-',
+  ].join('\n')
+})
 
 function parseReleaseNotes(value) {
   const lines = String(value || '').replace(/\r\n/g, '\n').trim().split('\n')
@@ -430,6 +480,40 @@ function formatBytes(value) {
           <el-button link type="primary" :icon="LinkIcon" @click="$emit('open-url', appInfo.updateEndpoint)">
             打开更新源
           </el-button>
+        </div>
+      </article>
+
+      <article class="panel about-info-panel update-diagnostics-panel">
+        <div class="section-heading">
+          <div>
+            <h2>更新诊断</h2>
+            <p>下载状态、临时文件和最近更新日志</p>
+          </div>
+          <div class="update-diagnostics-actions">
+            <el-button :icon="RefreshRight" :loading="updateDiagnosticsLoading" @click="$emit('refresh-update-diagnostics')">
+              刷新
+            </el-button>
+            <el-button :icon="Memo" :disabled="!updateDiagnostics" @click="$emit('copy-update-diagnostics', updateDiagnosticsText)">
+              复制
+            </el-button>
+          </div>
+        </div>
+        <div class="about-row-list compact update-diagnostics-grid">
+          <div v-for="row in updateDiagnosticsRows" :key="row.label">
+            <span>{{ row.label }}</span>
+            <strong>{{ row.value }}</strong>
+            <small v-if="row.detail">{{ row.detail }}</small>
+          </div>
+        </div>
+        <div class="about-path-row">
+          <span>更新目录</span>
+          <strong class="mono">{{ updateDiagnostics?.directory || '-' }}</strong>
+          <small>状态：{{ updateDiagnostics?.statusPath || '-' }}</small>
+        </div>
+        <div class="update-log-tail">
+          <span>最近日志</span>
+          <pre v-if="updateDiagnosticsLogLines.length">{{ updateDiagnosticsLogLines.join('\n') }}</pre>
+          <small v-else>暂无更新日志</small>
         </div>
       </article>
     </div>

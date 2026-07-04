@@ -317,6 +317,56 @@
   margin-top: 10px;
 }
 
+.update-diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.update-diagnostics-actions .el-button {
+  min-height: 34px;
+  border-radius: 999px;
+}
+
+.update-diagnostics-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.update-diagnostics-grid > div:nth-child(4) {
+  grid-column: auto;
+  min-height: 92px;
+}
+
+.update-log-tail {
+  margin-top: 18px;
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.update-log-tail span,
+.update-log-tail small {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.update-log-tail pre {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  color: var(--text);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* About page: softer Gemini-style information cells. */
 .about-page .about-info-panel,
 .about-page .about-version-panel {
@@ -331,6 +381,7 @@
 .about-page .about-info-grid > div,
 .about-page .about-row-list > div,
 .about-page .about-path-row,
+.about-page .update-log-tail,
 .about-page .update-status-box {
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   border-radius: 20px;
@@ -345,6 +396,7 @@
 }
 
 .about-page .about-path-row,
+.about-page .update-log-tail,
 .about-page .update-status-box {
   padding: 15px;
 }
@@ -365,6 +417,11 @@
 .about-page .about-row-list.compact > div:nth-child(4) {
   grid-column: 1 / -1;
   min-height: 72px;
+}
+
+.about-page .update-diagnostics-grid > div:nth-child(4) {
+  grid-column: auto;
+  min-height: 92px;
 }
 
 .about-page .about-info-grid span,
@@ -402,6 +459,7 @@
 .shell.dark .about-page .about-info-grid > div,
 .shell.dark .about-page .about-row-list > div,
 .shell.dark .about-page .about-path-row,
+.shell.dark .about-page .update-log-tail,
 .shell.dark .about-page .update-status-box {
   border-color: color-mix(in srgb, var(--line) 86%, transparent);
   background: color-mix(in srgb, var(--surface-soft) 34%, var(--surface));

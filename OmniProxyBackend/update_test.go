@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -423,6 +424,58 @@ func TestUpdateDownloaderRejectsPersistedInstallerOutsideUpdateDirectory(t *test
 	status := newUpdateDownloader().Status()
 	if status.State != "failed" || status.FilePath != "" || status.Verified {
 		t.Fatalf("expected outside installer path to be rejected, got %#v", status)
+	}
+}
+
+func TestCurrentUpdateDiagnosticsReportsStatusAndLogTail(t *testing.T) {
+	dir := useTestUpdateDirectory(t)
+	status := updateDownloadStatus{State: "failed", Version: "v9.9.9", Error: "boom"}
+	saveUpdateStatus(status)
+	appendUpdateLog("first line")
+	appendUpdateLog("second line")
+	if err := os.WriteFile(filepath.Join(dir, "OmniProxy-Setup-test.exe"), []byte("installer"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "OmniProxy-Setup-test.exe.download"), []byte("partial"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	diagnostics := currentUpdateDiagnostics(status)
+	if diagnostics.Directory != dir || !diagnostics.StatusExists || !diagnostics.LogExists {
+		t.Fatalf("unexpected diagnostics paths: %#v", diagnostics)
+	}
+	if diagnostics.Status.State != "failed" || diagnostics.Status.Error != "boom" {
+		t.Fatalf("unexpected diagnostics status: %#v", diagnostics.Status)
+	}
+	if !strings.Contains(diagnostics.LogTail, "second line") {
+		t.Fatalf("expected log tail to include latest line, got %q", diagnostics.LogTail)
+	}
+	if diagnostics.InstallerCount != 1 || diagnostics.PartialCount != 1 {
+		t.Fatalf("unexpected file counts: %#v", diagnostics)
+	}
+}
+
+func TestHandleUpdateDiagnostics(t *testing.T) {
+	useTestUpdateDirectory(t)
+	server := &appServer{
+		updates:      &updateDownloader{status: updateDownloadStatus{State: "idle"}},
+		controlToken: "test-control-token",
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/update/diagnostics", nil)
+	req.Header.Set(controlTokenHeader, "test-control-token")
+	res := httptest.NewRecorder()
+	server.routes().ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	var payload updateDiagnostics
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Status.State != "idle" {
+		t.Fatalf("unexpected diagnostics response: %#v", payload)
 	}
 }
 

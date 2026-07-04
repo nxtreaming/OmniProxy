@@ -77,6 +77,7 @@ export function createAppState() {
     batchImporting: ref(false),
     clearingBillingUsage: ref(false),
     clearingRequestHistory: ref(false),
+    updateDiagnosticsLoading: ref(false),
     errorMessage: ref(''),
     successMessage: ref(''),
     quotaRefreshProgress: reactive({
@@ -119,6 +120,7 @@ export function createAppState() {
     openRouterModelsCached: ref(false),
     openRouterModelsLoading: ref(false),
     openRouterModelsError: ref(''),
+    updateDiagnostics: ref(null),
     selectedOpenRouterChatModel: ref(''),
     selectedHistoryEntry: ref(null),
     firstUseGuideVisible: ref(shouldShowFirstUseGuide()),

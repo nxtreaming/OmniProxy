@@ -22,6 +22,7 @@ import {
   getProxyStatus,
   getTaskAutomationBrowserProfiles,
   getTokens,
+  getUpdateDiagnostics,
   setAutoStart,
   startProxy,
   stopProxy,
@@ -43,6 +44,7 @@ export function createAppDataActions(state, navigation) {
         loadedDataDirectory,
         loadedAutoStart,
         loadedAppInfo,
+        loadedUpdateDiagnostics,
       ] = await Promise.all([
         getTokens(),
         getConfig(),
@@ -54,6 +56,7 @@ export function createAppDataActions(state, navigation) {
         getDataDirectory(),
         getAutoStartStatus(),
         getAppInfo(),
+        getUpdateDiagnostics().catch(() => null),
       ])
       state.tokens.value = loadedTokens
       state.logs.value = loadedLogs
@@ -68,6 +71,7 @@ export function createAppDataActions(state, navigation) {
       })
       state.autoStartEnabled.value = Boolean(loadedAutoStart?.enabled)
       Object.assign(state.appInfo, loadedAppInfo)
+      state.updateDiagnostics.value = loadedUpdateDiagnostics || null
       if (state.activeTab.value === 'history') {
         await refreshHistory()
       } else if (state.activeTab.value === 'billing') {
@@ -161,6 +165,18 @@ export function createAppDataActions(state, navigation) {
       state.openRouterModelsError.value = error.message
     } finally {
       state.openRouterModelsLoading.value = false
+    }
+  }
+
+  async function refreshUpdateDiagnostics() {
+    state.updateDiagnosticsLoading.value = true
+    state.errorMessage.value = ''
+    try {
+      state.updateDiagnostics.value = await getUpdateDiagnostics()
+    } catch (error) {
+      state.errorMessage.value = error.message
+    } finally {
+      state.updateDiagnosticsLoading.value = false
     }
   }
 
@@ -398,6 +414,7 @@ export function createAppDataActions(state, navigation) {
     refreshHistory,
     refreshBilling,
     refreshOpenRouterModels,
+    refreshUpdateDiagnostics,
     openOpenRouterChat,
     selectOpenRouterChatModel,
     changeBillingDate,

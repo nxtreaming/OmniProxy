@@ -61,7 +61,7 @@ const {
   openRouterModelsError, openRouterModelsFetchedAt, openRouterModelsLoading, openRouterTokens, opencodeConfiguring, opencodeRestoring, pagedApiOverviewTokens,
   pagedSubscriptionOverviewTokens, piConfiguring, piRestoring, persistConfig, previousFirstUseGuideStep, providerLabel, providerTokens, proxyEndpoint,
   proxyStatus, quotaOverviewRangeText, quotaRefreshProgress, refreshAll, refreshAuthToken, refreshBilling, refreshHistory, refreshOpenRouterModels,
-  refreshProviderQuotas, refreshQuota, refreshRealtime, refreshingProvider, refreshingTokenIds, refreshTaskAutomationBrowserProfiles, removeToken, requestHistory,
+  refreshProviderQuotas, refreshQuota, refreshRealtime, refreshingProvider, refreshingTokenIds, refreshTaskAutomationBrowserProfiles, refreshUpdateDiagnostics, removeToken, requestHistory,
   requestHistorySummary, requestTrendWidth, restoreActiveWorkspaceScroll, restoreLocalClaude, restoreLocalClaudeDesktop, restoreLocalCodex, restoreLocalDeepSeekTUI,
   restoreLocalGemini, restoreLocalOpenCode, restoreLocalPi, runFirstUseGuideAction, selectOpenRouterChatModel, selectProvider, selectTab, selectedBillingDate,
   selectedClaudeModelLabels, selectedClaudeModels, selectedHistoryEntry, selectedOpenRouterChatModel, skipCurrentUpdate, snoozeTitlebarUpdate, startUpdateDownload, startWindowResize, submitBatchImport,
@@ -69,7 +69,7 @@ const {
   tabIcons, taskAutomationBrowserProfiles, taskAutomationBrowserProfilesError, taskAutomationBrowserProfilesLoading, titlebarUpdatePopoverOpen, titlebarUpdatePrompt,
   titlebarUpdateVisible, todayProxyRequests, todayProxyTokens, toggleAppTheme, toggleAutoStart, toggleProxy, toggleTitlebarUpdatePopover,
   toggleTokenEnabled, toggleTokenSelected, toggleWindowMaximise, togglingTokenIds, tokens, toolUsageDuration, toolUsageMeta, toolUsageRows,
-  totalProxyInputTokens, totalProxyOutputTokens, totalProxyRequests, totalProxyTokens, trendWidth, updateChecking, updateDownloadStatus, validatingIds,
+  totalProxyInputTokens, totalProxyOutputTokens, totalProxyRequests, totalProxyTokens, trendWidth, updateChecking, updateDiagnostics, updateDiagnosticsLoading, updateDownloadStatus, validatingIds,
   verifyToken, windowMaximised, workspaceRef, workspaceScrollbarVisible, handleWorkspacePointerMove, handleWorkspaceScroll,
 } = useOmniProxyApp()
 </script>
@@ -397,11 +397,15 @@ const {
         :update-info="lastUpdateInfo"
         :update-download-status="updateDownloadStatus"
         :update-checked-at="lastUpdateCheckedAt"
+        :update-diagnostics="updateDiagnostics"
+        :update-diagnostics-loading="updateDiagnosticsLoading"
         :format-time="formatTime"
         @manual-check-for-updates="manualCheckForUpdates"
         @download-update="startUpdateDownload"
         @install-update="installReadyUpdateFromUpdateSurface"
         @open-url="openExternalURL"
+        @refresh-update-diagnostics="refreshUpdateDiagnostics"
+        @copy-update-diagnostics="copyEndpointValue($event, '更新诊断信息')"
       />
 
       <QuickstartView

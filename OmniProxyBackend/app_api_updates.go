@@ -20,6 +20,10 @@ func (a *DesktopApp) UpdateDownloadStatus() updateDownloadStatus {
 	return a.server.updateManager().Status()
 }
 
+func (a *DesktopApp) UpdateDiagnostics() updateDiagnostics {
+	return currentUpdateDiagnostics(a.server.updateManager().Status())
+}
+
 func (a *DesktopApp) InstallDownloadedUpdate() (updateDownloadStatus, error) {
 	status, err := a.server.updateManager().Install()
 	if err != nil {

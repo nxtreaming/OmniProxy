@@ -210,6 +210,10 @@ export function UpdateDownloadStatus() {
   return window['go']['main']['DesktopApp']['UpdateDownloadStatus']();
 }
 
+export function UpdateDiagnostics() {
+  return window['go']['main']['DesktopApp']['UpdateDiagnostics']();
+}
+
 export function UpdateToken(arg1, arg2) {
   return window['go']['main']['DesktopApp']['UpdateToken'](arg1, arg2);
 }

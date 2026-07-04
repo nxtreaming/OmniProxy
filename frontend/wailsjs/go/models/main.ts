@@ -31,6 +31,7 @@ export namespace main {
   export import tokenStatsResponse = main_tokensModels.tokenStatsResponse
   export import usageResponse = main_tokensModels.usageResponse
   export import tokenResponse = main_tokensModels.tokenResponse
+  export import updateDiagnostics = main_updateModels.updateDiagnostics
   export import updateDownloadRequest = main_updateModels.updateDownloadRequest
   export import updateDownloadStatus = main_updateModels.updateDownloadStatus
   export import updateInfo = main_updateModels.updateInfo

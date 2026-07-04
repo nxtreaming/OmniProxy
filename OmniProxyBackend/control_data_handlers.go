@@ -397,6 +397,14 @@ func (a *appServer) handleUpdateDownloadStatus(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, a.updateManager().Status())
 }
 
+func (a *appServer) handleUpdateDiagnostics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, currentUpdateDiagnostics(a.updateManager().Status()))
+}
+
 func (a *appServer) handleUpdateInstall(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)

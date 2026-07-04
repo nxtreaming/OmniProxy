@@ -138,3 +138,32 @@ test('HTTP API fallback fetches billing summary', async () => {
   )
   delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
 })
+
+test('HTTP API fallback fetches update diagnostics', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'update-diagnostics-token'
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    if (String(url).endsWith('/update/diagnostics')) {
+      assert.equal(options.headers['X-OmniProxy-Control-Token'], 'update-diagnostics-token')
+      return jsonResponse(200, {
+        directory: 'C:\\Temp\\OmniProxy\\updates',
+        status: { state: 'idle' },
+        logTail: 'ready',
+      })
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const { getUpdateDiagnostics } = await import(`./api.js?update-diagnostics-test=${Date.now()}`)
+  assert.deepEqual(await getUpdateDiagnostics(), {
+    directory: 'C:\\Temp\\OmniProxy\\updates',
+    status: { state: 'idle' },
+    logTail: 'ready',
+  })
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    ['http://127.0.0.1:3890/api/update/diagnostics'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})

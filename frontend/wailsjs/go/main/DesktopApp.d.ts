@@ -110,6 +110,8 @@ export function Tokens():Promise<Array<main.tokenResponse>>;
 
 export function UpdateDownloadStatus():Promise<main.updateDownloadStatus>;
 
+export function UpdateDiagnostics():Promise<main.updateDiagnostics>;
+
 export function UpdateToken(arg1:string,arg2:token.UpsertRequest):Promise<main.tokenResponse>;
 
 export function UseOnlyToken(arg1:string):Promise<Array<main.tokenResponse>>;

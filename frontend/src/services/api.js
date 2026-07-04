@@ -452,6 +452,13 @@ export function getUpdateDownloadStatus() {
     : request('/update/download/status')
 }
 
+export function getUpdateDiagnostics() {
+  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
+  return useWailsBindings() && desktopApp?.UpdateDiagnostics
+    ? desktopApp.UpdateDiagnostics()
+    : request('/update/diagnostics')
+}
+
 export function installDownloadedUpdate() {
   const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
   return useWailsBindings() && desktopApp?.InstallDownloadedUpdate

@@ -30,6 +30,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/update/check", a.handleUpdateCheck)
 	mux.HandleFunc("/api/update/download", a.handleUpdateDownload)
 	mux.HandleFunc("/api/update/download/status", a.handleUpdateDownloadStatus)
+	mux.HandleFunc("/api/update/diagnostics", a.handleUpdateDiagnostics)
 	mux.HandleFunc("/api/update/install", a.handleUpdateInstall)
 	mux.HandleFunc("/api/data-directory", a.handleDataDirectory)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)

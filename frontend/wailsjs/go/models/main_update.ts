@@ -89,4 +89,54 @@ export namespace main {
 	        this.prerelease = source["prerelease"];
 	    }
 	}
+	export class updateDiagnostics {
+	    directory: string;
+	    statusPath: string;
+	    logPath: string;
+	    status: updateDownloadStatus;
+	    statusExists: boolean;
+	    logExists: boolean;
+	    logSize: number;
+	    logTail: string;
+	    installerCount: number;
+	    partialCount: number;
+	    error?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new updateDiagnostics(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.directory = source["directory"];
+	        this.statusPath = source["statusPath"];
+	        this.logPath = source["logPath"];
+	        this.status = this.convertValues(source["status"], updateDownloadStatus);
+	        this.statusExists = source["statusExists"];
+	        this.logExists = source["logExists"];
+	        this.logSize = source["logSize"];
+	        this.logTail = source["logTail"];
+	        this.installerCount = source["installerCount"];
+	        this.partialCount = source["partialCount"];
+	        this.error = source["error"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 }
