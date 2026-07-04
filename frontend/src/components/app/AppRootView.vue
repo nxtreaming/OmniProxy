@@ -64,7 +64,7 @@ const {
   refreshProviderQuotas, refreshQuota, refreshRealtime, refreshingProvider, refreshingTokenIds, refreshTaskAutomationBrowserProfiles, removeToken, requestHistory,
   requestHistorySummary, requestTrendWidth, restoreActiveWorkspaceScroll, restoreLocalClaude, restoreLocalClaudeDesktop, restoreLocalCodex, restoreLocalDeepSeekTUI,
   restoreLocalGemini, restoreLocalOpenCode, restoreLocalPi, runFirstUseGuideAction, selectOpenRouterChatModel, selectProvider, selectTab, selectedBillingDate,
-  selectedClaudeModelLabels, selectedClaudeModels, selectedHistoryEntry, selectedOpenRouterChatModel, startUpdateDownload, startWindowResize, submitBatchImport,
+  selectedClaudeModelLabels, selectedClaudeModels, selectedHistoryEntry, selectedOpenRouterChatModel, skipCurrentUpdate, snoozeTitlebarUpdate, startUpdateDownload, startWindowResize, submitBatchImport,
   submitForm, subscriptionOverviewPageCount, subscriptionOverviewTokens, subscriptionQuotaPage, subscriptionQuotaPageText, successMessage, switchingOnlyTokenIds,
   tabIcons, taskAutomationBrowserProfiles, taskAutomationBrowserProfilesError, taskAutomationBrowserProfilesLoading, titlebarUpdatePopoverOpen, titlebarUpdatePrompt,
   titlebarUpdateVisible, todayProxyRequests, todayProxyTokens, toggleAppTheme, toggleAutoStart, toggleProxy, toggleTitlebarUpdatePopover,
@@ -88,6 +88,8 @@ const {
       @toggle-titlebar-update-popover="toggleTitlebarUpdatePopover"
       @close-titlebar-update-popover="closeTitlebarUpdatePopover"
       @confirm-titlebar-update-popover="confirmTitlebarUpdatePopover"
+      @snooze-titlebar-update="snoozeTitlebarUpdate"
+      @skip-current-update="skipCurrentUpdate"
       @minimise-window="minimiseWindow"
       @close-window="closeWindow"
     />

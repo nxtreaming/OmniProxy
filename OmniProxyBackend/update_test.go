@@ -213,6 +213,8 @@ func TestUpdateDownloadAssetFromAssetsDoesNotUseOtherPlatformChecksum(t *testing
 }
 
 func TestUpdateDownloaderDownloadsAndVerifiesInstaller(t *testing.T) {
+	useTestUpdateDirectory(t)
+
 	content := []byte("fake installer bytes")
 	sum := sha256.Sum256(content)
 	fileName := testInstallerFileName()
@@ -274,6 +276,8 @@ func TestUpdateDownloaderDownloadsAndVerifiesInstaller(t *testing.T) {
 }
 
 func TestUpdateDownloaderFailsHungDownloadAfterTimeout(t *testing.T) {
+	useTestUpdateDirectory(t)
+
 	oldTimeout := updateDownloadTimeout
 	updateDownloadTimeout = 20 * time.Millisecond
 	defer func() {
@@ -319,6 +323,8 @@ func TestUpdateDownloaderFailsHungDownloadAfterTimeout(t *testing.T) {
 }
 
 func TestUpdateDownloaderInstallStartsSilentAutoUpdate(t *testing.T) {
+	useTestUpdateDirectory(t)
+
 	filePath := filepath.Join(t.TempDir(), "OmniProxy-Setup-test.exe")
 	if err := os.WriteFile(filePath, []byte("fake installer"), 0o600); err != nil {
 		t.Fatal(err)
@@ -357,6 +363,105 @@ func TestUpdateDownloaderInstallStartsSilentAutoUpdate(t *testing.T) {
 	}
 	if !reflect.DeepEqual(gotArgs, updateInstallerArgs()) {
 		t.Fatalf("unexpected installer args: %#v", gotArgs)
+	}
+}
+
+func TestUpdateDownloaderRestoresVerifiedDownloadStatus(t *testing.T) {
+	dir := useTestUpdateDirectory(t)
+	filePath := filepath.Join(dir, "OmniProxy-Setup-v9.9.9-windows-amd64.exe")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filePath, []byte("fake installer"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	saveUpdateStatus(updateDownloadStatus{
+		State:    "downloaded",
+		Version:  "v9.9.9",
+		FileName: filepath.Base(filePath),
+		FilePath: filePath,
+		Verified: true,
+		Percent:  100,
+	})
+
+	status := newUpdateDownloader().Status()
+	if status.State != "downloaded" || status.FilePath != filePath || !status.Verified {
+		t.Fatalf("expected verified download status to be restored, got %#v", status)
+	}
+}
+
+func TestUpdateDownloaderMarksInterruptedDownloadFailed(t *testing.T) {
+	useTestUpdateDirectory(t)
+
+	saveUpdateStatus(updateDownloadStatus{
+		State:   "downloading",
+		Version: "v9.9.9",
+	})
+
+	status := newUpdateDownloader().Status()
+	if status.State != "failed" || status.Error == "" {
+		t.Fatalf("expected interrupted download to be marked failed, got %#v", status)
+	}
+}
+
+func TestUpdateDownloaderRejectsPersistedInstallerOutsideUpdateDirectory(t *testing.T) {
+	useTestUpdateDirectory(t)
+	filePath := filepath.Join(t.TempDir(), "OmniProxy-Setup-outside.exe")
+	if err := os.WriteFile(filePath, []byte("fake installer"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	saveUpdateStatus(updateDownloadStatus{
+		State:    "downloaded",
+		Version:  "v9.9.9",
+		FileName: filepath.Base(filePath),
+		FilePath: filePath,
+		Verified: true,
+	})
+
+	status := newUpdateDownloader().Status()
+	if status.State != "failed" || status.FilePath != "" || status.Verified {
+		t.Fatalf("expected outside installer path to be rejected, got %#v", status)
+	}
+}
+
+func TestCleanupUpdateDirectoryRemovesOldInstallersAndPartials(t *testing.T) {
+	dir := useTestUpdateDirectory(t)
+	preservePath := filepath.Join(dir, "OmniProxy-Setup-preserve.exe")
+	paths := []string{
+		filepath.Join(dir, "OmniProxy-Setup-old.exe"),
+		filepath.Join(dir, "OmniProxy-Setup-mid.exe"),
+		filepath.Join(dir, "OmniProxy-Setup-new.exe"),
+		preservePath,
+		filepath.Join(dir, "OmniProxy-Setup-partial.exe.download"),
+	}
+	for index, path := range paths {
+		if err := os.WriteFile(path, []byte("fake installer"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		modTime := time.Now().Add(time.Duration(index) * time.Minute)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cleanupUpdateDirectory(preservePath)
+
+	if _, err := os.Stat(paths[0]); !os.IsNotExist(err) {
+		t.Fatalf("expected oldest installer to be removed, stat err=%v", err)
+	}
+	if _, err := os.Stat(paths[1]); err != nil {
+		t.Fatalf("expected recent installer to be kept: %v", err)
+	}
+	if _, err := os.Stat(paths[2]); err != nil {
+		t.Fatalf("expected recent installer to be kept: %v", err)
+	}
+	if _, err := os.Stat(preservePath); err != nil {
+		t.Fatalf("expected active installer to be preserved: %v", err)
+	}
+	if _, err := os.Stat(paths[4]); !os.IsNotExist(err) {
+		t.Fatalf("expected partial download to be removed, stat err=%v", err)
 	}
 }
 
@@ -431,6 +536,19 @@ func overrideUpdateGlobals(version string, releaseURL string) func() {
 		latestReleaseURL = oldReleaseURL
 		releasesURL = oldReleasesURL
 	}
+}
+
+func useTestUpdateDirectory(t *testing.T) string {
+	t.Helper()
+	oldTempDir := updateTempDir
+	dir := t.TempDir()
+	updateTempDir = func() string {
+		return dir
+	}
+	t.Cleanup(func() {
+		updateTempDir = oldTempDir
+	})
+	return dir
 }
 
 func expectedUpdateAsset(version string, stem string) (string, string, string, int64) {

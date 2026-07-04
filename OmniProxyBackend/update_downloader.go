@@ -18,7 +18,11 @@ import (
 var updateDownloadTimeout = 30 * time.Minute
 
 func newUpdateDownloader() *updateDownloader {
-	return &updateDownloader{status: updateDownloadStatus{State: "idle"}}
+	status := loadUpdateStatus()
+	cleanupUpdateDirectory(status.FilePath)
+	saveUpdateStatus(status)
+	appendUpdateLog("update downloader initialized with state=%s version=%s", status.State, status.Version)
+	return &updateDownloader{status: status}
 }
 
 func (d *updateDownloader) Status() updateDownloadStatus {
@@ -61,6 +65,8 @@ func (d *updateDownloader) Start(ctx context.Context, client *http.Client, req u
 	}
 	d.status = status
 	d.mu.Unlock()
+	saveUpdateStatus(status)
+	appendUpdateLog("update download started version=%s file=%s", status.Version, status.FileName)
 
 	downloadCtx := ctx
 	if downloadCtx == nil {
@@ -100,6 +106,8 @@ func (d *updateDownloader) Install() (updateDownloadStatus, error) {
 	d.status.UpdatedAt = now
 	status = d.status
 	d.mu.Unlock()
+	saveUpdateStatus(status)
+	appendUpdateLog("update installer started version=%s file=%s", status.Version, status.FilePath)
 	return status, nil
 }
 
@@ -118,7 +126,7 @@ func (d *updateDownloader) download(ctx context.Context, client *http.Client, re
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	dir := filepath.Join(os.TempDir(), "OmniProxy", "updates")
+	dir := updateDirectory()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		d.fail(fmt.Sprintf("create update directory: %v", err))
 		return
@@ -126,6 +134,7 @@ func (d *updateDownloader) download(ctx context.Context, client *http.Client, re
 
 	filePath := filepath.Join(dir, fileName)
 	tmpPath := filePath + ".download"
+	cleanupUpdateDirectory(filePath)
 	if err := downloadFile(ctx, client, strings.TrimSpace(req.DownloadURL), tmpPath, req.ExpectedSize, d.setProgress); err != nil {
 		_ = os.Remove(tmpPath)
 		d.fail(err.Error())
@@ -158,7 +167,11 @@ func (d *updateDownloader) download(ctx context.Context, client *http.Client, re
 	d.status.Error = ""
 	d.status.UpdatedAt = now
 	d.status.CompletedAt = now
+	status := d.status
 	d.mu.Unlock()
+	saveUpdateStatus(status)
+	appendUpdateLog("update download completed version=%s file=%s bytes=%d", status.Version, status.FilePath, size)
+	cleanupUpdateDirectory(status.FilePath)
 }
 
 func downloadFile(ctx context.Context, client *http.Client, rawURL string, filePath string, expectedSize int64, progress func(received int64, total int64)) error {
@@ -362,7 +375,10 @@ func (d *updateDownloader) fail(message string) {
 	d.status.Error = message
 	d.status.UpdatedAt = now
 	d.status.CompletedAt = now
+	status := d.status
 	d.mu.Unlock()
+	saveUpdateStatus(status)
+	appendUpdateLog("update failed state=%s version=%s error=%s", status.State, status.Version, message)
 }
 
 func fileSize(filePath string) int64 {

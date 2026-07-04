@@ -1,5 +1,16 @@
 export const pendingUpdateVersionKey = 'omniproxy.pendingUpdateVersion'
+export const skippedUpdateVersionKey = 'omniproxy.skippedUpdateVersion'
+export const snoozedUpdateUntilKey = 'omniproxy.snoozedUpdateUntil'
 export const updateCheckIntervalMs = 4 * 60 * 60 * 1000
+export const updateSnoozeMs = 24 * 60 * 60 * 1000
+
+function defaultUpdateStorage() {
+  return typeof window === 'undefined' ? null : window.localStorage
+}
+
+function updateVersionKey(update) {
+  return String(update?.latestVersion || '').trim()
+}
 
 export function updateDownloadMatches(update, status) {
   if (!update?.updateAvailable || !status) {
@@ -27,6 +38,39 @@ export function updateDownloadPayload(update) {
     fileName: update?.downloadFileName || '',
     expectedSize: Number(update?.downloadSize || 0),
   }
+}
+
+export function isUpdatePromptSuppressed(update, storage = defaultUpdateStorage(), now = Date.now()) {
+  const latestVersion = updateVersionKey(update)
+  if (!latestVersion || !storage) {
+    return false
+  }
+  if (String(storage.getItem(skippedUpdateVersionKey) || '').trim() === latestVersion) {
+    return true
+  }
+  const snoozedUntil = Number(storage.getItem(snoozedUpdateUntilKey) || 0)
+  if (Number.isFinite(snoozedUntil) && snoozedUntil > now) {
+    return true
+  }
+  if (snoozedUntil) {
+    storage.removeItem(snoozedUpdateUntilKey)
+  }
+  return false
+}
+
+export function snoozeUpdatePrompt(storage = defaultUpdateStorage(), now = Date.now()) {
+  if (!storage) {
+    return
+  }
+  storage.setItem(snoozedUpdateUntilKey, String(now + updateSnoozeMs))
+}
+
+export function skipUpdateVersion(update, storage = defaultUpdateStorage()) {
+  const latestVersion = updateVersionKey(update)
+  if (!latestVersion || !storage) {
+    return
+  }
+  storage.setItem(skippedUpdateVersionKey, latestVersion)
 }
 
 export function buildTitlebarUpdatePrompt({

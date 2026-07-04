@@ -14,6 +14,8 @@ defineEmits([
   'close-window',
   'confirm-titlebar-update-popover',
   'minimise-window',
+  'skip-current-update',
+  'snooze-titlebar-update',
   'toggle-titlebar-update-popover',
   'toggle-window-maximise',
 ])
@@ -86,7 +88,8 @@ defineEmits([
           </div>
         </div>
         <div class="titlebar-update-popover-actions">
-          <button type="button" class="ghost-button compact-button" @click="$emit('close-titlebar-update-popover')">稍后</button>
+          <button type="button" class="ghost-button compact-button" @click="$emit('snooze-titlebar-update')">稍后</button>
+          <button type="button" class="ghost-button compact-button" @click="$emit('skip-current-update')">跳过此版本</button>
           <button type="button" class="primary-button compact-button" @click="$emit('confirm-titlebar-update-popover')">
             {{ titlebarUpdatePrompt.primaryText }}
           </button>

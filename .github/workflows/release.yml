@@ -15,10 +15,9 @@ permissions:
   contents: write
 
 jobs:
-  macos_preview:
+  macos:
     name: macOS universal unsigned DMG
     runs-on: macos-latest
-    needs: windows
 
     steps:
       - name: Resolve release tag
@@ -107,49 +106,28 @@ jobs:
           mkdir -p build/dmg-root
           cp -R build/bin/OmniProxy.app build/dmg-root/
           ln -s /Applications build/dmg-root/Applications
-          hdiutil create -volname "OmniProxy" -srcfolder build/dmg-root -ov -format UDZO "$asset"
+          cat > build/dmg-root/README.txt <<'EOF'
+          OmniProxy macOS unsigned build
+
+          This DMG is not Developer ID signed or notarized. If macOS blocks opening OmniProxy, open it from Finder with right click > Open.
+          To update, quit the running OmniProxy app first, then drag OmniProxy.app into Applications and replace the old app.
+
+          OmniProxy macOS 未签名构建
+
+          该 DMG 未使用 Developer ID 签名，也未公证。如果 macOS 阻止打开，请在 Finder 中右键选择“打开”。
+          更新时请先退出正在运行的 OmniProxy，再将 OmniProxy.app 拖入 Applications 并替换旧应用。
+          EOF
+          hdiutil create -volname "OmniProxy $version" -srcfolder build/dmg-root -ov -format UDZO "$asset"
           shasum -a 256 "$asset" > "$asset.sha256"
 
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v6
         with:
-          name: OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned
+          name: release-macos
           path: |
             OmniProxyBackend/OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned.dmg
             OmniProxyBackend/OmniProxy-${{ steps.release.outputs.tag }}-darwin-universal-unsigned.dmg.sha256
           retention-days: 14
-
-      - name: Attach macOS unsigned DMG to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          tag="${{ steps.release.outputs.tag }}"
-          repo="${{ github.repository }}"
-          api_url="https://api.github.com/repos/$repo"
-
-          release_json="$(curl -fsSL \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "$api_url/releases/tags/$tag")"
-          upload_url="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["upload_url"].split("{")[0])' <<< "$release_json")"
-
-          for file in \
-            "OmniProxyBackend/OmniProxy-$tag-darwin-universal-unsigned.dmg" \
-            "OmniProxyBackend/OmniProxy-$tag-darwin-universal-unsigned.dmg.sha256"; do
-            name="$(basename "$file")"
-            encoded_name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$name")"
-            curl -fsSL -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$file" \
-              "$upload_url?name=$encoded_name" > /dev/null
-          done
 
   windows:
     name: Windows installer
@@ -333,6 +311,56 @@ jobs:
           )
           $notes | Set-Content -Path release-notes.md -Encoding utf8
 
+      - name: Upload Windows release artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-windows
+          path: |
+            OmniProxyBackend/OmniProxy-Setup-${{ steps.release.outputs.tag }}-windows-amd64.exe
+            OmniProxyBackend/OmniProxy-Setup-${{ steps.release.outputs.tag }}-windows-amd64.exe.sha256
+            OmniProxyBackend/release-notes.md
+          retention-days: 14
+
+  publish:
+    name: Publish release
+    runs-on: windows-latest
+    needs:
+      - windows
+      - macos
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        run: |
+          $tag = "${{ github.event.inputs.tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = "${{ github.ref_name }}"
+          }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+            throw "Invalid release tag: $tag"
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $isPrerelease = $tag.Contains("-")
+          "prerelease=$($isPrerelease.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: release-assets
+
+      - name: Verify release assets
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-assets.ps1 -Version "${{ steps.release.outputs.tag }}" -AssetDirectory "release-assets"
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -361,7 +389,11 @@ jobs:
             Invoke-RestMethod -Method Delete -Headers $headers -Uri $existingRelease.url | Out-Null
           }
 
-          $body = Get-Content -LiteralPath "OmniProxyBackend/release-notes.md" -Raw
+          $notes = Get-ChildItem -Path "release-assets" -Recurse -Filter "release-notes.md" | Select-Object -First 1
+          if (-not $notes) {
+            throw "release-notes.md was not found in downloaded artifacts."
+          }
+          $body = Get-Content -LiteralPath $notes.FullName -Raw
           $payload = @{
             tag_name = $tag
             name = "OmniProxy $tag"
@@ -378,13 +410,12 @@ jobs:
             -Body $payload
 
           $uploadUrl = $release.upload_url.Split("{")[0]
-          $assetPaths = @(
-            "OmniProxyBackend/OmniProxy-Setup-$tag-windows-amd64.exe",
-            "OmniProxyBackend/OmniProxy-Setup-$tag-windows-amd64.exe.sha256"
-          )
+          $assetPaths = Get-ChildItem -Path "release-assets" -Recurse -File |
+            Where-Object { $_.Name -ne "release-notes.md" } |
+            Sort-Object Name
 
           foreach ($assetPath in $assetPaths) {
-            $asset = Get-Item -LiteralPath $assetPath
+            $asset = Get-Item -LiteralPath $assetPath.FullName
             $assetName = [System.Uri]::EscapeDataString($asset.Name)
             Write-Host "Uploading release asset $($asset.Name)"
             Invoke-RestMethod `

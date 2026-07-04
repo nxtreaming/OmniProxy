@@ -28,6 +28,7 @@ func (a *DesktopApp) InstallDownloadedUpdate() (updateDownloadStatus, error) {
 	if a.ctx != nil {
 		ctx := a.ctx
 		if shouldQuitAfterUpdateInstall() {
+			appendUpdateLog("application quit requested for update install version=%s", status.Version)
 			go func() {
 				time.Sleep(300 * time.Millisecond)
 				runtime.Quit(ctx)

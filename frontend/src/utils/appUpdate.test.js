@@ -4,6 +4,12 @@ import assert from 'node:assert/strict'
 import {
   buildTitlebarUpdatePrompt,
   currentUpdateDownloadState,
+  isUpdatePromptSuppressed,
+  skipUpdateVersion,
+  skippedUpdateVersionKey,
+  snoozeUpdatePrompt,
+  snoozedUpdateUntilKey,
+  updateSnoozeMs,
   updateDownloadMatches,
   updateDownloadPayload,
 } from './appUpdate.js'
@@ -72,3 +78,38 @@ test('buildTitlebarUpdatePrompt reflects downloaded macOS update', () => {
   assert.equal(prompt.primaryText, '打开 DMG')
   assert.match(prompt.description, /拖入 Applications/)
 })
+
+test('skipUpdateVersion suppresses only the selected version', () => {
+  const storage = createMemoryStorage()
+  skipUpdateVersion({ latestVersion: 'v1.2.0' }, storage)
+
+  assert.equal(storage.getItem(skippedUpdateVersionKey), 'v1.2.0')
+  assert.equal(isUpdatePromptSuppressed({ latestVersion: 'v1.2.0' }, storage), true)
+  assert.equal(isUpdatePromptSuppressed({ latestVersion: 'v1.2.1' }, storage), false)
+})
+
+test('snoozeUpdatePrompt suppresses prompts until it expires', () => {
+  const storage = createMemoryStorage()
+  const now = 1000
+  snoozeUpdatePrompt(storage, now)
+
+  assert.equal(storage.getItem(snoozedUpdateUntilKey), String(now + updateSnoozeMs))
+  assert.equal(isUpdatePromptSuppressed({ latestVersion: 'v1.2.0' }, storage, now + 1), true)
+  assert.equal(isUpdatePromptSuppressed({ latestVersion: 'v1.2.0' }, storage, now + updateSnoozeMs + 1), false)
+  assert.equal(storage.getItem(snoozedUpdateUntilKey), null)
+})
+
+function createMemoryStorage() {
+  const values = new Map()
+  return {
+    getItem(key) {
+      return values.has(key) ? values.get(key) : null
+    },
+    removeItem(key) {
+      values.delete(key)
+    },
+    setItem(key, value) {
+      values.set(key, String(value))
+    },
+  }
+}

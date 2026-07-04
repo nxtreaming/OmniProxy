@@ -9,7 +9,10 @@ import {
 import {
   buildTitlebarUpdatePrompt,
   currentUpdateDownloadState,
+  isUpdatePromptSuppressed,
   pendingUpdateVersionKey,
+  skipUpdateVersion,
+  snoozeUpdatePrompt as persistUpdatePromptSnooze,
   updateCheckIntervalMs,
   updateDownloadPayload,
 } from '../utils/appUpdate.js'
@@ -25,14 +28,18 @@ export function useAppUpdate({
   const lastUpdateInfo = ref(null)
   const lastUpdateCheckedAt = ref('')
   const titlebarUpdatePopoverOpen = ref(false)
+  const updateSuppressed = ref(false)
   const updateDownloadStatus = ref({ state: 'idle', percent: 0, bytesReceived: 0 })
 
   let updateCheckTimer = null
   let updateCheckInterval = null
   let updateDownloadTimer = null
   let updateInstallPromptVersion = ''
+  let updatePromptBypassVersion = ''
 
-  const titlebarUpdateVisible = computed(() => Boolean(lastUpdateInfo.value?.updateAvailable && !appInfo.isDevelopment))
+  const titlebarUpdateVisible = computed(() =>
+    Boolean(lastUpdateInfo.value?.updateAvailable && !appInfo.isDevelopment && !updateSuppressed.value),
+  )
   const titlebarUpdatePrompt = computed(() =>
     buildTitlebarUpdatePrompt({
       update: lastUpdateInfo.value || {},
@@ -48,6 +55,20 @@ export function useAppUpdate({
 
   function closeTitlebarUpdatePopover() {
     titlebarUpdatePopoverOpen.value = false
+  }
+
+  function snoozeTitlebarUpdate() {
+    persistUpdatePromptSnooze()
+    updatePromptBypassVersion = ''
+    updateSuppressed.value = true
+    closeTitlebarUpdatePopover()
+  }
+
+  function skipCurrentUpdate() {
+    skipUpdateVersion(lastUpdateInfo.value)
+    updatePromptBypassVersion = ''
+    updateSuppressed.value = true
+    closeTitlebarUpdatePopover()
   }
 
   function toggleTitlebarUpdatePopover() {
@@ -96,6 +117,7 @@ export function useAppUpdate({
   async function checkForAvailableUpdate({ manual = false } = {}) {
     if (manual) {
       updateChecking.value = true
+      updateSuppressed.value = false
       errorMessage.value = ''
       successMessage.value = ''
     }
@@ -109,17 +131,23 @@ export function useAppUpdate({
         appInfo.isDevelopment = normalizedVersion === 'dev' || normalizedVersion === 'development'
       }
       if (appInfo.isDevelopment) {
+        updateSuppressed.value = false
         if (manual) {
           successMessage.value = '开发版本不会请求远端更新接口'
         }
         return
       }
       if (!update?.updateAvailable || !update.latestVersion) {
+        updateSuppressed.value = false
         if (manual) {
           successMessage.value = update?.currentVersion
             ? `当前已是最新版本（${update.currentVersion}）`
             : '当前已是最新版本'
         }
+        return
+      }
+      updateSuppressed.value = !manual && isUpdatePromptSuppressed(update)
+      if (updateSuppressed.value) {
         return
       }
       if (!update.downloadUrl || !update.checksumUrl) {
@@ -133,6 +161,7 @@ export function useAppUpdate({
       if (downloadState === 'downloaded') {
         updateInstallPromptVersion = update.latestVersion
         if (manual) {
+          updatePromptBypassVersion = update.latestVersion
           successMessage.value = isMacOS()
             ? `新版本 ${update.latestVersion} 已准备好，请退出当前 OmniProxy 后打开 DMG 完成替换`
             : `新版本 ${update.latestVersion} 已准备好，请重启 OmniProxy 以完成更新`
@@ -142,10 +171,11 @@ export function useAppUpdate({
       }
       if (downloadState === 'downloading') {
         updateInstallPromptVersion = update.latestVersion
-        startUpdateDownloadPolling()
         if (manual) {
+          updatePromptBypassVersion = update.latestVersion
           successMessage.value = `已在后台下载 ${update.latestVersion} 更新安装包`
         }
+        startUpdateDownloadPolling()
         return
       }
       if (downloadState === 'installing') {
@@ -202,6 +232,7 @@ export function useAppUpdate({
   }
 
   async function startUpdateDownload(update = lastUpdateInfo.value) {
+    updateSuppressed.value = false
     const currentState = getCurrentUpdateDownloadState(update)
     if (currentState === 'downloading') {
       updateInstallPromptVersion = update?.latestVersion || updateDownloadStatus.value?.version || ''
@@ -228,6 +259,7 @@ export function useAppUpdate({
     errorMessage.value = ''
     successMessage.value = ''
     updateInstallPromptVersion = payload.version || ''
+    updatePromptBypassVersion = payload.version || ''
     const status = await downloadUpdate(payload)
     updateDownloadStatus.value = status || { state: 'downloading' }
     startUpdateDownloadPolling()
@@ -274,7 +306,12 @@ export function useAppUpdate({
     if (!version || (expectedVersion && version !== expectedVersion) || version === currentVersion) {
       return
     }
+    if (version !== updatePromptBypassVersion && isUpdatePromptSuppressed(lastUpdateInfo.value)) {
+      updateSuppressed.value = true
+      return
+    }
     updateInstallPromptVersion = ''
+    updatePromptBypassVersion = ''
     titlebarUpdatePopoverOpen.value = true
   }
 
@@ -340,6 +377,8 @@ export function useAppUpdate({
     titlebarUpdateVisible,
     titlebarUpdatePrompt,
     closeTitlebarUpdatePopover,
+    snoozeTitlebarUpdate,
+    skipCurrentUpdate,
     toggleTitlebarUpdatePopover,
     confirmTitlebarUpdatePopover,
     handleTitlebarUpdateOutsidePointer,
