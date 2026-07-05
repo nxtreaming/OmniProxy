@@ -187,6 +187,26 @@ func (m *Manager) bestBalancedLocked(provider string, credentialType string, sta
 	return selected, found
 }
 
+func (m *Manager) bestBalancedPreferredLocked(provider string, credentialType string, status Status, excluded map[string]bool, preferred func(Token) bool, selectedIDs map[string]bool, hasSelection bool) (Token, bool) {
+	var selected Token
+	selectedIndex := -1
+	found := false
+	for index, item := range m.tokens {
+		if !usableTokenMatches(item, provider, credentialType, status, excluded, selectedIDs, hasSelection) {
+			continue
+		}
+		if preferred != nil && !preferred(item) {
+			continue
+		}
+		if !found || m.balancedTokenLessLocked(item, selected, index, selectedIndex) {
+			selected = item
+			selectedIndex = index
+			found = true
+		}
+	}
+	return selected, found
+}
+
 func (m *Manager) balancedTokenLessLocked(left Token, right Token, leftIndex int, rightIndex int) bool {
 	leftInFlight := m.inFlight[left.ID]
 	rightInFlight := m.inFlight[right.ID]

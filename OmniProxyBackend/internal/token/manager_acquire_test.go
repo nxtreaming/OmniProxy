@@ -222,6 +222,40 @@ func TestManagerAcquirePreferredSkipsPreferredLowTokenWhenActiveTokenExists(t *t
 	}
 }
 
+func TestManagerAcquireBalancedPreferredSkipsPreferredLowTokenWhenActiveTokenExists(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active, err := manager.Add(UpsertRequest{Name: "api-key", Provider: ProviderOpenAI, TokenValue: "sk-api-key-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preferredLow, err := manager.Add(UpsertRequest{
+		Name:           "codex-auth",
+		Provider:       ProviderOpenAI,
+		CredentialType: CredentialTypeCodexAuthJSON,
+		TokenValue:     `{"type":"codex","email":"codex@example.com","access_token":"codex-access-token"}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(preferredLow.ID, 5); err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := manager.AcquireBalancedPreferredMatching(ProviderOpenAI, "", nil, func(item Token) bool {
+		return item.CredentialType == CredentialTypeCodexAuthJSON
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != active.ID {
+		t.Fatalf("expected active non-preferred token before preferred low token in balanced mode, got %s", selected.Name)
+	}
+}
+
 func TestManagerAllowsSameNameAcrossProviders(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {

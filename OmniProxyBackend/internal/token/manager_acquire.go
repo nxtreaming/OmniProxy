@@ -43,6 +43,59 @@ func (m *Manager) AcquireBalancedMatching(provider string, credentialType string
 	return Token{}, ErrNoActiveToken
 }
 
+func (m *Manager) AcquireBalancedPreferredMatching(provider string, credentialType string, excluded map[string]bool, preferred func(Token) bool) (Token, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	provider = NormalizeProvider(provider)
+	credentialType = strings.TrimSpace(strings.ToLower(credentialType))
+	if credentialType != "" {
+		if _, normalizedCredentialType, err := NormalizeProviderAndCredential(provider, credentialType); err == nil {
+			credentialType = normalizedCredentialType
+		}
+	}
+
+	selectedIDs, hasSelection := m.selectedProviderTokenIDsLocked(provider)
+	if preferred != nil {
+		if token, ok := m.bestBalancedPreferredLocked(provider, credentialType, StatusActive, excluded, preferred, selectedIDs, hasSelection); ok {
+			return m.reserveLocked(token), nil
+		}
+		if hasSelection {
+			if token, ok := m.bestBalancedPreferredLocked(provider, credentialType, StatusActive, excluded, preferred, nil, false); ok {
+				return m.reserveLocked(token), nil
+			}
+		}
+	}
+	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded, selectedIDs, hasSelection); ok {
+		return m.reserveLocked(token), nil
+	}
+	if hasSelection {
+		if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded, nil, false); ok {
+			return m.reserveLocked(token), nil
+		}
+	}
+	if preferred != nil {
+		if token, ok := m.bestBalancedPreferredLocked(provider, credentialType, StatusLow, excluded, preferred, selectedIDs, hasSelection); ok {
+			return m.reserveLocked(token), nil
+		}
+		if hasSelection {
+			if token, ok := m.bestBalancedPreferredLocked(provider, credentialType, StatusLow, excluded, preferred, nil, false); ok {
+				return m.reserveLocked(token), nil
+			}
+		}
+	}
+	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded, selectedIDs, hasSelection); ok {
+		return m.reserveLocked(token), nil
+	}
+	if hasSelection {
+		if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded, nil, false); ok {
+			return m.reserveLocked(token), nil
+		}
+	}
+
+	return Token{}, ErrNoActiveToken
+}
+
 func (m *Manager) AcquirePreferredMatching(provider string, credentialType string, excluded map[string]bool, preferred func(Token) bool) (Token, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
