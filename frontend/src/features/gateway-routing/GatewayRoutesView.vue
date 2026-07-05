@@ -8,7 +8,7 @@ defineProps({
   },
 })
 
-defineEmits(['persist-config'])
+const emit = defineEmits(['persist-config', 'route-dirty'])
 </script>
 
 <template>
@@ -18,7 +18,7 @@ defineEmits(['persist-config'])
       <button type="button" class="primary-button" @click="$emit('persist-config')">保存路由</button>
     </div>
     <div class="settings-stack">
-      <GatewayRoutingSettings :config="config" />
+      <GatewayRoutingSettings :config="config" @route-dirty="emit('route-dirty')" />
     </div>
   </section>
 </template>

@@ -63,7 +63,15 @@ export function createAppDataActions(state, navigation) {
       state.activeRequests.value = loadedActiveRequests
       state.requestHistory.value = loadedHistory
       state.billingSummary.value = loadedBillingSummary || state.emptyBillingSummary()
+      const pendingGatewayRoutes = state.gatewayRoutesDirty.value ? state.config.gatewayRoutes : null
+      const pendingModelRoutes = state.gatewayRoutesDirty.value ? state.config.modelRoutes : null
       Object.assign(state.config, loadedConfig)
+      if (pendingGatewayRoutes) {
+        state.config.gatewayRoutes = pendingGatewayRoutes
+      }
+      if (pendingModelRoutes) {
+        state.config.modelRoutes = pendingModelRoutes
+      }
       Object.assign(state.proxyStatus, loadedStatus)
       Object.assign(state.dataDirectory, loadedDataDirectory, {
         pendingDataDir: '',

@@ -122,19 +122,19 @@ func TestRouterInfersDirectGatewayProviderFromModel(t *testing.T) {
 	}
 }
 
-func TestPiRouterOpenAIModelsRequireAPIKeyCredential(t *testing.T) {
+func TestPiRouterOpenAIModelsUseAutomaticCredentialMatching(t *testing.T) {
 	route := NewRouter(config.Config{}).Route(mustRouterTestURL(t, "/pi-router/v1/chat/completions"), []byte(`{"model":"gpt-5.4"}`))
 
-	if route.Provider != token.ProviderOpenAI || route.CredentialType != token.CredentialTypeAPIKey {
-		t.Fatalf("expected Pi OpenAI model to require API key credential, got %#v", route)
+	if route.Provider != token.ProviderOpenAI || route.CredentialType != "" {
+		t.Fatalf("expected Pi OpenAI model to use automatic credential matching, got %#v", route)
 	}
 }
 
-func TestRouterCodexPrefixRequiresCodexAuthJSONCredential(t *testing.T) {
+func TestRouterCodexPrefixUsesAutomaticCredentialMatching(t *testing.T) {
 	route := NewRouter(config.Config{}).Route(mustRouterTestURL(t, "/codex/v1/chat/completions"), []byte(`{"model":"gpt-5.4"}`))
 
-	if route.Provider != token.ProviderOpenAI || route.CredentialType != token.CredentialTypeCodexAuthJSON || route.Path != "/v1/chat/completions" {
-		t.Fatalf("expected codex prefix to route to codex auth.json chat completions, got %#v", route)
+	if route.Provider != token.ProviderOpenAI || route.CredentialType != "" || route.Path != "/v1/chat/completions" {
+		t.Fatalf("expected codex prefix to use automatic credential matching, got %#v", route)
 	}
 }
 

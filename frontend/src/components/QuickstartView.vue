@@ -1,13 +1,15 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { MagicStick, Monitor, RefreshRight } from '@element-plus/icons-vue'
 
 const props = defineProps({
   config: { type: Object, required: true },
   codexModelOptions: { type: Array, required: true },
-  selectedCodexModel: { type: String, required: true },
-  selectedCodexModelLabel: { type: String, required: true },
-  canConfigureCodexModel: { type: Boolean, required: true },
+  codexModelSelectionLimit: { type: Number, required: true },
+  selectedCodexModels: { type: Array, required: true },
+  selectedCodexModelLabels: { type: Array, required: true },
+  canConfigureCodexModels: { type: Boolean, required: true },
+  isCodexModelOptionDisabled: { type: Function, required: true },
   claudeModelOptions: { type: Array, required: true },
   claudeModelSelectionLimit: { type: Number, required: true },
   selectedClaudeModels: { type: Array, required: true },
@@ -31,7 +33,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'update:selectedCodexModel',
+  'update:selectedCodexModels',
   'update:selectedClaudeModels',
   'configure-codex',
   'restore-codex',
@@ -49,20 +51,29 @@ const emit = defineEmits([
   'restore-deepseek-tui',
 ])
 
+const customCodexModel = ref('')
+
 const selectedModels = computed({
   get: () => props.selectedClaudeModels,
   set: (value) => emit('update:selectedClaudeModels', value),
 })
 
 const selectedCodex = computed({
-  get: () => props.selectedCodexModel,
-  set: (value) => emit('update:selectedCodexModel', value),
+  get: () => props.selectedCodexModels,
+  set: (value) => emit('update:selectedCodexModels', value),
 })
 
-const codexRouteModel = computed(() => props.selectedCodexModel || props.config.gatewayRoutes?.codex?.model || 'gpt-5.5')
+const codexRouteModel = computed(() => props.selectedCodexModels[0] || props.config.gatewayRoutes?.codex?.model || 'gpt-5.5')
 const claudeRouteModel = computed(() => props.config.gatewayRoutes?.claude?.model || 'default')
 const openAIRouteModel = computed(() => props.config.gatewayRoutes?.openai?.model || 'gpt-5.4')
 const geminiRouteModel = computed(() => props.config.gatewayRoutes?.gemini?.model || 'gemini-3-pro-preview')
+
+function addCustomCodexModel() {
+  const model = customCodexModel.value.trim()
+  if (!model || selectedCodex.value.includes(model) || selectedCodex.value.length >= props.codexModelSelectionLimit) return
+  emit('update:selectedCodexModels', [...selectedCodex.value, model])
+  customCodexModel.value = ''
+}
 </script>
 
 <template>
@@ -76,33 +87,51 @@ Protocol: OpenAI Responses
 默认模型: {{ codexRouteModel }}</code></pre>
         <div class="claude-model-config">
           <div class="claude-model-config-head">
-            <span>Codex 默认模型</span>
-            <small>{{ selectedCodexModelLabel }}</small>
+            <span>Codex 模型</span>
+            <small>{{ selectedCodex.length }} / {{ codexModelSelectionLimit }}</small>
           </div>
-          <div class="claude-model-picker" role="radiogroup" aria-label="Codex 默认模型">
+          <div class="claude-model-picker" role="group" aria-label="Codex 可选模型">
             <label
               v-for="option in codexModelOptions"
               :key="option.id"
-              :class="['claude-model-choice', { selected: selectedCodex === option.id }]"
+              :class="[
+                'claude-model-choice',
+                {
+                  selected: selectedCodex.includes(option.id),
+                  disabled: isCodexModelOptionDisabled(option.id),
+                },
+              ]"
             >
-              <input v-model="selectedCodex" type="radio" :value="option.id" />
+              <input
+                v-model="selectedCodex"
+                type="checkbox"
+                :value="option.id"
+                :disabled="isCodexModelOptionDisabled(option.id)"
+              />
               <span>
                 <strong>{{ option.label }}</strong>
                 <small>{{ option.description }}</small>
               </span>
             </label>
           </div>
+          <small class="claude-model-selection">
+            已选：{{ selectedCodexModelLabels.length ? selectedCodexModelLabels.join('、') : '未选择' }}
+          </small>
           <label class="gateway-route-model-field">
             <span>自定义模型 ID</span>
             <input
-              v-model="selectedCodex"
+              v-model="customCodexModel"
               type="text"
               placeholder="例如 qwen3.5、custom-model、provider/model"
+              @keydown.enter.prevent="addCustomCodexModel"
             />
           </label>
+          <button type="button" class="quickstart-model-add" :disabled="selectedCodex.length >= codexModelSelectionLimit" @click="addCustomCodexModel">
+            添加 Codex 模型
+          </button>
         </div>
         <div class="help-actions">
-          <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" :disabled="!canConfigureCodexModel" @click="$emit('configure-codex')">
+          <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" :disabled="!canConfigureCodexModels" @click="$emit('configure-codex')">
             {{ codexConfiguring ? '配置中' : '配置 Codex 网关' }}
           </el-button>
           <el-button :icon="RefreshRight" :loading="codexRestoring" @click="$emit('restore-codex')">

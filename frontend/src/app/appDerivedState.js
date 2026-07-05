@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { providers, tabs } from '../constants/app'
-import { claudeModelOptions, claudeModelSelectionLimit, codexModelOptions } from '../constants/claudeModels'
+import { claudeModelOptions, claudeModelSelectionLimit, codexModelOptions, codexModelSelectionLimit } from '../constants/claudeModels'
 import { formatNumber, localDateKey } from '../utils/format'
 import { aggregateAPIBalanceSummaries } from '../utils/quota'
 import { isCooling, normalizeBillingDailyRows, showQuotaWindows } from '../utils/tokenDisplay'
@@ -43,8 +43,12 @@ export function createAppDerivedState(state, tokenHelpers) {
   const selectedClaudeModelLabels = computed(() =>
     state.selectedClaudeModels.value.map((model) => claudeModelLabel(model)).filter(Boolean),
   )
-  const selectedCodexModelLabel = computed(() => codexModelLabel(state.selectedCodexModel.value))
-  const canConfigureCodexModel = computed(() => String(state.selectedCodexModel.value || '').trim() !== '')
+  const selectedCodexModelLabels = computed(() =>
+    state.selectedCodexModels.value.map((model) => codexModelLabel(model)).filter(Boolean),
+  )
+  const canConfigureCodexModels = computed(
+    () => state.selectedCodexModels.value.length > 0 && state.selectedCodexModels.value.length <= codexModelSelectionLimit,
+  )
   const canConfigureClaudeModels = computed(
     () => state.selectedClaudeModels.value.length > 0 && state.selectedClaudeModels.value.length <= claudeModelSelectionLimit,
   )
@@ -212,8 +216,8 @@ export function createAppDerivedState(state, tokenHelpers) {
     proxyEndpoint,
     appThemeLabel,
     selectedClaudeModelLabels,
-    selectedCodexModelLabel,
-    canConfigureCodexModel,
+    selectedCodexModelLabels,
+    canConfigureCodexModels,
     canConfigureClaudeModels,
     currentFirstUseGuideStep,
     isMacOSPlatform,

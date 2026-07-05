@@ -26,6 +26,31 @@
   box-shadow: none;
 }
 
+.quickstart-panel .quickstart-model-add {
+  justify-self: start;
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.25;
+}
+
+.quickstart-panel .quickstart-model-add:hover:not(:disabled),
+.quickstart-panel .quickstart-model-add:focus-visible:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent-strong);
+}
+
+.quickstart-panel .quickstart-model-add:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
 .shell:not(.dark) .quickstart-panel .help-actions .el-button--primary.is-plain {
   --el-button-bg-color: color-mix(in srgb, var(--brand) 7%, #ffffff);
   --el-button-border-color: var(--brand);

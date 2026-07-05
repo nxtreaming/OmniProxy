@@ -73,7 +73,7 @@ func normalizeGatewayRouteTarget(route GatewayRouteConfig, defaults GatewayRoute
 		normalizedProvider = defaults.Provider
 		normalizedCredential = defaults.CredentialType
 	}
-	if !credentialExplicit && (!useDefaults || !strings.EqualFold(normalizedProvider, defaults.Provider)) {
+	if !credentialExplicit && (defaults.CredentialType == "" || !useDefaults || !strings.EqualFold(normalizedProvider, defaults.Provider)) {
 		normalizedCredential = ""
 	}
 	model := normalizeGatewayRouteModel(route.Model)

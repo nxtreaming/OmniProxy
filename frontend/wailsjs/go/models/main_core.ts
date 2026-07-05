@@ -183,6 +183,8 @@ export namespace main {
 	    backupPath: string;
 	    baseUrl: string;
 	    model?: string;
+	    models?: string[];
+	    profilePaths?: string[];
 	    importedAuth: boolean;
 	    authAlreadyAdded: boolean;
 	    authUpdated: boolean;
@@ -199,6 +201,8 @@ export namespace main {
 	        this.backupPath = source["backupPath"];
 	        this.baseUrl = source["baseUrl"];
 	        this.model = source["model"];
+	        this.models = source["models"];
+	        this.profilePaths = source["profilePaths"];
 	        this.importedAuth = source["importedAuth"];
 	        this.authAlreadyAdded = source["authAlreadyAdded"];
 	        this.authUpdated = source["authUpdated"];

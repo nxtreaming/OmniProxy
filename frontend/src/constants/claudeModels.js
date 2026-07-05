@@ -1,4 +1,5 @@
 export const claudeModelSelectionLimit = 4
+export const codexModelSelectionLimit = 4
 
 export const codexModelOptions = [
   {
@@ -62,6 +63,8 @@ export const codexModelOptions = [
     description: 'MiniMax-M2.7',
   },
 ]
+
+export const defaultCodexModels = codexModelOptions.slice(0, 3).map((option) => option.id)
 
 export const claudeModelOptions = [
   {

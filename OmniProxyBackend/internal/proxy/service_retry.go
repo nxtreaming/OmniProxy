@@ -120,6 +120,21 @@ func (s *Service) retryUpstreamAttempt(r *http.Request, route routeInfo, selecte
 func (s *Service) acquireToken(route routeInfo, excluded map[string]bool) (token.Token, error) {
 	provider := token.NormalizeProvider(route.Provider)
 	credentialType := strings.TrimSpace(route.CredentialType)
+	if provider == token.ProviderOpenAI && credentialType == "" && route.ClientKey == clientCodex {
+		if s.cfg.SchedulingMode == config.SchedulingModeBalanced {
+			selected, err := s.tokens.AcquireBalancedMatching(provider, token.CredentialTypeCodexAuthJSON, excluded)
+			if err == nil {
+				return selected, nil
+			}
+			if !errors.Is(err, token.ErrNoActiveToken) {
+				return token.Token{}, err
+			}
+			return s.tokens.AcquireBalancedMatching(provider, "", excluded)
+		}
+		return s.tokens.AcquirePreferredMatching(provider, "", excluded, func(item token.Token) bool {
+			return item.CredentialType == token.CredentialTypeCodexAuthJSON
+		})
+	}
 	if provider == token.ProviderXiaomi && credentialType == "" {
 		preferred := preferredMimoCredentialType(s.cfg)
 		if s.cfg.SchedulingMode == config.SchedulingModeBalanced {

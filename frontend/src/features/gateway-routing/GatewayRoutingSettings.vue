@@ -10,6 +10,7 @@ const props = defineProps({
     required: true,
   },
 })
+const emit = defineEmits(['route-dirty'])
 
 const providerLabelMap = computed(() => Object.fromEntries(providers.map((item) => [item.key, item.label])))
 const credentialLabelMap = computed(() => credentialTypes)
@@ -46,7 +47,11 @@ function emptyModelGroup() {
   return { key: '', modelId: '', label: '选择模型', providers: [] }
 }
 
-function modelRoutesConfig() {
+function currentModelRoutesConfig() {
+  return props.config.modelRoutes && typeof props.config.modelRoutes === 'object' ? props.config.modelRoutes : {}
+}
+
+function ensureModelRoutesConfig() {
   if (!props.config.modelRoutes || typeof props.config.modelRoutes !== 'object') {
     props.config.modelRoutes = {}
   }
@@ -54,6 +59,11 @@ function modelRoutesConfig() {
 }
 
 function routeConfig(route) {
+  const config = props.config.gatewayRoutes?.[route.key]
+  return config && typeof config === 'object' ? config : { ...route.fallback, fallbacks: [] }
+}
+
+function ensureRouteConfig(route) {
   if (!props.config.gatewayRoutes || typeof props.config.gatewayRoutes !== 'object') {
     props.config.gatewayRoutes = {}
   }
@@ -64,17 +74,31 @@ function routeConfig(route) {
 }
 
 function modelRouteConfig(group) {
-  const routes = modelRoutesConfig()
+  const route = readModelRoute(group)
+  if (!route || typeof route !== 'object') return defaultModelRoute(group)
+  return {
+    ...route,
+    model: route.model || group.modelId,
+    fallbacks: Array.isArray(route.fallbacks) ? route.fallbacks : [],
+  }
+}
+
+function defaultModelRoute(group) {
+  const firstProvider = group.providers[0]?.key || ''
+  return {
+    provider: firstProvider,
+    credentialType: defaultCredentialType(firstProvider),
+    model: group.modelId || '',
+    fallbacks: [],
+  }
+}
+
+function ensureModelRouteConfig(group) {
+  const routes = ensureModelRoutesConfig()
   const key = group.key
   if (!key) return { provider: '', credentialType: '', model: '', fallbacks: [] }
   if (!routes[key] || typeof routes[key] !== 'object') {
-    const firstProvider = group.providers[0]?.key || ''
-    routes[key] = {
-      provider: firstProvider,
-      credentialType: defaultCredentialType(firstProvider),
-      model: group.modelId,
-      fallbacks: [],
-    }
+    routes[key] = defaultModelRoute(group)
   }
   if (!Array.isArray(routes[key].fallbacks)) {
     routes[key].fallbacks = []
@@ -86,7 +110,7 @@ function modelRouteConfig(group) {
 }
 
 function readModelRoute(group) {
-  return modelRoutesConfig()[group.key]
+  return currentModelRoutesConfig()[group.key]
 }
 
 function initialModelKey(groups = buildGatewayModelGroups()) {
@@ -118,7 +142,7 @@ function buildGatewayModelGroups() {
       }
     }
   }
-  for (const [rawModel, route] of Object.entries(modelRoutesConfig())) {
+  for (const [rawModel, route] of Object.entries(currentModelRoutesConfig())) {
     const modelId = String(rawModel || route?.model || '').trim()
     const key = modelKey(modelId)
     if (!key || byKey.has(key)) continue
@@ -144,6 +168,10 @@ function selectModelGroup(group) {
   selectedModelKey.value = group.key
 }
 
+function markDirty() {
+  emit('route-dirty')
+}
+
 function confirmModelSearch() {
   const key = modelKey(modelSearchInput.value)
   if (!key) return
@@ -167,7 +195,7 @@ function addCustomModelRoute() {
   const modelId = String(modelSearchInput.value || '').trim()
   const key = modelKey(modelId)
   if (!key) return
-  const routes = modelRoutesConfig()
+  const routes = ensureModelRoutesConfig()
   if (!routes[key]) {
     const provider = inferredProviderForModel(modelId)
     routes[key] = {
@@ -176,6 +204,7 @@ function addCustomModelRoute() {
       model: modelId,
       fallbacks: [],
     }
+    markDirty()
   }
   modelSearchInput.value = ''
   selectedModelKey.value = key
@@ -193,9 +222,7 @@ function normalizeProviderKey(provider) {
   return String(provider || '').trim().toLowerCase()
 }
 
-function defaultCredentialType(provider) {
-  const normalized = normalizeProviderKey(provider)
-  if (normalized === 'openai' || normalized === 'anthropic') return 'api_key'
+function defaultCredentialType() {
   return ''
 }
 
@@ -236,6 +263,16 @@ function credentialOptions(provider) {
   ]
 }
 
+function supportedCredentialValues(provider) {
+  return credentialOptions(provider).map((option) => option.value)
+}
+
+function credentialForProvider(provider, currentCredentialType = '') {
+  const credentialType = String(currentCredentialType || '').trim()
+  if (!credentialType) return ''
+  return supportedCredentialValues(provider).includes(credentialType) ? credentialType : ''
+}
+
 function activeProviderOptions() {
   const route = activeModelRoute.value
   const keys = []
@@ -250,34 +287,45 @@ function activeProviderOptions() {
 }
 
 function applyModelProvider(option) {
-  const route = modelRouteConfig(activeModelGroup.value)
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  const currentProvider = route.provider
   route.provider = option.key
-  route.credentialType = defaultCredentialType(option.key)
+  route.credentialType = normalizeProviderKey(currentProvider) === normalizeProviderKey(option.key)
+    ? credentialForProvider(option.key, route.credentialType)
+    : ''
   route.model = option.modelId
-  route.fallbacks = fallbackConfigs().filter(
+  route.fallbacks = (route.fallbacks || []).filter(
     (fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(option.key),
   )
+  markDirty()
 }
 
 function isModelProviderApplied(option) {
-  const route = readModelRoute(activeModelGroup.value)
+  const route = activeModelRoute.value
   return normalizeProviderKey(route?.provider) === normalizeProviderKey(option.key) &&
     String(route?.model || '').trim().toLowerCase() === String(option.modelId || '').trim().toLowerCase()
 }
 
 function setModelRouteProvider(provider) {
-  const route = activeModelRoute.value
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  const currentProvider = route.provider
   route.provider = provider
-  route.credentialType = defaultCredentialType(provider)
-  route.fallbacks = fallbackConfigs().filter((fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(provider))
+  route.credentialType = normalizeProviderKey(currentProvider) === normalizeProviderKey(provider)
+    ? credentialForProvider(provider, route.credentialType)
+    : ''
+  route.fallbacks = (route.fallbacks || []).filter((fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(provider))
+  markDirty()
 }
 
 function setModelRouteCredential(credentialType) {
-  activeModelRoute.value.credentialType = credentialType
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  route.credentialType = credentialForProvider(route.provider, credentialType)
+  markDirty()
 }
 
 function setModelRouteModel(model) {
-  activeModelRoute.value.model = model
+  ensureModelRouteConfig(activeModelGroup.value).model = model
+  markDirty()
 }
 
 function fallbackConfigs() {
@@ -307,23 +355,28 @@ function isFallbackProviderSelected(provider) {
 
 function addFallbackProvider(provider) {
   if (!provider || isPrimaryProvider(provider) || isFallbackProviderSelected(provider)) return
-  const route = activeModelRoute.value
+  const route = ensureModelRouteConfig(activeModelGroup.value)
   route.fallbacks = [
-    ...fallbackConfigs(),
+    ...(route.fallbacks || []),
     { provider, credentialType: defaultCredentialType(provider), model: route.model || activeModelGroup.value.modelId },
   ]
+  markDirty()
 }
 
 function setFallbackCredential(provider, credentialType) {
-  const fallback = fallbackConfigs().find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  const fallback = (route.fallbacks || []).find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
   if (!fallback) return
-  fallback.credentialType = credentialType
+  fallback.credentialType = credentialForProvider(fallback.provider, credentialType)
+  markDirty()
 }
 
 function setFallbackModel(provider, model) {
-  const fallback = fallbackConfigs().find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  const fallback = (route.fallbacks || []).find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
   if (!fallback) return
   fallback.model = model
+  markDirty()
 }
 
 function fallbackModelPlaceholder() {
@@ -332,18 +385,21 @@ function fallbackModelPlaceholder() {
 
 function removeFallbackProvider(provider) {
   const key = normalizeProviderKey(provider)
-  activeModelRoute.value.fallbacks = fallbackConfigs().filter((fallback) => normalizeProviderKey(fallback.provider) !== key)
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  route.fallbacks = (route.fallbacks || []).filter((fallback) => normalizeProviderKey(fallback.provider) !== key)
+  markDirty()
 }
 
 function moveFallbackProvider(provider, direction) {
-  const route = activeModelRoute.value
-  const index = fallbackConfigs().findIndex((fallback) => normalizeProviderKey(fallback.provider) === normalizeProviderKey(provider))
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  const index = (route.fallbacks || []).findIndex((fallback) => normalizeProviderKey(fallback.provider) === normalizeProviderKey(provider))
   const nextIndex = index + direction
   if (index < 0 || nextIndex < 0 || nextIndex >= route.fallbacks.length) return
   const next = [...route.fallbacks]
   const [item] = next.splice(index, 1)
   next.splice(nextIndex, 0, item)
   route.fallbacks = next
+  markDirty()
 }
 
 function modelRouteChain() {
@@ -363,7 +419,8 @@ function routeEndpoint(route) {
 }
 
 function setClientDefaultModel(route, model) {
-  routeConfig(route).model = model
+  ensureRouteConfig(route).model = model
+  markDirty()
 }
 
 function isClientDefaultModelSelected(route, model) {

@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted, watch } from 'vue'
-import { claudeModelSelectionLimit } from '../constants/claudeModels'
+import { claudeModelSelectionLimit, codexModelSelectionLimit, defaultCodexModels } from '../constants/claudeModels'
 import {
   WindowHide,
   WindowIsMaximised,
@@ -220,9 +220,17 @@ export function createAppShellActions({
     }
   })
 
-  watch(state.selectedCodexModel, (model) => {
-    if (String(model || '').trim()) return
-    state.selectedCodexModel.value = 'gpt-5.5'
+  watch(state.selectedCodexModels, (models) => {
+    const normalized = []
+    const sourceModels = Array.isArray(models) ? models : [...defaultCodexModels]
+    for (const model of sourceModels) {
+      if (!model || normalized.includes(model)) continue
+      normalized.push(model)
+      if (normalized.length >= codexModelSelectionLimit) break
+    }
+    if (normalized.length !== sourceModels.length || normalized.some((model, index) => model !== sourceModels[index])) {
+      state.selectedCodexModels.value = normalized
+    }
   })
 
   watch(state.selectedClaudeModels, (models) => {

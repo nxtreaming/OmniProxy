@@ -14,7 +14,7 @@ import {
   restoreOpenCode,
   restorePi,
 } from '../services/api'
-import { claudeModelSelectionLimit } from '../constants/claudeModels'
+import { claudeModelSelectionLimit, codexModelSelectionLimit } from '../constants/claudeModels'
 
 export function createAppClientActions(state, dataActions) {
   const {
@@ -33,7 +33,7 @@ export function createAppClientActions(state, dataActions) {
     opencodeRestoring,
     piConfiguring,
     piRestoring,
-    selectedCodexModel,
+    selectedCodexModels,
     selectedClaudeModels,
     successMessage,
   } = state
@@ -43,21 +43,29 @@ function isClaudeModelOptionDisabled(modelId) {
   return selectedClaudeModels.value.length >= claudeModelSelectionLimit && !selectedClaudeModels.value.includes(modelId)
 }
 
+function isCodexModelOptionDisabled(modelId) {
+  return selectedCodexModels.value.length >= codexModelSelectionLimit && !selectedCodexModels.value.includes(modelId)
+}
+
 function selectedClaudeModelIds() {
   return selectedClaudeModels.value.map((model) => String(model || '').trim()).filter(Boolean)
 }
 
-function selectedCodexModelId() {
-  return String(selectedCodexModel.value || '').trim()
+function selectedCodexModelIds() {
+  return selectedCodexModels.value.map((model) => String(model || '').trim()).filter(Boolean)
 }
 
-function validateSelectedCodexModel() {
-  const model = selectedCodexModelId()
-  if (!model) {
-    errorMessage.value = '请选择一个 Codex 默认模型'
-    return ''
+function validateSelectedCodexModels() {
+  const models = selectedCodexModelIds()
+  if (models.length === 0) {
+    errorMessage.value = '至少选择一个 Codex 模型'
+    return null
   }
-  return model
+  if (models.length > codexModelSelectionLimit) {
+    errorMessage.value = `Codex 最多选择 ${codexModelSelectionLimit} 个模型`
+    return null
+  }
+  return models
 }
 
 function validateSelectedClaudeModels() {
@@ -76,11 +84,11 @@ function validateSelectedClaudeModels() {
 async function configureLocalCodex() {
   errorMessage.value = ''
   successMessage.value = ''
-  const model = validateSelectedCodexModel()
-  if (!model) return
+  const models = validateSelectedCodexModels()
+  if (!models) return
   codexConfiguring.value = true
   try {
-    const result = await configureCodex(model)
+    const result = await configureCodex(models)
     await refreshAll()
     successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy'
   } catch (error) {
@@ -277,10 +285,11 @@ async function restoreLocalClaude() {
 }
 
   return {
+    isCodexModelOptionDisabled,
     isClaudeModelOptionDisabled,
-    selectedCodexModelId,
+    selectedCodexModelIds,
     selectedClaudeModelIds,
-    validateSelectedCodexModel,
+    validateSelectedCodexModels,
     validateSelectedClaudeModels,
     configureLocalCodex,
     restoreLocalCodex,

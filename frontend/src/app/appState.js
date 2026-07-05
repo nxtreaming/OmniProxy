@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 import { Coin, Clock, DataBoard, HelpFilled, InfoFilled, Key, MagicStick, Memo, Monitor, Money, Setting, SwitchButton, TrendCharts } from '@element-plus/icons-vue'
 import { tabs } from '../constants/app'
+import { defaultCodexModels } from '../constants/claudeModels'
 import { localDateKey } from '../utils/format'
 
 const appThemeStorageKey = 'omniproxy.appTheme'
@@ -80,6 +81,7 @@ export function createAppState() {
     updateDiagnosticsLoading: ref(false),
     errorMessage: ref(''),
     successMessage: ref(''),
+    gatewayRoutesDirty: ref(false),
     quotaRefreshProgress: reactive({
       visible: false,
       percent: 0,
@@ -182,10 +184,10 @@ export function createAppState() {
       xiaomiCredentialPriority: 'mimo_token_plan',
       codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
       gatewayRoutes: {
-        codex: { provider: 'openai', credentialType: 'codex_auth_json', model: 'gpt-5.5' },
-        claude: { provider: 'anthropic', credentialType: 'api_key', model: 'default' },
-        openai: { provider: 'openai', credentialType: 'api_key', model: 'gpt-5.4' },
-        gemini: { provider: 'gemini', credentialType: 'api_key', model: 'gemini-3-pro-preview' },
+        codex: { provider: 'openai', credentialType: '', model: 'gpt-5.5' },
+        claude: { provider: 'anthropic', credentialType: '', model: 'default' },
+        openai: { provider: 'openai', credentialType: '', model: 'gpt-5.4' },
+        gemini: { provider: 'gemini', credentialType: '', model: 'gemini-3-pro-preview' },
       },
       modelRoutes: {},
       codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
@@ -193,7 +195,7 @@ export function createAppState() {
       maxRetries: 2,
       historyRetentionDays: 14,
     }),
-    selectedCodexModel: ref('gpt-5.5'),
+    selectedCodexModels: ref([...defaultCodexModels]),
     dataDirectory: reactive({
       dataDir: '',
       bootstrapPath: '',

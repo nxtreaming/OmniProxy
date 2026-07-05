@@ -118,6 +118,7 @@ export function createConfigActions(state, dataActions) {
     try {
       const saved = await saveConfig(configPayload(state.config))
       Object.assign(state.config, saved)
+      state.gatewayRoutesDirty.value = false
       await dataActions.refreshRealtime()
       state.successMessage.value = '设置已保存'
     } catch (error) {

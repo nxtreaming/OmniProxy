@@ -12,22 +12,30 @@ import (
 	"omniproxy/internal/token"
 )
 
-const codexSub2APILocalAPIKey = "sk-omniproxy-local-sub2api"
+const (
+	codexSub2APILocalAPIKey = "sk-omniproxy-local-sub2api"
+	maxCodexModels          = 4
+)
+
+var defaultCodexModels = []string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}
 
 type codexConfigureResult struct {
-	ConfigPath       string `json:"configPath"`
-	AuthPath         string `json:"authPath"`
-	BackupPath       string `json:"backupPath"`
-	BaseURL          string `json:"baseUrl"`
-	Model            string `json:"model,omitempty"`
-	ImportedAuth     bool   `json:"importedAuth"`
-	AuthAlreadyAdded bool   `json:"authAlreadyAdded"`
-	AuthUpdated      bool   `json:"authUpdated"`
-	Message          string `json:"message"`
+	ConfigPath       string   `json:"configPath"`
+	AuthPath         string   `json:"authPath"`
+	BackupPath       string   `json:"backupPath"`
+	BaseURL          string   `json:"baseUrl"`
+	Model            string   `json:"model,omitempty"`
+	Models           []string `json:"models,omitempty"`
+	ProfilePaths     []string `json:"profilePaths,omitempty"`
+	ImportedAuth     bool     `json:"importedAuth"`
+	AuthAlreadyAdded bool     `json:"authAlreadyAdded"`
+	AuthUpdated      bool     `json:"authUpdated"`
+	Message          string   `json:"message"`
 }
 
 type codexConfigureRequest struct {
-	Model string `json:"model"`
+	Model  string   `json:"model"`
+	Models []string `json:"models"`
 }
 
 func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConfigureResult, error) {
@@ -46,27 +54,29 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 	}
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d/codex/v1", cfg.ProxyPort)
-	model := ""
+	var request codexConfigureRequest
 	if len(requests) > 0 {
-		model = normalizeCodexConfigureModel(requests[0].Model)
+		request = requests[0]
 	}
-	if model == "" {
-		model = normalizeCodexConfigureModel(cfg.GatewayRoutes.Codex.Model)
-	}
-	if model == "" {
-		model = "gpt-5.5"
-	}
+	models := normalizeCodexConfigureModels(request)
+	model := models[0]
 	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, model); err != nil {
+	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, models); err != nil {
+		return codexConfigureResult{}, err
+	}
+	profilePaths, err := writeCodexModelProfiles(codexDir, models)
+	if err != nil {
 		return codexConfigureResult{}, err
 	}
 
 	result := codexConfigureResult{
-		ConfigPath: configPath,
-		AuthPath:   filepath.Join(codexDir, "auth.json"),
-		BackupPath: configPath + ".omniproxy.bak",
-		BaseURL:    baseURL,
-		Model:      model,
+		ConfigPath:   configPath,
+		AuthPath:     filepath.Join(codexDir, "auth.json"),
+		BackupPath:   configPath + ".omniproxy.bak",
+		BaseURL:      baseURL,
+		Model:        model,
+		Models:       models,
+		ProfilePaths: profilePaths,
 	}
 
 	authBytes, err := os.ReadFile(result.AuthPath)
@@ -133,7 +143,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 		}
 	}
 
-	parts := []string{fmt.Sprintf("Codex 已切换到 OmniProxy 网关入口，默认模型 %s", model)}
+	parts := []string{fmt.Sprintf("Codex 已配置 %d 个模型：%s，默认模型 %s", len(models), strings.Join(models, "、"), model)}
 	if result.ImportedAuth {
 		parts = append(parts, "已导入 auth.json")
 	} else if result.AuthUpdated {
@@ -159,6 +169,90 @@ func normalizeCodexConfigureModel(model string) string {
 	}
 }
 
+func normalizeCodexConfigureModels(req codexConfigureRequest) []string {
+	rawModels := req.Models
+	if len(rawModels) == 0 && strings.TrimSpace(req.Model) != "" {
+		rawModels = []string{req.Model}
+	}
+	if len(rawModels) == 0 {
+		rawModels = defaultCodexModels
+	}
+	models := make([]string, 0, maxCodexModels)
+	seen := map[string]bool{}
+	for _, raw := range rawModels {
+		model := normalizeCodexConfigureModel(raw)
+		key := strings.ToLower(model)
+		if model == "" || seen[key] {
+			continue
+		}
+		models = append(models, model)
+		seen[key] = true
+		if len(models) >= maxCodexModels {
+			break
+		}
+	}
+	if len(models) == 0 {
+		return append([]string(nil), defaultCodexModels...)
+	}
+	return models
+}
+
+func writeCodexModelProfiles(codexDir string, models []string) ([]string, error) {
+	if err := cleanupCodexModelProfiles(codexDir); err != nil {
+		return nil, err
+	}
+	paths := make([]string, 0, len(models))
+	for _, model := range models {
+		path := filepath.Join(codexDir, codexProfileName(model)+".config.toml")
+		lines := []string{
+			fmt.Sprintf(`model = "%s"`, tomlEscape(model)),
+			fmt.Sprintf(`review_model = "%s"`, tomlEscape(model)),
+		}
+		if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+func cleanupCodexModelProfiles(codexDir string) error {
+	matches, err := filepath.Glob(filepath.Join(codexDir, "omniproxy-*.config.toml"))
+	if err != nil {
+		return err
+	}
+	for _, path := range matches {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
+func codexProfileName(model string) string {
+	model = strings.ToLower(strings.TrimSpace(model))
+	var builder strings.Builder
+	builder.WriteString("omniproxy-")
+	lastDash := false
+	for _, r := range model {
+		allowed := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-'
+		if allowed {
+			builder.WriteRune(r)
+			lastDash = r == '-'
+			continue
+		}
+		if !lastDash {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+	name := strings.Trim(builder.String(), "-")
+	if name == "omniproxy" {
+		return "omniproxy-model"
+	}
+	return name
+}
+
 func (a *appServer) restoreCodexConfig() (codexConfigureResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -176,6 +270,9 @@ func (a *appServer) restoreCodexConfig() (codexConfigureResult, error) {
 		return codexConfigureResult{}, err
 	}
 	if err := os.WriteFile(configPath, backup, 0o600); err != nil {
+		return codexConfigureResult{}, err
+	}
+	if err := cleanupCodexModelProfiles(codexDir); err != nil {
 		return codexConfigureResult{}, err
 	}
 
@@ -220,11 +317,13 @@ func writeCodexOmniProxyConfig(path string, baseURL string) error {
 	return os.WriteFile(path, []byte(next), 0o600)
 }
 
-func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) error {
+func writeCodexOpenAIResponsesConfig(path string, baseURL string, models []string) error {
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	models = normalizeCodexConfigureModels(codexConfigureRequest{Models: models})
+	model := models[0]
 
 	text := strings.ReplaceAll(string(content), "\r\n", "\n")
 	lines := []string{}
@@ -244,6 +343,7 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, model string) 
 	lines = removeRootKey(lines, "openai_base_url")
 	lines = removeRootKey(lines, "chatgpt_base_url")
 	lines = removeRootKey(lines, "disable_response_storage")
+	lines = removeRootKey(lines, "profile")
 	lines = removeTomlSection(lines, "[model_providers.openai]")
 	lines = removeTomlSection(lines, "[model_providers.OpenAI]")
 	lines = removeTomlSection(lines, "[model_providers.omniproxy]")
