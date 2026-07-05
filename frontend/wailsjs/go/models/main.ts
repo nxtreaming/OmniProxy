@@ -3,6 +3,7 @@ import { main as main_historyModels } from './main_history'
 import { main as main_openrouterModels } from './main_openrouter'
 import { main as main_tokensModels } from './main_tokens'
 import { main as main_updateModels } from './main_update'
+import { main as main_miscModels } from './main_misc'
 
 export namespace main {
   export import activeRequestResponse = main_coreModels.activeRequestResponse
@@ -14,7 +15,7 @@ export namespace main {
   export import claudeModelsConfigureRequest = main_coreModels.claudeModelsConfigureRequest
   export import clientConfigureResult = main_coreModels.clientConfigureResult
   export import codexAuthExportResult = main_coreModels.codexAuthExportResult
-  export import codexConfigureRequest = main_coreModels.codexConfigureRequest
+  export import codexConfigureRequest = main_miscModels.codexConfigureRequest
   export import codexConfigureResult = main_coreModels.codexConfigureResult
   export import healthResponse = main_tokensModels.healthResponse
   export import retryAttemptResponse = main_historyModels.retryAttemptResponse

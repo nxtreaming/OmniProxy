@@ -115,7 +115,7 @@ func TestConfigureClaudeDesktopModelsUsesSelectedModels(t *testing.T) {
 		t.Fatalf("expected 2 desktop models, got %#v", profile["inferenceModels"])
 	}
 	first := models[0].(map[string]any)
-	if first["name"] != "claude-sonnet-4-6" || first["labelOverride"] != "DeepSeek V4 Pro" || first["supports1m"] != true {
+	if first["name"] != "claude-sonnet-4-6" || first["labelOverride"] != "DeepSeek V4 Pro" || first["supports1m"] == true {
 		t.Fatalf("unexpected first desktop model: %#v", first)
 	}
 	second := models[1].(map[string]any)
@@ -162,6 +162,119 @@ func TestConfigureClaudeDesktopModelsUsesSelectedModels(t *testing.T) {
 	}
 	if meta["appliedId"] == claudedesktop.ProfileID {
 		t.Fatalf("expected applied profile id to be cleared, got %#v", meta)
+	}
+}
+
+func TestWriteSelectedClaudeSettingsPreservesDeepSeek1MModel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"env":{"OTHER":"keep"}}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := normalizeClaudeModelTargets([]string{"deepseek-v4-pro[1m]"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeSelectedClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router", targets); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`"ANTHROPIC_MODEL": "deepseek-v4-pro[1m]"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "DeepSeek V4 Pro [1m]"`,
+		`"CLAUDE_CODE_EFFORT_LEVEL": "max"`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
+		}
+	}
+}
+
+func TestConfigureClaudeDesktopModelsMarksOnlyDeepSeek1MAs1M(t *testing.T) {
+	localAppData := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("LOCALAPPDATA", localAppData)
+
+	server := &appServer{
+		cfg:  config.Config{ProxyPort: 3000},
+		logs: logs.NewRecorder(10),
+	}
+	result, err := server.configureClaudeDesktopModels(claudeModelsConfigureRequest{
+		Models: []string{"deepseek-v4-pro[1m]"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Model != deepSeekProLongModel {
+		t.Fatalf("expected primary 1M model %q, got %q", deepSeekProLongModel, result.Model)
+	}
+
+	paths, err := claudedesktop.CurrentPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := clientconfig.ReadJSONObject(paths.ProfilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	models, ok := profile["inferenceModels"].([]any)
+	if !ok || len(models) != 1 {
+		t.Fatalf("expected 1 desktop model, got %#v", profile["inferenceModels"])
+	}
+	first := models[0].(map[string]any)
+	if first["labelOverride"] != "DeepSeek V4 Pro [1m]" || first["supports1m"] != true {
+		t.Fatalf("unexpected 1M desktop model: %#v", first)
+	}
+	routes, err := claudedesktop.LoadRoutes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 1 || routes[0].UpstreamModel != deepSeekProLongModel {
+		t.Fatalf("unexpected 1M desktop routes: %#v", routes)
+	}
+}
+
+func TestWriteSelectedClaudeSettingsSupportsOfficialClaudeAliases(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"env":{"OTHER":"keep"}}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := normalizeClaudeModelTargets([]string{"default", "sonnet", "opus", "haiku"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeSelectedClaudeSettings(path, "http://127.0.0.1:3000/anthropic-router", targets); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`"ANTHROPIC_MODEL": "default"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "opus"`,
+		`"ANTHROPIC_DEFAULT_SONNET_MODEL": "sonnet"`,
+		`"ANTHROPIC_DEFAULT_HAIKU_MODEL": "haiku"`,
+		`"CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"`,
+		`"OTHER": "keep"`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("expected settings to contain %q, got:\n%s", expected, text)
+		}
+	}
+	if strings.Contains(text, `"ANTHROPIC_CUSTOM_MODEL_OPTION"`) {
+		t.Fatalf("expected official aliases not to create a custom model option, got:\n%s", text)
 	}
 }
 
@@ -219,7 +332,6 @@ func TestConfigureClaudeDesktopModelsSupportsZoModels(t *testing.T) {
 func TestNormalizeClaudeModelTargetsValidatesSelection(t *testing.T) {
 	targets, err := normalizeClaudeModelTargets([]string{
 		"deepseek-4-pro",
-		"deepseek-v4-pro[1m]",
 		"mimo-2.5-pro",
 		"kimi-for-coding",
 		"claude-opus-4-7",
@@ -231,6 +343,26 @@ func TestNormalizeClaudeModelTargetsValidatesSelection(t *testing.T) {
 	expected := []string{deepSeekProModel, mimoModel, kimiCodingModel, zoClaudeModel}
 	if !reflect.DeepEqual(models, expected) {
 		t.Fatalf("expected normalized models %#v, got %#v", expected, models)
+	}
+
+	deepseekTargets, err := normalizeClaudeModelTargets([]string{"deepseek-v4-pro", "deepseek-v4-pro[1m]"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deepseekModels := claudeModelIDs(deepseekTargets)
+	deepseekExpected := []string{deepSeekProModel, deepSeekProLongModel}
+	if !reflect.DeepEqual(deepseekModels, deepseekExpected) {
+		t.Fatalf("expected DeepSeek models %#v, got %#v", deepseekExpected, deepseekModels)
+	}
+
+	officialTargets, err := normalizeClaudeModelTargets([]string{"default", "sonnet", "opus", "haiku"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	officialModels := claudeModelIDs(officialTargets)
+	officialExpected := []string{claudeDefaultModel, claudeSonnetModel, claudeOpusModel, claudeHaikuModel}
+	if !reflect.DeepEqual(officialModels, officialExpected) {
+		t.Fatalf("expected official models %#v, got %#v", officialExpected, officialModels)
 	}
 
 	if _, err := normalizeClaudeModelTargets(nil); err == nil {

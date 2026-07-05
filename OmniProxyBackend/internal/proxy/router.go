@@ -117,7 +117,11 @@ func (r Router) gatewayRoute(name string, requestModel string) config.GatewayRou
 	if model == "" {
 		model = route.Model
 	}
-	if model = normalizeUpstreamModelID(model); model != "" {
+	if model != "" {
+		if modelRoute, ok := r.modelRoute(model); ok {
+			return modelRoute
+		}
+		model = normalizeUpstreamModelID(model)
 		if modelRoute, ok := r.modelRoute(model); ok {
 			return modelRoute
 		}
@@ -142,7 +146,7 @@ func (r Router) modelRoute(model string) (config.GatewayRouteConfig, bool) {
 }
 
 func modelRouteKey(model string) string {
-	return strings.ToLower(strings.TrimSpace(normalizeUpstreamModelID(model)))
+	return strings.ToLower(strings.TrimSpace(model))
 }
 
 func inferGatewayRouteProvider(name string, route config.GatewayRouteConfig) config.GatewayRouteConfig {
@@ -433,16 +437,16 @@ func requestModel(incoming *url.URL, body []byte) string {
 	}
 	if err := json.Unmarshal(body, &payload); err == nil {
 		if model := strings.TrimSpace(payload.Model); model != "" {
-			return normalizeUpstreamModelID(model)
+			return model
 		}
 	}
 	if incoming == nil {
 		return ""
 	}
 	if model := strings.TrimSpace(incoming.Query().Get("model")); model != "" {
-		return normalizeUpstreamModelID(model)
+		return model
 	}
-	return normalizeUpstreamModelID(requestModelFromPath(incoming.Path))
+	return requestModelFromPath(incoming.Path)
 }
 
 func requestModelFromPath(path string) string {

@@ -21,9 +21,9 @@ func normalizeModelRoutes(routes ModelRoutes) ModelRoutes {
 	allowed := gatewayModelRouteProviders()
 	out := ModelRoutes{}
 	for rawModel, route := range routes {
-		clientModel := normalizeGatewayRouteModel(rawModel)
+		clientModel := normalizeModelRouteClientModel(rawModel)
 		if clientModel == "" {
-			clientModel = normalizeGatewayRouteModel(route.Model)
+			clientModel = normalizeModelRouteClientModel(route.Model)
 		}
 		if clientModel == "" {
 			continue
@@ -32,7 +32,9 @@ func normalizeModelRoutes(routes ModelRoutes) ModelRoutes {
 		if normalized.Provider == "" {
 			continue
 		}
-		if normalized.Model == "" {
+		if routeModel := normalizeModelRouteClientModel(route.Model); routeModel != "" {
+			normalized.Model = routeModel
+		} else if normalized.Model == "" || strings.EqualFold(normalized.Model, normalizeGatewayRouteModel(clientModel)) {
 			normalized.Model = clientModel
 		}
 		normalized.Fallbacks = normalizeGatewayRouteFallbacks(route.Fallbacks, normalized, allowed)
@@ -95,6 +97,10 @@ func normalizeGatewayRouteModel(model string) string {
 	}
 }
 
+func normalizeModelRouteClientModel(model string) string {
+	return strings.TrimSpace(model)
+}
+
 func normalizeGatewayRouteFallbacks(fallbacks []GatewayRouteConfig, primary GatewayRouteConfig, allowed map[string]bool) []GatewayRouteConfig {
 	if len(fallbacks) == 0 {
 		return nil
@@ -125,7 +131,7 @@ func gatewayRouteTargetKey(route GatewayRouteConfig) string {
 }
 
 func modelRouteKey(model string) string {
-	return strings.ToLower(strings.TrimSpace(normalizeGatewayRouteModel(model)))
+	return strings.ToLower(strings.TrimSpace(normalizeModelRouteClientModel(model)))
 }
 
 func gatewayCodexProviders() map[string]bool {

@@ -178,8 +178,8 @@ func Default() Config {
 		XiaomiCredentialPriority:           MimoCredentialPriorityTokenPlan,
 		CodexBaseURL:                       "https://chatgpt.com/backend-api/codex",
 		GatewayRoutes: GatewayRoutes{
-			Codex:  GatewayRouteConfig{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Model: "gpt-5.4"},
-			Claude: GatewayRouteConfig{Provider: token.ProviderAnthropic, CredentialType: token.CredentialTypeAPIKey, Model: "claude-sonnet-4-5-20250929"},
+			Codex:  GatewayRouteConfig{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, Model: "gpt-5.5"},
+			Claude: GatewayRouteConfig{Provider: token.ProviderAnthropic, CredentialType: token.CredentialTypeAPIKey, Model: "default"},
 			OpenAI: GatewayRouteConfig{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeAPIKey, Model: "gpt-5.4"},
 			Gemini: GatewayRouteConfig{Provider: token.ProviderGemini, CredentialType: token.CredentialTypeAPIKey, Model: "gemini-3-pro-preview"},
 		},

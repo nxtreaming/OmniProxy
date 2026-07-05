@@ -11,13 +11,22 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['persist-config'])
-
 const providerLabelMap = computed(() => Object.fromEntries(providers.map((item) => [item.key, item.label])))
 const credentialLabelMap = computed(() => credentialTypes)
 const gatewayModelGroups = computed(() => buildGatewayModelGroups())
 const selectedModelKey = ref('')
-const customModelInput = ref('')
+const modelSearchInput = ref('')
+const filteredGatewayModelGroups = computed(() => {
+  const query = modelKey(modelSearchInput.value)
+  if (!query) return gatewayModelGroups.value
+  return gatewayModelGroups.value.filter((group) =>
+    modelKey(`${group.label} ${group.modelId}`).includes(query),
+  )
+})
+const canAddCustomModel = computed(() => {
+  const key = modelKey(modelSearchInput.value)
+  return Boolean(key && !gatewayModelGroups.value.some((group) => group.key === key) && filteredGatewayModelGroups.value.length === 0)
+})
 const activeModelGroup = computed(() => {
   const groups = gatewayModelGroups.value
   return groups.find((group) => group.key === selectedModelKey.value) || groups[0] || emptyModelGroup()
@@ -135,8 +144,27 @@ function selectModelGroup(group) {
   selectedModelKey.value = group.key
 }
 
+function confirmModelSearch() {
+  const key = modelKey(modelSearchInput.value)
+  if (!key) return
+  const exact = gatewayModelGroups.value.find((group) => group.key === key)
+  if (exact) {
+    selectModelGroup(exact)
+    modelSearchInput.value = ''
+    return
+  }
+  if (filteredGatewayModelGroups.value.length === 1) {
+    selectModelGroup(filteredGatewayModelGroups.value[0])
+    modelSearchInput.value = ''
+    return
+  }
+  if (filteredGatewayModelGroups.value.length === 0) {
+    addCustomModelRoute()
+  }
+}
+
 function addCustomModelRoute() {
-  const modelId = String(customModelInput.value || '').trim()
+  const modelId = String(modelSearchInput.value || '').trim()
   const key = modelKey(modelId)
   if (!key) return
   const routes = modelRoutesConfig()
@@ -149,7 +177,7 @@ function addCustomModelRoute() {
       fallbacks: [],
     }
   }
-  customModelInput.value = ''
+  modelSearchInput.value = ''
   selectedModelKey.value = key
 }
 
@@ -229,7 +257,6 @@ function applyModelProvider(option) {
   route.fallbacks = fallbackConfigs().filter(
     (fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(option.key),
   )
-  emit('persist-config')
 }
 
 function isModelProviderApplied(option) {
@@ -257,6 +284,18 @@ function fallbackConfigs() {
   return activeModelRoute.value.fallbacks || []
 }
 
+function fallbackProviderOptions() {
+  return activeProviderOptions().map((option) => {
+    const primary = isPrimaryProvider(option.value)
+    const selected = isFallbackProviderSelected(option.value)
+    return {
+      ...option,
+      disabled: primary || selected,
+      description: primary ? '当前主后端' : selected ? '已在备用链中' : option.description,
+    }
+  })
+}
+
 function isPrimaryProvider(provider) {
   return normalizeProviderKey(activeModelRoute.value.provider) === normalizeProviderKey(provider)
 }
@@ -266,14 +305,9 @@ function isFallbackProviderSelected(provider) {
   return fallbackConfigs().some((fallback) => normalizeProviderKey(fallback.provider) === key)
 }
 
-function toggleFallbackProvider(provider) {
-  if (isPrimaryProvider(provider)) return
+function addFallbackProvider(provider) {
+  if (!provider || isPrimaryProvider(provider) || isFallbackProviderSelected(provider)) return
   const route = activeModelRoute.value
-  const key = normalizeProviderKey(provider)
-  if (isFallbackProviderSelected(provider)) {
-    route.fallbacks = fallbackConfigs().filter((fallback) => normalizeProviderKey(fallback.provider) !== key)
-    return
-  }
   route.fallbacks = [
     ...fallbackConfigs(),
     { provider, credentialType: defaultCredentialType(provider), model: route.model || activeModelGroup.value.modelId },
@@ -342,25 +376,27 @@ function isClientDefaultModelSelected(route, model) {
     <div class="settings-section-head">
       <div>
         <h3>模型路由</h3>
-        <p>客户端只负责发送模型名；这里配置每个模型优先使用哪个后端，以及失败后的备用顺序。</p>
+        <p>客户端发送模型名；这里按模型配置主后端和备用链，例如 DeepSeek 官方 API → Prem。</p>
       </div>
     </div>
     <div class="gateway-route-model-field">
-      <span>添加自定义模型</span>
+      <span>搜索或添加模型</span>
       <div class="gateway-model-preset-list">
         <input
-          v-model="customModelInput"
+          v-model="modelSearchInput"
           type="text"
-          placeholder="例如 qwen3.5、custom-model、provider/model"
-          @keydown.enter.prevent="addCustomModelRoute"
+          placeholder="搜索 gpt、deepseek、claude；输入不存在的模型后回车添加"
+          @keydown.enter.prevent="confirmModelSearch"
         />
-        <button type="button" class="gateway-model-preset" @click="addCustomModelRoute">添加模型</button>
+        <button type="button" class="gateway-model-preset" :disabled="!canAddCustomModel" @click="addCustomModelRoute">
+          添加为自定义模型
+        </button>
       </div>
     </div>
     <div class="gateway-quick-config">
       <div class="gateway-model-index" aria-label="选择模型">
         <button
-          v-for="group in gatewayModelGroups"
+          v-for="group in filteredGatewayModelGroups"
           :key="group.key"
           type="button"
           :class="['gateway-model-option-card', { active: activeModelGroup.key === group.key }]"
@@ -369,6 +405,9 @@ function isClientDefaultModelSelected(route, model) {
           <strong>{{ group.label }}</strong>
           <small>{{ group.modelId }}</small>
         </button>
+        <div v-if="!filteredGatewayModelGroups.length" class="gateway-empty-state">
+          没有匹配模型；可点击“添加为自定义模型”创建。
+        </div>
       </div>
 
       <div class="gateway-model-config-panel">
@@ -392,7 +431,7 @@ function isClientDefaultModelSelected(route, model) {
               <small>{{ providerNote(option.key) }}</small>
             </span>
             <span class="gateway-model-targets">
-              <small>模型后端</small>
+              <small>{{ isModelProviderApplied(option) ? '当前主后端' : '设为主后端' }}</small>
             </span>
           </button>
         </div>
@@ -400,8 +439,8 @@ function isClientDefaultModelSelected(route, model) {
     </div>
 
     <div class="gateway-advanced-head">
-      <strong>后端顺序</strong>
-      <span>{{ activeModelGroup.modelId }}</span>
+      <strong>当前模型路由</strong>
+      <span>先选主后端，再按顺序添加备用后端</span>
     </div>
     <article class="gateway-route-row">
       <div class="gateway-route-summary">
@@ -443,23 +482,16 @@ function isClientDefaultModelSelected(route, model) {
         </label>
         <div class="gateway-route-backend-field">
           <div class="gateway-route-backend-head">
-            <span>备用后端厂商</span>
+            <span>添加备用后端</span>
             <small>{{ fallbackConfigs().length }} 个备用</small>
           </div>
-          <div class="gateway-provider-chip-list">
-            <button
-              v-for="provider in activeProviderOptions()"
-              :key="provider.value"
-              type="button"
-              class="gateway-provider-chip"
-              :class="{ active: isFallbackProviderSelected(provider.value), primary: isPrimaryProvider(provider.value) }"
-              :disabled="isPrimaryProvider(provider.value)"
-              @click="toggleFallbackProvider(provider.value)"
-            >
-              <span>{{ provider.label }}</span>
-              <small v-if="isPrimaryProvider(provider.value)">主后端</small>
-            </button>
-          </div>
+          <GeminiSelect
+            model-value=""
+            :options="fallbackProviderOptions()"
+            placeholder="选择备用后端，添加后可上下调整顺序"
+            :aria-label="`${activeModelGroup.label} 添加备用后端`"
+            @update:modelValue="addFallbackProvider($event)"
+          />
           <div v-if="fallbackConfigs().length" class="gateway-fallback-list">
             <div v-for="(fallback, index) in fallbackConfigs()" :key="fallback.provider" class="gateway-fallback-row">
               <div class="gateway-fallback-title">

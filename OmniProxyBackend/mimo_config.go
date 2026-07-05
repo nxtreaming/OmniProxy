@@ -17,10 +17,15 @@ const (
 	mimoLongContextModel = "mimo-v2.5-pro[1m]"
 	mimoStandardModel    = "mimo-v2.5"
 	deepSeekProModel     = "deepseek-v4-pro"
-	deepSeekProLegacy    = "deepseek-v4-pro[1m]"
+	deepSeekProLongModel = "deepseek-v4-pro[1m]"
+	deepSeekProLegacy    = deepSeekProLongModel
 	deepSeekFastModel    = "deepseek-v4-flash"
 	kimiCodingModel      = "kimi-for-coding"
 	zhipuGLMModel        = "glm-5.1"
+	claudeDefaultModel   = "default"
+	claudeSonnetModel    = "sonnet"
+	claudeOpusModel      = "opus"
+	claudeHaikuModel     = "haiku"
 	anyRouterClaudeModel = "claude-opus-4-5-20251101"
 	zoClaudeModel        = "claude-opus-4-7"
 	zoClaudeSonnetModel  = "claude-sonnet-4-6"
@@ -61,12 +66,41 @@ var (
 		LogMessage:  "mimo claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Xiaomi MiMo",
 	}
+	claudeDefaultTarget = claudeModelTarget{
+		Model:       claudeDefaultModel,
+		Name:        "Claude Default",
+		Description: "Claude Code official default model routed through OmniProxy",
+		LogMessage:  "official claude default configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 Claude 官方默认模型",
+	}
+	claudeSonnetTarget = claudeModelTarget{
+		Model:       claudeSonnetModel,
+		Name:        "Claude Sonnet",
+		Description: "Claude Code official Sonnet alias routed through OmniProxy",
+	}
+	claudeOpusTarget = claudeModelTarget{
+		Model:       claudeOpusModel,
+		Name:        "Claude Opus",
+		Description: "Claude Code official Opus alias routed through OmniProxy",
+	}
+	claudeHaikuTarget = claudeModelTarget{
+		Model:       claudeHaikuModel,
+		Name:        "Claude Haiku",
+		Description: "Claude Code official Haiku alias routed through OmniProxy",
+	}
 	claudeDeepSeekTarget = claudeModelTarget{
 		Model:       deepSeekProModel,
 		Name:        "DeepSeek V4 Pro",
 		Description: "DeepSeek V4 Pro routed through OmniProxy",
 		LogMessage:  "deepseek claude configured",
 		Message:     "Claude Code 已配置为通过 OmniProxy 使用 DeepSeek",
+	}
+	claudeDeepSeekLongTarget = claudeModelTarget{
+		Model:       deepSeekProLongModel,
+		Name:        "DeepSeek V4 Pro [1m]",
+		Description: "DeepSeek V4 Pro 1M context routed through OmniProxy",
+		LogMessage:  "deepseek claude 1m configured",
+		Message:     "Claude Code 已配置为通过 OmniProxy 使用 DeepSeek 1M 上下文模型",
 	}
 	claudeKimiTarget = claudeModelTarget{
 		Model:       kimiCodingModel,
@@ -271,18 +305,39 @@ func writeSelectedClaudeSettings(path string, baseURL string, targets []claudeMo
 	env["ANTHROPIC_BASE_URL"] = baseURL
 	env["ANTHROPIC_AUTH_TOKEN"] = omniProxyMimoAuth
 	env["ANTHROPIC_MODEL"] = targets[0].Model
-	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", claudeTargetAt(targets, 0))
-	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", claudeTargetAt(targets, 1))
-	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", claudeTargetAt(targets, 2))
-	env["CLAUDE_CODE_SUBAGENT_MODEL"] = claudeTargetAt(targets, 1).Model
-	if len(targets) == maxClaudeModels {
+	opusTarget := claudeTargetForAlias(targets, claudeOpusModel, 0)
+	sonnetTarget := claudeTargetForAlias(targets, claudeSonnetModel, 1)
+	haikuTarget := claudeTargetForAlias(targets, claudeHaikuModel, 2)
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_OPUS_MODEL", opusTarget)
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_SONNET_MODEL", sonnetTarget)
+	setClaudeModelGroup(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", haikuTarget)
+	env["CLAUDE_CODE_SUBAGENT_MODEL"] = sonnetTarget.Model
+	if len(targets) == maxClaudeModels && !isClaudeOfficialAlias(targets[maxClaudeModels-1].Model) {
 		setClaudeModelGroup(env, "ANTHROPIC_CUSTOM_MODEL_OPTION", targets[maxClaudeModels-1])
 	}
-	if claudeTargetsInclude(targets, deepSeekProModel) {
+	if claudeTargetsIncludeDeepSeekPro(targets) {
 		env["CLAUDE_CODE_EFFORT_LEVEL"] = "max"
 	}
 	data["env"] = env
 	return clientconfig.WriteJSONObject(path, data)
+}
+
+func claudeTargetForAlias(targets []claudeModelTarget, alias string, fallbackIndex int) claudeModelTarget {
+	for _, target := range targets {
+		if strings.EqualFold(target.Model, alias) {
+			return target
+		}
+	}
+	return claudeTargetAt(targets, fallbackIndex)
+}
+
+func isClaudeOfficialAlias(model string) bool {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case claudeDefaultModel, claudeSonnetModel, claudeOpusModel, claudeHaikuModel:
+		return true
+	default:
+		return false
+	}
 }
 
 func setClaudeModelGroup(env map[string]any, key string, target claudeModelTarget) {
@@ -305,6 +360,10 @@ func claudeTargetsInclude(targets []claudeModelTarget, model string) bool {
 		}
 	}
 	return false
+}
+
+func claudeTargetsIncludeDeepSeekPro(targets []claudeModelTarget) bool {
+	return claudeTargetsInclude(targets, deepSeekProModel) || claudeTargetsInclude(targets, deepSeekProLongModel)
 }
 
 func normalizeClaudeModelTargets(models []string) ([]claudeModelTarget, error) {
@@ -341,8 +400,10 @@ func normalizeClaudeModelTargets(models []string) ([]claudeModelTarget, error) {
 
 func normalizeClaudeModelID(model string) string {
 	switch strings.ToLower(strings.TrimSpace(model)) {
-	case "deepseek-v4-pro", "deepseek-v4-pro[1m]", "deepseek-4-pro":
+	case "deepseek-v4-pro", "deepseek-4-pro":
 		return deepSeekProModel
+	case "deepseek-v4-pro[1m]", "deepseek-v4-pro-1m", "deepseek-4-pro-1m":
+		return deepSeekProLongModel
 	case "mimo-v2.5-pro-1m", "mimo-2.5-pro-1m":
 		return mimoLongContextModel
 	case "mimo-2.5-pro":
@@ -364,7 +425,12 @@ func claudeSelectableTargetsByModel() map[string]claudeModelTarget {
 
 func claudeSelectableTargets() []claudeModelTarget {
 	return []claudeModelTarget{
+		claudeDefaultTarget,
+		claudeSonnetTarget,
+		claudeOpusTarget,
+		claudeHaikuTarget,
 		claudeDeepSeekTarget,
+		claudeDeepSeekLongTarget,
 		{
 			Model:       deepSeekFastModel,
 			Name:        "DeepSeek V4 Flash",
@@ -432,7 +498,7 @@ func claudeDesktopRoutesForTargets(targets []claudeModelTarget) []claudedesktop.
 
 func claudeTargetSupports1M(target claudeModelTarget) bool {
 	model := strings.ToLower(strings.TrimSpace(target.Model))
-	return model == deepSeekProModel || strings.Contains(model, "[1m]")
+	return strings.Contains(model, "[1m]")
 }
 
 func writeClaudeDesktopProfile(paths claudedesktop.Paths, baseURL string, routes []claudedesktop.ModelRoute) error {
@@ -485,185 +551,5 @@ func writeClaudeDesktopMeta(path string, apply bool) error {
 		delete(data, "appliedId")
 	}
 	data["entries"] = entries
-	return clientconfig.WriteJSONObject(path, data)
-}
-
-func removeFileIfExists(path string) error {
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	return nil
-}
-
-func cleanClaudeEnv(data map[string]any) map[string]any {
-	env, _ := data["env"].(map[string]any)
-	if env == nil {
-		env = map[string]any{}
-	}
-	removeClaudeRouterSettings(data, env)
-	return env
-}
-
-func claudeRouterAvailableModels() []string {
-	return []string{
-		"best",
-		"opus",
-		"opus[1m]",
-		"opusplan",
-		"sonnet",
-		"sonnet[1m]",
-		"haiku",
-		"claude-opus-4-7",
-		"claude-opus-4-6",
-		"claude-opus-4-5-20251101",
-		"claude-opus-4-1-20250422",
-		"claude-sonnet-4-6",
-		"claude-sonnet-4-5-20250929",
-		"claude-sonnet-4-20250514",
-		"claude-haiku-4-5-20251001",
-		mimoModel,
-		mimoLongContextModel,
-		mimoStandardModel,
-		deepSeekProModel,
-		deepSeekProLegacy,
-		deepSeekFastModel,
-		kimiCodingModel,
-		zhipuGLMModel,
-		premClaudeModel,
-	}
-}
-
-func claudeRouterModelOverrides() map[string]string {
-	return map[string]string{
-		"claude-opus-4-7":            mimoLongContextModel,
-		"claude-opus-4-6":            mimoStandardModel,
-		"claude-opus-4-5-20251101":   deepSeekProModel,
-		"claude-opus-4-1-20250422":   mimoStandardModel,
-		"claude-sonnet-4-6":          deepSeekFastModel,
-		"claude-sonnet-4-5-20250929": deepSeekProModel,
-		"claude-sonnet-4-20250514":   mimoStandardModel,
-		"claude-haiku-4-5-20251001":  deepSeekFastModel,
-	}
-}
-
-func clearKnownRouterModelValue(env map[string]any, key string) {
-	value, ok := env[key].(string)
-	if ok && isKnownRouterDefaultModel(value) {
-		delete(env, key)
-	}
-}
-
-func removeClaudeRouterSettings(data map[string]any, env map[string]any) {
-	clearKnownRouterModelValue(env, "ANTHROPIC_MODEL")
-	clearKnownRouterModelValue(env, "CLAUDE_CODE_SUBAGENT_MODEL")
-	clearKnownRouterModelGroup(env, "ANTHROPIC_DEFAULT_OPUS_MODEL")
-	clearKnownRouterModelGroup(env, "ANTHROPIC_DEFAULT_SONNET_MODEL")
-	clearKnownRouterModelGroup(env, "ANTHROPIC_DEFAULT_HAIKU_MODEL")
-	clearKnownRouterModelGroup(env, "ANTHROPIC_CUSTOM_MODEL_OPTION")
-	clearDeepSeekEffortOverride(env)
-	removeClaudeRouterAvailableModels(data)
-	removeClaudeRouterModelOverrides(data)
-}
-
-func removeClaudeRouterAvailableModels(data map[string]any) {
-	existing, ok := data["availableModels"].([]any)
-	if !ok {
-		return
-	}
-
-	known := map[string]bool{}
-	for _, model := range claudeRouterAvailableModels() {
-		known[model] = true
-	}
-
-	filtered := []string{}
-	for _, value := range existing {
-		text, ok := value.(string)
-		if !ok {
-			continue
-		}
-		text = strings.TrimSpace(text)
-		if text == "" || known[text] {
-			continue
-		}
-		filtered = append(filtered, text)
-	}
-	if len(filtered) == 0 {
-		delete(data, "availableModels")
-		return
-	}
-	data["availableModels"] = filtered
-}
-
-func removeClaudeRouterModelOverrides(data map[string]any) {
-	existing, ok := data["modelOverrides"].(map[string]any)
-	if !ok {
-		return
-	}
-
-	for key, value := range claudeRouterModelOverrides() {
-		if existingValue, ok := existing[key].(string); ok && isKnownRouterOverrideValue(value, existingValue) {
-			delete(existing, key)
-		}
-	}
-	if len(existing) == 0 {
-		delete(data, "modelOverrides")
-	}
-}
-
-func isKnownRouterOverrideValue(current string, existing string) bool {
-	existing = strings.TrimSpace(existing)
-	if strings.EqualFold(existing, current) {
-		return true
-	}
-	if strings.EqualFold(current, deepSeekProModel) && strings.EqualFold(existing, deepSeekProLegacy) {
-		return true
-	}
-	return strings.EqualFold(current, mimoLongContextModel) && strings.EqualFold(existing, mimoModel)
-}
-
-func clearKnownRouterModelGroup(env map[string]any, key string) {
-	value, ok := env[key].(string)
-	if !ok || !isKnownRouterDefaultModel(value) {
-		return
-	}
-	delete(env, key)
-	delete(env, key+"_NAME")
-	delete(env, key+"_DESCRIPTION")
-	delete(env, key+"_SUPPORTED_CAPABILITIES")
-}
-
-func clearDeepSeekEffortOverride(env map[string]any) {
-	value, ok := env["CLAUDE_CODE_EFFORT_LEVEL"].(string)
-	if ok && strings.EqualFold(strings.TrimSpace(value), "max") {
-		delete(env, "CLAUDE_CODE_EFFORT_LEVEL")
-	}
-}
-
-func isKnownRouterDefaultModel(value string) bool {
-	model := strings.TrimSpace(value)
-	return strings.EqualFold(model, mimoModel) ||
-		strings.EqualFold(model, mimoLongContextModel) ||
-		strings.EqualFold(model, mimoStandardModel) ||
-		strings.EqualFold(model, deepSeekProModel) ||
-		strings.EqualFold(model, deepSeekProLegacy) ||
-		strings.EqualFold(model, deepSeekFastModel) ||
-		strings.EqualFold(model, kimiCodingModel) ||
-		strings.EqualFold(model, zhipuGLMModel) ||
-		strings.EqualFold(model, anyRouterClaudeModel) ||
-		strings.EqualFold(model, zoClaudeModel) ||
-		strings.EqualFold(model, zoClaudeSonnetModel) ||
-		strings.EqualFold(model, premClaudeModel)
-}
-
-func writeMimoClaudeOnboarding(path string) error {
-	data, err := clientconfig.ReadJSONObject(path)
-	if err != nil {
-		return err
-	}
-	if err := clientconfig.BackupFile(path, path+".omniproxy.bak", []byte("{}\n")); err != nil {
-		return err
-	}
-	data["hasCompletedOnboarding"] = true
 	return clientconfig.WriteJSONObject(path, data)
 }

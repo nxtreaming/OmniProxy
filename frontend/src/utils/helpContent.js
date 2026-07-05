@@ -20,7 +20,7 @@ export function buildThirdPartyEndpointGroups(port) {
           protocol: 'OpenAI Responses / Chat',
           baseUrl: `${base}/codex/v1`,
           apiKey: 'omniproxy-local',
-          models: 'Codex 一键配置写入的默认模型，例如 gpt-5.4 / deepseek-v4-pro',
+          models: 'Codex 一键配置写入的默认模型，例如 gpt-5.5 / gpt-5.4-mini / deepseek-v4-pro',
           use: 'Codex 和 OpenAI 兼容客户端可固定接入这里；后端顺序按模型路由选择。',
         },
         {
@@ -98,7 +98,7 @@ export function buildThirdPartyEndpointGroups(port) {
           protocol: 'Anthropic Messages',
           baseUrl: `${base}/anthropic-router`,
           apiKey: 'omniproxy',
-          models: '使用网关路由里的 Claude 默认模型，或客户端发送的模型名',
+          models: 'default / sonnet / opus / haiku，或网关路由里的 Claude 默认模型',
           use: 'Claude Code / Anthropic 兼容入口；后端厂商、凭据和默认模型在「网关路由」页面选择。',
         },
         {

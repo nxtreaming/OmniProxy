@@ -54,7 +54,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 		model = normalizeCodexConfigureModel(cfg.GatewayRoutes.Codex.Model)
 	}
 	if model == "" {
-		model = "gpt-5.4"
+		model = "gpt-5.5"
 	}
 	configPath := filepath.Join(codexDir, "config.toml")
 	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, model); err != nil {

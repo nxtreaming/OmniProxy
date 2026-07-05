@@ -182,8 +182,8 @@ export function createAppState() {
       xiaomiCredentialPriority: 'mimo_token_plan',
       codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
       gatewayRoutes: {
-        codex: { provider: 'openai', credentialType: 'codex_auth_json', model: 'gpt-5.4' },
-        claude: { provider: 'anthropic', credentialType: 'api_key', model: 'claude-sonnet-4-5-20250929' },
+        codex: { provider: 'openai', credentialType: 'codex_auth_json', model: 'gpt-5.5' },
+        claude: { provider: 'anthropic', credentialType: 'api_key', model: 'default' },
         openai: { provider: 'openai', credentialType: 'api_key', model: 'gpt-5.4' },
         gemini: { provider: 'gemini', credentialType: 'api_key', model: 'gemini-3-pro-preview' },
       },
@@ -193,7 +193,7 @@ export function createAppState() {
       maxRetries: 2,
       historyRetentionDays: 14,
     }),
-    selectedCodexModel: ref('gpt-5.4'),
+    selectedCodexModel: ref('gpt-5.5'),
     dataDirectory: reactive({
       dataDir: '',
       bootstrapPath: '',
@@ -202,7 +202,7 @@ export function createAppState() {
       pendingDataDir: '',
       restartRequired: false,
     }),
-    selectedClaudeModels: ref([]),
+    selectedClaudeModels: ref(['default']),
     appInfo: reactive({
       name: 'OmniProxy',
       version: 'dev',

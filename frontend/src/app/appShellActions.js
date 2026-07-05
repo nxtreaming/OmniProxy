@@ -222,7 +222,7 @@ export function createAppShellActions({
 
   watch(state.selectedCodexModel, (model) => {
     if (String(model || '').trim()) return
-    state.selectedCodexModel.value = 'gpt-5.4'
+    state.selectedCodexModel.value = 'gpt-5.5'
   })
 
   watch(state.selectedClaudeModels, (models) => {

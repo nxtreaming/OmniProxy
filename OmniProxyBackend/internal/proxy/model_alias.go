@@ -29,7 +29,7 @@ func normalizeRequestBodyModel(body []byte, routeModel string) ([]byte, bool) {
 		return body, false
 	}
 	normalized := normalizeUpstreamModelID(model)
-	target := strings.TrimSpace(routeModel)
+	target := normalizeUpstreamModelID(routeModel)
 	if target == "" {
 		target = normalized
 	}

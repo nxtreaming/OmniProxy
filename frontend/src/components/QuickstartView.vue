@@ -59,8 +59,8 @@ const selectedCodex = computed({
   set: (value) => emit('update:selectedCodexModel', value),
 })
 
-const codexRouteModel = computed(() => props.selectedCodexModel || props.config.gatewayRoutes?.codex?.model || 'gpt-5.4')
-const claudeRouteModel = computed(() => props.config.gatewayRoutes?.claude?.model || 'claude-sonnet-4-5-20250929')
+const codexRouteModel = computed(() => props.selectedCodexModel || props.config.gatewayRoutes?.codex?.model || 'gpt-5.5')
+const claudeRouteModel = computed(() => props.config.gatewayRoutes?.claude?.model || 'default')
 const openAIRouteModel = computed(() => props.config.gatewayRoutes?.openai?.model || 'gpt-5.4')
 const geminiRouteModel = computed(() => props.config.gatewayRoutes?.gemini?.model || 'gemini-3-pro-preview')
 </script>

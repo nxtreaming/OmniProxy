@@ -228,11 +228,11 @@ func TestNormalizeModelRoutesPreservesBackendOrder(t *testing.T) {
 		},
 	})
 
-	route := cfg.ModelRoutes["deepseek-v4-pro"]
-	if route.Provider != token.ProviderDeepSeek || route.Model != "deepseek-v4-pro" {
+	route := cfg.ModelRoutes["deepseek-v4-pro[1m]"]
+	if route.Provider != token.ProviderDeepSeek || route.Model != "deepseek-v4-pro[1m]" {
 		t.Fatalf("unexpected model route primary: %#v", route)
 	}
-	if len(route.Fallbacks) != 1 || route.Fallbacks[0].Provider != token.ProviderPrem || route.Fallbacks[0].Model != "deepseek-v4-pro" {
+	if len(route.Fallbacks) != 1 || route.Fallbacks[0].Provider != token.ProviderPrem || route.Fallbacks[0].Model != "deepseek-v4-pro[1m]" {
 		t.Fatalf("unexpected model route fallbacks: %#v", route.Fallbacks)
 	}
 }

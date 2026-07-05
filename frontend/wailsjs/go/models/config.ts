@@ -126,7 +126,7 @@ export namespace config {
 	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
 	    gatewayRoutes: GatewayRoutes;
-	    modelRoutes?: {[key: string]: GatewayRouteConfig};
+	    modelRoutes?: Record<string, GatewayRouteConfig>;
 	    switchThreshold: number;
 	    maxRetries: number;
 	    historyRetentionDays: number;

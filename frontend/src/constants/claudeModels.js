@@ -2,9 +2,19 @@ export const claudeModelSelectionLimit = 4
 
 export const codexModelOptions = [
   {
+    id: 'gpt-5.5',
+    label: 'GPT-5.5',
+    description: 'Frontier model for complex coding, research, and real-world work.',
+  },
+  {
     id: 'gpt-5.4',
     label: 'GPT-5.4',
-    description: 'gpt-5.4',
+    description: 'Strong model for everyday coding.',
+  },
+  {
+    id: 'gpt-5.4-mini',
+    label: 'GPT-5.4 mini',
+    description: 'Small, fast, and cost-efficient model for simpler coding tasks.',
   },
   {
     id: 'gpt-5-codex',
@@ -15,6 +25,11 @@ export const codexModelOptions = [
     id: 'deepseek-v4-pro',
     label: 'DeepSeek V4 Pro',
     description: 'deepseek-v4-pro',
+  },
+  {
+    id: 'deepseek-v4-pro[1m]',
+    label: 'DeepSeek V4 Pro [1m]',
+    description: 'deepseek-v4-pro[1m]，用于激活 Claude Code 1M 上下文',
   },
   {
     id: 'deepseek-v4-flash',
@@ -49,6 +64,26 @@ export const codexModelOptions = [
 ]
 
 export const claudeModelOptions = [
+  {
+    id: 'default',
+    label: 'Claude Default',
+    description: 'Claude Code 官方默认模型，按账号类型和组织默认解析',
+  },
+  {
+    id: 'sonnet',
+    label: 'Claude Sonnet',
+    description: 'Claude Code 官方 sonnet 别名',
+  },
+  {
+    id: 'opus',
+    label: 'Claude Opus',
+    description: 'Claude Code 官方 opus 别名',
+  },
+  {
+    id: 'haiku',
+    label: 'Claude Haiku',
+    description: 'Claude Code 官方 haiku 别名',
+  },
   {
     id: 'deepseek-v4-pro',
     label: 'DeepSeek V4 Pro',
