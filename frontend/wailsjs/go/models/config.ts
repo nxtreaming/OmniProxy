@@ -126,6 +126,7 @@ export namespace config {
 	    xiaomiCredentialPriority: string;
 	    codexBaseUrl: string;
 	    gatewayRoutes: GatewayRoutes;
+	    modelRoutes?: {[key: string]: GatewayRouteConfig};
 	    switchThreshold: number;
 	    maxRetries: number;
 	    historyRetentionDays: number;
@@ -190,6 +191,7 @@ export namespace config {
 	        this.xiaomiCredentialPriority = source["xiaomiCredentialPriority"];
 	        this.codexBaseUrl = source["codexBaseUrl"];
 	        this.gatewayRoutes = this.convertValues(source["gatewayRoutes"], GatewayRoutes);
+	        this.modelRoutes = this.convertValues(source["modelRoutes"], GatewayRouteConfig, true);
 	        this.switchThreshold = source["switchThreshold"];
 	        this.maxRetries = source["maxRetries"];
 	        this.historyRetentionDays = source["historyRetentionDays"];

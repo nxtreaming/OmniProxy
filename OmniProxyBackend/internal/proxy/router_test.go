@@ -168,6 +168,35 @@ func TestRouterIncludesGatewayFallbackRoutes(t *testing.T) {
 	}
 }
 
+func TestRouterUsesModelRoutesBeforeClientGatewayRoutes(t *testing.T) {
+	router := NewRouter(config.Config{
+		GatewayRoutes: config.GatewayRoutes{
+			Codex: config.GatewayRouteConfig{
+				Provider:       token.ProviderOpenAI,
+				CredentialType: token.CredentialTypeCodexAuthJSON,
+				Model:          "gpt-5.4",
+			},
+		},
+		ModelRoutes: config.ModelRoutes{
+			"deepseek-v4-pro": {
+				Provider: token.ProviderDeepSeek,
+				Model:    "deepseek-v4-pro",
+				Fallbacks: []config.GatewayRouteConfig{
+					{Provider: token.ProviderPrem, Model: "deepseek-v4-pro"},
+				},
+			},
+		},
+	})
+
+	route := router.Route(mustRouterTestURL(t, "/codex/v1/responses"), []byte(`{"model":"deepseek-v4-pro","input":"hi"}`))
+	if route.Provider != token.ProviderDeepSeek || route.CredentialType != "" || route.Model != "deepseek-v4-pro" {
+		t.Fatalf("expected Codex request model to use DeepSeek model route, got %#v", route)
+	}
+	if len(route.Fallbacks) != 1 || route.Fallbacks[0].Provider != token.ProviderPrem || route.Fallbacks[0].Path != "/openai/v1/responses" {
+		t.Fatalf("unexpected model fallback route: %#v", route.Fallbacks)
+	}
+}
+
 func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 	cases := []struct {
 		name     string

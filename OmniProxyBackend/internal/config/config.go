@@ -100,6 +100,7 @@ type Config struct {
 	XiaomiCredentialPriority           string        `json:"xiaomiCredentialPriority"`
 	CodexBaseURL                       string        `json:"codexBaseUrl"`
 	GatewayRoutes                      GatewayRoutes `json:"gatewayRoutes"`
+	ModelRoutes                        ModelRoutes   `json:"modelRoutes,omitempty"`
 	SwitchThreshold                    int           `json:"switchThreshold"`
 	MaxRetries                         int           `json:"maxRetries"`
 	HistoryRetentionDays               int           `json:"historyRetentionDays"`
@@ -119,6 +120,8 @@ type GatewayRoutes struct {
 	OpenAI GatewayRouteConfig `json:"openai"`
 	Gemini GatewayRouteConfig `json:"gemini"`
 }
+
+type ModelRoutes map[string]GatewayRouteConfig
 
 func Default() Config {
 	return Config{

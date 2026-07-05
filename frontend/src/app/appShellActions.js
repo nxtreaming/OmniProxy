@@ -220,6 +220,11 @@ export function createAppShellActions({
     }
   })
 
+  watch(state.selectedCodexModel, (model) => {
+    if (String(model || '').trim()) return
+    state.selectedCodexModel.value = 'gpt-5.4'
+  })
+
   watch(state.selectedClaudeModels, (models) => {
     const normalized = []
     for (const model of models) {

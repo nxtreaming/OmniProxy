@@ -23,7 +23,7 @@ export const routeDefinitions = [
     endpoint: (port) => `http://127.0.0.1:${port}/codex/v1`,
     fallback: { provider: 'openai', credentialType: 'codex_auth_json', model: 'gpt-5.4' },
     providers: openAICompatibleProviders,
-    modelPresets: ['gpt-5.4', 'gpt-5.4-high', 'gpt-5.5', 'gpt-5.5-high', 'gpt-5-codex'],
+    modelPresets: ['gpt-5.4', 'gpt-5.4-high', 'gpt-5.5', 'gpt-5.5-high', 'gpt-5-codex', 'deepseek-v4-pro', 'mimo-v2.5-pro', 'kimi-for-coding', 'glm-5.1', 'MiniMax-M2.7'],
   },
   {
     key: 'claude',

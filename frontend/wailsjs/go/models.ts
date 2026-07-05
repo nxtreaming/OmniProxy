@@ -32,6 +32,7 @@ export namespace main {
   export import claudeModelsConfigureRequest = mainModels.claudeModelsConfigureRequest
   export import clientConfigureResult = mainModels.clientConfigureResult
   export import codexAuthExportResult = mainModels.codexAuthExportResult
+  export import codexConfigureRequest = mainModels.codexConfigureRequest
   export import codexConfigureResult = mainModels.codexConfigureResult
   export import healthResponse = mainModels.healthResponse
   export import retryAttemptResponse = mainModels.retryAttemptResponse

@@ -135,6 +135,18 @@ export namespace main {
 	        this.models = source["models"];
 	    }
 	}
+	export class codexConfigureRequest {
+	    model: string;
+
+	    static createFrom(source: any = {}) {
+	        return new codexConfigureRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.model = source["model"];
+	    }
+	}
 	export class clientConfigureResult {
 	    configPath?: string;
 	    settingsPath?: string;
@@ -182,6 +194,7 @@ export namespace main {
 	    authPath: string;
 	    backupPath: string;
 	    baseUrl: string;
+	    model?: string;
 	    importedAuth: boolean;
 	    authAlreadyAdded: boolean;
 	    authUpdated: boolean;
@@ -197,6 +210,7 @@ export namespace main {
 	        this.authPath = source["authPath"];
 	        this.backupPath = source["backupPath"];
 	        this.baseUrl = source["baseUrl"];
+	        this.model = source["model"];
 	        this.importedAuth = source["importedAuth"];
 	        this.authAlreadyAdded = source["authAlreadyAdded"];
 	        this.authUpdated = source["authUpdated"];

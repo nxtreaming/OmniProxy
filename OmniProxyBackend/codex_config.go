@@ -19,13 +19,18 @@ type codexConfigureResult struct {
 	AuthPath         string `json:"authPath"`
 	BackupPath       string `json:"backupPath"`
 	BaseURL          string `json:"baseUrl"`
+	Model            string `json:"model,omitempty"`
 	ImportedAuth     bool   `json:"importedAuth"`
 	AuthAlreadyAdded bool   `json:"authAlreadyAdded"`
 	AuthUpdated      bool   `json:"authUpdated"`
 	Message          string `json:"message"`
 }
 
-func (a *appServer) configureCodex() (codexConfigureResult, error) {
+type codexConfigureRequest struct {
+	Model string `json:"model"`
+}
+
+func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConfigureResult, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return codexConfigureResult{}, err
@@ -41,7 +46,13 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 	}
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d/codex/v1", cfg.ProxyPort)
-	model := strings.TrimSpace(cfg.GatewayRoutes.Codex.Model)
+	model := ""
+	if len(requests) > 0 {
+		model = normalizeCodexConfigureModel(requests[0].Model)
+	}
+	if model == "" {
+		model = normalizeCodexConfigureModel(cfg.GatewayRoutes.Codex.Model)
+	}
 	if model == "" {
 		model = "gpt-5.4"
 	}
@@ -55,6 +66,7 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 		AuthPath:   filepath.Join(codexDir, "auth.json"),
 		BackupPath: configPath + ".omniproxy.bak",
 		BaseURL:    baseURL,
+		Model:      model,
 	}
 
 	authBytes, err := os.ReadFile(result.AuthPath)
@@ -121,7 +133,7 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 		}
 	}
 
-	parts := []string{"Codex 已切换到 OmniProxy 网关入口"}
+	parts := []string{fmt.Sprintf("Codex 已切换到 OmniProxy 网关入口，默认模型 %s", model)}
 	if result.ImportedAuth {
 		parts = append(parts, "已导入 auth.json")
 	} else if result.AuthUpdated {
@@ -135,6 +147,16 @@ func (a *appServer) configureCodex() (codexConfigureResult, error) {
 	result.Message = strings.Join(parts, "；")
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy"})
 	return result, nil
+}
+
+func normalizeCodexConfigureModel(model string) string {
+	model = strings.TrimSpace(model)
+	switch strings.ToLower(model) {
+	case "deepseek-v4-pro[1m]":
+		return "deepseek-v4-pro"
+	default:
+		return model
+	}
 }
 
 func (a *appServer) restoreCodexConfig() (codexConfigureResult, error) {

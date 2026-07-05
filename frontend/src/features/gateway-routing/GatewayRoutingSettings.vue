@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import GeminiSelect from '../../components/GeminiSelect.vue'
 import { credentialTypes, providers } from '../../constants/app'
 import { gatewayPlatformPresets, routeDefinitions } from './gatewayRoutePresets'
@@ -16,13 +16,33 @@ const emit = defineEmits(['persist-config'])
 const providerLabelMap = computed(() => Object.fromEntries(providers.map((item) => [item.key, item.label])))
 const credentialLabelMap = computed(() => credentialTypes)
 const gatewayModelGroups = computed(() => buildGatewayModelGroups())
-const selectedModelKey = ref(initialModelKey())
+const selectedModelKey = ref('')
+const customModelInput = ref('')
 const activeModelGroup = computed(() => {
   const groups = gatewayModelGroups.value
-  return groups.find((group) => group.key === selectedModelKey.value) || groups[0] || { providers: [], routeModels: {} }
+  return groups.find((group) => group.key === selectedModelKey.value) || groups[0] || emptyModelGroup()
 })
-const directClaudeProviders = new Set(['anthropic', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'zo'])
-const directOpenAIProviders = new Set(['openai', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'openrouter', 'tokenrouter', 'zo', 'custom'])
+const activeModelRoute = computed(() => modelRouteConfig(activeModelGroup.value))
+
+watch(
+  gatewayModelGroups,
+  (groups) => {
+    if (groups.some((group) => group.key === selectedModelKey.value)) return
+    selectedModelKey.value = initialModelKey(groups)
+  },
+  { immediate: true },
+)
+
+function emptyModelGroup() {
+  return { key: '', modelId: '', label: '选择模型', providers: [] }
+}
+
+function modelRoutesConfig() {
+  if (!props.config.modelRoutes || typeof props.config.modelRoutes !== 'object') {
+    props.config.modelRoutes = {}
+  }
+  return props.config.modelRoutes
+}
 
 function routeConfig(route) {
   if (!props.config.gatewayRoutes || typeof props.config.gatewayRoutes !== 'object') {
@@ -31,107 +51,151 @@ function routeConfig(route) {
   if (!props.config.gatewayRoutes[route.key] || typeof props.config.gatewayRoutes[route.key] !== 'object') {
     props.config.gatewayRoutes[route.key] = { ...route.fallback, fallbacks: [] }
   }
-  if (!Array.isArray(props.config.gatewayRoutes[route.key].fallbacks)) {
-    props.config.gatewayRoutes[route.key].fallbacks = []
-  }
   return props.config.gatewayRoutes[route.key]
 }
 
-function initialModelKey() {
-  const groups = buildGatewayModelGroups()
-  return groups.find((group) => group.providers.some((option) => isModelProviderApplied(option)))?.key ||
-    groups.find((group) => group.providers.some((option) => option.key === 'deepseek'))?.key ||
-    groups[0]?.key ||
-    ''
+function modelRouteConfig(group) {
+  const routes = modelRoutesConfig()
+  const key = group.key
+  if (!key) return { provider: '', credentialType: '', model: '', fallbacks: [] }
+  if (!routes[key] || typeof routes[key] !== 'object') {
+    const firstProvider = group.providers[0]?.key || ''
+    routes[key] = {
+      provider: firstProvider,
+      credentialType: defaultCredentialType(firstProvider),
+      model: group.modelId,
+      fallbacks: [],
+    }
+  }
+  if (!Array.isArray(routes[key].fallbacks)) {
+    routes[key].fallbacks = []
+  }
+  if (!routes[key].model) {
+    routes[key].model = group.modelId
+  }
+  return routes[key]
 }
 
-function routeDefinitionFor(key) {
-  return routeDefinitions.find((route) => route.key === key)
+function readModelRoute(group) {
+  return modelRoutesConfig()[group.key]
 }
 
-function routeTitle(key) {
-  return routeDefinitionFor(key)?.title || key
-}
-
-function modelRouteEntries(model) {
-  return Object.entries(model.routeModels || {})
-    .map(([key, modelValue]) => ({ key, model: modelValue, title: routeTitle(key) }))
-    .filter((entry) => routeDefinitionFor(entry.key))
+function initialModelKey(groups = buildGatewayModelGroups()) {
+  return groups.find((group) => {
+    const route = readModelRoute(group)
+    return route?.provider
+  })?.key || groups.find((group) => group.modelId === 'deepseek-v4-pro')?.key || groups[0]?.key || ''
 }
 
 function buildGatewayModelGroups() {
   const byKey = new Map()
   for (const platform of gatewayPlatformPresets) {
     for (const model of platform.models || []) {
-      const key = modelGroupKey(model)
-      if (!key) continue
-      if (!byKey.has(key)) {
-        byKey.set(key, {
-          key,
-          label: model.label || modelGroupSummary(model),
-          routeModels: { ...model.routeModels },
-          providers: [],
-        })
-      }
-      const group = byKey.get(key)
-      if (!group.providers.some((option) => option.key === platform.key)) {
-        group.providers.push({ key: platform.key, platform, model })
+      for (const modelId of modelRouteModelIDs(model)) {
+        const key = modelKey(modelId)
+        if (!key) continue
+        if (!byKey.has(key)) {
+          byKey.set(key, {
+            key,
+            modelId,
+            label: model.label || modelId,
+            providers: [],
+          })
+        }
+        const group = byKey.get(key)
+        if (!group.providers.some((option) => option.key === platform.key)) {
+          group.providers.push({ key: platform.key, platform, modelId })
+        }
       }
     }
+  }
+  for (const [rawModel, route] of Object.entries(modelRoutesConfig())) {
+    const modelId = String(rawModel || route?.model || '').trim()
+    const key = modelKey(modelId)
+    if (!key || byKey.has(key)) continue
+    byKey.set(key, {
+      key,
+      modelId,
+      label: modelId,
+      providers: modelRouteProviderKeys().map((provider) => ({ key: provider, modelId })),
+    })
   }
   return Array.from(byKey.values())
 }
 
-function modelGroupKey(model) {
-  return Object.entries(model.routeModels || {})
-    .map(([routeKey, modelValue]) => `${routeKey}:${String(modelValue || '').trim().toLowerCase()}`)
-    .sort()
-    .join('|')
+function modelRouteModelIDs(model) {
+  return Array.from(new Set(Object.values(model.routeModels || {}).map((value) => String(value || '').trim()).filter(Boolean)))
 }
 
-function modelGroupSummary(model) {
-  return Array.from(new Set(Object.values(model.routeModels || {}).map((value) => String(value || '').trim()).filter(Boolean))).join(' / ')
+function modelKey(model) {
+  return String(model || '').trim().toLowerCase()
 }
 
 function selectModelGroup(group) {
   selectedModelKey.value = group.key
 }
 
-function applyModelProvider(option) {
-  const platform = option.platform
-  for (const entry of modelRouteEntries(option.model)) {
-    const route = routeDefinitionFor(entry.key)
-    const current = routeConfig(route)
-    current.provider = platform.key
-    current.credentialType = platform.routeCredentials?.[entry.key] || ''
-    current.model = entry.model
-    current.fallbacks = fallbackConfigs(route).filter(
-      (fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(platform.key),
-    )
+function addCustomModelRoute() {
+  const modelId = String(customModelInput.value || '').trim()
+  const key = modelKey(modelId)
+  if (!key) return
+  const routes = modelRoutesConfig()
+  if (!routes[key]) {
+    const provider = inferredProviderForModel(modelId)
+    routes[key] = {
+      provider,
+      credentialType: defaultCredentialType(provider),
+      model: modelId,
+      fallbacks: [],
+    }
   }
-  emit('persist-config')
+  customModelInput.value = ''
+  selectedModelKey.value = key
 }
 
-function isModelProviderApplied(option) {
-  const entries = modelRouteEntries(option.model)
-  return entries.length > 0 && entries.every((entry) => {
-    const route = routeDefinitionFor(entry.key)
-    const current = routeConfig(route)
-    return normalizeProviderKey(current.provider) === option.key &&
-      String(current.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
-  })
+function providerLabel(provider) {
+  return providerLabelMap.value[provider] || provider
 }
 
-function routeProviderOptions(route) {
-  return route.providers.map((key) => ({
-    value: key,
-    label: providerLabelMap.value[key] || key,
-    description: providerNote(key),
-  }))
+function providerNote(provider) {
+  return providers.find((item) => item.key === provider)?.note || ''
+}
+
+function normalizeProviderKey(provider) {
+  return String(provider || '').trim().toLowerCase()
+}
+
+function defaultCredentialType(provider) {
+  const normalized = normalizeProviderKey(provider)
+  if (normalized === 'openai' || normalized === 'anthropic') return 'api_key'
+  return ''
+}
+
+function modelRouteProviderKeys() {
+  const keys = []
+  for (const platform of gatewayPlatformPresets) {
+    if (platform.key) keys.push(platform.key)
+  }
+  return Array.from(new Set(keys.map(normalizeProviderKey).filter(Boolean)))
+}
+
+function inferredProviderForModel(model) {
+  const normalized = String(model || '').trim().toLowerCase()
+  if (normalized.startsWith('claude-')) return 'anthropic'
+  if (normalized.startsWith('deepseek-')) return 'deepseek'
+  if (normalized.startsWith('kimi-')) return 'kimi'
+  if (normalized.startsWith('mimo-')) return 'xiaomi'
+  if (normalized.startsWith('glm-') || normalized.startsWith('zhipu-')) return 'zhipu'
+  if (normalized.startsWith('minimax-')) return 'minimax'
+  if (normalized.startsWith('gemini-')) return 'gemini'
+  if (normalized.startsWith('auto:') || normalized.startsWith('tokenrouter:') || normalized.startsWith('tokenrouter/')) return 'tokenrouter'
+  if (normalized.includes('/')) return 'openrouter'
+  if (normalized.startsWith('custom-')) return 'custom'
+  return 'openai'
 }
 
 function credentialOptions(provider) {
-  const normalized = String(provider || '').trim().toLowerCase()
+  const normalized = normalizeProviderKey(provider)
   const supported = {
     openai: ['api_key', 'codex_auth_json'],
     anthropic: ['api_key', 'claude_oauth_json'],
@@ -144,111 +208,115 @@ function credentialOptions(provider) {
   ]
 }
 
-function setRouteProvider(route, provider) {
-  const current = routeConfig(route)
-  current.provider = provider
-  current.credentialType = ''
-  current.fallbacks = fallbackConfigs(route).filter((fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(provider))
+function activeProviderOptions() {
+  const route = activeModelRoute.value
+  const keys = []
+  for (const option of activeModelGroup.value.providers) keys.push(option.key)
+  if (route.provider) keys.push(route.provider)
+  for (const fallback of route.fallbacks || []) keys.push(fallback.provider)
+  return Array.from(new Set(keys.map(normalizeProviderKey).filter(Boolean))).map((key) => ({
+    value: key,
+    label: providerLabel(key),
+    description: providerNote(key),
+  }))
 }
 
-function setRouteCredential(route, credentialType) {
-  routeConfig(route).credentialType = credentialType
+function applyModelProvider(option) {
+  const route = modelRouteConfig(activeModelGroup.value)
+  route.provider = option.key
+  route.credentialType = defaultCredentialType(option.key)
+  route.model = option.modelId
+  route.fallbacks = fallbackConfigs().filter(
+    (fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(option.key),
+  )
+  emit('persist-config')
 }
 
-function setRouteModel(route, model) {
-  routeConfig(route).model = model
+function isModelProviderApplied(option) {
+  const route = readModelRoute(activeModelGroup.value)
+  return normalizeProviderKey(route?.provider) === normalizeProviderKey(option.key) &&
+    String(route?.model || '').trim().toLowerCase() === String(option.modelId || '').trim().toLowerCase()
 }
 
-function isRouteModelSelected(route, model) {
-  return String(routeConfig(route).model || '').trim().toLowerCase() === String(model || '').trim().toLowerCase()
+function setModelRouteProvider(provider) {
+  const route = activeModelRoute.value
+  route.provider = provider
+  route.credentialType = defaultCredentialType(provider)
+  route.fallbacks = fallbackConfigs().filter((fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(provider))
 }
 
-function routeEndpoint(route) {
-  return route.endpoint(Number(props.config.proxyPort) || 3000)
+function setModelRouteCredential(credentialType) {
+  activeModelRoute.value.credentialType = credentialType
 }
 
-function providerNote(provider) {
-  return providers.find((item) => item.key === provider)?.note || ''
+function setModelRouteModel(model) {
+  activeModelRoute.value.model = model
 }
 
-function providerLabel(provider) {
-  return providerLabelMap.value[provider] || provider
+function fallbackConfigs() {
+  return activeModelRoute.value.fallbacks || []
 }
 
-function normalizeProviderKey(provider) {
-  return String(provider || '').trim().toLowerCase()
+function isPrimaryProvider(provider) {
+  return normalizeProviderKey(activeModelRoute.value.provider) === normalizeProviderKey(provider)
 }
 
-function inferredProviderForRouteModel(route) {
-  const model = String(routeConfig(route).model || '').trim().toLowerCase()
-  if (!model) return ''
-  if (route.key === 'claude') {
-    return inferredClaudeProvider(model)
+function isFallbackProviderSelected(provider) {
+  const key = normalizeProviderKey(provider)
+  return fallbackConfigs().some((fallback) => normalizeProviderKey(fallback.provider) === key)
+}
+
+function toggleFallbackProvider(provider) {
+  if (isPrimaryProvider(provider)) return
+  const route = activeModelRoute.value
+  const key = normalizeProviderKey(provider)
+  if (isFallbackProviderSelected(provider)) {
+    route.fallbacks = fallbackConfigs().filter((fallback) => normalizeProviderKey(fallback.provider) !== key)
+    return
   }
-  if (route.key === 'codex' || route.key === 'openai') {
-    return inferredOpenAIProvider(model)
-  }
-  return ''
+  route.fallbacks = [
+    ...fallbackConfigs(),
+    { provider, credentialType: defaultCredentialType(provider), model: route.model || activeModelGroup.value.modelId },
+  ]
 }
 
-function inferredClaudeProvider(model) {
-  if (model.startsWith('mimo-')) return 'xiaomi'
-  if (model.startsWith('deepseek-')) return 'deepseek'
-  if (model.startsWith('kimi-')) return 'kimi'
-  if (model.startsWith('glm-') || model.startsWith('zhipu-')) return 'zhipu'
-  if (model.startsWith('minimax-')) return 'minimax'
-  if (model === 'claude-opus-4-7' || model === 'claude-sonnet-4-6') return 'zo'
-  return 'anthropic'
+function setFallbackCredential(provider, credentialType) {
+  const fallback = fallbackConfigs().find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
+  if (!fallback) return
+  fallback.credentialType = credentialType
 }
 
-function inferredOpenAIProvider(model) {
-  if (model.startsWith('mimo-')) return 'xiaomi'
-  if (model.startsWith('deepseek-')) return 'deepseek'
-  if (model.startsWith('kimi-')) return 'kimi'
-  if (model.startsWith('glm-') || model.startsWith('zhipu-')) return 'zhipu'
-  if (model.startsWith('minimax-')) return 'minimax'
-  if (model.startsWith('auto:') || model.startsWith('tokenrouter:') || model.startsWith('tokenrouter/')) return 'tokenrouter'
-  if (model.includes('/')) return 'openrouter'
-  if (model.startsWith('custom-')) return 'custom'
-  return 'openai'
+function setFallbackModel(provider, model) {
+  const fallback = fallbackConfigs().find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
+  if (!fallback) return
+  fallback.model = model
 }
 
-function effectivePrimaryProvider(route) {
-  const current = normalizeProviderKey(routeConfig(route).provider)
-  const inferred = inferredProviderForRouteModel(route)
-  if (!inferred || inferred === current) return current
-  if (route.key === 'claude') {
-    if (inferred === 'anthropic' && current !== 'anthropic') return current
-    return directClaudeProviders.has(current) && directClaudeProviders.has(inferred) ? inferred : current
-  }
-  if (route.key === 'codex' || route.key === 'openai') {
-    if (inferred === 'openai' && current !== 'openai') return current
-    return directOpenAIProviders.has(current) && directOpenAIProviders.has(inferred) ? inferred : current
-  }
-  return current
+function fallbackModelPlaceholder() {
+  return `继承模型：${activeModelRoute.value.model || activeModelGroup.value.modelId}`
 }
 
-function routeModelHint(route) {
-  const current = normalizeProviderKey(routeConfig(route).provider)
-  const effective = effectivePrimaryProvider(route)
-  if (!current || !effective || current === effective) return ''
-  return `当前模型命中 ${providerLabel(effective)}，配置主后端为 ${providerLabel(current)}`
+function removeFallbackProvider(provider) {
+  const key = normalizeProviderKey(provider)
+  activeModelRoute.value.fallbacks = fallbackConfigs().filter((fallback) => normalizeProviderKey(fallback.provider) !== key)
 }
 
-function fallbackConfigs(route) {
-  return routeConfig(route).fallbacks
+function moveFallbackProvider(provider, direction) {
+  const route = activeModelRoute.value
+  const index = fallbackConfigs().findIndex((fallback) => normalizeProviderKey(fallback.provider) === normalizeProviderKey(provider))
+  const nextIndex = index + direction
+  if (index < 0 || nextIndex < 0 || nextIndex >= route.fallbacks.length) return
+  const next = [...route.fallbacks]
+  const [item] = next.splice(index, 1)
+  next.splice(nextIndex, 0, item)
+  route.fallbacks = next
 }
 
-function routeChain(route) {
-  const current = routeConfig(route)
-  const effectiveProvider = effectivePrimaryProvider(route)
+function modelRouteChain() {
+  const route = activeModelRoute.value
   return [
-    {
-      provider: effectiveProvider || current.provider,
-      label: providerLabel(effectiveProvider || current.provider),
-      type: normalizeProviderKey(current.provider) === effectiveProvider ? '主' : '模型',
-    },
-    ...fallbackConfigs(route).map((fallback, index) => ({
+    { provider: route.provider, label: providerLabel(route.provider), type: '主' },
+    ...fallbackConfigs().map((fallback, index) => ({
       provider: fallback.provider,
       label: providerLabel(fallback.provider),
       type: `备 ${index + 1}`,
@@ -256,59 +324,16 @@ function routeChain(route) {
   ].filter((item) => item.provider)
 }
 
-function isPrimaryProvider(route, provider) {
-  return normalizeProviderKey(routeConfig(route).provider) === normalizeProviderKey(provider)
+function routeEndpoint(route) {
+  return route.endpoint(Number(props.config.proxyPort) || 3000)
 }
 
-function isFallbackProviderSelected(route, provider) {
-  const key = normalizeProviderKey(provider)
-  return fallbackConfigs(route).some((fallback) => normalizeProviderKey(fallback.provider) === key)
+function setClientDefaultModel(route, model) {
+  routeConfig(route).model = model
 }
 
-function toggleFallbackProvider(route, provider) {
-  if (isPrimaryProvider(route, provider)) return
-  const current = routeConfig(route)
-  const key = normalizeProviderKey(provider)
-  if (isFallbackProviderSelected(route, provider)) {
-    current.fallbacks = current.fallbacks.filter((fallback) => normalizeProviderKey(fallback.provider) !== key)
-    return
-  }
-  current.fallbacks = [
-    ...fallbackConfigs(route),
-    { provider, credentialType: '', model: '' },
-  ]
-}
-
-function setFallbackCredential(route, provider, credentialType) {
-  const fallback = fallbackConfigs(route).find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
-  if (!fallback) return
-  fallback.credentialType = credentialType
-}
-
-function setFallbackModel(route, provider, model) {
-  const fallback = fallbackConfigs(route).find((item) => normalizeProviderKey(item.provider) === normalizeProviderKey(provider))
-  if (!fallback) return
-  fallback.model = model
-}
-
-function fallbackModelPlaceholder(route) {
-  return `继承主默认模型：${routeConfig(route).model || route.fallback.model}`
-}
-
-function removeFallbackProvider(route, provider) {
-  const key = normalizeProviderKey(provider)
-  routeConfig(route).fallbacks = fallbackConfigs(route).filter((fallback) => normalizeProviderKey(fallback.provider) !== key)
-}
-
-function moveFallbackProvider(route, provider, direction) {
-  const current = routeConfig(route)
-  const index = fallbackConfigs(route).findIndex((fallback) => normalizeProviderKey(fallback.provider) === normalizeProviderKey(provider))
-  const nextIndex = index + direction
-  if (index < 0 || nextIndex < 0 || nextIndex >= current.fallbacks.length) return
-  const next = [...current.fallbacks]
-  const [item] = next.splice(index, 1)
-  next.splice(nextIndex, 0, item)
-  current.fallbacks = next
+function isClientDefaultModelSelected(route, model) {
+  return String(routeConfig(route).model || '').trim().toLowerCase() === String(model || '').trim().toLowerCase()
 }
 </script>
 
@@ -317,7 +342,19 @@ function moveFallbackProvider(route, provider, direction) {
     <div class="settings-section-head">
       <div>
         <h3>模型路由</h3>
-        <p>先选择模型，再选择提供该模型的网关；本地网关负责转发、记录和按备用链重试。</p>
+        <p>客户端只负责发送模型名；这里配置每个模型优先使用哪个后端，以及失败后的备用顺序。</p>
+      </div>
+    </div>
+    <div class="gateway-route-model-field">
+      <span>添加自定义模型</span>
+      <div class="gateway-model-preset-list">
+        <input
+          v-model="customModelInput"
+          type="text"
+          placeholder="例如 qwen3.5、custom-model、provider/model"
+          @keydown.enter.prevent="addCustomModelRoute"
+        />
+        <button type="button" class="gateway-model-preset" @click="addCustomModelRoute">添加模型</button>
       </div>
     </div>
     <div class="gateway-quick-config">
@@ -330,17 +367,17 @@ function moveFallbackProvider(route, provider, direction) {
           @click="selectModelGroup(group)"
         >
           <strong>{{ group.label }}</strong>
-          <small>{{ modelGroupSummary(group) }}</small>
+          <small>{{ group.modelId }}</small>
         </button>
       </div>
 
       <div class="gateway-model-config-panel">
         <div class="gateway-model-config-head">
           <div>
-            <strong>{{ activeModelGroup.label || '选择模型' }}</strong>
-            <span>{{ modelGroupSummary(activeModelGroup) }}</span>
+            <strong>{{ activeModelGroup.label }}</strong>
+            <span>{{ activeModelGroup.modelId }}</span>
           </div>
-          <small>{{ activeModelGroup.providers.length }} 个可用网关</small>
+          <small>{{ activeModelGroup.providers.length }} 个可用后端</small>
         </div>
         <div class="gateway-provider-card-list">
           <button
@@ -355,9 +392,7 @@ function moveFallbackProvider(route, provider, direction) {
               <small>{{ providerNote(option.key) }}</small>
             </span>
             <span class="gateway-model-targets">
-              <small v-for="entry in modelRouteEntries(option.model)" :key="`${option.key}-${entry.key}`">
-                {{ entry.title }}
-              </small>
+              <small>模型后端</small>
             </span>
           </button>
         </div>
@@ -365,8 +400,110 @@ function moveFallbackProvider(route, provider, direction) {
     </div>
 
     <div class="gateway-advanced-head">
-      <strong>高级路由微调</strong>
-      <span>备用链、凭据类型和自定义模型</span>
+      <strong>后端顺序</strong>
+      <span>{{ activeModelGroup.modelId }}</span>
+    </div>
+    <article class="gateway-route-row">
+      <div class="gateway-route-summary">
+        <div>
+          <strong>{{ activeModelGroup.label }}</strong>
+          <small>按模型名命中</small>
+        </div>
+        <div class="gateway-route-meta">
+          <code>{{ activeModelGroup.modelId }}</code>
+          <div class="gateway-route-chain" aria-label="当前模型后端顺序">
+            <template v-for="(item, index) in modelRouteChain()" :key="`${activeModelGroup.key}-${item.type}-${item.provider}`">
+              <span v-if="index" class="gateway-route-chain-arrow">→</span>
+              <span class="gateway-route-chain-item">
+                <small>{{ item.type }}</small>
+                {{ item.label }}
+              </span>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div class="gateway-route-controls">
+        <label>
+          <span>主后端厂商</span>
+          <GeminiSelect
+            :model-value="activeModelRoute.provider"
+            :options="activeProviderOptions()"
+            :aria-label="`${activeModelGroup.label} 主后端厂商`"
+            @update:modelValue="setModelRouteProvider($event)"
+          />
+        </label>
+        <label>
+          <span>凭据类型</span>
+          <GeminiSelect
+            :model-value="activeModelRoute.credentialType || ''"
+            :options="credentialOptions(activeModelRoute.provider)"
+            :aria-label="`${activeModelGroup.label} 凭据类型`"
+            @update:modelValue="setModelRouteCredential($event)"
+          />
+        </label>
+        <div class="gateway-route-backend-field">
+          <div class="gateway-route-backend-head">
+            <span>备用后端厂商</span>
+            <small>{{ fallbackConfigs().length }} 个备用</small>
+          </div>
+          <div class="gateway-provider-chip-list">
+            <button
+              v-for="provider in activeProviderOptions()"
+              :key="provider.value"
+              type="button"
+              class="gateway-provider-chip"
+              :class="{ active: isFallbackProviderSelected(provider.value), primary: isPrimaryProvider(provider.value) }"
+              :disabled="isPrimaryProvider(provider.value)"
+              @click="toggleFallbackProvider(provider.value)"
+            >
+              <span>{{ provider.label }}</span>
+              <small v-if="isPrimaryProvider(provider.value)">主后端</small>
+            </button>
+          </div>
+          <div v-if="fallbackConfigs().length" class="gateway-fallback-list">
+            <div v-for="(fallback, index) in fallbackConfigs()" :key="fallback.provider" class="gateway-fallback-row">
+              <div class="gateway-fallback-title">
+                <strong>{{ providerLabel(fallback.provider) }}</strong>
+                <small>备用 {{ index + 1 }}</small>
+              </div>
+              <GeminiSelect
+                :model-value="fallback.credentialType || ''"
+                :options="credentialOptions(fallback.provider)"
+                :aria-label="`${activeModelGroup.label} ${providerLabel(fallback.provider)} 备用凭据类型`"
+                @update:modelValue="setFallbackCredential(fallback.provider, $event)"
+              />
+              <label class="gateway-fallback-model">
+                <span>备用模型</span>
+                <input
+                  :value="fallback.model || ''"
+                  type="text"
+                  :placeholder="fallbackModelPlaceholder()"
+                  @input="setFallbackModel(fallback.provider, $event.target.value)"
+                />
+              </label>
+              <div class="gateway-fallback-actions" aria-label="调整备用路由顺序">
+                <button type="button" :disabled="index === 0" @click="moveFallbackProvider(fallback.provider, -1)">上移</button>
+                <button type="button" :disabled="index === fallbackConfigs().length - 1" @click="moveFallbackProvider(fallback.provider, 1)">下移</button>
+                <button type="button" class="danger" @click="removeFallbackProvider(fallback.provider)">移除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="gateway-route-model-field">
+          <span>上游模型 ID</span>
+          <input
+            :value="activeModelRoute.model"
+            type="text"
+            :placeholder="activeModelGroup.modelId"
+            @input="setModelRouteModel($event.target.value)"
+          />
+        </div>
+      </div>
+    </article>
+
+    <div class="gateway-advanced-head">
+      <strong>客户端入口默认模型</strong>
+      <span>仅用于客户端未显式发送模型时的兼容默认值</span>
     </div>
     <div class="gateway-route-list">
       <article v-for="route in routeDefinitions" :key="route.key" class="gateway-route-row">
@@ -377,106 +514,28 @@ function moveFallbackProvider(route, provider, direction) {
           </div>
           <div class="gateway-route-meta">
             <code>{{ routeEndpoint(route) }}</code>
-            <div class="gateway-route-chain" aria-label="当前路由顺序">
-              <template v-for="(item, index) in routeChain(route)" :key="`${route.key}-${item.type}-${item.provider}`">
-                <span v-if="index" class="gateway-route-chain-arrow">→</span>
-                <span class="gateway-route-chain-item">
-                  <small>{{ item.type }}</small>
-                  {{ item.label }}
-                </span>
-              </template>
-            </div>
-            <small v-if="routeModelHint(route)" class="gateway-route-hint">{{ routeModelHint(route) }}</small>
           </div>
         </div>
-        <div class="gateway-route-controls">
-          <label>
-            <span>主后端厂商</span>
-            <GeminiSelect
-              :model-value="routeConfig(route).provider"
-              :options="routeProviderOptions(route)"
-              :aria-label="`${route.title} 主后端厂商`"
-              @update:modelValue="setRouteProvider(route, $event)"
-            />
-          </label>
-          <label>
-            <span>凭据类型</span>
-            <GeminiSelect
-              :model-value="routeConfig(route).credentialType || ''"
-              :options="credentialOptions(routeConfig(route).provider)"
-              :aria-label="`${route.title} 凭据类型`"
-              @update:modelValue="setRouteCredential(route, $event)"
-            />
-          </label>
-          <div class="gateway-route-backend-field">
-            <div class="gateway-route-backend-head">
-              <span>备用后端厂商</span>
-              <small>{{ fallbackConfigs(route).length }} 个备用</small>
-            </div>
-            <div class="gateway-provider-chip-list">
-              <button
-                v-for="provider in routeProviderOptions(route)"
-                :key="provider.value"
-                type="button"
-                class="gateway-provider-chip"
-                :class="{ active: isFallbackProviderSelected(route, provider.value), primary: isPrimaryProvider(route, provider.value) }"
-                :disabled="isPrimaryProvider(route, provider.value)"
-                @click="toggleFallbackProvider(route, provider.value)"
-              >
-                <span>{{ provider.label }}</span>
-                <small v-if="isPrimaryProvider(route, provider.value)">主后端</small>
-              </button>
-            </div>
-            <div v-if="fallbackConfigs(route).length" class="gateway-fallback-list">
-              <div v-for="(fallback, index) in fallbackConfigs(route)" :key="fallback.provider" class="gateway-fallback-row">
-                <div class="gateway-fallback-title">
-                  <strong>{{ providerLabel(fallback.provider) }}</strong>
-                  <small>备用 {{ index + 1 }}</small>
-                </div>
-                <GeminiSelect
-                  :model-value="fallback.credentialType || ''"
-                  :options="credentialOptions(fallback.provider)"
-                  :aria-label="`${route.title} ${providerLabel(fallback.provider)} 备用凭据类型`"
-                  @update:modelValue="setFallbackCredential(route, fallback.provider, $event)"
-                />
-                <label class="gateway-fallback-model">
-                  <span>备用模型</span>
-                  <input
-                    :value="fallback.model || ''"
-                    type="text"
-                    :placeholder="fallbackModelPlaceholder(route)"
-                    @input="setFallbackModel(route, fallback.provider, $event.target.value)"
-                  />
-                </label>
-                <div class="gateway-fallback-actions" aria-label="调整备用路由顺序">
-                  <button type="button" :disabled="index === 0" @click="moveFallbackProvider(route, fallback.provider, -1)">上移</button>
-                  <button type="button" :disabled="index === fallbackConfigs(route).length - 1" @click="moveFallbackProvider(route, fallback.provider, 1)">下移</button>
-                  <button type="button" class="danger" @click="removeFallbackProvider(route, fallback.provider)">移除</button>
-                </div>
-              </div>
-            </div>
+        <div class="gateway-route-model-field">
+          <span>默认模型</span>
+          <div class="gateway-model-preset-list">
+            <button
+              v-for="model in route.modelPresets"
+              :key="model"
+              type="button"
+              class="gateway-model-preset"
+              :class="{ active: isClientDefaultModelSelected(route, model) }"
+              @click="setClientDefaultModel(route, model)"
+            >
+              {{ model }}
+            </button>
           </div>
-          <div class="gateway-route-model-field">
-            <span>默认模型</span>
-            <div class="gateway-model-preset-list">
-              <button
-                v-for="model in route.modelPresets"
-                :key="model"
-                type="button"
-                class="gateway-model-preset"
-                :class="{ active: isRouteModelSelected(route, model) }"
-                @click="setRouteModel(route, model)"
-              >
-                {{ model }}
-              </button>
-            </div>
-            <input
-              :value="routeConfig(route).model"
-              type="text"
-              :placeholder="`自定义模型 ID，例如 ${route.fallback.model}`"
-              @input="setRouteModel(route, $event.target.value)"
-            />
-          </div>
+          <input
+            :value="routeConfig(route).model"
+            type="text"
+            :placeholder="`自定义模型 ID，例如 ${route.fallback.model}`"
+            @input="setClientDefaultModel(route, $event.target.value)"
+          />
         </div>
       </article>
     </div>

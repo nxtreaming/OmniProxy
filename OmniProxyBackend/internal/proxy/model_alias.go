@@ -16,7 +16,7 @@ func normalizeUpstreamModelID(model string) string {
 	}
 }
 
-func normalizeRequestBodyModel(body []byte) ([]byte, bool) {
+func normalizeRequestBodyModel(body []byte, routeModel string) ([]byte, bool) {
 	var payload map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
@@ -29,10 +29,14 @@ func normalizeRequestBodyModel(body []byte) ([]byte, bool) {
 		return body, false
 	}
 	normalized := normalizeUpstreamModelID(model)
-	if normalized == "" || normalized == strings.TrimSpace(model) {
+	target := strings.TrimSpace(routeModel)
+	if target == "" {
+		target = normalized
+	}
+	if target == "" || target == strings.TrimSpace(model) {
 		return body, false
 	}
-	payload["model"] = normalized
+	payload["model"] = target
 	updated, err := json.Marshal(payload)
 	if err != nil {
 		return body, false

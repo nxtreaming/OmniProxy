@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { configPayload, gatewayRoutesPayload } from './appConfigActions.js'
+import { configPayload, gatewayRoutesPayload, modelRoutesPayload } from './appConfigActions.js'
 
 test('gatewayRoutesPayload preserves ordered fallback route settings', () => {
   const payload = gatewayRoutesPayload({
@@ -60,6 +60,29 @@ test('gatewayRoutesPayload skips malformed fallback entries', () => {
   assert.deepEqual(payload.openai.fallbacks, [
     { provider: 'kimi', credentialType: 'api_key', model: 'kimi-for-coding' },
   ])
+})
+
+test('modelRoutesPayload preserves ordered backend route settings', () => {
+  const payload = modelRoutesPayload({
+    ' deepseek-v4-pro ': {
+      provider: ' deepseek ',
+      model: ' deepseek-v4-pro ',
+      fallbacks: [
+        { provider: ' prem ', credentialType: ' api_key ', model: ' deepseek-v4-pro ' },
+      ],
+    },
+  })
+
+  assert.deepEqual(payload, {
+    'deepseek-v4-pro': {
+      provider: 'deepseek',
+      credentialType: '',
+      model: 'deepseek-v4-pro',
+      fallbacks: [
+        { provider: 'prem', credentialType: 'api_key', model: 'deepseek-v4-pro' },
+      ],
+    },
+  })
 })
 
 test('configPayload preserves all top-level backend config fields', () => {

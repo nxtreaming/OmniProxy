@@ -58,8 +58,8 @@ export function ConfigureClaudeModels(arg1) {
   return window['go']['main']['DesktopApp']['ConfigureClaudeModels'](arg1);
 }
 
-export function ConfigureCodex() {
-  return window['go']['main']['DesktopApp']['ConfigureCodex']();
+export function ConfigureCodex(arg1) {
+  return window['go']['main']['DesktopApp']['ConfigureCodex'](arg1);
 }
 
 export function ConfigureDeepSeekTUI() {

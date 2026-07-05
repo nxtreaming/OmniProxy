@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 )
 
@@ -11,7 +12,13 @@ func (a *appServer) handleCodexConfigure(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	result, err := a.configureCodex()
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	var req codexConfigureRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	result, err := a.configureCodex(req)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

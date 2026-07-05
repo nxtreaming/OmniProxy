@@ -214,3 +214,41 @@ func TestNormalizeGatewayRouteFallbacksDropsNestedAndDuplicateEntries(t *testing
 		t.Fatalf("unexpected second fallback: %#v", fallbacks[1])
 	}
 }
+
+func TestNormalizeModelRoutesPreservesBackendOrder(t *testing.T) {
+	cfg := Normalize(Config{
+		ModelRoutes: ModelRoutes{
+			" deepseek-v4-pro[1m] ": GatewayRouteConfig{
+				Provider: " DeepSeek ",
+				Fallbacks: []GatewayRouteConfig{
+					{Provider: token.ProviderPrem, CredentialType: token.CredentialTypeAPIKey},
+					{Provider: token.ProviderDeepSeek},
+				},
+			},
+		},
+	})
+
+	route := cfg.ModelRoutes["deepseek-v4-pro"]
+	if route.Provider != token.ProviderDeepSeek || route.Model != "deepseek-v4-pro" {
+		t.Fatalf("unexpected model route primary: %#v", route)
+	}
+	if len(route.Fallbacks) != 1 || route.Fallbacks[0].Provider != token.ProviderPrem || route.Fallbacks[0].Model != "deepseek-v4-pro" {
+		t.Fatalf("unexpected model route fallbacks: %#v", route.Fallbacks)
+	}
+}
+
+func TestNormalizeModelRoutesAllowsDifferentUpstreamModel(t *testing.T) {
+	cfg := Normalize(Config{
+		ModelRoutes: ModelRoutes{
+			"custom-client-model": GatewayRouteConfig{
+				Provider: token.ProviderPrem,
+				Model:    "prem-upstream-model",
+			},
+		},
+	})
+
+	route := cfg.ModelRoutes["custom-client-model"]
+	if route.Provider != token.ProviderPrem || route.Model != "prem-upstream-model" {
+		t.Fatalf("expected model route to preserve upstream model override, got %#v", route)
+	}
+}

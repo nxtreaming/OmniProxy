@@ -427,7 +427,7 @@ func (s *Service) forward(ctx context.Context, original *http.Request, route rou
 	if updatedBody, changed := normalizeSub2APIRequestBody(original.URL.Path, route, body); changed {
 		body = updatedBody
 	}
-	if updatedBody, changed := normalizeRequestBodyModel(body); changed {
+	if updatedBody, changed := normalizeRequestBodyModel(body, route.Model); changed {
 		body = updatedBody
 	}
 

@@ -4,6 +4,10 @@ import { MagicStick, Monitor, RefreshRight } from '@element-plus/icons-vue'
 
 const props = defineProps({
   config: { type: Object, required: true },
+  codexModelOptions: { type: Array, required: true },
+  selectedCodexModel: { type: String, required: true },
+  selectedCodexModelLabel: { type: String, required: true },
+  canConfigureCodexModel: { type: Boolean, required: true },
   claudeModelOptions: { type: Array, required: true },
   claudeModelSelectionLimit: { type: Number, required: true },
   selectedClaudeModels: { type: Array, required: true },
@@ -27,6 +31,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
+  'update:selectedCodexModel',
   'update:selectedClaudeModels',
   'configure-codex',
   'restore-codex',
@@ -49,7 +54,12 @@ const selectedModels = computed({
   set: (value) => emit('update:selectedClaudeModels', value),
 })
 
-const codexRouteModel = computed(() => props.config.gatewayRoutes?.codex?.model || 'gpt-5.4')
+const selectedCodex = computed({
+  get: () => props.selectedCodexModel,
+  set: (value) => emit('update:selectedCodexModel', value),
+})
+
+const codexRouteModel = computed(() => props.selectedCodexModel || props.config.gatewayRoutes?.codex?.model || 'gpt-5.4')
 const claudeRouteModel = computed(() => props.config.gatewayRoutes?.claude?.model || 'claude-sonnet-4-5-20250929')
 const openAIRouteModel = computed(() => props.config.gatewayRoutes?.openai?.model || 'gpt-5.4')
 const geminiRouteModel = computed(() => props.config.gatewayRoutes?.gemini?.model || 'gemini-3-pro-preview')
@@ -60,12 +70,39 @@ const geminiRouteModel = computed(() => props.config.gatewayRoutes?.gemini?.mode
     <div class="help-grid">
       <article class="wide-help">
         <strong>Codex</strong>
-        <p>本地 Codex 只写入 OmniProxy 网关地址；后端厂商、凭据和默认模型在「网关路由」页面切换。</p>
+        <p>本地 Codex 写入 OmniProxy 网关地址和默认模型；该模型使用哪个后端、按什么顺序备用，在「网关路由」页面配置。</p>
         <pre class="help-code"><code>Base URL: http://127.0.0.1:{{ config.proxyPort }}/codex/v1
 Protocol: OpenAI Responses
 默认模型: {{ codexRouteModel }}</code></pre>
+        <div class="claude-model-config">
+          <div class="claude-model-config-head">
+            <span>Codex 默认模型</span>
+            <small>{{ selectedCodexModelLabel }}</small>
+          </div>
+          <div class="claude-model-picker" role="radiogroup" aria-label="Codex 默认模型">
+            <label
+              v-for="option in codexModelOptions"
+              :key="option.id"
+              :class="['claude-model-choice', { selected: selectedCodex === option.id }]"
+            >
+              <input v-model="selectedCodex" type="radio" :value="option.id" />
+              <span>
+                <strong>{{ option.label }}</strong>
+                <small>{{ option.description }}</small>
+              </span>
+            </label>
+          </div>
+          <label class="gateway-route-model-field">
+            <span>自定义模型 ID</span>
+            <input
+              v-model="selectedCodex"
+              type="text"
+              placeholder="例如 qwen3.5、custom-model、provider/model"
+            />
+          </label>
+        </div>
         <div class="help-actions">
-          <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" @click="$emit('configure-codex')">
+          <el-button type="primary" :icon="MagicStick" :loading="codexConfiguring" :disabled="!canConfigureCodexModel" @click="$emit('configure-codex')">
             {{ codexConfiguring ? '配置中' : '配置 Codex 网关' }}
           </el-button>
           <el-button :icon="RefreshRight" :loading="codexRestoring" @click="$emit('restore-codex')">

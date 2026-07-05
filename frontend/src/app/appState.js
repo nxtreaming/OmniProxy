@@ -187,11 +187,13 @@ export function createAppState() {
         openai: { provider: 'openai', credentialType: 'api_key', model: 'gpt-5.4' },
         gemini: { provider: 'gemini', credentialType: 'api_key', model: 'gemini-3-pro-preview' },
       },
+      modelRoutes: {},
       codexUsageEndpoint: 'https://chatgpt.com/backend-api/wham/usage',
       switchThreshold: 15,
       maxRetries: 2,
       historyRetentionDays: 14,
     }),
+    selectedCodexModel: ref('gpt-5.4'),
     dataDirectory: reactive({
       dataDir: '',
       bootstrapPath: '',

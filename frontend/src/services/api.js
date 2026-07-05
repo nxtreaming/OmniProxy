@@ -493,8 +493,11 @@ export function setAutoStart(enabled) {
     : Promise.resolve({ enabled: false })
 }
 
-export function configureCodex() {
-  return useWailsBindings() ? DesktopApp.ConfigureCodex() : request('/codex/configure', { method: 'POST' })
+export function configureCodex(model) {
+  const payload = { model: String(model || '').trim() }
+  return useWailsBindings()
+    ? DesktopApp.ConfigureCodex(payload)
+    : request('/codex/configure', { method: 'POST', body: JSON.stringify(payload) })
 }
 
 export function restoreCodex() {

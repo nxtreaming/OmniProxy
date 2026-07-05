@@ -126,6 +126,7 @@ func Normalize(cfg Config) Config {
 		cfg.CodexBaseURL = defaults.CodexBaseURL
 	}
 	cfg.GatewayRoutes = normalizeGatewayRoutes(cfg.GatewayRoutes, defaults.GatewayRoutes)
+	cfg.ModelRoutes = normalizeModelRoutes(cfg.ModelRoutes)
 	if cfg.XiaomiAPIBaseURL == "" {
 		if cfg.XiaomiBaseURL != "" {
 			cfg.XiaomiAPIBaseURL = cfg.XiaomiBaseURL

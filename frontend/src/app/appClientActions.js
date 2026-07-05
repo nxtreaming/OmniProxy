@@ -33,6 +33,7 @@ export function createAppClientActions(state, dataActions) {
     opencodeRestoring,
     piConfiguring,
     piRestoring,
+    selectedCodexModel,
     selectedClaudeModels,
     successMessage,
   } = state
@@ -44,6 +45,19 @@ function isClaudeModelOptionDisabled(modelId) {
 
 function selectedClaudeModelIds() {
   return selectedClaudeModels.value.map((model) => String(model || '').trim()).filter(Boolean)
+}
+
+function selectedCodexModelId() {
+  return String(selectedCodexModel.value || '').trim()
+}
+
+function validateSelectedCodexModel() {
+  const model = selectedCodexModelId()
+  if (!model) {
+    errorMessage.value = '请选择一个 Codex 默认模型'
+    return ''
+  }
+  return model
 }
 
 function validateSelectedClaudeModels() {
@@ -62,9 +76,11 @@ function validateSelectedClaudeModels() {
 async function configureLocalCodex() {
   errorMessage.value = ''
   successMessage.value = ''
+  const model = validateSelectedCodexModel()
+  if (!model) return
   codexConfiguring.value = true
   try {
-    const result = await configureCodex()
+    const result = await configureCodex(model)
     await refreshAll()
     successMessage.value = result.message || 'Codex 已配置为使用 OmniProxy'
   } catch (error) {
@@ -262,7 +278,9 @@ async function restoreLocalClaude() {
 
   return {
     isClaudeModelOptionDisabled,
+    selectedCodexModelId,
     selectedClaudeModelIds,
+    validateSelectedCodexModel,
     validateSelectedClaudeModels,
     configureLocalCodex,
     restoreLocalCodex,

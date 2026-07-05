@@ -6,7 +6,7 @@ import AppWorkspaceToasts from './AppWorkspaceToasts.vue'
 import DiagnosticDrawer from '../DiagnosticDrawer.vue'
 import appIconUrl from '../../assets/appicon.png'
 import { providers } from '../../constants/app'
-import { claudeModelOptions, claudeModelSelectionLimit } from '../../constants/claudeModels'
+import { claudeModelOptions, claudeModelSelectionLimit, codexModelOptions } from '../../constants/claudeModels'
 import { formatDuration, formatNumber, formatTime } from '../../utils/format'
 import {
   apiQuotaDisplay,
@@ -45,7 +45,7 @@ const TokensView = defineAsyncComponent(() => import('../../features/tokens/Toke
 const {
   activeProvider, activeProviderAPIBalanceSummaries, activeProviderEnabledCount, activeProviderInfo, activeProviderTokens, activeRequests, activeTab, activeTokenIds,
   activeTokens, afterPageEnter, apiOverviewPageCount, apiOverviewTokens, apiQuotaPage, apiQuotaPageText, appInfo, appThemeLabel,
-  autoStartChanging, autoStartEnabled, batchImportForm, batchImportPlaceholder, batchImporting, billingDates, billingUsage, canConfigureClaudeModels,
+  autoStartChanging, autoStartEnabled, batchImportForm, batchImportPlaceholder, batchImporting, billingDates, billingUsage, canConfigureClaudeModels, canConfigureCodexModel,
   changeBillingDate, changeQuotaOverviewPage, chooseDataDirectory, claudeCliRestoring, claudeDesktopConfiguring, claudeDesktopRestoring, claudeModelsConfiguring,
   clearBillingUsageData, clearRequestHistoryData, clearingBillingUsage, clearingRequestHistory, clientToolLabel, closeBatchImport, closeDeleteConfirm, closeFirstUseGuide,
   closeForm, closeHistoryDiagnosis, closeTitlebarUpdatePopover, closeWindow, codexAuthImporting, codexConfiguring, codexRestoring, config,
@@ -64,7 +64,7 @@ const {
   refreshProviderQuotas, refreshQuota, refreshRealtime, refreshingProvider, refreshingTokenIds, refreshTaskAutomationBrowserProfiles, refreshUpdateDiagnostics, removeToken, requestHistory,
   requestHistorySummary, requestTrendWidth, restoreActiveWorkspaceScroll, restoreLocalClaude, restoreLocalClaudeDesktop, restoreLocalCodex, restoreLocalDeepSeekTUI,
   restoreLocalGemini, restoreLocalOpenCode, restoreLocalPi, runFirstUseGuideAction, selectOpenRouterChatModel, selectProvider, selectTab, selectedBillingDate,
-  selectedClaudeModelLabels, selectedClaudeModels, selectedHistoryEntry, selectedOpenRouterChatModel, skipCurrentUpdate, snoozeTitlebarUpdate, startUpdateDownload, startWindowResize, submitBatchImport,
+  selectedClaudeModelLabels, selectedClaudeModels, selectedCodexModel, selectedCodexModelLabel, selectedHistoryEntry, selectedOpenRouterChatModel, skipCurrentUpdate, snoozeTitlebarUpdate, startUpdateDownload, startWindowResize, submitBatchImport,
   submitForm, subscriptionOverviewPageCount, subscriptionOverviewTokens, subscriptionQuotaPage, subscriptionQuotaPageText, successMessage, switchingOnlyTokenIds,
   tabIcons, taskAutomationBrowserProfiles, taskAutomationBrowserProfilesError, taskAutomationBrowserProfilesLoading, titlebarUpdatePopoverOpen, titlebarUpdatePrompt,
   titlebarUpdateVisible, todayProxyRequests, todayProxyTokens, toggleAppTheme, toggleAutoStart, toggleProxy, toggleTitlebarUpdatePopover,
@@ -411,8 +411,12 @@ const {
       <QuickstartView
         v-else-if="activeTab === 'quickstart'"
         key="quickstart"
+        v-model:selected-codex-model="selectedCodexModel"
         v-model:selected-claude-models="selectedClaudeModels"
         :config="config"
+        :codex-model-options="codexModelOptions"
+        :selected-codex-model-label="selectedCodexModelLabel"
+        :can-configure-codex-model="canConfigureCodexModel"
         :claude-model-options="claudeModelOptions"
         :claude-model-selection-limit="claudeModelSelectionLimit"
         :selected-claude-model-labels="selectedClaudeModelLabels"

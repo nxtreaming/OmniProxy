@@ -84,6 +84,7 @@ func (s *Store) Load() (Config, error) {
 		XiaomiCredentialPriority           *string        `json:"xiaomiCredentialPriority"`
 		CodexBaseURL                       *string        `json:"codexBaseUrl"`
 		GatewayRoutes                      *GatewayRoutes `json:"gatewayRoutes"`
+		ModelRoutes                        *ModelRoutes   `json:"modelRoutes"`
 		SwitchThreshold                    *int           `json:"switchThreshold"`
 		MaxRetries                         *int           `json:"maxRetries"`
 		HistoryRetentionDays               *int           `json:"historyRetentionDays"`
@@ -255,6 +256,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.GatewayRoutes != nil {
 		cfg.GatewayRoutes = *saved.GatewayRoutes
+	}
+	if saved.ModelRoutes != nil {
+		cfg.ModelRoutes = *saved.ModelRoutes
 	}
 	if saved.SwitchThreshold != nil && *saved.SwitchThreshold > 0 {
 		cfg.SwitchThreshold = *saved.SwitchThreshold

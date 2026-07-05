@@ -14,6 +14,36 @@ func normalizeGatewayRoutes(routes GatewayRoutes, defaults GatewayRoutes) Gatewa
 	}
 }
 
+func normalizeModelRoutes(routes ModelRoutes) ModelRoutes {
+	if len(routes) == 0 {
+		return nil
+	}
+	allowed := gatewayModelRouteProviders()
+	out := ModelRoutes{}
+	for rawModel, route := range routes {
+		clientModel := normalizeGatewayRouteModel(rawModel)
+		if clientModel == "" {
+			clientModel = normalizeGatewayRouteModel(route.Model)
+		}
+		if clientModel == "" {
+			continue
+		}
+		normalized := normalizeGatewayRouteTarget(route, GatewayRouteConfig{Model: clientModel}, allowed, false)
+		if normalized.Provider == "" {
+			continue
+		}
+		if normalized.Model == "" {
+			normalized.Model = clientModel
+		}
+		normalized.Fallbacks = normalizeGatewayRouteFallbacks(route.Fallbacks, normalized, allowed)
+		out[modelRouteKey(clientModel)] = normalized
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func normalizeGatewayRoute(route GatewayRouteConfig, defaults GatewayRouteConfig, allowed map[string]bool) GatewayRouteConfig {
 	normalized := normalizeGatewayRouteTarget(route, defaults, allowed, true)
 	normalized.Fallbacks = normalizeGatewayRouteFallbacks(route.Fallbacks, normalized, allowed)
@@ -94,6 +124,10 @@ func gatewayRouteTargetKey(route GatewayRouteConfig) string {
 	return strings.ToLower(strings.TrimSpace(route.Provider)) + "\x00" + strings.ToLower(strings.TrimSpace(route.CredentialType))
 }
 
+func modelRouteKey(model string) string {
+	return strings.ToLower(strings.TrimSpace(normalizeGatewayRouteModel(model)))
+}
+
 func gatewayCodexProviders() map[string]bool {
 	return gatewayProviderSet(
 		token.ProviderOpenAI,
@@ -139,6 +173,27 @@ func gatewayGeminiProviders() map[string]bool {
 		token.ProviderGemini,
 		token.ProviderSub2API,
 		token.ProviderNewAPI,
+	)
+}
+
+func gatewayModelRouteProviders() map[string]bool {
+	return gatewayProviderSet(
+		token.ProviderOpenAI,
+		token.ProviderAnthropic,
+		token.ProviderDeepSeek,
+		token.ProviderKimi,
+		token.ProviderXiaomi,
+		token.ProviderZhipu,
+		token.ProviderMiniMax,
+		token.ProviderGemini,
+		token.ProviderOpenRouter,
+		token.ProviderTokenRouter,
+		token.ProviderSub2API,
+		token.ProviderNewAPI,
+		token.ProviderAnyRouter,
+		token.ProviderZo,
+		token.ProviderPrem,
+		token.ProviderCustom,
 	)
 }
 

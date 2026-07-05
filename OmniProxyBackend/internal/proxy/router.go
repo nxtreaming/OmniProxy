@@ -113,13 +113,36 @@ func (r Router) gatewayRoute(name string, requestModel string) config.GatewayRou
 	default:
 		route = routes.OpenAI
 	}
-	if model := strings.TrimSpace(requestModel); model != "" {
-		route.Model = normalizeUpstreamModelID(model)
+	model := strings.TrimSpace(requestModel)
+	if model == "" {
+		model = route.Model
+	}
+	if model = normalizeUpstreamModelID(model); model != "" {
+		if modelRoute, ok := r.modelRoute(model); ok {
+			return modelRoute
+		}
+		route.Model = model
 		for i := range route.Fallbacks {
 			route.Fallbacks[i].Model = route.Model
 		}
 	}
 	return inferGatewayRouteProvider(name, route)
+}
+
+func (r Router) modelRoute(model string) (config.GatewayRouteConfig, bool) {
+	routes := config.Normalize(r.cfg).ModelRoutes
+	if len(routes) == 0 {
+		return config.GatewayRouteConfig{}, false
+	}
+	route, ok := routes[modelRouteKey(model)]
+	if !ok {
+		return config.GatewayRouteConfig{}, false
+	}
+	return route, true
+}
+
+func modelRouteKey(model string) string {
+	return strings.ToLower(strings.TrimSpace(normalizeUpstreamModelID(model)))
 }
 
 func inferGatewayRouteProvider(name string, route config.GatewayRouteConfig) config.GatewayRouteConfig {

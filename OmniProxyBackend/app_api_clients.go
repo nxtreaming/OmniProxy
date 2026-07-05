@@ -2,8 +2,8 @@ package main
 
 import "omniproxy/internal/taskautomation"
 
-func (a *DesktopApp) ConfigureCodex() (codexConfigureResult, error) {
-	return a.server.configureCodex()
+func (a *DesktopApp) ConfigureCodex(req codexConfigureRequest) (codexConfigureResult, error) {
+	return a.server.configureCodex(req)
 }
 
 func (a *DesktopApp) RestoreCodex() (codexConfigureResult, error) {

@@ -34,7 +34,7 @@ export function ConfigureClaudeDesktopModels(arg1:main.claudeModelsConfigureRequ
 
 export function ConfigureClaudeModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
 
-export function ConfigureCodex():Promise<main.codexConfigureResult>;
+export function ConfigureCodex(arg1:main.codexConfigureRequest):Promise<main.codexConfigureResult>;
 
 export function ConfigureDeepSeekTUI():Promise<main.clientConfigureResult>;
 

@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { providers, tabs } from '../constants/app'
-import { claudeModelOptions, claudeModelSelectionLimit } from '../constants/claudeModels'
+import { claudeModelOptions, claudeModelSelectionLimit, codexModelOptions } from '../constants/claudeModels'
 import { formatNumber, localDateKey } from '../utils/format'
 import { aggregateAPIBalanceSummaries } from '../utils/quota'
 import { isCooling, normalizeBillingDailyRows, showQuotaWindows } from '../utils/tokenDisplay'
@@ -9,6 +9,10 @@ const quotaOverviewPageSize = 4
 
 export function claudeModelLabel(modelId) {
   return claudeModelOptions.find((option) => option.id === modelId)?.label || modelId
+}
+
+export function codexModelLabel(modelId) {
+  return codexModelOptions.find((option) => option.id === modelId)?.label || modelId
 }
 
 export function createAppDerivedState(state, tokenHelpers) {
@@ -39,6 +43,8 @@ export function createAppDerivedState(state, tokenHelpers) {
   const selectedClaudeModelLabels = computed(() =>
     state.selectedClaudeModels.value.map((model) => claudeModelLabel(model)).filter(Boolean),
   )
+  const selectedCodexModelLabel = computed(() => codexModelLabel(state.selectedCodexModel.value))
+  const canConfigureCodexModel = computed(() => String(state.selectedCodexModel.value || '').trim() !== '')
   const canConfigureClaudeModels = computed(
     () => state.selectedClaudeModels.value.length > 0 && state.selectedClaudeModels.value.length <= claudeModelSelectionLimit,
   )
@@ -206,6 +212,8 @@ export function createAppDerivedState(state, tokenHelpers) {
     proxyEndpoint,
     appThemeLabel,
     selectedClaudeModelLabels,
+    selectedCodexModelLabel,
+    canConfigureCodexModel,
     canConfigureClaudeModels,
     currentFirstUseGuideStep,
     isMacOSPlatform,

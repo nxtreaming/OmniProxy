@@ -10,6 +10,15 @@ export function gatewayRoutesPayload(routes) {
   }
 }
 
+export function modelRoutesPayload(routes) {
+  const source = routes && typeof routes === 'object' ? routes : {}
+  return Object.fromEntries(
+    Object.entries(source)
+      .map(([model, route]) => [String(model || '').trim(), gatewayRoutePayload(route)])
+      .filter(([model, route]) => model && route.provider),
+  )
+}
+
 export function gatewayRoutePayload(route) {
   const source = route && typeof route === 'object' ? route : {}
   return {
@@ -92,6 +101,7 @@ export function configPayload(config) {
     xiaomiCredentialPriority: source.xiaomiCredentialPriority,
     codexBaseUrl: trimText(source.codexBaseUrl),
     gatewayRoutes: gatewayRoutesPayload(source.gatewayRoutes),
+    modelRoutes: modelRoutesPayload(source.modelRoutes),
     codexUsageEndpoint: trimText(source.codexUsageEndpoint),
     switchThreshold: Number(source.switchThreshold),
     maxRetries: Number(source.maxRetries),
