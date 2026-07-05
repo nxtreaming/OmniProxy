@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"omniproxy/internal/config"
@@ -280,8 +279,12 @@ func TestTokenSelectedEndpointSupportsProviderSelectionSet(t *testing.T) {
 	if acquired.ID != second.ID {
 		t.Fatalf("expected selected backup account, got %s", acquired.Name)
 	}
-	if _, err := manager.Acquire(token.ProviderOpenAI, map[string]bool{first.ID: true, second.ID: true}); !errors.Is(err, token.ErrNoActiveToken) {
-		t.Fatalf("expected selected set not to fall back to %s, got %v", third.Name, err)
+	acquired, err = manager.Acquire(token.ProviderOpenAI, map[string]bool{first.ID: true, second.ID: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acquired.ID != third.ID {
+		t.Fatalf("expected active unselected account to protect against unavailable selected set, got %s", acquired.Name)
 	}
 
 	req := httptest.NewRequest(http.MethodPut, "/api/tokens/"+first.ID+"/selected", strings.NewReader(`{"selected":false}`))

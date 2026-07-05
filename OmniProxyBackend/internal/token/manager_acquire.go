@@ -26,8 +26,18 @@ func (m *Manager) AcquireBalancedMatching(provider string, credentialType string
 	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
 	}
+	if hasSelection {
+		if token, ok := m.bestBalancedLocked(provider, credentialType, StatusActive, excluded, nil, false); ok {
+			return m.reserveLocked(token), nil
+		}
+	}
 	if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
+	}
+	if hasSelection {
+		if token, ok := m.bestBalancedLocked(provider, credentialType, StatusLow, excluded, nil, false); ok {
+			return m.reserveLocked(token), nil
+		}
 	}
 
 	return Token{}, ErrNoActiveToken
@@ -50,15 +60,37 @@ func (m *Manager) AcquirePreferredMatching(provider string, credentialType strin
 		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusActive, excluded, preferred, selectedIDs, hasSelection); ok {
 			return m.reserveLocked(token), nil
 		}
-		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusLow, excluded, preferred, selectedIDs, hasSelection); ok {
-			return m.reserveLocked(token), nil
+		if hasSelection {
+			if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusActive, excluded, preferred, nil, false); ok {
+				return m.reserveLocked(token), nil
+			}
 		}
 	}
 	if token, ok := m.firstUsableLocked(provider, credentialType, StatusActive, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
 	}
+	if hasSelection {
+		if token, ok := m.firstUsableLocked(provider, credentialType, StatusActive, excluded, nil, false); ok {
+			return m.reserveLocked(token), nil
+		}
+	}
+	if preferred != nil {
+		if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusLow, excluded, preferred, selectedIDs, hasSelection); ok {
+			return m.reserveLocked(token), nil
+		}
+		if hasSelection {
+			if token, ok := m.firstUsablePreferredLocked(provider, credentialType, StatusLow, excluded, preferred, nil, false); ok {
+				return m.reserveLocked(token), nil
+			}
+		}
+	}
 	if token, ok := m.firstUsableLocked(provider, credentialType, StatusLow, excluded, selectedIDs, hasSelection); ok {
 		return m.reserveLocked(token), nil
+	}
+	if hasSelection {
+		if token, ok := m.firstUsableLocked(provider, credentialType, StatusLow, excluded, nil, false); ok {
+			return m.reserveLocked(token), nil
+		}
 	}
 
 	return Token{}, ErrNoActiveToken

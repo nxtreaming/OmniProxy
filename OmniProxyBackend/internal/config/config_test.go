@@ -142,8 +142,8 @@ func TestStoreLoadLegacyGatewayRoutesWithoutFallbacks(t *testing.T) {
 	if cfg.GatewayRoutes.OpenAI.Provider != token.ProviderDeepSeek || cfg.GatewayRoutes.OpenAI.CredentialType != "" {
 		t.Fatalf("expected legacy OpenAI route to normalize to DeepSeek without forced credential, got %#v", cfg.GatewayRoutes.OpenAI)
 	}
-	if cfg.GatewayRoutes.OpenAI.Model != "deepseek-v4-pro[1m]" {
-		t.Fatalf("expected legacy route model to be preserved, got %q", cfg.GatewayRoutes.OpenAI.Model)
+	if cfg.GatewayRoutes.OpenAI.Model != "deepseek-v4-pro" {
+		t.Fatalf("expected legacy route model to normalize to current DeepSeek model, got %q", cfg.GatewayRoutes.OpenAI.Model)
 	}
 	if cfg.GatewayRoutes.OpenAI.Fallbacks != nil {
 		t.Fatalf("expected omitted legacy fallbacks to stay empty, got %#v", cfg.GatewayRoutes.OpenAI.Fallbacks)

@@ -301,9 +301,9 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
         ? updatedTokens.filter((item) => item.provider === token.provider && item.selected).length
         : providerSelectedTokens(token.provider).length
       if (nextSelected) {
-        state.successMessage.value = `已选择 ${tokenHelpers.providerLabel(token.provider)} 账号：${token.name}`
+        state.successMessage.value = `已选择 ${tokenHelpers.providerLabel(token.provider)} 账号：${token.name}，低额度时会切到其他可用账号`
       } else if (selectedCount > 0) {
-        state.successMessage.value = `已取消选择 ${token.name}，${tokenHelpers.providerLabel(token.provider)} 仍仅使用已选账号`
+        state.successMessage.value = `已取消选择 ${token.name}，${tokenHelpers.providerLabel(token.provider)} 会优先使用仍已选账号`
       } else {
         state.successMessage.value = `已恢复 ${tokenHelpers.providerLabel(token.provider)} 默认轮换`
       }

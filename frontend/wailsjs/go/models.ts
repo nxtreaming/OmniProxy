@@ -49,9 +49,9 @@ export namespace main {
   export import tokenStatsResponse = mainModels.tokenStatsResponse
   export import usageResponse = mainModels.usageResponse
   export import tokenResponse = mainModels.tokenResponse
+  export import updateDownloadStatus = mainModels.updateDownloadStatus
   export import updateDiagnostics = mainModels.updateDiagnostics
   export import updateDownloadRequest = mainModels.updateDownloadRequest
-  export import updateDownloadStatus = mainModels.updateDownloadStatus
   export import updateInfo = mainModels.updateInfo
   export import validationResponse = mainModels.validationResponse
 }

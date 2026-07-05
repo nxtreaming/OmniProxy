@@ -111,6 +111,117 @@ func TestManagerAcquireBalancedPrefersHigherRemainingQuota(t *testing.T) {
 	}
 }
 
+func TestManagerAcquireSkipsSelectedLowTokenWhenActiveTokenExists(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active, err := manager.Add(UpsertRequest{Name: "active", Provider: ProviderOpenAI, TokenValue: "sk-active-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	low, err := manager.Add(UpsertRequest{Name: "low-selected", Provider: ProviderOpenAI, TokenValue: "sk-low-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(low.ID, 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSelected(low.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := manager.Acquire(ProviderOpenAI, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != active.ID {
+		t.Fatalf("expected active token before selected low token, got %s", selected.Name)
+	}
+	manager.Release(selected.ID)
+
+	if err := manager.RecordUsage(active.ID, 4); err != nil {
+		t.Fatal(err)
+	}
+	selected, err = manager.Acquire(ProviderOpenAI, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != low.ID {
+		t.Fatalf("expected selected low token when every token is low, got %s", selected.Name)
+	}
+}
+
+func TestManagerAcquireBalancedSkipsSelectedLowTokenWhenActiveTokenExists(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active, err := manager.Add(UpsertRequest{Name: "active", Provider: ProviderOpenAI, TokenValue: "sk-active-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	low, err := manager.Add(UpsertRequest{Name: "low-selected", Provider: ProviderOpenAI, TokenValue: "sk-low-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(low.ID, 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.SetSelected(low.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := manager.AcquireBalancedMatching(ProviderOpenAI, CredentialTypeAPIKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != active.ID {
+		t.Fatalf("expected active token before selected low token in balanced mode, got %s", selected.Name)
+	}
+}
+
+func TestManagerAcquirePreferredSkipsPreferredLowTokenWhenActiveTokenExists(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active, err := manager.Add(UpsertRequest{
+		Name:           "paygo",
+		Provider:       ProviderXiaomi,
+		CredentialType: CredentialTypeAPIKey,
+		TokenValue:     "sk-paygo-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preferredLow, err := manager.Add(UpsertRequest{
+		Name:           "token-plan",
+		Provider:       ProviderXiaomi,
+		CredentialType: CredentialTypeMimoTokenPlan,
+		TokenValue:     "tp-token-plan-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(preferredLow.ID, 5); err != nil {
+		t.Fatal(err)
+	}
+
+	selected, err := manager.AcquirePreferredMatching(ProviderXiaomi, "", nil, func(item Token) bool {
+		return item.CredentialType == CredentialTypeMimoTokenPlan
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != active.ID {
+		t.Fatalf("expected active non-preferred token before preferred low token, got %s", selected.Name)
+	}
+}
+
 func TestManagerAllowsSameNameAcrossProviders(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {

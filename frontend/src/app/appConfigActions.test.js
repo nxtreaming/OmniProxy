@@ -1,7 +1,8 @@
 import { strict as assert } from 'node:assert'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { gatewayRoutesPayload } from './appConfigActions.js'
+import { configPayload, gatewayRoutesPayload } from './appConfigActions.js'
 
 test('gatewayRoutesPayload preserves ordered fallback route settings', () => {
   const payload = gatewayRoutesPayload({
@@ -60,3 +61,31 @@ test('gatewayRoutesPayload skips malformed fallback entries', () => {
     { provider: 'kimi', credentialType: 'api_key', model: 'kimi-for-coding' },
   ])
 })
+
+test('configPayload preserves all top-level backend config fields', () => {
+  const backendFields = topLevelBackendConfigFields()
+  const payloadFields = Object.keys(configPayload({}))
+
+  assert.deepEqual(payloadFields.toSorted(), backendFields.toSorted())
+})
+
+test('configPayload trims third-party URLs and preserves Prem autostart toggle', () => {
+  const payload = configPayload({
+    anyrouterBaseUrl: ' https://anyrouter.example ',
+    premBaseUrl: ' http://127.0.0.1:3101 ',
+    premAutoStartPcciProxy: false,
+  })
+
+  assert.equal(payload.anyrouterBaseUrl, 'https://anyrouter.example')
+  assert.equal(payload.premBaseUrl, 'http://127.0.0.1:3101')
+  assert.equal(payload.premAutoStartPcciProxy, false)
+})
+
+function topLevelBackendConfigFields() {
+  const source = readFileSync(new URL('../../../OmniProxyBackend/internal/config/config.go', import.meta.url), 'utf8')
+  const match = source.match(/type Config struct \{([\s\S]*?)\n\}/)
+  assert.ok(match, 'backend Config struct should be readable')
+  return [...match[1].matchAll(/`json:"([^"]+)"/g)]
+    .map((item) => item[1].split(',')[0])
+    .filter(Boolean)
+}

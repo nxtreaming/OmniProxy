@@ -197,7 +197,7 @@ Default data directories:
 
 ## Control API
 
-The desktop frontend prefers Wails bindings. The HTTP control API remains available for local scripts and debugging tools. Except for `GET /api/control-token`, endpoints require `X-OmniProxy-Control-Token`; `Authorization: Bearer <token>` is also accepted.
+The desktop frontend prefers Wails bindings. The HTTP control API remains available for local scripts and debugging tools. `GET /api/control-token` is only readable by the trusted desktop origin; other endpoints require the current runtime `X-OmniProxy-Control-Token`, and `Authorization: Bearer <token>` is also accepted.
 
 Common endpoints:
 
@@ -207,11 +207,11 @@ Common endpoints:
 | Scheduling | `PUT /api/tokens/{id}/selected`, `PUT /api/tokens/{id}/exclusive`, `DELETE /api/tokens/{id}/exclusive` |
 | Validation | `POST /api/tokens/{id}/validate` |
 | Proxy | `GET /api/proxy/status`, `POST /api/proxy/start`, `POST /api/proxy/stop`, `GET /api/proxy/active-requests` |
-| Config | `GET /api/config`, `PUT /api/config`, `GET /api/data-directory`, `PUT /api/data-directory` |
-| History | `GET /api/logs`, `GET /api/history`, `POST /api/history/clear` |
-| Billing | `GET /api/billing/usage`, `GET /api/billing/dates`, `POST /api/billing/clear` |
+| Config | `GET /api/config`, `PUT /api/config`, `GET /api/data-directory` |
+| History | `GET /api/logs`, `GET /api/history`, `DELETE /api/history/clear` |
+| Billing | `GET /api/billing/usage`, `GET /api/billing/dates`, `DELETE /api/billing/clear` |
 | Client setup | `POST /api/codex/configure`, `POST /api/codex/restore`, `POST /api/claude/models/configure`, `POST /api/claude/restore`, `POST /api/claude/desktop/models/configure`, `POST /api/claude/desktop/restore`, `POST /api/deepseek-tui/configure`, `POST /api/deepseek-tui/restore`, `POST /api/gemini/configure`, `POST /api/gemini/restore`, `POST /api/opencode/configure`, `POST /api/opencode/restore`, `POST /api/pi/configure`, `POST /api/pi/restore` |
-| Updates | `POST /api/update/check`, `POST /api/update/download`, `GET /api/update/download/status`, `POST /api/update/install` |
+| Updates | `GET /api/update/check`, `POST /api/update/download`, `GET /api/update/download/status`, `GET /api/update/diagnostics`, `POST /api/update/install` |
 
 `/selected` adds or removes an account from its provider's scheduling selection set. When a provider has no selected accounts, the scheduler rotates all usable accounts for that provider; once selected accounts exist, rotation is limited to the selected set.
 

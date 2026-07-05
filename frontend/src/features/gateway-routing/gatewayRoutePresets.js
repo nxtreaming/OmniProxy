@@ -49,7 +49,7 @@ export const routeDefinitions = [
       'claude-sonnet-4-5-20250929',
       'claude-opus-4-7',
       'claude-sonnet-4-6',
-      'deepseek-v4-pro[1m]',
+      'deepseek-v4-pro',
       'mimo-v2.5-pro[1m]',
       'kimi-for-coding',
       'glm-5.1',
@@ -62,7 +62,7 @@ export const routeDefinitions = [
     endpoint: (port) => `http://127.0.0.1:${port}/opencode-router/v1`,
     fallback: { provider: 'openai', credentialType: 'api_key', model: 'gpt-5.4' },
     providers: openAICompatibleProviders,
-    modelPresets: ['gpt-5.4', 'gpt-5.4-high', 'gpt-5.5', 'gpt-5.5-high', 'deepseek-v4-pro[1m]', 'kimi-for-coding', 'glm-5.1', 'MiniMax-M2.7'],
+    modelPresets: ['gpt-5.4', 'gpt-5.4-high', 'gpt-5.5', 'gpt-5.5-high', 'deepseek-v4-pro', 'kimi-for-coding', 'glm-5.1', 'MiniMax-M2.7'],
   },
   {
     key: 'gemini',
@@ -97,7 +97,7 @@ export const gatewayPlatformPresets = [
   {
     key: 'deepseek',
     models: [
-      routeModel('deepseek-v4-pro[1m]', ['codex', 'openai', 'claude'], 'DeepSeek V4 Pro 1M'),
+      routeModel('deepseek-v4-pro', ['codex', 'openai', 'claude'], 'DeepSeek V4 Pro'),
       routeModel('deepseek-v4-flash', ['openai', 'claude'], 'DeepSeek V4 Flash'),
     ],
   },

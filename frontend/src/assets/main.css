@@ -3,11 +3,9 @@
 @import './styles/window-shell.css';
 @import './styles/element-dialogs.css';
 @import './styles/provider-controls.css';
-@import './styles/openrouter-chat.css';
 @import './styles/quota-cards.css';
 @import './styles/logs-view.css';
 @import './styles/trend-charts.css';
-@import './styles/billing-reports.css';
 @import './styles/settings-layout.css';
 @import './styles/first-run-guide.css';
 @import './styles/form-controls.css';

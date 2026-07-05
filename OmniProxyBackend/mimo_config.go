@@ -16,7 +16,8 @@ const (
 	mimoModel            = "mimo-v2.5-pro"
 	mimoLongContextModel = "mimo-v2.5-pro[1m]"
 	mimoStandardModel    = "mimo-v2.5"
-	deepSeekProModel     = "deepseek-v4-pro[1m]"
+	deepSeekProModel     = "deepseek-v4-pro"
+	deepSeekProLegacy    = "deepseek-v4-pro[1m]"
 	deepSeekFastModel    = "deepseek-v4-flash"
 	kimiCodingModel      = "kimi-for-coding"
 	zhipuGLMModel        = "glm-5.1"
@@ -340,7 +341,7 @@ func normalizeClaudeModelTargets(models []string) ([]claudeModelTarget, error) {
 
 func normalizeClaudeModelID(model string) string {
 	switch strings.ToLower(strings.TrimSpace(model)) {
-	case "deepseek-v4-pro", "deepseek-4-pro":
+	case "deepseek-v4-pro", "deepseek-v4-pro[1m]", "deepseek-4-pro":
 		return deepSeekProModel
 	case "mimo-v2.5-pro-1m", "mimo-2.5-pro-1m":
 		return mimoLongContextModel
@@ -423,10 +424,15 @@ func claudeDesktopRoutesForTargets(targets []claudeModelTarget) []claudedesktop.
 			RouteID:       routeIDs[index],
 			UpstreamModel: target.Model,
 			LabelOverride: label,
-			Supports1M:    strings.Contains(strings.ToLower(target.Model), "[1m]"),
+			Supports1M:    claudeTargetSupports1M(target),
 		})
 	}
 	return routes
+}
+
+func claudeTargetSupports1M(target claudeModelTarget) bool {
+	model := strings.ToLower(strings.TrimSpace(target.Model))
+	return model == deepSeekProModel || strings.Contains(model, "[1m]")
 }
 
 func writeClaudeDesktopProfile(paths claudedesktop.Paths, baseURL string, routes []claudedesktop.ModelRoute) error {
@@ -519,6 +525,7 @@ func claudeRouterAvailableModels() []string {
 		mimoLongContextModel,
 		mimoStandardModel,
 		deepSeekProModel,
+		deepSeekProLegacy,
 		deepSeekFastModel,
 		kimiCodingModel,
 		zhipuGLMModel,
@@ -609,6 +616,9 @@ func isKnownRouterOverrideValue(current string, existing string) bool {
 	if strings.EqualFold(existing, current) {
 		return true
 	}
+	if strings.EqualFold(current, deepSeekProModel) && strings.EqualFold(existing, deepSeekProLegacy) {
+		return true
+	}
 	return strings.EqualFold(current, mimoLongContextModel) && strings.EqualFold(existing, mimoModel)
 }
 
@@ -636,6 +646,7 @@ func isKnownRouterDefaultModel(value string) bool {
 		strings.EqualFold(model, mimoLongContextModel) ||
 		strings.EqualFold(model, mimoStandardModel) ||
 		strings.EqualFold(model, deepSeekProModel) ||
+		strings.EqualFold(model, deepSeekProLegacy) ||
 		strings.EqualFold(model, deepSeekFastModel) ||
 		strings.EqualFold(model, kimiCodingModel) ||
 		strings.EqualFold(model, zhipuGLMModel) ||

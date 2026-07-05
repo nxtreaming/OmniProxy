@@ -108,9 +108,9 @@ export function TaskAutomationBrowserProfiles(arg1:string):Promise<Array<taskaut
 
 export function Tokens():Promise<Array<main.tokenResponse>>;
 
-export function UpdateDownloadStatus():Promise<main.updateDownloadStatus>;
-
 export function UpdateDiagnostics():Promise<main.updateDiagnostics>;
+
+export function UpdateDownloadStatus():Promise<main.updateDownloadStatus>;
 
 export function UpdateToken(arg1:string,arg2:token.UpsertRequest):Promise<main.tokenResponse>;
 

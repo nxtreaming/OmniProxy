@@ -15,10 +15,14 @@ const emit = defineEmits(['persist-config'])
 
 const providerLabelMap = computed(() => Object.fromEntries(providers.map((item) => [item.key, item.label])))
 const credentialLabelMap = computed(() => credentialTypes)
-const selectedPlatformKey = ref(initialPlatformKey())
-const activePlatform = computed(
-  () => gatewayPlatformPresets.find((platform) => platform.key === selectedPlatformKey.value) || gatewayPlatformPresets[0],
-)
+const gatewayModelGroups = computed(() => buildGatewayModelGroups())
+const selectedModelKey = ref(initialModelKey())
+const activeModelGroup = computed(() => {
+  const groups = gatewayModelGroups.value
+  return groups.find((group) => group.key === selectedModelKey.value) || groups[0] || { providers: [], routeModels: {} }
+})
+const directClaudeProviders = new Set(['anthropic', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'zo'])
+const directOpenAIProviders = new Set(['openai', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'openrouter', 'tokenrouter', 'zo', 'custom'])
 
 function routeConfig(route) {
   if (!props.config.gatewayRoutes || typeof props.config.gatewayRoutes !== 'object') {
@@ -33,22 +37,12 @@ function routeConfig(route) {
   return props.config.gatewayRoutes[route.key]
 }
 
-function initialPlatformKey() {
-  const candidates = [
-    props.config.gatewayRoutes?.openai?.provider,
-    props.config.gatewayRoutes?.claude?.provider,
-    props.config.gatewayRoutes?.codex?.provider,
-    props.config.gatewayRoutes?.gemini?.provider,
-  ].map(normalizeProviderKey)
-  return candidates.find((key) => gatewayPlatformPresets.some((platform) => platform.key === key)) || 'deepseek'
-}
-
-function platformLabel(platform) {
-  return providerLabel(platform.key)
-}
-
-function platformNote(platform) {
-  return providerNote(platform.key)
+function initialModelKey() {
+  const groups = buildGatewayModelGroups()
+  return groups.find((group) => group.providers.some((option) => isModelProviderApplied(option)))?.key ||
+    groups.find((group) => group.providers.some((option) => option.key === 'deepseek'))?.key ||
+    groups[0]?.key ||
+    ''
 }
 
 function routeDefinitionFor(key) {
@@ -65,9 +59,47 @@ function modelRouteEntries(model) {
     .filter((entry) => routeDefinitionFor(entry.key))
 }
 
-function applyPlatformModel(model) {
-  const platform = activePlatform.value
-  for (const entry of modelRouteEntries(model)) {
+function buildGatewayModelGroups() {
+  const byKey = new Map()
+  for (const platform of gatewayPlatformPresets) {
+    for (const model of platform.models || []) {
+      const key = modelGroupKey(model)
+      if (!key) continue
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          key,
+          label: model.label || modelGroupSummary(model),
+          routeModels: { ...model.routeModels },
+          providers: [],
+        })
+      }
+      const group = byKey.get(key)
+      if (!group.providers.some((option) => option.key === platform.key)) {
+        group.providers.push({ key: platform.key, platform, model })
+      }
+    }
+  }
+  return Array.from(byKey.values())
+}
+
+function modelGroupKey(model) {
+  return Object.entries(model.routeModels || {})
+    .map(([routeKey, modelValue]) => `${routeKey}:${String(modelValue || '').trim().toLowerCase()}`)
+    .sort()
+    .join('|')
+}
+
+function modelGroupSummary(model) {
+  return Array.from(new Set(Object.values(model.routeModels || {}).map((value) => String(value || '').trim()).filter(Boolean))).join(' / ')
+}
+
+function selectModelGroup(group) {
+  selectedModelKey.value = group.key
+}
+
+function applyModelProvider(option) {
+  const platform = option.platform
+  for (const entry of modelRouteEntries(option.model)) {
     const route = routeDefinitionFor(entry.key)
     const current = routeConfig(route)
     current.provider = platform.key
@@ -80,13 +112,12 @@ function applyPlatformModel(model) {
   emit('persist-config')
 }
 
-function isModelApplied(model) {
-  const platform = activePlatform.value
-  const entries = modelRouteEntries(model)
+function isModelProviderApplied(option) {
+  const entries = modelRouteEntries(option.model)
   return entries.length > 0 && entries.every((entry) => {
     const route = routeDefinitionFor(entry.key)
     const current = routeConfig(route)
-    return normalizeProviderKey(current.provider) === platform.key &&
+    return normalizeProviderKey(current.provider) === option.key &&
       String(current.model || '').trim().toLowerCase() === String(entry.model || '').trim().toLowerCase()
   })
 }
@@ -148,14 +179,75 @@ function normalizeProviderKey(provider) {
   return String(provider || '').trim().toLowerCase()
 }
 
+function inferredProviderForRouteModel(route) {
+  const model = String(routeConfig(route).model || '').trim().toLowerCase()
+  if (!model) return ''
+  if (route.key === 'claude') {
+    return inferredClaudeProvider(model)
+  }
+  if (route.key === 'codex' || route.key === 'openai') {
+    return inferredOpenAIProvider(model)
+  }
+  return ''
+}
+
+function inferredClaudeProvider(model) {
+  if (model.startsWith('mimo-')) return 'xiaomi'
+  if (model.startsWith('deepseek-')) return 'deepseek'
+  if (model.startsWith('kimi-')) return 'kimi'
+  if (model.startsWith('glm-') || model.startsWith('zhipu-')) return 'zhipu'
+  if (model.startsWith('minimax-')) return 'minimax'
+  if (model === 'claude-opus-4-7' || model === 'claude-sonnet-4-6') return 'zo'
+  return 'anthropic'
+}
+
+function inferredOpenAIProvider(model) {
+  if (model.startsWith('mimo-')) return 'xiaomi'
+  if (model.startsWith('deepseek-')) return 'deepseek'
+  if (model.startsWith('kimi-')) return 'kimi'
+  if (model.startsWith('glm-') || model.startsWith('zhipu-')) return 'zhipu'
+  if (model.startsWith('minimax-')) return 'minimax'
+  if (model.startsWith('auto:') || model.startsWith('tokenrouter:') || model.startsWith('tokenrouter/')) return 'tokenrouter'
+  if (model.includes('/')) return 'openrouter'
+  if (model.startsWith('custom-')) return 'custom'
+  return 'openai'
+}
+
+function effectivePrimaryProvider(route) {
+  const current = normalizeProviderKey(routeConfig(route).provider)
+  const inferred = inferredProviderForRouteModel(route)
+  if (!inferred || inferred === current) return current
+  if (route.key === 'claude') {
+    if (inferred === 'anthropic' && current !== 'anthropic') return current
+    return directClaudeProviders.has(current) && directClaudeProviders.has(inferred) ? inferred : current
+  }
+  if (route.key === 'codex' || route.key === 'openai') {
+    if (inferred === 'openai' && current !== 'openai') return current
+    return directOpenAIProviders.has(current) && directOpenAIProviders.has(inferred) ? inferred : current
+  }
+  return current
+}
+
+function routeModelHint(route) {
+  const current = normalizeProviderKey(routeConfig(route).provider)
+  const effective = effectivePrimaryProvider(route)
+  if (!current || !effective || current === effective) return ''
+  return `当前模型命中 ${providerLabel(effective)}，配置主后端为 ${providerLabel(current)}`
+}
+
 function fallbackConfigs(route) {
   return routeConfig(route).fallbacks
 }
 
 function routeChain(route) {
   const current = routeConfig(route)
+  const effectiveProvider = effectivePrimaryProvider(route)
   return [
-    { provider: current.provider, label: providerLabel(current.provider), type: '主' },
+    {
+      provider: effectiveProvider || current.provider,
+      label: providerLabel(effectiveProvider || current.provider),
+      type: normalizeProviderKey(current.provider) === effectiveProvider ? '主' : '模型',
+    },
     ...fallbackConfigs(route).map((fallback, index) => ({
       provider: fallback.provider,
       label: providerLabel(fallback.provider),
@@ -224,46 +316,46 @@ function moveFallbackProvider(route, provider, direction) {
   <section class="settings-section settings-gateway-section">
     <div class="settings-section-head">
       <div>
-        <h3>网关路由</h3>
-        <p>按平台选择模型，一键写入对应网关入口。</p>
+        <h3>模型路由</h3>
+        <p>先选择模型，再选择提供该模型的网关；本地网关负责转发、记录和按备用链重试。</p>
       </div>
     </div>
     <div class="gateway-quick-config">
-      <div class="gateway-quick-platforms" aria-label="选择后端平台">
+      <div class="gateway-model-index" aria-label="选择模型">
         <button
-          v-for="platform in gatewayPlatformPresets"
-          :key="platform.key"
+          v-for="group in gatewayModelGroups"
+          :key="group.key"
           type="button"
-          :class="['gateway-platform-card', { active: activePlatform.key === platform.key }]"
-          @click="selectedPlatformKey = platform.key"
+          :class="['gateway-model-option-card', { active: activeModelGroup.key === group.key }]"
+          @click="selectModelGroup(group)"
         >
-          <strong>{{ platformLabel(platform) }}</strong>
-          <small>{{ platformNote(platform) }}</small>
+          <strong>{{ group.label }}</strong>
+          <small>{{ modelGroupSummary(group) }}</small>
         </button>
       </div>
 
       <div class="gateway-model-config-panel">
         <div class="gateway-model-config-head">
           <div>
-            <strong>{{ platformLabel(activePlatform) }}</strong>
-            <span>{{ platformNote(activePlatform) }}</span>
+            <strong>{{ activeModelGroup.label || '选择模型' }}</strong>
+            <span>{{ modelGroupSummary(activeModelGroup) }}</span>
           </div>
-          <small>{{ activePlatform.models.length }} 个模型</small>
+          <small>{{ activeModelGroup.providers.length }} 个可用网关</small>
         </div>
-        <div class="gateway-model-card-list">
+        <div class="gateway-provider-card-list">
           <button
-            v-for="model in activePlatform.models"
-            :key="model.id"
+            v-for="option in activeModelGroup.providers"
+            :key="`${activeModelGroup.key}-${option.key}`"
             type="button"
-            :class="['gateway-model-card', { active: isModelApplied(model) }]"
-            @click="applyPlatformModel(model)"
+            :class="['gateway-provider-card', { active: isModelProviderApplied(option) }]"
+            @click="applyModelProvider(option)"
           >
             <span>
-              <strong>{{ model.label }}</strong>
-              <small>{{ Object.values(model.routeModels).join(' / ') }}</small>
+              <strong>{{ providerLabel(option.key) }}</strong>
+              <small>{{ providerNote(option.key) }}</small>
             </span>
             <span class="gateway-model-targets">
-              <small v-for="entry in modelRouteEntries(model)" :key="`${model.id}-${entry.key}`">
+              <small v-for="entry in modelRouteEntries(option.model)" :key="`${option.key}-${entry.key}`">
                 {{ entry.title }}
               </small>
             </span>
@@ -294,6 +386,7 @@ function moveFallbackProvider(route, provider, direction) {
                 </span>
               </template>
             </div>
+            <small v-if="routeModelHint(route)" class="gateway-route-hint">{{ routeModelHint(route) }}</small>
           </div>
         </div>
         <div class="gateway-route-controls">

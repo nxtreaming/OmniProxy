@@ -1,7 +1,6 @@
 package token
 
 import (
-	"errors"
 	"omniproxy/internal/storage"
 	"path/filepath"
 	"testing"
@@ -103,7 +102,7 @@ func TestManagerSkipsDisabledTokens(t *testing.T) {
 	}
 }
 
-func TestManagerSelectedProviderAccountsRestrictSchedulingWithoutDisablingOthers(t *testing.T) {
+func TestManagerSelectedProviderAccountsPreferSelectionWithoutDisablingOthers(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {
 		t.Fatal(err)
@@ -160,8 +159,12 @@ func TestManagerSelectedProviderAccountsRestrictSchedulingWithoutDisablingOthers
 	if selected.ID != otherOpenAI.ID {
 		t.Fatalf("expected scheduling to stay inside selected accounts, got %s", selected.Name)
 	}
-	if _, err := manager.Acquire(ProviderOpenAI, map[string]bool{target.ID: true, otherOpenAI.ID: true}); !errors.Is(err, ErrNoActiveToken) {
-		t.Fatalf("expected selected provider not to fall back to unselected accounts, got %v", err)
+	selected, err = manager.Acquire(ProviderOpenAI, map[string]bool{target.ID: true, otherOpenAI.ID: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.ID != unselectedOpenAI.ID {
+		t.Fatalf("expected active unselected account before low or unavailable selected accounts, got %s", selected.Name)
 	}
 
 	items, err = manager.ClearProviderSelectionForToken(target.ID)

@@ -114,12 +114,81 @@ func (r Router) gatewayRoute(name string, requestModel string) config.GatewayRou
 		route = routes.OpenAI
 	}
 	if model := strings.TrimSpace(requestModel); model != "" {
-		route.Model = model
+		route.Model = normalizeUpstreamModelID(model)
 		for i := range route.Fallbacks {
-			route.Fallbacks[i].Model = model
+			route.Fallbacks[i].Model = route.Model
 		}
 	}
+	return inferGatewayRouteProvider(name, route)
+}
+
+func inferGatewayRouteProvider(name string, route config.GatewayRouteConfig) config.GatewayRouteConfig {
+	model := strings.TrimSpace(route.Model)
+	if model == "" {
+		return route
+	}
+
+	current := token.NormalizeProvider(route.Provider)
+	inferred := ""
+	switch name {
+	case config.GatewayRouteClaude:
+		inferred = providerForModel(model)
+		if inferred == token.ProviderAnthropic && current != token.ProviderAnthropic {
+			return route
+		}
+		if !isDirectClaudeProvider(current) || !isDirectClaudeProvider(inferred) {
+			return route
+		}
+	case config.GatewayRouteCodex, config.GatewayRouteOpenAI:
+		inferred = providerForOpenCodeModel(model)
+		if inferred == token.ProviderOpenAI && current != token.ProviderOpenAI {
+			return route
+		}
+		if !isDirectOpenAIProvider(current) || !isDirectOpenAIProvider(inferred) {
+			return route
+		}
+	default:
+		return route
+	}
+	if inferred == "" || inferred == current {
+		return route
+	}
+	route.Provider = inferred
+	route.CredentialType = ""
 	return route
+}
+
+func isDirectClaudeProvider(provider string) bool {
+	switch token.NormalizeProvider(provider) {
+	case token.ProviderAnthropic,
+		token.ProviderDeepSeek,
+		token.ProviderKimi,
+		token.ProviderXiaomi,
+		token.ProviderZhipu,
+		token.ProviderMiniMax,
+		token.ProviderZo:
+		return true
+	default:
+		return false
+	}
+}
+
+func isDirectOpenAIProvider(provider string) bool {
+	switch token.NormalizeProvider(provider) {
+	case token.ProviderOpenAI,
+		token.ProviderDeepSeek,
+		token.ProviderKimi,
+		token.ProviderXiaomi,
+		token.ProviderZhipu,
+		token.ProviderMiniMax,
+		token.ProviderOpenRouter,
+		token.ProviderTokenRouter,
+		token.ProviderZo,
+		token.ProviderCustom:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r Router) gatewayRouteInfo(route config.GatewayRouteConfig, protocol string, path string, rawQuery string) routeInfo {
@@ -341,16 +410,16 @@ func requestModel(incoming *url.URL, body []byte) string {
 	}
 	if err := json.Unmarshal(body, &payload); err == nil {
 		if model := strings.TrimSpace(payload.Model); model != "" {
-			return model
+			return normalizeUpstreamModelID(model)
 		}
 	}
 	if incoming == nil {
 		return ""
 	}
 	if model := strings.TrimSpace(incoming.Query().Get("model")); model != "" {
-		return model
+		return normalizeUpstreamModelID(model)
 	}
-	return requestModelFromPath(incoming.Path)
+	return normalizeUpstreamModelID(requestModelFromPath(incoming.Path))
 }
 
 func requestModelFromPath(path string) string {

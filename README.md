@@ -195,7 +195,7 @@ Codex、Claude、OpenAI compatible、Pi router 和 Gemini router 是面向客户
 
 ## 控制 API
 
-桌面前端优先通过 Wails 绑定调用后端。HTTP 控制 API 保留给本地脚本和调试工具使用。除 `GET /api/control-token` 外，其它接口需要携带 `X-OmniProxy-Control-Token`，也支持 `Authorization: Bearer <token>`。
+桌面前端优先通过 Wails 绑定调用后端。HTTP 控制 API 保留给本地脚本和调试工具使用。`GET /api/control-token` 仅允许桌面端可信来源读取；其它接口需要携带当前运行期 `X-OmniProxy-Control-Token`，也支持 `Authorization: Bearer <token>`。
 
 常用端点：
 
@@ -205,9 +205,9 @@ Codex、Claude、OpenAI compatible、Pi router 和 Gemini router 是面向客户
 | 调度 | `PUT /api/tokens/{id}/selected`、`PUT /api/tokens/{id}/exclusive`、`DELETE /api/tokens/{id}/exclusive` |
 | 验证 | `POST /api/tokens/{id}/validate` |
 | 代理 | `GET /api/proxy/status`、`POST /api/proxy/start`、`POST /api/proxy/stop`、`GET /api/proxy/active-requests` |
-| 配置 | `GET /api/config`、`PUT /api/config`、`GET /api/data-directory`、`PUT /api/data-directory` |
-| 历史 | `GET /api/logs`、`GET /api/history`、`POST /api/history/clear` |
-| 账单 | `GET /api/billing/usage`、`GET /api/billing/dates`、`POST /api/billing/clear` |
+| 配置 | `GET /api/config`、`PUT /api/config`、`GET /api/data-directory` |
+| 历史 | `GET /api/logs`、`GET /api/history`、`DELETE /api/history/clear` |
+| 账单 | `GET /api/billing/usage`、`GET /api/billing/dates`、`DELETE /api/billing/clear` |
 | 客户端配置 | `POST /api/codex/configure`、`POST /api/codex/restore`、`POST /api/claude/models/configure`、`POST /api/claude/restore`、`POST /api/claude/desktop/models/configure`、`POST /api/claude/desktop/restore`、`POST /api/deepseek-tui/configure`、`POST /api/deepseek-tui/restore`、`POST /api/gemini/configure`、`POST /api/gemini/restore`、`POST /api/opencode/configure`、`POST /api/opencode/restore`、`POST /api/pi/configure`、`POST /api/pi/restore` |
 | 更新 | `GET /api/update/check`、`POST /api/update/download`、`GET /api/update/download/status`、`GET /api/update/diagnostics`、`POST /api/update/install` |
 

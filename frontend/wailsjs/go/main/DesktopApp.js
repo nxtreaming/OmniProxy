@@ -206,12 +206,12 @@ export function Tokens() {
   return window['go']['main']['DesktopApp']['Tokens']();
 }
 
-export function UpdateDownloadStatus() {
-  return window['go']['main']['DesktopApp']['UpdateDownloadStatus']();
-}
-
 export function UpdateDiagnostics() {
   return window['go']['main']['DesktopApp']['UpdateDiagnostics']();
+}
+
+export function UpdateDownloadStatus() {
+  return window['go']['main']['DesktopApp']['UpdateDownloadStatus']();
 }
 
 export function UpdateToken(arg1, arg2) {

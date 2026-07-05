@@ -44,7 +44,7 @@ func normalizeGatewayRouteTarget(route GatewayRouteConfig, defaults GatewayRoute
 	if !credentialExplicit && (!useDefaults || !strings.EqualFold(normalizedProvider, defaults.Provider)) {
 		normalizedCredential = ""
 	}
-	model := strings.TrimSpace(route.Model)
+	model := normalizeGatewayRouteModel(route.Model)
 	if model == "" {
 		model = defaults.Model
 	}
@@ -52,6 +52,16 @@ func normalizeGatewayRouteTarget(route GatewayRouteConfig, defaults GatewayRoute
 		Provider:       normalizedProvider,
 		CredentialType: normalizedCredential,
 		Model:          model,
+	}
+}
+
+func normalizeGatewayRouteModel(model string) string {
+	model = strings.TrimSpace(model)
+	switch strings.ToLower(model) {
+	case "deepseek-v4-pro[1m]":
+		return "deepseek-v4-pro"
+	default:
+		return model
 	}
 }
 

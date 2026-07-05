@@ -47,6 +47,81 @@ func TestRouterUsesRouteDefaultModelWhenRequestOmitsModel(t *testing.T) {
 	}
 }
 
+func TestRouterInfersDirectGatewayProviderFromModel(t *testing.T) {
+	tests := []struct {
+		name           string
+		path           string
+		body           string
+		route          config.GatewayRouteConfig
+		routeName      string
+		wantProvider   string
+		wantCredential string
+		wantModel      string
+	}{
+		{
+			name:         "claude deepseek model uses deepseek provider",
+			path:         "/anthropic-router/v1/messages",
+			body:         `{"model":"deepseek-v4-pro[1m]"}`,
+			routeName:    config.GatewayRouteClaude,
+			wantProvider: token.ProviderDeepSeek,
+			wantModel:    "deepseek-v4-pro",
+		},
+		{
+			name:         "claude direct route switches between supported model providers",
+			path:         "/anthropic-router/v1/messages",
+			body:         `{"model":"mimo-v2.5"}`,
+			route:        config.GatewayRouteConfig{Provider: token.ProviderDeepSeek, CredentialType: token.CredentialTypeAPIKey},
+			routeName:    config.GatewayRouteClaude,
+			wantProvider: token.ProviderXiaomi,
+			wantModel:    "mimo-v2.5",
+		},
+		{
+			name:           "claude generic gateway keeps selected provider",
+			path:           "/anthropic-router/v1/messages",
+			body:           `{"model":"deepseek-v4-pro"}`,
+			route:          config.GatewayRouteConfig{Provider: token.ProviderAnyRouter, CredentialType: token.CredentialTypeAPIKey},
+			routeName:      config.GatewayRouteClaude,
+			wantProvider:   token.ProviderAnyRouter,
+			wantCredential: token.CredentialTypeAPIKey,
+			wantModel:      "deepseek-v4-pro",
+		},
+		{
+			name:         "openai router infers openrouter model",
+			path:         "/opencode-router/v1/chat/completions",
+			body:         `{"model":"openrouter/auto"}`,
+			routeName:    config.GatewayRouteOpenAI,
+			wantProvider: token.ProviderOpenRouter,
+			wantModel:    "openrouter/auto",
+		},
+		{
+			name:           "openai router keeps selected non-default provider for default-looking model",
+			path:           "/opencode-router/v1/chat/completions",
+			body:           `{"model":"gpt-5.4"}`,
+			route:          config.GatewayRouteConfig{Provider: token.ProviderOpenRouter, CredentialType: token.CredentialTypeAPIKey},
+			routeName:      config.GatewayRouteOpenAI,
+			wantProvider:   token.ProviderOpenRouter,
+			wantCredential: token.CredentialTypeAPIKey,
+			wantModel:      "gpt-5.4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.Config{}
+			switch tt.routeName {
+			case config.GatewayRouteClaude:
+				cfg.GatewayRoutes.Claude = tt.route
+			case config.GatewayRouteOpenAI:
+				cfg.GatewayRoutes.OpenAI = tt.route
+			}
+			route := NewRouter(cfg).Route(mustRouterTestURL(t, tt.path), []byte(tt.body))
+			if route.Provider != tt.wantProvider || route.CredentialType != tt.wantCredential || route.Model != tt.wantModel {
+				t.Fatalf("unexpected route: %#v", route)
+			}
+		})
+	}
+}
+
 func TestPiRouterOpenAIModelsRequireAPIKeyCredential(t *testing.T) {
 	route := NewRouter(config.Config{}).Route(mustRouterTestURL(t, "/pi-router/v1/chat/completions"), []byte(`{"model":"gpt-5.4"}`))
 

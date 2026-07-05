@@ -12,7 +12,8 @@
   background: color-mix(in srgb, var(--surface-soft) 22%, var(--surface));
 }
 
-.settings-panel .gateway-quick-platforms {
+.settings-panel .gateway-quick-platforms,
+.settings-panel .gateway-model-index {
   min-width: 0;
   max-height: 520px;
   overflow-y: auto;
@@ -23,7 +24,9 @@
 }
 
 .settings-panel .gateway-platform-card,
-.settings-panel .gateway-model-card {
+.settings-panel .gateway-model-card,
+.settings-panel .gateway-model-option-card,
+.settings-panel .gateway-provider-card {
   min-width: 0;
   width: 100%;
   display: grid;
@@ -38,20 +41,26 @@
 }
 
 .settings-panel .gateway-platform-card:hover,
-.settings-panel .gateway-model-card:hover {
+.settings-panel .gateway-model-card:hover,
+.settings-panel .gateway-model-option-card:hover,
+.settings-panel .gateway-provider-card:hover {
   border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
   background: color-mix(in srgb, var(--brand) 5%, var(--surface));
   transform: none;
 }
 
 .settings-panel .gateway-platform-card.active,
-.settings-panel .gateway-model-card.active {
+.settings-panel .gateway-model-card.active,
+.settings-panel .gateway-model-option-card.active,
+.settings-panel .gateway-provider-card.active {
   border-color: color-mix(in srgb, var(--brand) 46%, var(--line));
   background: color-mix(in srgb, var(--brand) 10%, var(--surface));
 }
 
 .settings-panel .gateway-platform-card strong,
-.settings-panel .gateway-model-card strong {
+.settings-panel .gateway-model-card strong,
+.settings-panel .gateway-model-option-card strong,
+.settings-panel .gateway-provider-card strong {
   min-width: 0;
   overflow: hidden;
   color: var(--text-strong);
@@ -64,6 +73,8 @@
 
 .settings-panel .gateway-platform-card small,
 .settings-panel .gateway-model-card small,
+.settings-panel .gateway-model-option-card small,
+.settings-panel .gateway-provider-card small,
 .settings-panel .gateway-model-config-head span,
 .settings-panel .gateway-advanced-head span {
   color: var(--text-muted);
@@ -107,20 +118,23 @@
   line-height: 1.35;
 }
 
-.settings-panel .gateway-model-card-list {
+.settings-panel .gateway-model-card-list,
+.settings-panel .gateway-provider-card-list {
   min-width: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 10px;
 }
 
-.settings-panel .gateway-model-card {
+.settings-panel .gateway-model-card,
+.settings-panel .gateway-provider-card {
   grid-template-columns: minmax(0, 1fr);
   align-content: space-between;
   min-height: 112px;
 }
 
-.settings-panel .gateway-model-card > span:first-child {
+.settings-panel .gateway-model-card > span:first-child,
+.settings-panel .gateway-provider-card > span:first-child {
   min-width: 0;
   display: grid;
   gap: 4px;
@@ -247,6 +261,16 @@
 
 .settings-panel .gateway-route-chain-arrow {
   color: var(--text-muted);
+}
+
+.settings-panel .gateway-route-hint {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--accent-strong);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .settings-panel .gateway-route-controls {
@@ -477,6 +501,8 @@
 .shell.dark .settings-panel .gateway-quick-config,
 .shell.dark .settings-panel .gateway-platform-card,
 .shell.dark .settings-panel .gateway-model-card,
+.shell.dark .settings-panel .gateway-model-option-card,
+.shell.dark .settings-panel .gateway-provider-card,
 .shell.dark .settings-panel .gateway-model-targets small,
 .shell.dark .settings-panel .gateway-provider-chip,
 .shell.dark .settings-panel .gateway-route-chain-item,
@@ -493,7 +519,8 @@
     grid-template-columns: 1fr;
   }
 
-  .settings-panel .gateway-quick-platforms {
+  .settings-panel .gateway-quick-platforms,
+  .settings-panel .gateway-model-index {
     max-height: none;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   }
@@ -511,6 +538,10 @@
   .settings-panel .gateway-route-chain {
     justify-items: stretch;
     justify-content: flex-start;
+  }
+
+  .settings-panel .gateway-route-hint {
+    text-align: left;
   }
 
   .settings-panel .gateway-fallback-row {

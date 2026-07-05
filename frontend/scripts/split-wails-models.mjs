@@ -103,7 +103,7 @@ function splitMainNamespace(text) {
     },
     {
       file: 'main_update',
-      classes: ['updateDownloadRequest', 'updateDownloadStatus', 'updateInfo'],
+      classes: ['updateDiagnostics', 'updateDownloadRequest', 'updateDownloadStatus', 'updateInfo'],
     },
   ]
 

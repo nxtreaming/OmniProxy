@@ -36,8 +36,8 @@ func TestWriteSelectedClaudeSettingsUsesSelectedModels(t *testing.T) {
 	for _, expected := range []string{
 		`"ANTHROPIC_BASE_URL": "http://127.0.0.1:3000/anthropic-router"`,
 		`"ANTHROPIC_AUTH_TOKEN": "omniproxy"`,
-		`"ANTHROPIC_MODEL": "deepseek-v4-pro[1m]"`,
-		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]"`,
+		`"ANTHROPIC_MODEL": "deepseek-v4-pro"`,
+		`"ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro"`,
 		`"ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "DeepSeek V4 Pro"`,
 		`"ANTHROPIC_DEFAULT_SONNET_MODEL": "mimo-v2.5-pro"`,
 		`"ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "MiMo-V2.5-Pro"`,

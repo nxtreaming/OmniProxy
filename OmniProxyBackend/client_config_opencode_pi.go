@@ -256,7 +256,7 @@ func piAnthropicProvider(baseURL string) map[string]any {
 		"apiKey":  localClientAPIKey,
 		"models": []map[string]any{
 			{"id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5"},
-			{"id": "deepseek-v4-pro[1m]", "name": "DeepSeek V4 Pro"},
+			{"id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro"},
 			{"id": "kimi-for-coding", "name": "Kimi for Coding"},
 			{"id": "glm-5.1", "name": "GLM-5.1"},
 			{"id": "mimo-v2.5-pro[1m]", "name": "MiMo V2.5 Pro 1M"},

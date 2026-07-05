@@ -2,9 +2,9 @@ export const claudeModelSelectionLimit = 4
 
 export const claudeModelOptions = [
   {
-    id: 'deepseek-v4-pro[1m]',
+    id: 'deepseek-v4-pro',
     label: 'DeepSeek V4 Pro',
-    description: 'deepseek-v4-pro[1m]',
+    description: 'deepseek-v4-pro',
   },
   {
     id: 'deepseek-v4-flash',
