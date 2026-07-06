@@ -126,6 +126,32 @@ func TestManagerUsesFlatCodexEmailAsName(t *testing.T) {
 	}
 }
 
+func TestManagerAllowsCodexAuthSameEmailDifferentAccountIDs(t *testing.T) {
+	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstAuth := codexAuthJSONForTestWithAccount(t, "coder@example.com", "account-a")
+	secondAuth := codexAuthJSONForTestWithAccount(t, "coder@example.com", "account-b")
+
+	if _, err := manager.Add(UpsertRequest{Provider: ProviderOpenAI, CredentialType: CredentialTypeCodexAuthJSON, TokenValue: firstAuth}); err != nil {
+		t.Fatal(err)
+	}
+	second, err := manager.Add(UpsertRequest{Provider: ProviderOpenAI, CredentialType: CredentialTypeCodexAuthJSON, TokenValue: secondAuth})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Name != "coder@example.com" {
+		t.Fatalf("expected email as shared display name, got %q", second.Name)
+	}
+	if items := manager.List(); len(items) != 2 {
+		t.Fatalf("expected both Codex accounts to be stored, got %#v", items)
+	}
+	if _, err := manager.Add(UpsertRequest{Provider: ProviderOpenAI, CredentialType: CredentialTypeCodexAuthJSON, TokenValue: firstAuth}); err != ErrDuplicateName {
+		t.Fatalf("expected same account_id to be treated as duplicate, got %v", err)
+	}
+}
+
 func TestManagerUsesClaudeOAuthEmailAsName(t *testing.T) {
 	manager, err := NewManager(storage.NewJSONStore[[]Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
 	if err != nil {

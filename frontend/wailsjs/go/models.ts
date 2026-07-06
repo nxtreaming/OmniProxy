@@ -1,6 +1,7 @@
 import { config as configModels } from './models/config'
 import { history as historyModels } from './models/history'
 import { main as mainModels } from './models/main'
+import { proxy as proxyModels } from './models/proxy'
 import { taskautomation as taskautomationModels } from './models/taskautomation'
 import { token as tokenModels } from './models/token'
 
@@ -30,10 +31,15 @@ export namespace main {
   export import appInfo = mainModels.appInfo
   export import balancePackageResponse = mainModels.balancePackageResponse
   export import claudeModelsConfigureRequest = mainModels.claudeModelsConfigureRequest
+  export import clientConfigPreview = mainModels.clientConfigPreview
   export import clientConfigureResult = mainModels.clientConfigureResult
   export import codexAuthExportResult = mainModels.codexAuthExportResult
   export import codexConfigureRequest = mainModels.codexConfigureRequest
   export import codexConfigureResult = mainModels.codexConfigureResult
+  export import configExportResult = mainModels.configExportResult
+  export import configImportResult = mainModels.configImportResult
+  export import configSnapshotSummary = mainModels.configSnapshotSummary
+  export import diagnosticsExportResult = mainModels.diagnosticsExportResult
   export import healthResponse = mainModels.healthResponse
   export import retryAttemptResponse = mainModels.retryAttemptResponse
   export import historyResponse = mainModels.historyResponse
@@ -46,6 +52,9 @@ export namespace main {
   export import openRouterPricing = mainModels.openRouterPricing
   export import openRouterModelResponse = mainModels.openRouterModelResponse
   export import openRouterModelsResponse = mainModels.openRouterModelsResponse
+  export import providerModelCatalogItem = mainModels.providerModelCatalogItem
+  export import providerModelCatalogRequest = mainModels.providerModelCatalogRequest
+  export import providerModelCatalogResponse = mainModels.providerModelCatalogResponse
   export import tokenExportResult = mainModels.tokenExportResult
   export import tokenStatsResponse = mainModels.tokenStatsResponse
   export import usageResponse = mainModels.usageResponse
@@ -55,6 +64,12 @@ export namespace main {
   export import updateDownloadRequest = mainModels.updateDownloadRequest
   export import updateInfo = mainModels.updateInfo
   export import validationResponse = mainModels.validationResponse
+}
+
+export namespace proxy {
+  export import RouteDiagnosticCandidate = proxyModels.RouteDiagnosticCandidate
+  export import RouteDiagnostic = proxyModels.RouteDiagnostic
+  export import RouteDiagnosticRequest = proxyModels.RouteDiagnosticRequest
 }
 
 export namespace taskautomation {

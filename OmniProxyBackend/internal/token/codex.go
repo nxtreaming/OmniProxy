@@ -41,6 +41,21 @@ func ExtractCodexEmail(authJSON string) (string, bool) {
 	return strings.TrimSpace(fields.Email), true
 }
 
+func codexAuthSameIdentity(left CodexAuthFields, right CodexAuthFields) bool {
+	leftEmail := strings.TrimSpace(left.Email)
+	rightEmail := strings.TrimSpace(right.Email)
+	if leftEmail != "" && rightEmail != "" && !strings.EqualFold(leftEmail, rightEmail) {
+		return false
+	}
+
+	leftAccountID := strings.TrimSpace(left.AccountID)
+	rightAccountID := strings.TrimSpace(right.AccountID)
+	if leftAccountID != "" && rightAccountID != "" {
+		return leftAccountID == rightAccountID
+	}
+	return leftEmail != "" && rightEmail != "" && strings.EqualFold(leftEmail, rightEmail)
+}
+
 func ExtractCodexAuthFields(authJSON string) (CodexAuthFields, bool) {
 	var data map[string]any
 	if err := json.Unmarshal([]byte(authJSON), &data); err != nil {

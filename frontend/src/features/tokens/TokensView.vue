@@ -339,7 +339,7 @@ function apiBalanceSummaryMeta(summary) {
                 </el-tag>
               </div>
               <div class="account-list-subline">
-                <span class="account-credential-pill mono">{{ credentialDisplay(item) }}</span>
+                <span class="account-credential-pill mono" :title="credentialDisplay(item)">{{ credentialDisplay(item) }}</span>
                 <span v-if="item.lastError" class="account-subtext">{{ item.lastError }}</span>
                 <span v-else class="account-subtext">{{ credentialLabel(item) }} · {{ healthSummary(item) }}</span>
               </div>

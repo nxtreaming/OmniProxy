@@ -152,6 +152,11 @@ func TestManagerHealthCooldownCandidatesAndRecovery(t *testing.T) {
 
 func codexAuthJSONForTest(t *testing.T, email string) string {
 	t.Helper()
+	return codexAuthJSONForTestWithAccount(t, email, "account-123")
+}
+
+func codexAuthJSONForTestWithAccount(t *testing.T, email string, accountID string) string {
+	t.Helper()
 
 	payload, err := json.Marshal(map[string]any{
 		"https://api.openai.com/profile": map[string]any{
@@ -169,7 +174,7 @@ func codexAuthJSONForTest(t *testing.T, email string) string {
 			"id_token":      jwt,
 			"access_token":  "codex-access-token",
 			"refresh_token": "codex-refresh-token",
-			"account_id":    "account-123",
+			"account_id":    accountID,
 		},
 	})
 	if err != nil {

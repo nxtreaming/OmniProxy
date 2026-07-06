@@ -2,7 +2,10 @@
 import { computed, ref, watch } from 'vue'
 import GeminiSelect from '../../components/GeminiSelect.vue'
 import { credentialTypes, providers } from '../../constants/app'
-import { gatewayPlatformPresets, routeDefinitions } from './gatewayRoutePresets'
+import GatewayModelCatalogSync from './GatewayModelCatalogSync.vue'
+import GatewayRouteDiagnostics from './GatewayRouteDiagnostics.vue'
+import GatewayRouteStrategyPicker from './GatewayRouteStrategyPicker.vue'
+import { gatewayPlatformPresets, inferGatewayProviderForModel, routeDefinitions, routeStrategyChain } from './gatewayRoutePresets'
 
 const props = defineProps({
   config: {
@@ -10,13 +13,14 @@ const props = defineProps({
     required: true,
   },
 })
-const emit = defineEmits(['route-dirty'])
+const emit = defineEmits(['route-draft-dirty'])
 
 const providerLabelMap = computed(() => Object.fromEntries(providers.map((item) => [item.key, item.label])))
 const credentialLabelMap = computed(() => credentialTypes)
 const gatewayModelGroups = computed(() => buildGatewayModelGroups())
 const selectedModelKey = ref('')
 const modelSearchInput = ref('')
+const syncedModelGroups = ref([])
 const filteredGatewayModelGroups = computed(() => {
   const query = modelKey(modelSearchInput.value)
   if (!query) return gatewayModelGroups.value
@@ -43,9 +47,7 @@ watch(
   { immediate: true },
 )
 
-function emptyModelGroup() {
-  return { key: '', modelId: '', label: '选择模型', providers: [] }
-}
+function emptyModelGroup() { return { key: '', modelId: '', label: '选择模型', providers: [] } }
 
 function currentModelRoutesConfig() {
   return props.config.modelRoutes && typeof props.config.modelRoutes === 'object' ? props.config.modelRoutes : {}
@@ -153,6 +155,24 @@ function buildGatewayModelGroups() {
       providers: modelRouteProviderKeys().map((provider) => ({ key: provider, modelId })),
     })
   }
+  for (const synced of syncedModelGroups.value) {
+    const key = modelKey(synced.modelId)
+    if (!key) continue
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        key,
+        modelId: synced.modelId,
+        label: synced.label || synced.modelId,
+        providers: [],
+      })
+    }
+    const group = byKey.get(key)
+    for (const option of synced.providers || []) {
+      if (!group.providers.some((item) => item.key === option.key)) {
+        group.providers.push(option)
+      }
+    }
+  }
   return Array.from(byKey.values())
 }
 
@@ -160,16 +180,14 @@ function modelRouteModelIDs(model) {
   return Array.from(new Set(Object.values(model.routeModels || {}).map((value) => String(value || '').trim()).filter(Boolean)))
 }
 
-function modelKey(model) {
-  return String(model || '').trim().toLowerCase()
-}
+function modelKey(model) { return String(model || '').trim().toLowerCase() }
 
 function selectModelGroup(group) {
   selectedModelKey.value = group.key
 }
 
 function markDirty() {
-  emit('route-dirty')
+  emit('route-draft-dirty')
 }
 
 function confirmModelSearch() {
@@ -197,7 +215,7 @@ function addCustomModelRoute() {
   if (!key) return
   const routes = ensureModelRoutesConfig()
   if (!routes[key]) {
-    const provider = inferredProviderForModel(modelId)
+    const provider = inferGatewayProviderForModel(modelId)
     routes[key] = {
       provider,
       credentialType: defaultCredentialType(provider),
@@ -210,6 +228,40 @@ function addCustomModelRoute() {
   selectedModelKey.value = key
 }
 
+function mergeSyncedModelGroups(groups) {
+  const byKey = new Map(syncedModelGroups.value.map((group) => [group.key, { ...group, providers: [...group.providers] }]))
+  for (const group of groups) {
+    if (!byKey.has(group.key)) {
+      byKey.set(group.key, group)
+      continue
+    }
+    const existing = byKey.get(group.key)
+    for (const option of group.providers) {
+      if (!existing.providers.some((item) => item.key === option.key)) {
+        existing.providers.push(option)
+      }
+    }
+  }
+  syncedModelGroups.value = Array.from(byKey.values())
+}
+
+function mergeProviderModelResult(result) {
+  const provider = normalizeProviderKey(result?.provider)
+  const groups = (result?.models || []).map((model) => {
+    const modelId = String(model.id || '').trim()
+    return {
+      key: modelKey(modelId),
+      modelId,
+      label: model.name || modelId,
+      providers: [{ key: provider, modelId }],
+    }
+  }).filter((group) => group.key && provider)
+  mergeSyncedModelGroups(groups)
+  if (groups[0]) {
+    selectedModelKey.value = groups[0].key
+  }
+}
+
 function providerLabel(provider) {
   return providerLabelMap.value[provider] || provider
 }
@@ -218,13 +270,9 @@ function providerNote(provider) {
   return providers.find((item) => item.key === provider)?.note || ''
 }
 
-function normalizeProviderKey(provider) {
-  return String(provider || '').trim().toLowerCase()
-}
+function normalizeProviderKey(provider) { return String(provider || '').trim().toLowerCase() }
 
-function defaultCredentialType() {
-  return ''
-}
+function defaultCredentialType() { return '' }
 
 function modelRouteProviderKeys() {
   const keys = []
@@ -232,21 +280,6 @@ function modelRouteProviderKeys() {
     if (platform.key) keys.push(platform.key)
   }
   return Array.from(new Set(keys.map(normalizeProviderKey).filter(Boolean)))
-}
-
-function inferredProviderForModel(model) {
-  const normalized = String(model || '').trim().toLowerCase()
-  if (normalized.startsWith('claude-')) return 'anthropic'
-  if (normalized.startsWith('deepseek-')) return 'deepseek'
-  if (normalized.startsWith('kimi-')) return 'kimi'
-  if (normalized.startsWith('mimo-')) return 'xiaomi'
-  if (normalized.startsWith('glm-') || normalized.startsWith('zhipu-')) return 'zhipu'
-  if (normalized.startsWith('minimax-')) return 'minimax'
-  if (normalized.startsWith('gemini-')) return 'gemini'
-  if (normalized.startsWith('auto:') || normalized.startsWith('tokenrouter:') || normalized.startsWith('tokenrouter/')) return 'tokenrouter'
-  if (normalized.includes('/')) return 'openrouter'
-  if (normalized.startsWith('custom-')) return 'custom'
-  return 'openai'
 }
 
 function credentialOptions(provider) {
@@ -298,6 +331,29 @@ function applyModelProvider(option) {
     (fallback) => normalizeProviderKey(fallback.provider) !== normalizeProviderKey(option.key),
   )
   markDirty()
+}
+
+function applyRouteStrategy(strategyKey) {
+  const providerKeys = activeModelGroup.value.providers.map((option) => option.key)
+  const chain = routeStrategyChain(providerKeys, strategyKey)
+  if (!chain.length) return
+  const route = ensureModelRouteConfig(activeModelGroup.value)
+  route.provider = chain[0]
+  route.credentialType = credentialForProvider(route.provider, route.credentialType)
+  route.model = modelForProvider(route.provider)
+  route.fallbacks = chain.slice(1).map((provider) => ({
+    provider,
+    credentialType: defaultCredentialType(provider),
+    model: modelForProvider(provider),
+  }))
+  markDirty()
+}
+
+function modelForProvider(provider) {
+  const key = normalizeProviderKey(provider)
+  return activeModelGroup.value.providers.find((option) => normalizeProviderKey(option.key) === key)?.modelId ||
+    activeModelRoute.value.model ||
+    activeModelGroup.value.modelId
 }
 
 function isModelProviderApplied(option) {
@@ -450,6 +506,7 @@ function isClientDefaultModelSelected(route, model) {
         </button>
       </div>
     </div>
+    <GatewayModelCatalogSync :providers="providers" @synced="mergeProviderModelResult" />
     <div class="gateway-quick-config">
       <div class="gateway-model-index" aria-label="选择模型">
         <button
@@ -499,6 +556,7 @@ function isClientDefaultModelSelected(route, model) {
       <strong>当前模型路由</strong>
       <span>先选主后端，再按顺序添加备用后端</span>
     </div>
+    <GatewayRouteStrategyPicker @apply="applyRouteStrategy" />
     <article class="gateway-route-row">
       <div class="gateway-route-summary">
         <div>
@@ -589,6 +647,12 @@ function isClientDefaultModelSelected(route, model) {
         </div>
       </div>
     </article>
+
+    <GatewayRouteDiagnostics
+      :model="activeModelRoute.model || activeModelGroup.modelId"
+      :provider-label="providerLabel"
+      :credential-labels="credentialLabelMap"
+    />
 
     <div class="gateway-advanced-head">
       <strong>客户端入口默认模型</strong>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"omniproxy/internal/history"
@@ -14,6 +15,7 @@ type tokenResponse struct {
 	Name             string             `json:"name"`
 	Provider         string             `json:"provider"`
 	CredentialType   string             `json:"credentialType"`
+	AccountID        string             `json:"accountId,omitempty"`
 	Region           string             `json:"region,omitempty"`
 	BaseURL          string             `json:"baseUrl,omitempty"`
 	HasTokenValue    bool               `json:"hasTokenValue"`
@@ -22,6 +24,9 @@ type tokenResponse struct {
 	Usage            usageResponse      `json:"usage"`
 	Stats            tokenStatsResponse `json:"stats"`
 	Health           healthResponse     `json:"health"`
+	HealthScore      int                `json:"healthScore"`
+	HealthLevel      string             `json:"healthLevel,omitempty"`
+	HealthMessage    string             `json:"healthMessage,omitempty"`
 	Status           token.Status       `json:"status"`
 	Disabled         bool               `json:"disabled"`
 	Selected         bool               `json:"selected"`
@@ -197,6 +202,7 @@ func tokenResponseFor(item token.Token) tokenResponse {
 		Name:             item.Name,
 		Provider:         item.Provider,
 		CredentialType:   item.CredentialType,
+		AccountID:        tokenAccountID(item),
 		Region:           item.Region,
 		BaseURL:          item.BaseURL,
 		HasTokenValue:    item.TokenValue != "",
@@ -205,6 +211,9 @@ func tokenResponseFor(item token.Token) tokenResponse {
 		Usage:            usageResponseFor(item.Usage),
 		Stats:            tokenStatsResponseFor(item.Stats),
 		Health:           healthResponseFor(item.Health),
+		HealthScore:      tokenHealthScore(item),
+		HealthLevel:      tokenHealthLevel(item),
+		HealthMessage:    tokenHealthMessage(item),
 		Status:           item.Status,
 		Disabled:         item.Disabled,
 		Selected:         item.Selected,
@@ -214,6 +223,90 @@ func tokenResponseFor(item token.Token) tokenResponse {
 		CreatedAt:        timeString(item.CreatedAt),
 		UpdatedAt:        timeString(item.UpdatedAt),
 	}
+}
+
+func tokenAccountID(item token.Token) string {
+	if token.NormalizeProvider(item.Provider) != token.ProviderOpenAI || item.CredentialType != token.CredentialTypeCodexAuthJSON {
+		return ""
+	}
+	fields, ok := token.ExtractCodexAuthFields(item.TokenValue)
+	if !ok {
+		return ""
+	}
+	return fields.AccountID
+}
+
+func tokenHealthScore(item token.Token) int {
+	if item.Disabled {
+		return 0
+	}
+	switch item.Status {
+	case token.StatusInvalid:
+		return 10
+	case token.StatusExhausted:
+		return 20
+	}
+	score := 100
+	if item.Status == token.StatusLow {
+		score -= 30
+	}
+	if item.CooldownUntil != nil && time.Now().Before(*item.CooldownUntil) {
+		score -= 45
+	}
+	if item.Health.ConsecutiveErrors > 0 {
+		score -= item.Health.ConsecutiveErrors * 15
+	}
+	if item.LastError != "" {
+		score -= 15
+	}
+	if item.Remaining > 0 && item.Remaining <= 15 {
+		score -= 15
+	}
+	if score < 0 {
+		return 0
+	}
+	if score > 100 {
+		return 100
+	}
+	return score
+}
+
+func tokenHealthLevel(item token.Token) string {
+	score := tokenHealthScore(item)
+	switch {
+	case item.Disabled:
+		return "disabled"
+	case score >= 80:
+		return "healthy"
+	case score >= 50:
+		return "watch"
+	default:
+		return "risk"
+	}
+}
+
+func tokenHealthMessage(item token.Token) string {
+	if item.Disabled {
+		return "已停用，不参与调度"
+	}
+	if item.CooldownUntil != nil && time.Now().Before(*item.CooldownUntil) {
+		return "冷却中，等待自动复检"
+	}
+	switch item.Status {
+	case token.StatusInvalid:
+		return "凭据无效或刷新失败"
+	case token.StatusExhausted:
+		return "额度已耗尽"
+	case token.StatusLow:
+		return "额度偏低，建议准备备用账号"
+	}
+	if item.Health.ConsecutiveErrors > 0 {
+		return fmt.Sprintf("连续健康检查失败 %d 次", item.Health.ConsecutiveErrors)
+	}
+	if item.Health.LastCheckedAt != nil {
+		return "近期健康检查正常"
+	}
+	return "等待健康检查"
 }
 
 func usageResponseFor(usage token.UsageInfo) usageResponse {

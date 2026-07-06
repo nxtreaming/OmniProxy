@@ -14,6 +14,22 @@ function useWailsBindings() {
   )
 }
 
+function desktopMethod(name) {
+  if (!useWailsBindings()) return null
+  if (typeof DesktopApp[name] === 'function') return DesktopApp[name]
+  const runtimeMethod = window.go?.main?.DesktopApp?.[name]
+  return typeof runtimeMethod === 'function' ? runtimeMethod : null
+}
+
+function callDesktopOr(name, args, fallback) {
+  const method = desktopMethod(name)
+  return method ? method(...args) : fallback()
+}
+
+function desktopOnly(name, args, message) {
+  return callDesktopOr(name, args, () => Promise.reject(new Error(message)))
+}
+
 async function request(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -100,230 +116,235 @@ function historyQuery(filters = {}) {
 }
 
 export function getTokens() {
-  return useWailsBindings() ? DesktopApp.Tokens() : request('/tokens')
+  return callDesktopOr('Tokens', [], () => request('/tokens'))
 }
 
 export function createToken(payload) {
-  if (useWailsBindings()) {
-    return DesktopApp.CreateToken(payload)
-  }
-  return request('/tokens', {
+  return callDesktopOr('CreateToken', [payload], () => request('/tokens', {
     method: 'POST',
     body: JSON.stringify(payload),
-  })
+  }))
 }
 
 export function importAPIKeys(payload) {
-  if (useWailsBindings() && DesktopApp.ImportAPIKeys) {
-    return DesktopApp.ImportAPIKeys(payload)
-  }
-  return request('/tokens/import-api-keys', {
+  return callDesktopOr('ImportAPIKeys', [payload], () => request('/tokens/import-api-keys', {
     method: 'POST',
     body: JSON.stringify(payload),
-  })
+  }))
 }
 
 export function updateToken(id, payload) {
-  if (useWailsBindings()) {
-    return DesktopApp.UpdateToken(id, payload)
-  }
-  return request(`/tokens/${id}`, {
+  return callDesktopOr('UpdateToken', [id, payload], () => request(`/tokens/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
-  })
+  }))
 }
 
 export function deleteToken(id) {
-  if (useWailsBindings()) {
-    return DesktopApp.DeleteToken(id)
-  }
-  return request(`/tokens/${id}`, {
+  return callDesktopOr('DeleteToken', [id], () => request(`/tokens/${id}`, {
     method: 'DELETE',
-  })
+  }))
 }
 
 export function setTokenDisabled(id, disabled) {
-  if (useWailsBindings()) {
-    return DesktopApp.SetTokenDisabled(id, disabled)
-  }
-  return request(`/tokens/${id}/disabled`, {
+  return callDesktopOr('SetTokenDisabled', [id, disabled], () => request(`/tokens/${id}/disabled`, {
     method: 'PUT',
     body: JSON.stringify({ disabled }),
-  })
+  }))
 }
 
 export function useOnlyToken(id) {
-  if (useWailsBindings()) {
-    return DesktopApp.UseOnlyToken(id)
-  }
-  return request(`/tokens/${id}/exclusive`, {
+  return callDesktopOr('UseOnlyToken', [id], () => request(`/tokens/${id}/exclusive`, {
     method: 'PUT',
-  })
+  }))
 }
 
 export function cancelUseOnlyToken(id) {
-  if (useWailsBindings()) {
-    return DesktopApp.CancelUseOnlyToken(id)
-  }
-  return request(`/tokens/${id}/exclusive`, {
+  return callDesktopOr('CancelUseOnlyToken', [id], () => request(`/tokens/${id}/exclusive`, {
     method: 'DELETE',
-  })
+  }))
 }
 
 export function setTokenSelected(id, selected) {
-  if (useWailsBindings()) {
-    return DesktopApp.SetTokenSelected(id, selected)
-  }
-  return request(`/tokens/${id}/selected`, {
+  return callDesktopOr('SetTokenSelected', [id, selected], () => request(`/tokens/${id}/selected`, {
     method: 'PUT',
     body: JSON.stringify({ selected }),
-  })
+  }))
 }
 
 export function validateToken(id) {
-  if (useWailsBindings()) {
-    return DesktopApp.ValidateToken(id)
-  }
-  return request(`/tokens/${id}/validate`, {
+  return callDesktopOr('ValidateToken', [id], () => request(`/tokens/${id}/validate`, {
     method: 'POST',
-  })
+  }))
 }
 
 export function refreshTokenAuth(id) {
-  if (useWailsBindings() && DesktopApp.RefreshTokenAuth) {
-    return DesktopApp.RefreshTokenAuth(id)
-  }
-  return request(`/tokens/${id}/refresh`, {
+  return callDesktopOr('RefreshTokenAuth', [id], () => request(`/tokens/${id}/refresh`, {
     method: 'POST',
-  })
+  }))
 }
 
 export function getOpenRouterModels(refresh = false) {
-  if (useWailsBindings() && DesktopApp.OpenRouterModels) {
-    return DesktopApp.OpenRouterModels(Boolean(refresh))
-  }
   const params = new URLSearchParams()
   if (refresh) params.set('refresh', 'true')
-  return request(`/openrouter/models?${params.toString()}`)
+  return callDesktopOr('OpenRouterModels', [Boolean(refresh)], () => request(`/openrouter/models?${params.toString()}`))
 }
 
 export function sendOpenRouterChat(payload) {
-  if (useWailsBindings() && DesktopApp.OpenRouterChat) {
-    return DesktopApp.OpenRouterChat(payload)
-  }
-  return request('/openrouter/chat', {
+  return callDesktopOr('OpenRouterChat', [payload], () => request('/openrouter/chat', {
     method: 'POST',
     body: JSON.stringify(payload),
-  })
+  }))
 }
 
 export function getConfig() {
-  return useWailsBindings() ? DesktopApp.Config() : request('/config')
+  return callDesktopOr('Config', [], () => request('/config'))
 }
 
 export function saveConfig(payload) {
-  if (useWailsBindings()) {
-    return DesktopApp.SaveConfig(payload)
-  }
-  return request('/config', {
+  return callDesktopOr('SaveConfig', [payload], () => request('/config', {
     method: 'PUT',
     body: JSON.stringify(payload),
+  }))
+}
+
+export function listConfigSnapshots() {
+  return callDesktopOr('ConfigSnapshots', [], () => request('/config/snapshots'))
+}
+
+export function createConfigSnapshot(name = '') {
+  return callDesktopOr('CreateConfigSnapshot', [String(name || '')], () => request('/config/snapshots', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  }))
+}
+
+export function restoreConfigSnapshot(id) {
+  return callDesktopOr('RestoreConfigSnapshot', [id], () => request(`/config/snapshots/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+  }))
+}
+
+export function deleteConfigSnapshot(id) {
+  return callDesktopOr('DeleteConfigSnapshot', [id], () => request(`/config/snapshots/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }))
+}
+
+export async function exportConfigBundle() {
+  const exportBundle = desktopMethod('ExportConfigBundle')
+  if (exportBundle) {
+    return exportBundle()
+  }
+  const bundle = await request('/config/export')
+  const data = JSON.stringify(bundle, null, 2)
+  const fileName = `omniproxy-config-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+  downloadJSON(fileName, data)
+  return { fileName }
+}
+
+export async function importConfigBundle(file = null) {
+  const importBundle = desktopMethod('ImportConfigBundle')
+  if (importBundle) {
+    return importBundle()
+  }
+  if (!file) {
+    throw new Error('请选择要导入的配置文件')
+  }
+  return request('/config/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: await file.text(),
   })
 }
 
 export function getLogs() {
-  return useWailsBindings() ? DesktopApp.Logs() : request('/logs')
+  return callDesktopOr('Logs', [], () => request('/logs'))
+}
+
+export function diagnoseGatewayRoute(payload) {
+  return callDesktopOr('GatewayRouteDiagnostics', [payload], () => request('/gateway/diagnose', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }))
+}
+
+export function syncProviderModels(provider) {
+  const payload = { provider: String(provider || '').trim() }
+  return callDesktopOr('ProviderModels', [payload], () => request('/models/sync', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }))
 }
 
 export function getHistory(filters = {}) {
-  if (useWailsBindings() && DesktopApp.RequestHistory) {
-    return DesktopApp.RequestHistory(historyFilter(filters))
-  }
-  return request(`/history?${historyQuery(filters)}`)
+  return callDesktopOr('RequestHistory', [historyFilter(filters)], () => request(`/history?${historyQuery(filters)}`))
 }
 
 export function getHistorySummary(filters = {}, days = 14) {
   const normalizedDays = Number(days || 14)
-  if (useWailsBindings() && DesktopApp.RequestHistorySummary) {
-    return DesktopApp.RequestHistorySummary(historyFilter(filters), normalizedDays)
-  }
   const params = new URLSearchParams(historyQuery(filters))
   params.set('days', String(normalizedDays))
-  return request(`/history/summary?${params.toString()}`)
+  return callDesktopOr(
+    'RequestHistorySummary',
+    [historyFilter(filters), normalizedDays],
+    () => request(`/history/summary?${params.toString()}`),
+  )
 }
 
 export function getBillingUsage(date) {
   const value = String(date || '').trim()
-  if (useWailsBindings() && DesktopApp.BillingUsage) {
-    return DesktopApp.BillingUsage(value)
-  }
   const params = new URLSearchParams()
   if (value) params.set('date', value)
-  return request(`/billing/usage?${params.toString()}`)
+  return callDesktopOr('BillingUsage', [value], () => request(`/billing/usage?${params.toString()}`))
 }
 
 export function getBillingDates(limit = 30) {
   const normalizedLimit = Number(limit || 30)
-  if (useWailsBindings() && DesktopApp.BillingDates) {
-    return DesktopApp.BillingDates(normalizedLimit)
-  }
   const params = new URLSearchParams()
   params.set('limit', String(normalizedLimit))
-  return request(`/billing/dates?${params.toString()}`)
+  return callDesktopOr('BillingDates', [normalizedLimit], () => request(`/billing/dates?${params.toString()}`))
 }
 
 export function getBillingSummary(days = 30) {
   const normalizedDays = Number(days || 30)
-  if (useWailsBindings() && DesktopApp.BillingSummary) {
-    return DesktopApp.BillingSummary(normalizedDays)
-  }
   const params = new URLSearchParams()
   params.set('days', String(normalizedDays))
-  return request(`/billing/summary?${params.toString()}`)
+  return callDesktopOr('BillingSummary', [normalizedDays], () => request(`/billing/summary?${params.toString()}`))
 }
 
 export function clearBillingUsage() {
-  if (useWailsBindings() && DesktopApp.ClearBillingUsage) {
-    return DesktopApp.ClearBillingUsage()
-  }
-  return request('/billing/clear', {
+  return callDesktopOr('ClearBillingUsage', [], () => request('/billing/clear', {
     method: 'DELETE',
-  })
+  }))
 }
 
 export function clearRequestHistory() {
-  if (useWailsBindings() && DesktopApp.ClearRequestHistory) {
-    return DesktopApp.ClearRequestHistory()
-  }
-  return request('/history/clear', {
+  return callDesktopOr('ClearRequestHistory', [], () => request('/history/clear', {
     method: 'DELETE',
-  })
+  }))
 }
 
 export function getDataDirectory() {
-  if (useWailsBindings() && DesktopApp.DataDirectory) {
-    return DesktopApp.DataDirectory()
-  }
-  return request('/data-directory')
+  return callDesktopOr('DataDirectory', [], () => request('/data-directory'))
 }
 
 export function chooseDataDirectory(migrate = true) {
-  if (useWailsBindings() && DesktopApp.ChooseDataDirectory) {
-    return DesktopApp.ChooseDataDirectory(Boolean(migrate))
-  }
-  return Promise.reject(new Error('更改数据目录需要在桌面客户端中操作'))
+  return desktopOnly('ChooseDataDirectory', [Boolean(migrate)], '更改数据目录需要在桌面客户端中操作')
 }
 
 export function getTaskAutomationBrowserProfiles(browser = 'default') {
-  if (useWailsBindings() && DesktopApp.TaskAutomationBrowserProfiles) {
-    return DesktopApp.TaskAutomationBrowserProfiles(String(browser || 'default'))
-  }
-  return Promise.resolve([])
+  return callDesktopOr('TaskAutomationBrowserProfiles', [String(browser || 'default')], () => Promise.resolve([]))
+}
+
+export function getClientConfigPreviews() {
+  return callDesktopOr('ClientConfigPreviews', [], () => request('/clients/preview'))
 }
 
 export async function exportHistory(format, filters = {}, entries = []) {
-  if (useWailsBindings() && DesktopApp.ExportRequestHistory) {
-    return DesktopApp.ExportRequestHistory(format, historyFilter(filters))
+  const exportRequestHistory = desktopMethod('ExportRequestHistory')
+  if (exportRequestHistory) {
+    return exportRequestHistory(format, historyFilter(filters))
   }
   const data = format === 'json' ? JSON.stringify(entries, null, 2) : historyCSV(entries)
   const type = format === 'json' ? 'application/json' : 'text/csv;charset=utf-8'
@@ -340,15 +361,39 @@ export async function exportHistory(format, filters = {}, entries = []) {
 }
 
 export function exportTokens() {
-  return useWailsBindings() && DesktopApp.ExportTokens
-    ? DesktopApp.ExportTokens()
-    : Promise.reject(new Error('导出账号池需要在桌面客户端中操作'))
+  return desktopOnly('ExportTokens', [], '导出账号池需要在桌面客户端中操作')
 }
 
 export function exportCodexAuthFiles() {
-  return useWailsBindings() && DesktopApp.ExportCodexAuthFiles
-    ? DesktopApp.ExportCodexAuthFiles()
-    : Promise.reject(new Error('导出 Codex auth 文件需要在桌面客户端中操作'))
+  return desktopOnly('ExportCodexAuthFiles', [], '导出 Codex auth 文件需要在桌面客户端中操作')
+}
+
+export async function exportDiagnosticsBundle() {
+  const exportBundle = desktopMethod('ExportDiagnosticsBundle')
+  if (exportBundle) {
+    return exportBundle()
+  }
+  const bundle = await request('/diagnostics/bundle')
+  const data = JSON.stringify(bundle, null, 2)
+  const fileName = `omniproxy-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+  const blob = new Blob([data], { type: 'application/json' })
+  downloadBlob(fileName, blob)
+  return { fileName }
+}
+
+function downloadJSON(fileName, data) {
+  downloadBlob(fileName, new Blob([data], { type: 'application/json' }))
+}
+
+function downloadBlob(fileName, blob) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 function historyCSV(entries) {
@@ -415,61 +460,47 @@ function csvCell(value) {
 }
 
 export function getProxyStatus() {
-  return useWailsBindings() ? DesktopApp.ProxyStatus() : request('/proxy/status')
+  return callDesktopOr('ProxyStatus', [], () => request('/proxy/status'))
 }
 
 export function getActiveRequests() {
-  return useWailsBindings() && DesktopApp.ActiveProxyRequests
-    ? DesktopApp.ActiveProxyRequests()
-    : request('/proxy/active-requests')
+  return callDesktopOr('ActiveProxyRequests', [], () => request('/proxy/active-requests'))
 }
 
 export function startProxy() {
-  return useWailsBindings() ? DesktopApp.StartProxy() : request('/proxy/start', { method: 'POST' })
+  return callDesktopOr('StartProxy', [], () => request('/proxy/start', { method: 'POST' }))
 }
 
 export function stopProxy() {
-  return useWailsBindings() ? DesktopApp.StopProxy() : request('/proxy/stop', { method: 'POST' })
+  return callDesktopOr('StopProxy', [], () => request('/proxy/stop', { method: 'POST' }))
 }
 
 export function checkForUpdates() {
-  return useWailsBindings() && DesktopApp.CheckForUpdates
-    ? DesktopApp.CheckForUpdates()
-    : request('/update/check')
+  return callDesktopOr('CheckForUpdates', [], () => request('/update/check'))
 }
 
 export function downloadUpdate(payload) {
-  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
-  return useWailsBindings() && desktopApp?.DownloadUpdate
-    ? desktopApp.DownloadUpdate(payload)
-    : request('/update/download', { method: 'POST', body: JSON.stringify(payload) })
+  return callDesktopOr(
+    'DownloadUpdate',
+    [payload],
+    () => request('/update/download', { method: 'POST', body: JSON.stringify(payload) }),
+  )
 }
 
 export function getUpdateDownloadStatus() {
-  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
-  return useWailsBindings() && desktopApp?.UpdateDownloadStatus
-    ? desktopApp.UpdateDownloadStatus()
-    : request('/update/download/status')
+  return callDesktopOr('UpdateDownloadStatus', [], () => request('/update/download/status'))
 }
 
 export function getUpdateDiagnostics() {
-  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
-  return useWailsBindings() && desktopApp?.UpdateDiagnostics
-    ? desktopApp.UpdateDiagnostics()
-    : request('/update/diagnostics')
+  return callDesktopOr('UpdateDiagnostics', [], () => request('/update/diagnostics'))
 }
 
 export function installDownloadedUpdate() {
-  const desktopApp = typeof window !== 'undefined' ? window.go?.main?.DesktopApp : null
-  return useWailsBindings() && desktopApp?.InstallDownloadedUpdate
-    ? desktopApp.InstallDownloadedUpdate()
-    : request('/update/install', { method: 'POST' })
+  return callDesktopOr('InstallDownloadedUpdate', [], () => request('/update/install', { method: 'POST' }))
 }
 
 export function getAppInfo() {
-  return useWailsBindings() && DesktopApp.AppInfo
-    ? DesktopApp.AppInfo()
-    : request('/app/info')
+  return callDesktopOr('AppInfo', [], () => request('/app/info'))
 }
 
 export function openExternalURL(url) {
@@ -482,100 +513,82 @@ export function openExternalURL(url) {
 }
 
 export function getAutoStartStatus() {
-  return useWailsBindings() && DesktopApp.AutoStartStatus
-    ? DesktopApp.AutoStartStatus()
-    : Promise.resolve({ enabled: false })
+  return callDesktopOr('AutoStartStatus', [], () => Promise.resolve({ enabled: false }))
 }
 
 export function setAutoStart(enabled) {
-  return useWailsBindings() && DesktopApp.SetAutoStart
-    ? DesktopApp.SetAutoStart(enabled)
-    : Promise.resolve({ enabled: false })
+  return callDesktopOr('SetAutoStart', [enabled], () => Promise.resolve({ enabled: false }))
 }
 
 export function configureCodex(models) {
   const payload = Array.isArray(models)
     ? { models: models.map((model) => String(model || '').trim()).filter(Boolean) }
     : { model: String(models || '').trim() }
-  return useWailsBindings()
-    ? DesktopApp.ConfigureCodex(payload)
-    : request('/codex/configure', { method: 'POST', body: JSON.stringify(payload) })
+  return callDesktopOr(
+    'ConfigureCodex',
+    [payload],
+    () => request('/codex/configure', { method: 'POST', body: JSON.stringify(payload) }),
+  )
 }
 
 export function restoreCodex() {
-  return useWailsBindings() ? DesktopApp.RestoreCodex() : request('/codex/restore', { method: 'POST' })
+  return callDesktopOr('RestoreCodex', [], () => request('/codex/restore', { method: 'POST' }))
 }
 
 export function configureClaudeModels(models) {
   const payload = { models: Array.isArray(models) ? models : [] }
-  return useWailsBindings() && DesktopApp.ConfigureClaudeModels
-    ? DesktopApp.ConfigureClaudeModels(payload)
-    : request('/claude/models/configure', { method: 'POST', body: JSON.stringify(payload) })
+  return callDesktopOr(
+    'ConfigureClaudeModels',
+    [payload],
+    () => request('/claude/models/configure', { method: 'POST', body: JSON.stringify(payload) }),
+  )
 }
 
 export function configureClaudeDesktopModels(models) {
   const payload = { models: Array.isArray(models) ? models : [] }
-  return useWailsBindings() && DesktopApp.ConfigureClaudeDesktopModels
-    ? DesktopApp.ConfigureClaudeDesktopModels(payload)
-    : request('/claude/desktop/models/configure', { method: 'POST', body: JSON.stringify(payload) })
+  return callDesktopOr(
+    'ConfigureClaudeDesktopModels',
+    [payload],
+    () => request('/claude/desktop/models/configure', { method: 'POST', body: JSON.stringify(payload) }),
+  )
 }
 
 export function restoreClaudeDesktop() {
-  return useWailsBindings() && DesktopApp.RestoreClaudeDesktop
-    ? DesktopApp.RestoreClaudeDesktop()
-    : request('/claude/desktop/restore', { method: 'POST' })
+  return callDesktopOr('RestoreClaudeDesktop', [], () => request('/claude/desktop/restore', { method: 'POST' }))
 }
 
 export function restoreClaude() {
-  return useWailsBindings() && DesktopApp.RestoreClaude
-    ? DesktopApp.RestoreClaude()
-    : request('/claude/restore', { method: 'POST' })
+  return callDesktopOr('RestoreClaude', [], () => request('/claude/restore', { method: 'POST' }))
 }
 
 export function configureDeepSeekTUI() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigureDeepSeekTUI()
-    : request('/deepseek-tui/configure', { method: 'POST' })
+  return callDesktopOr('ConfigureDeepSeekTUI', [], () => request('/deepseek-tui/configure', { method: 'POST' }))
 }
 
 export function restoreDeepSeekTUI() {
-  return useWailsBindings()
-    ? DesktopApp.RestoreDeepSeekTUI()
-    : request('/deepseek-tui/restore', { method: 'POST' })
+  return callDesktopOr('RestoreDeepSeekTUI', [], () => request('/deepseek-tui/restore', { method: 'POST' }))
 }
 
 export function configureGemini() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigureGemini()
-    : request('/gemini/configure', { method: 'POST' })
+  return callDesktopOr('ConfigureGemini', [], () => request('/gemini/configure', { method: 'POST' }))
 }
 
 export function restoreGemini() {
-  return useWailsBindings()
-    ? DesktopApp.RestoreGemini()
-    : request('/gemini/restore', { method: 'POST' })
+  return callDesktopOr('RestoreGemini', [], () => request('/gemini/restore', { method: 'POST' }))
 }
 
 export function configureOpenCode() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigureOpenCode()
-    : request('/opencode/configure', { method: 'POST' })
+  return callDesktopOr('ConfigureOpenCode', [], () => request('/opencode/configure', { method: 'POST' }))
 }
 
 export function restoreOpenCode() {
-  return useWailsBindings()
-    ? DesktopApp.RestoreOpenCode()
-    : request('/opencode/restore', { method: 'POST' })
+  return callDesktopOr('RestoreOpenCode', [], () => request('/opencode/restore', { method: 'POST' }))
 }
 
 export function configurePi() {
-  return useWailsBindings()
-    ? DesktopApp.ConfigurePi()
-    : request('/pi/configure', { method: 'POST' })
+  return callDesktopOr('ConfigurePi', [], () => request('/pi/configure', { method: 'POST' }))
 }
 
 export function restorePi() {
-  return useWailsBindings()
-    ? DesktopApp.RestorePi()
-    : request('/pi/restore', { method: 'POST' })
+  return callDesktopOr('RestorePi', [], () => request('/pi/restore', { method: 'POST' }))
 }

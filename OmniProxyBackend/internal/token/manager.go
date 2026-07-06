@@ -95,7 +95,7 @@ func (m *Manager) Add(req UpsertRequest) (Token, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.nameExistsLocked(name, provider, "") {
+	if m.tokenIdentityExistsLocked(name, provider, credentialType, value, "") {
 		return Token{}, ErrDuplicateName
 	}
 
@@ -152,7 +152,7 @@ func (m *Manager) Update(id string, req UpsertRequest) (Token, error) {
 		return Token{}, err
 	}
 
-	if m.nameExistsLocked(name, provider, id) {
+	if m.tokenIdentityExistsLocked(name, provider, credentialType, value, id) {
 		return Token{}, ErrDuplicateName
 	}
 
@@ -197,7 +197,7 @@ func (m *Manager) UpdateTokenValue(id string, value string) (Token, error) {
 	if err != nil {
 		return Token{}, err
 	}
-	if m.nameExistsLocked(name, provider, id) {
+	if m.tokenIdentityExistsLocked(name, provider, credentialType, normalizedValue, id) {
 		return Token{}, ErrDuplicateName
 	}
 

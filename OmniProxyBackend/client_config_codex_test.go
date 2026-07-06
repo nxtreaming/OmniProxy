@@ -26,7 +26,7 @@ func TestConfigureCodexSyncsExistingAuthJSON(t *testing.T) {
 	if err := os.MkdirAll(codexDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(codexDir, "auth.json"), []byte(codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "new-account", "new-access-token")), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(codexDir, "auth.json"), []byte(codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "same-account", "new-access-token")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -37,7 +37,7 @@ func TestConfigureCodexSyncsExistingAuthJSON(t *testing.T) {
 	item, err := manager.Add(token.UpsertRequest{
 		Provider:       token.ProviderOpenAI,
 		CredentialType: token.CredentialTypeCodexAuthJSON,
-		TokenValue:     codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "old-account", "old-access-token"),
+		TokenValue:     codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "same-account", "old-access-token"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,8 +67,42 @@ func TestConfigureCodexSyncsExistingAuthJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(updated.TokenValue, "new-access-token") || !strings.Contains(updated.TokenValue, "new-account") {
+	if !strings.Contains(updated.TokenValue, "new-access-token") || !strings.Contains(updated.TokenValue, "same-account") {
 		t.Fatalf("expected stored auth.json to be refreshed, got %s", updated.TokenValue)
+	}
+}
+
+func TestConfigureCodexImportsSameEmailDifferentAccountID(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	authValue := codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "new-account", "new-access-token")
+	if err := os.WriteFile(filepath.Join(codexDir, "auth.json"), []byte(authValue), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Provider: token.ProviderOpenAI, CredentialType: token.CredentialTypeCodexAuthJSON, TokenValue: codexAuthJSONForMainTestWithCredentials(t, "coder@example.com", "old-account", "old-access-token")}); err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{cfg: config.Config{ProxyPort: 3000, ControlPort: 3890, SwitchThreshold: 15, MaxRetries: 1}, tokens: manager, logs: logs.NewRecorder(10)}
+
+	result, err := app.configureCodex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.ImportedAuth || result.AuthUpdated || result.AuthAlreadyAdded {
+		t.Fatalf("expected different account_id to be imported, got %#v", result)
+	}
+	if items := manager.List(); len(items) != 2 {
+		t.Fatalf("expected both Codex accounts to be retained, got %d", len(items))
 	}
 }
 

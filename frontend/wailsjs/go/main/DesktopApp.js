@@ -46,8 +46,16 @@ export function ClearRequestHistory() {
   return window['go']['main']['DesktopApp']['ClearRequestHistory']();
 }
 
+export function ClientConfigPreviews() {
+  return window['go']['main']['DesktopApp']['ClientConfigPreviews']();
+}
+
 export function Config() {
   return window['go']['main']['DesktopApp']['Config']();
+}
+
+export function ConfigSnapshots() {
+  return window['go']['main']['DesktopApp']['ConfigSnapshots']();
 }
 
 export function ConfigureClaudeDesktopModels(arg1) {
@@ -82,12 +90,20 @@ export function ControlAPI() {
   return window['go']['main']['DesktopApp']['ControlAPI']();
 }
 
+export function CreateConfigSnapshot(arg1) {
+  return window['go']['main']['DesktopApp']['CreateConfigSnapshot'](arg1);
+}
+
 export function CreateToken(arg1) {
   return window['go']['main']['DesktopApp']['CreateToken'](arg1);
 }
 
 export function DataDirectory() {
   return window['go']['main']['DesktopApp']['DataDirectory']();
+}
+
+export function DeleteConfigSnapshot(arg1) {
+  return window['go']['main']['DesktopApp']['DeleteConfigSnapshot'](arg1);
 }
 
 export function DeleteToken(arg1) {
@@ -102,6 +118,14 @@ export function ExportCodexAuthFiles() {
   return window['go']['main']['DesktopApp']['ExportCodexAuthFiles']();
 }
 
+export function ExportConfigBundle() {
+  return window['go']['main']['DesktopApp']['ExportConfigBundle']();
+}
+
+export function ExportDiagnosticsBundle() {
+  return window['go']['main']['DesktopApp']['ExportDiagnosticsBundle']();
+}
+
 export function ExportRequestHistory(arg1, arg2) {
   return window['go']['main']['DesktopApp']['ExportRequestHistory'](arg1, arg2);
 }
@@ -110,8 +134,16 @@ export function ExportTokens() {
   return window['go']['main']['DesktopApp']['ExportTokens']();
 }
 
+export function GatewayRouteDiagnostics(arg1) {
+  return window['go']['main']['DesktopApp']['GatewayRouteDiagnostics'](arg1);
+}
+
 export function ImportAPIKeys(arg1) {
   return window['go']['main']['DesktopApp']['ImportAPIKeys'](arg1);
+}
+
+export function ImportConfigBundle() {
+  return window['go']['main']['DesktopApp']['ImportConfigBundle']();
 }
 
 export function InstallDownloadedUpdate() {
@@ -128,6 +160,10 @@ export function OpenRouterChat(arg1) {
 
 export function OpenRouterModels(arg1) {
   return window['go']['main']['DesktopApp']['OpenRouterModels'](arg1);
+}
+
+export function ProviderModels(arg1) {
+  return window['go']['main']['DesktopApp']['ProviderModels'](arg1);
 }
 
 export function ProxyStatus() {
@@ -156,6 +192,10 @@ export function RestoreClaudeDesktop() {
 
 export function RestoreCodex() {
   return window['go']['main']['DesktopApp']['RestoreCodex']();
+}
+
+export function RestoreConfigSnapshot(arg1) {
+  return window['go']['main']['DesktopApp']['RestoreConfigSnapshot'](arg1);
 }
 
 export function RestoreDeepSeekTUI() {

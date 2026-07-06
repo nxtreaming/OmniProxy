@@ -177,6 +177,27 @@ func Normalize(cfg Config) Config {
 	if cfg.HistoryRetentionDays > 365 {
 		cfg.HistoryRetentionDays = 365
 	}
+	if cfg.HealthWatchThreshold <= 0 {
+		cfg.HealthWatchThreshold = defaults.HealthWatchThreshold
+	}
+	if cfg.HealthWatchThreshold > 100 {
+		cfg.HealthWatchThreshold = 100
+	}
+	if cfg.HealthRiskThreshold <= 0 {
+		cfg.HealthRiskThreshold = defaults.HealthRiskThreshold
+	}
+	if cfg.HealthRiskThreshold >= cfg.HealthWatchThreshold {
+		cfg.HealthRiskThreshold = cfg.HealthWatchThreshold - 1
+	}
+	if cfg.HealthRiskThreshold < 1 {
+		cfg.HealthRiskThreshold = 1
+	}
+	if cfg.LongRequestAlertSeconds <= 0 {
+		cfg.LongRequestAlertSeconds = defaults.LongRequestAlertSeconds
+	}
+	if cfg.LongRequestAlertSeconds > 3600 {
+		cfg.LongRequestAlertSeconds = 3600
+	}
 	if cfg.CodexUsageEndpoint == "" {
 		cfg.CodexUsageEndpoint = defaults.CodexUsageEndpoint
 	}

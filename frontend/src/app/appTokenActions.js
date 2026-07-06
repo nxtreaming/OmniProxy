@@ -9,7 +9,22 @@ import {
   validateToken,
 } from '../services/api'
 import { isCodexToken, validationSuccessMessage } from '../utils/tokenDisplay'
-import { codexEmailFromAuthJSON } from './codexAuth'
+import { codexIdentityFromAuthJSON } from './codexAuth'
+
+function codexIdentityKey(email, accountId = '') {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const normalizedAccountId = String(accountId || '').trim()
+  return normalizedAccountId ? `${normalizedEmail}::${normalizedAccountId}` : normalizedEmail
+}
+
+function rememberCodexToken(map, item, identity = {}) {
+  if (!item) return
+  const email = item.name || identity.email
+  const accountId = item.accountId || identity.accountId || ''
+  const key = codexIdentityKey(email, accountId)
+  if (key) map.set(key, item)
+  if (!accountId && email) map.set(codexIdentityKey(email), item)
+}
 
 export function createTokenActions(state, derived, tokenHelpers, dataActions) {
   function openCreateForm(provider = 'openai') {
@@ -373,12 +388,13 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
     state.codexAuthImporting.value = true
 
     const knownCodexTokens = new Map()
-    const knownOpenAITokens = new Map()
+    const knownOpenAINonCodexTokens = new Map()
     state.tokens.value.forEach((item) => {
       if (item.provider !== 'openai') return
-      knownOpenAITokens.set(item.name.toLowerCase(), item)
       if (isCodexToken(item)) {
-        knownCodexTokens.set(item.name.toLowerCase(), item)
+        rememberCodexToken(knownCodexTokens, item)
+      } else {
+        knownOpenAINonCodexTokens.set(item.name.toLowerCase(), item)
       }
     })
 
@@ -392,10 +408,9 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
       for (const file of files) {
         try {
           const tokenValue = (await file.text()).trim()
-          const email = codexEmailFromAuthJSON(tokenValue)
-          const key = email.toLowerCase()
-          const sameNameToken = knownOpenAITokens.get(key)
-          if (sameNameToken && !isCodexToken(sameNameToken)) {
+          const identity = codexIdentityFromAuthJSON(tokenValue)
+          const emailKey = identity.email.toLowerCase()
+          if (knownOpenAINonCodexTokens.has(emailKey)) {
             throw new Error(`同名 OpenAI 账号已存在，且不是 Codex auth.json`)
           }
 
@@ -405,16 +420,16 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
             credentialType: 'codex_auth_json',
             tokenValue,
           }
-          const existing = knownCodexTokens.get(key)
+          const key = codexIdentityKey(identity.email, identity.accountId)
+          const fallbackKey = identity.accountId ? codexIdentityKey(identity.email) : ''
+          const existing = knownCodexTokens.get(key) || (fallbackKey ? knownCodexTokens.get(fallbackKey) : null)
           if (existing) {
             const updated = await updateToken(existing.id, payload)
-            knownCodexTokens.set(key, updated)
-            knownOpenAITokens.set(key, updated)
+            rememberCodexToken(knownCodexTokens, updated, identity)
             summary.updated += 1
           } else {
             const created = await createToken(payload)
-            knownCodexTokens.set(key, created)
-            knownOpenAITokens.set(key, created)
+            rememberCodexToken(knownCodexTokens, created, identity)
             summary.created += 1
           }
         } catch (error) {

@@ -190,6 +190,7 @@ export namespace main {
 	    name: string;
 	    provider: string;
 	    credentialType: string;
+	    accountId?: string;
 	    region?: string;
 	    baseUrl?: string;
 	    hasTokenValue: boolean;
@@ -198,6 +199,9 @@ export namespace main {
 	    usage: usageResponse;
 	    stats: tokenStatsResponse;
 	    health: healthResponse;
+	    healthScore: number;
+	    healthLevel?: string;
+	    healthMessage?: string;
 	    status: string;
 	    disabled: boolean;
 	    selected: boolean;
@@ -217,6 +221,7 @@ export namespace main {
 	        this.name = source["name"];
 	        this.provider = source["provider"];
 	        this.credentialType = source["credentialType"];
+	        this.accountId = source["accountId"];
 	        this.region = source["region"];
 	        this.baseUrl = source["baseUrl"];
 	        this.hasTokenValue = source["hasTokenValue"];
@@ -225,6 +230,9 @@ export namespace main {
 	        this.usage = this.convertValues(source["usage"], usageResponse);
 	        this.stats = this.convertValues(source["stats"], tokenStatsResponse);
 	        this.health = this.convertValues(source["health"], healthResponse);
+	        this.healthScore = source["healthScore"];
+	        this.healthLevel = source["healthLevel"];
+	        this.healthMessage = source["healthMessage"];
 	        this.status = source["status"];
 	        this.disabled = source["disabled"];
 	        this.selected = source["selected"];

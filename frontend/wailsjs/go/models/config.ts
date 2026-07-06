@@ -130,6 +130,9 @@ export namespace config {
 	    switchThreshold: number;
 	    maxRetries: number;
 	    historyRetentionDays: number;
+	    healthWatchThreshold: number;
+	    healthRiskThreshold: number;
+	    longRequestAlertSeconds: number;
 	    codexUsageEndpoint: string;
 
 	    static createFrom(source: any = {}) {
@@ -195,6 +198,9 @@ export namespace config {
 	        this.switchThreshold = source["switchThreshold"];
 	        this.maxRetries = source["maxRetries"];
 	        this.historyRetentionDays = source["historyRetentionDays"];
+	        this.healthWatchThreshold = source["healthWatchThreshold"];
+	        this.healthRiskThreshold = source["healthRiskThreshold"];
+	        this.longRequestAlertSeconds = source["longRequestAlertSeconds"];
 	        this.codexUsageEndpoint = source["codexUsageEndpoint"];
 	    }
 

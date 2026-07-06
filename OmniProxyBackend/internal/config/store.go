@@ -88,6 +88,9 @@ func (s *Store) Load() (Config, error) {
 		SwitchThreshold                    *int           `json:"switchThreshold"`
 		MaxRetries                         *int           `json:"maxRetries"`
 		HistoryRetentionDays               *int           `json:"historyRetentionDays"`
+		HealthWatchThreshold               *int           `json:"healthWatchThreshold"`
+		HealthRiskThreshold                *int           `json:"healthRiskThreshold"`
+		LongRequestAlertSeconds            *int           `json:"longRequestAlertSeconds"`
 		CodexUsageEndpoint                 *string        `json:"codexUsageEndpoint"`
 	}
 	if err := json.Unmarshal(data, &saved); err != nil {
@@ -268,6 +271,15 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.HistoryRetentionDays != nil && *saved.HistoryRetentionDays > 0 {
 		cfg.HistoryRetentionDays = *saved.HistoryRetentionDays
+	}
+	if saved.HealthWatchThreshold != nil && *saved.HealthWatchThreshold > 0 {
+		cfg.HealthWatchThreshold = *saved.HealthWatchThreshold
+	}
+	if saved.HealthRiskThreshold != nil && *saved.HealthRiskThreshold > 0 {
+		cfg.HealthRiskThreshold = *saved.HealthRiskThreshold
+	}
+	if saved.LongRequestAlertSeconds != nil && *saved.LongRequestAlertSeconds > 0 {
+		cfg.LongRequestAlertSeconds = *saved.LongRequestAlertSeconds
 	}
 	if saved.CodexUsageEndpoint != nil && *saved.CodexUsageEndpoint != "" {
 		cfg.CodexUsageEndpoint = *saved.CodexUsageEndpoint

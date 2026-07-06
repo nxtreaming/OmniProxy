@@ -98,15 +98,8 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 			result.ImportedAuth = true
 			a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "codex auth imported"})
 		} else if errors.Is(addErr, token.ErrDuplicateName) {
-			email, ok := token.ExtractCodexEmail(string(authBytes))
-			if !ok {
-				return codexConfigureResult{}, addErr
-			}
-			existing, findErr := a.tokens.FindByName(token.ProviderOpenAI, email)
+			existing, findErr := a.tokens.FindCodexAuth(token.ProviderOpenAI, fields)
 			if findErr != nil {
-				return codexConfigureResult{}, findErr
-			}
-			if existing.CredentialType != token.CredentialTypeCodexAuthJSON {
 				return codexConfigureResult{}, addErr
 			}
 			if strings.TrimSpace(existing.TokenValue) == authValue {

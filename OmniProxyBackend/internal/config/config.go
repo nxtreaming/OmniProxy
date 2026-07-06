@@ -104,6 +104,9 @@ type Config struct {
 	SwitchThreshold                    int           `json:"switchThreshold"`
 	MaxRetries                         int           `json:"maxRetries"`
 	HistoryRetentionDays               int           `json:"historyRetentionDays"`
+	HealthWatchThreshold               int           `json:"healthWatchThreshold"`
+	HealthRiskThreshold                int           `json:"healthRiskThreshold"`
+	LongRequestAlertSeconds            int           `json:"longRequestAlertSeconds"`
 	CodexUsageEndpoint                 string        `json:"codexUsageEndpoint"`
 }
 
@@ -183,9 +186,12 @@ func Default() Config {
 			OpenAI: GatewayRouteConfig{Provider: token.ProviderOpenAI, Model: "gpt-5.4"},
 			Gemini: GatewayRouteConfig{Provider: token.ProviderGemini, Model: "gemini-3-pro-preview"},
 		},
-		SwitchThreshold:      15,
-		MaxRetries:           2,
-		HistoryRetentionDays: 14,
-		CodexUsageEndpoint:   "https://chatgpt.com/backend-api/wham/usage",
+		SwitchThreshold:         15,
+		MaxRetries:              2,
+		HistoryRetentionDays:    14,
+		HealthWatchThreshold:    80,
+		HealthRiskThreshold:     50,
+		LongRequestAlertSeconds: 120,
+		CodexUsageEndpoint:      "https://chatgpt.com/backend-api/wham/usage",
 	}
 }

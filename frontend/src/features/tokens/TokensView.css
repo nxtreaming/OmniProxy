@@ -336,7 +336,7 @@
 
 .tokens-page-panel .account-credential-pill {
   order: 1;
-  max-width: 210px;
+  max-width: min(100%, 360px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

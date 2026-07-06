@@ -1,6 +1,7 @@
+import { gatewayEndpointPaths, localProxyEndpoint } from '../constants/gatewayEndpoints.js'
+
 export function buildThirdPartyEndpointGroups(port) {
   const safePort = Number(port) || 3000
-  const base = `http://127.0.0.1:${safePort}`
 
   return [
     {
@@ -10,7 +11,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'OmniProxy OpenAI',
           protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.openai),
           apiKey: 'omniproxy-local',
           models: '客户端发送的模型名，或入口默认模型，例如 gpt-5.4',
           use: '通用 OpenAI 兼容入口；模型对应的后端顺序在「网关路由」页面选择。',
@@ -18,7 +19,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Codex Router',
           protocol: 'OpenAI Responses / Chat',
-          baseUrl: `${base}/codex/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.codex),
           apiKey: 'omniproxy-local',
           models: 'Codex 一键配置写入的默认模型，例如 gpt-5.5 / gpt-5.4-mini / deepseek-v4-pro',
           use: 'Codex 和 OpenAI 兼容客户端可固定接入这里；后端顺序按模型路由选择。',
@@ -26,7 +27,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Zo Computer',
           protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/zo/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.zo),
           apiKey: 'omniproxy-local',
           models: 'gpt-5.5 / gpt-5.4 / claude-opus-4-7 / gemini-3.1-pro / glm-5',
           use: '适合把 Zo Token 暴露给 Cherry Studio 这类 OpenAI-compatible 客户端。',
@@ -34,7 +35,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Prem',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/prem/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.prem),
           apiKey: 'omniproxy-local',
           models: 'deepseek-v4-pro / qwen3.5 / qwen3.6 或 Prem 支持的模型 ID',
           use: '转发到全局 Prem confidential-proxy 的 OpenAI 入口，OmniProxy 按账号选择 API Key 并注入鉴权。',
@@ -42,7 +43,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'OpenRouter',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/openrouter/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.openrouter),
           apiKey: 'omniproxy-local',
           models: 'openrouter/auto 或 OpenRouter 模型 ID',
           use: '使用 OpenRouter API Key 账号池。',
@@ -50,7 +51,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'TokenRouter',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/tokenrouter/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.tokenrouter),
           apiKey: 'omniproxy-local',
           models: 'auto:balance / auto:quality / auto:speed / auto:cost',
           use: '使用 TokenRouter API Key 账号池和自动路由模型。',
@@ -58,7 +59,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'sub2api',
           protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/sub2api/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.sub2api),
           apiKey: 'omniproxy-local',
           models: '由 sub2api 上游决定',
           use: '转发到 sub2api OpenAI 兼容网关。',
@@ -66,7 +67,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'new-api',
           protocol: 'OpenAI Chat / Responses',
-          baseUrl: `${base}/newapi/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.newapi),
           apiKey: 'omniproxy-local',
           models: '由 new-api 上游决定',
           use: '转发到 new-api OpenAI 兼容网关。',
@@ -74,7 +75,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'AnyRouter',
           protocol: 'OpenAI Responses',
-          baseUrl: `${base}/anyrouter/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.anyrouter),
           apiKey: 'omniproxy-local',
           models: 'gpt-5-codex / gpt-5.5',
           use: '转发到 AnyRouter 的 OpenAI/Codex 兼容入口。',
@@ -82,7 +83,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: '自定义网关',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/custom/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.custom),
           apiKey: 'omniproxy-local',
           models: 'custom-model 或上游支持的模型名',
           use: '转发到设置页填写的自定义 OpenAI 兼容网关。',
@@ -96,7 +97,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Claude Router',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/anthropic-router`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.claudeRouter),
           apiKey: 'omniproxy',
           models: 'default / sonnet / opus / haiku，或网关路由里的 Claude 默认模型',
           use: 'Claude Code / Anthropic 兼容入口；后端厂商、凭据和默认模型在「网关路由」页面选择。',
@@ -104,7 +105,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Anthropic 官方账号池',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/anthropic/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.anthropic),
           apiKey: 'omniproxy-local',
           models: 'Claude 模型名',
           use: '使用 Anthropic API Key 或 Claude OAuth JSON 账号池。',
@@ -112,7 +113,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Zo Anthropic',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/zo/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.zoAnthropic),
           apiKey: 'omniproxy-local',
           models: 'claude-opus-4-7 / claude-sonnet-4-6',
           use: '用 Zo Token 适配 Anthropic Messages 请求。',
@@ -120,7 +121,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Prem Anthropic',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/prem/anthropic/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.premAnthropic),
           apiKey: 'omniproxy-local',
           models: 'deepseek-v4-pro / qwen3.5 / qwen3.6 或 Prem 支持的模型 ID',
           use: '转发到全局 Prem confidential-proxy 的 Anthropic 入口。',
@@ -128,7 +129,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'sub2api Anthropic',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/sub2api/anthropic/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.sub2apiAnthropic),
           apiKey: 'omniproxy-local',
           models: '由 sub2api 上游决定',
           use: '转发到 sub2api Anthropic 兼容入口。',
@@ -136,7 +137,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'new-api Anthropic',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/newapi/anthropic/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.newapiAnthropic),
           apiKey: 'omniproxy-local',
           models: '由 new-api 上游决定',
           use: '转发到 new-api Anthropic 兼容入口。',
@@ -144,7 +145,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'AnyRouter Anthropic',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/anyrouter/anthropic/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.anyrouterAnthropic),
           apiKey: 'omniproxy-local',
           models: 'claude-opus-4-5-20251101',
           use: '转发到 AnyRouter 的 Claude Code/Anthropic 兼容入口。',
@@ -152,7 +153,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: '自定义 Anthropic 网关',
           protocol: 'Anthropic Messages',
-          baseUrl: `${base}/custom/anthropic/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.customAnthropic),
           apiKey: 'omniproxy-local',
           models: 'custom-model 或上游支持的模型名',
           use: '转发到设置页填写的自定义 Anthropic 兼容网关。',
@@ -166,7 +167,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'DeepSeek',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/deepseek/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.deepseek),
           apiKey: 'omniproxy-local',
           models: 'deepseek-v4-pro / deepseek-v4-flash',
           use: '固定使用 DeepSeek API Key 账号池。',
@@ -174,7 +175,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Kimi',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/kimi/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.kimi),
           apiKey: 'omniproxy-local',
           models: 'kimi-for-coding',
           use: '固定使用 Kimi API Key 账号池。',
@@ -182,7 +183,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Xiaomi MiMo',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/xiaomi/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.xiaomi),
           apiKey: 'omniproxy-local',
           models: 'mimo-v2.5-pro / mimo-v2.5',
           use: '固定使用 MiMo API Key 或 Token Plan 账号池。',
@@ -190,7 +191,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Zhipu GLM',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/zhipu/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.zhipu),
           apiKey: 'omniproxy-local',
           models: 'glm-5.1',
           use: '固定使用 Zhipu GLM 账号池。',
@@ -198,7 +199,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'MiniMax',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/minimax/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.minimax),
           apiKey: 'omniproxy-local',
           models: 'MiniMax-M2.7',
           use: '固定使用 MiniMax API Key 账号池。',
@@ -206,7 +207,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Gemini Native',
           protocol: 'Gemini API',
-          baseUrl: `${base}/gemini`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.gemini),
           apiKey: 'omniproxy-local',
           models: 'gemini-3-pro-preview / gemini-3-flash-preview',
           use: '用于支持 Gemini 原生 API 的客户端。',
@@ -214,7 +215,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'sub2api Gemini',
           protocol: 'Gemini API',
-          baseUrl: `${base}/sub2api/gemini`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.sub2apiGemini),
           apiKey: 'omniproxy-local',
           models: '由 sub2api 上游决定',
           use: '转发到 sub2api Gemini 兼容入口。',
@@ -222,7 +223,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'new-api Gemini',
           protocol: 'Gemini API',
-          baseUrl: `${base}/newapi/gemini`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.newapiGemini),
           apiKey: 'omniproxy-local',
           models: '由 new-api 上游决定',
           use: '转发到 new-api Gemini 兼容入口。',
@@ -236,7 +237,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Codex Router',
           protocol: 'OpenAI Responses',
-          baseUrl: `${base}/codex/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.codex),
           apiKey: 'omniproxy-local',
           models: 'Codex 一键配置写入的默认模型，或客户端发送的模型名',
           use: 'Codex CLI 一键配置会写入这个稳定入口；切换模型后端顺序不需要重写 Codex 配置。',
@@ -244,7 +245,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'OpenCode Router',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/opencode-router/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.opencodeRouter),
           apiKey: 'omniproxy-local',
           models: '入口默认模型，或客户端发送的模型名',
           use: 'OpenCode 一键配置只添加 omniproxy provider；后端顺序按模型路由选择。',
@@ -252,7 +253,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Pi Router',
           protocol: 'OpenAI Chat',
-          baseUrl: `${base}/pi-router/v1`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.piRouter),
           apiKey: 'omniproxy-local',
           models: '入口默认模型，或客户端发送的模型名',
           use: 'Pi Coding Agent 一键配置只添加 omniproxy provider；后端顺序按模型路由选择。',
@@ -260,7 +261,7 @@ export function buildThirdPartyEndpointGroups(port) {
         {
           name: 'Claude Desktop Gateway',
           protocol: 'Claude Desktop 3P Gateway',
-          baseUrl: `${base}/claude-desktop`,
+          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.claudeDesktop),
           apiKey: 'omniproxy-claude-desktop',
           models: '由 Claude Desktop Profile 映射决定',
           use: '仅用于 Claude Desktop 3P Gateway；建议通过一键配置写入。',

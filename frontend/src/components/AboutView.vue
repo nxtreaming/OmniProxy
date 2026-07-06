@@ -58,6 +58,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  exportingDiagnostics: {
+    type: Boolean,
+    default: false,
+  },
   formatTime: {
     type: Function,
     default: null,
@@ -71,6 +75,7 @@ defineEmits([
   'open-url',
   'refresh-update-diagnostics',
   'copy-update-diagnostics',
+  'export-diagnostics',
 ])
 
 const currentVersion = computed(
@@ -495,6 +500,9 @@ function formatBytes(value) {
             </el-button>
             <el-button :icon="Memo" :disabled="!updateDiagnostics" @click="$emit('copy-update-diagnostics', updateDiagnosticsText)">
               复制
+            </el-button>
+            <el-button :icon="Download" :loading="exportingDiagnostics" @click="$emit('export-diagnostics')">
+              {{ exportingDiagnostics ? '导出中' : '导出诊断包' }}
             </el-button>
           </div>
         </div>

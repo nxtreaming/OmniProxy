@@ -37,8 +37,10 @@ export function createTokenHelpers(state) {
   }
 
   function credentialDisplay(item) {
+    if (item.credentialType === 'codex_auth_json') {
+      return item.accountId ? `account_id: ${item.accountId}` : item.maskedTokenValue || 'auth.json'
+    }
     if (item.maskedTokenValue) return item.maskedTokenValue
-    if (item.credentialType === 'codex_auth_json') return 'auth.json'
     if (item.credentialType === 'claude_oauth_json') return 'OAuth JSON'
     return item.hasTokenValue ? '已保存' : '-'
   }

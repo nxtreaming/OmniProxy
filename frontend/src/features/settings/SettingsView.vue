@@ -26,6 +26,22 @@ defineProps({
     type: Boolean,
     required: true,
   },
+  configSnapshots: {
+    type: Array,
+    default: () => [],
+  },
+  configSnapshotBusy: {
+    type: String,
+    default: '',
+  },
+  exportingConfig: {
+    type: Boolean,
+    default: false,
+  },
+  importingConfig: {
+    type: Boolean,
+    default: false,
+  },
   taskAutomationBrowserProfiles: {
     type: Array,
     default: () => [],
@@ -52,6 +68,11 @@ defineEmits([
   'persist-config',
   'choose-data-directory',
   'toggle-auto-start',
+  'create-config-snapshot',
+  'restore-config-snapshot',
+  'delete-config-snapshot',
+  'export-config',
+  'import-config',
   'refresh-task-automation-browser-profiles',
   'clear-billing-usage',
   'clear-request-history',
@@ -73,10 +94,19 @@ defineEmits([
             :data-dir-changing="dataDirChanging"
             :auto-start-changing="autoStartChanging"
             :auto-start-enabled="autoStartEnabled"
+            :config-snapshots="configSnapshots"
+            :config-snapshot-busy="configSnapshotBusy"
+            :exporting-config="exportingConfig"
+            :importing-config="importingConfig"
             :clearing-billing-usage="clearingBillingUsage"
             :clearing-request-history="clearingRequestHistory"
             @choose-data-directory="$emit('choose-data-directory')"
             @toggle-auto-start="$emit('toggle-auto-start')"
+            @create-config-snapshot="$emit('create-config-snapshot')"
+            @restore-config-snapshot="$emit('restore-config-snapshot', $event)"
+            @delete-config-snapshot="$emit('delete-config-snapshot', $event)"
+            @export-config="$emit('export-config')"
+            @import-config="$emit('import-config', $event)"
             @clear-billing-usage="$emit('clear-billing-usage')"
             @clear-request-history="$emit('clear-request-history')"
           />

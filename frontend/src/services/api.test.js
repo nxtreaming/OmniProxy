@@ -32,6 +32,33 @@ test('HTTP API fallback fetches and sends the control token', async () => {
   delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
 })
 
+test('Wails API calls generated desktop bindings when runtime is available', async () => {
+  const previousWindow = globalThis.window
+  try {
+    globalThis.window = {
+      go: {
+        main: {
+          DesktopApp: {
+            Logs: async () => [{ message: 'from desktop' }],
+          },
+        },
+      },
+    }
+    globalThis.fetch = async (url) => {
+      throw new Error(`unexpected fetch: ${url}`)
+    }
+
+    const { getLogs } = await import(`./api.js?wails-runtime-test=${Date.now()}`)
+    assert.deepEqual(await getLogs(), [{ message: 'from desktop' }])
+  } finally {
+    if (previousWindow === undefined) {
+      delete globalThis.window
+    } else {
+      globalThis.window = previousWindow
+    }
+  }
+})
+
 test('HTTP API fallback refreshes token auth through the control API', async () => {
   globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'refresh-control-token'
   const calls = []
@@ -164,6 +191,86 @@ test('HTTP API fallback fetches update diagnostics', async () => {
   assert.deepEqual(
     calls.map((call) => call.url),
     ['http://127.0.0.1:3890/api/update/diagnostics'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})
+
+test('HTTP API fallback diagnoses gateway routes through the control API', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'gateway-diagnostic-token'
+  const payload = { client: 'claude', model: 'sonnet' }
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    if (String(url).endsWith('/gateway/diagnose')) {
+      assert.equal(options.method, 'POST')
+      assert.equal(options.headers['X-OmniProxy-Control-Token'], 'gateway-diagnostic-token')
+      assert.deepEqual(JSON.parse(options.body), payload)
+      return jsonResponse(200, { ok: true, selectedIndex: 0, chain: [] })
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const { diagnoseGatewayRoute } = await import(`./api.js?gateway-diagnose-test=${Date.now()}`)
+  assert.deepEqual(await diagnoseGatewayRoute(payload), { ok: true, selectedIndex: 0, chain: [] })
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    ['http://127.0.0.1:3890/api/gateway/diagnose'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})
+
+test('HTTP API fallback manages config snapshots through the control API', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'config-snapshot-token'
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    const parsed = new URL(String(url))
+    if (parsed.pathname.endsWith('/config/snapshots') && !options.method) {
+      return jsonResponse(200, [{ id: 'snap-1', name: 'before' }])
+    }
+    if (parsed.pathname.endsWith('/config/snapshots') && options.method === 'POST') {
+      assert.deepEqual(JSON.parse(options.body), { name: 'manual' })
+      return jsonResponse(201, { id: 'snap-2', name: 'manual' })
+    }
+    if (parsed.pathname.endsWith('/config/snapshots/snap-1') && options.method === 'PUT') {
+      return jsonResponse(200, { proxyPort: 3000 })
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const mod = await import(`./api.js?config-snapshot-test=${Date.now()}`)
+  assert.deepEqual(await mod.listConfigSnapshots(), [{ id: 'snap-1', name: 'before' }])
+  assert.deepEqual(await mod.createConfigSnapshot('manual'), { id: 'snap-2', name: 'manual' })
+  assert.deepEqual(await mod.restoreConfigSnapshot('snap-1'), { proxyPort: 3000 })
+  assert.deepEqual(
+    calls.map((call) => new URL(call.url).pathname),
+    ['/api/config/snapshots', '/api/config/snapshots', '/api/config/snapshots/snap-1'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})
+
+test('HTTP API fallback syncs provider models through the control API', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'model-sync-token'
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    if (String(url).endsWith('/models/sync')) {
+      assert.equal(options.method, 'POST')
+      assert.equal(options.headers['X-OmniProxy-Control-Token'], 'model-sync-token')
+      assert.deepEqual(JSON.parse(options.body), { provider: 'deepseek' })
+      return jsonResponse(200, { provider: 'deepseek', models: [{ id: 'deepseek-test' }] })
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const { syncProviderModels } = await import(`./api.js?provider-model-sync-test=${Date.now()}`)
+  assert.deepEqual(await syncProviderModels('deepseek'), {
+    provider: 'deepseek',
+    models: [{ id: 'deepseek-test' }],
+  })
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    ['http://127.0.0.1:3890/api/models/sync'],
   )
   delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
 })

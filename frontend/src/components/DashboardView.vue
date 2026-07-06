@@ -1,5 +1,4 @@
 ﻿<script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,10 +9,7 @@ import {
   SwitchButton,
   TrendCharts,
 } from '@element-plus/icons-vue'
-
-const CONTRIBUTION_WINDOW_DAYS = 180
-const CONTRIBUTION_WEEKDAY_LABELS = ['', '一', '', '三', '', '五', '']
-const CONTRIBUTION_LEVELS = [0, 1, 2, 3, 4]
+import DashboardContributionCalendar from './DashboardContributionCalendar.vue'
 
 const props = defineProps({
   proxyStatus: { type: Object, required: true },
@@ -25,6 +21,8 @@ const props = defineProps({
   coolingTokens: { type: Array, required: true },
   exhaustedTokens: { type: Array, required: true },
   disabledTokens: { type: Array, required: true },
+  watchTokens: { type: Array, required: true },
+  riskTokens: { type: Array, required: true },
   totalProxyTokens: { type: Number, required: true },
   totalProxyInputTokens: { type: Number, required: true },
   totalProxyOutputTokens: { type: Number, required: true },
@@ -32,6 +30,7 @@ const props = defineProps({
   todayProxyRequests: { type: Number, required: true },
   totalProxyRequests: { type: Number, required: true },
   activeRequests: { type: Array, required: true },
+  longRequestAlertSeconds: { type: Number, required: true },
   activeTokenIds: { type: Object, required: true },
   toolUsageRows: { type: Array, required: true },
   subscriptionOverviewTokens: { type: Array, required: true },
@@ -71,16 +70,6 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle-proxy', 'refresh', 'open-settings', 'open-billing', 'open-trends', 'change-quota-page'])
 
-const contributionCalendar = computed(() =>
-  buildContributionCalendar(props.dailyUsageRows, CONTRIBUTION_WINDOW_DAYS),
-)
-const contributionCalendarWeeks = computed(() => contributionCalendar.value.weeks)
-const contributionCalendarSummary = computed(() => contributionCalendar.value.summary)
-const contributionGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${Math.max(1, contributionCalendarWeeks.value.length)}, var(--contribution-cell))`,
-}))
-const activeContributionTooltip = ref(null)
-
 function toggleProxy() {
   emit('toggle-proxy')
 }
@@ -105,141 +94,26 @@ function changeQuotaOverviewPage(type, direction) {
   emit('change-quota-page', type, direction)
 }
 
-function buildContributionCalendar(rows, windowDays) {
-  const usageByDate = new Map((rows || []).map((row) => [row.date, row]))
-  const today = startOfLocalDay(new Date())
-  const windowStart = addDays(today, -(windowDays - 1))
-  const gridStart = addDays(windowStart, -windowStart.getDay())
-  const gridEnd = addDays(today, 6 - today.getDay())
-  const maxRequests = Math.max(
-    1,
-    ...Array.from({ length: windowDays }, (_, index) => {
-      const key = localDateKeyFromDate(addDays(windowStart, index))
-      return Number(usageByDate.get(key)?.requestCount || 0)
-    }),
-  )
-  const weeks = []
-  const summary = {
-    days: windowDays,
-    activeDays: 0,
-    requests: 0,
-    tokens: 0,
-  }
-
-  for (let cursor = new Date(gridStart); cursor <= gridEnd; cursor = addDays(cursor, 7)) {
-    const week = []
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-      const day = addDays(cursor, dayIndex)
-      const date = localDateKeyFromDate(day)
-      const row = usageByDate.get(date) || {}
-      const outside = day < windowStart || day > today
-      const requests = outside ? 0 : Number(row.requestCount || 0)
-      const tokens = outside ? 0 : Number(row.totalTokens || 0)
-      if (!outside) {
-        summary.requests += requests
-        summary.tokens += tokens
-        if (requests > 0) summary.activeDays += 1
-      }
-      week.push({
-        key: `${date}-${dayIndex}`,
-        date,
-        dayOfMonth: day.getDate(),
-        level: contributionLevel(requests, maxRequests),
-        monthKey: `${day.getFullYear()}-${day.getMonth()}`,
-        monthLabel: `${day.getMonth() + 1}月`,
-        outside,
-        requests,
-        tokens,
-      })
-    }
-    weeks.push(week)
-  }
-
-  let lastMonthKey = ''
-  const monthLabels = weeks.map((week, index) => {
-    const visibleDays = week.filter((day) => !day.outside)
-    const labelDay = index === 0 ? visibleDays[0] : visibleDays.find((day) => day.dayOfMonth === 1)
-    if (!labelDay || labelDay.monthKey === lastMonthKey) return ''
-    lastMonthKey = labelDay.monthKey
-    return labelDay.monthLabel
-  })
-
-  return { monthLabels, summary, weeks }
+function requestAgeSeconds(request) {
+  const startedAt = Date.parse(request?.startedAt || '')
+  if (!Number.isFinite(startedAt)) return 0
+  return Math.max(0, Math.round((Date.now() - startedAt) / 1000))
 }
 
-function contributionLevel(value, maxValue) {
-  if (value <= 0) return 0
-  return Math.max(1, Math.min(4, Math.ceil((value / maxValue) * 4)))
+function requestDurationText(request) {
+  const seconds = requestAgeSeconds(request)
+  if (seconds < 60) return `${seconds} 秒`
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return `${minutes} 分 ${rest} 秒`
 }
 
-function contributionDayTitle(day) {
-  if (day.outside) return ''
-  return `${day.date} · ${props.formatNumber(day.requests)} 次请求 · ${props.formatNumber(day.tokens)} Token`
+function isLongRequest(request) {
+  return requestAgeSeconds(request) >= Number(props.longRequestAlertSeconds || 120)
 }
 
-function contributionTooltipPosition(event) {
-  const target = event?.currentTarget
-  const rect = target?.getBoundingClientRect?.()
-  const rawX = rect ? rect.left + rect.width / 2 : event?.clientX || 0
-  const rawY = rect ? rect.top + rect.height / 2 : event?.clientY || 0
-  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
-  const tooltipWidth = 230
-  const margin = 16
-  const x = Math.min(
-    Math.max(rawX, tooltipWidth / 2 + margin),
-    Math.max(tooltipWidth / 2 + margin, viewportWidth - tooltipWidth / 2 - margin),
-  )
-
-  return {
-    x,
-    y: rawY,
-    placement: rawY < 140 ? 'below' : 'above',
-  }
-}
-
-function showContributionTooltip(day, event) {
-  if (day.outside) return
-  activeContributionTooltip.value = {
-    ...day,
-    ...contributionTooltipPosition(event),
-  }
-}
-
-function moveContributionTooltip(day, event) {
-  if (!activeContributionTooltip.value || activeContributionTooltip.value.key !== day.key) return
-  activeContributionTooltip.value = {
-    ...activeContributionTooltip.value,
-    ...contributionTooltipPosition(event),
-  }
-}
-
-function hideContributionTooltip() {
-  activeContributionTooltip.value = null
-}
-
-function isContributionTooltipActive(day) {
-  return activeContributionTooltip.value?.key === day.key
-}
-
-onBeforeUnmount(() => {
-  hideContributionTooltip()
-})
-
-function startOfLocalDay(value) {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate())
-}
-
-function addDays(value, days) {
-  const next = new Date(value)
-  next.setDate(next.getDate() + days)
-  return next
-}
-
-function localDateKeyFromDate(value) {
-  const year = value.getFullYear()
-  const month = String(value.getMonth() + 1).padStart(2, '0')
-  const day = String(value.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+function longActiveRequests() {
+  return props.activeRequests.filter((request) => isLongRequest(request))
 }
 </script>
 
@@ -259,8 +133,12 @@ function localDateKeyFromDate(value) {
               <strong>{{ invalidTokens.length }}</strong>
               <small>无效账号</small>
             </div>
+            <div>
+              <strong>{{ riskTokens.length }}</strong>
+              <small>高风险</small>
+            </div>
           </div>
-          <small>低额度 {{ lowTokens.length }} · 冷却 {{ coolingTokens.length }} · 耗尽 {{ exhaustedTokens.length }} · 停用 {{ disabledTokens.length }}</small>
+          <small>关注 {{ watchTokens.length }} · 低额度 {{ lowTokens.length }} · 冷却 {{ coolingTokens.length }} · 耗尽 {{ exhaustedTokens.length }} · 停用 {{ disabledTokens.length }}</small>
         </article>
         <article class="metric-card">
           <div class="metric-card-head">
@@ -284,7 +162,7 @@ function localDateKeyFromDate(value) {
             <Monitor class="metric-icon" aria-hidden="true" />
           </div>
           <strong>{{ formatNumber(activeRequests.length) }}</strong>
-          <small>正在占用的上游账号 {{ activeTokenIds.size }} 个</small>
+          <small>正在占用 {{ activeTokenIds.size }} 个账号 · 长请求 {{ longActiveRequests().length }}</small>
         </article>
 
         <section class="panel full tool-usage-panel">
@@ -317,6 +195,32 @@ function localDateKeyFromDate(value) {
             </div>
           </div>
           <div v-else class="empty">暂无工具使用记录</div>
+        </section>
+
+        <section v-if="activeRequests.length" class="panel active-request-panel">
+          <div class="section-heading">
+            <div>
+              <h2>活跃请求</h2>
+              <p>长时间占用会按当前阈值标记</p>
+            </div>
+            <button v-if="longActiveRequests().length" type="button" class="danger-button" @click="toggleProxy">停止代理</button>
+          </div>
+          <div class="active-request-list">
+            <div
+              v-for="request in activeRequests.slice(0, 5)"
+              :key="request.id"
+              :class="['active-request-row', { warning: isLongRequest(request) }]"
+            >
+              <div>
+                <strong>{{ request.clientName || clientToolLabel(request.clientKey) }}</strong>
+                <small>{{ providerLabel(request.provider) }} · {{ request.model || '未识别模型' }}</small>
+              </div>
+              <span :class="['tag', isLongRequest(request) ? 'warning' : 'success']">
+                {{ requestDurationText(request) }}
+              </span>
+              <small>账号 {{ request.tokenName || '-' }} · {{ formatTime(request.startedAt) }}</small>
+            </div>
+          </div>
         </section>
 
         <section class="panel wide quota-overview-panel">
@@ -466,100 +370,7 @@ function localDateKeyFromDate(value) {
           </div>
         </section>
 
-        <section class="panel contribution-panel">
-          <div class="section-heading contribution-heading">
-            <div>
-              <h2>请求活跃日历</h2>
-              <p>最近 {{ contributionCalendarSummary.days }} 天代理请求活跃度</p>
-            </div>
-            <div class="contribution-total">
-              <strong>{{ formatNumber(contributionCalendarSummary.requests) }}</strong>
-              <span>次请求</span>
-            </div>
-          </div>
-
-          <div
-            class="contribution-calendar"
-            :aria-label="`最近 ${contributionCalendarSummary.days} 天代理请求活跃日历`"
-          >
-            <div class="contribution-months" :style="contributionGridStyle" aria-hidden="true">
-              <span
-                v-for="(label, index) in contributionCalendar.monthLabels"
-                :key="`contribution-month-${index}`"
-              >
-                {{ label }}
-              </span>
-            </div>
-            <div class="contribution-weekdays" aria-hidden="true">
-              <span v-for="(label, index) in CONTRIBUTION_WEEKDAY_LABELS" :key="`weekday-${index}`">
-                {{ label }}
-              </span>
-            </div>
-            <div class="contribution-grid" :style="contributionGridStyle">
-              <div
-                v-for="(week, weekIndex) in contributionCalendarWeeks"
-                :key="`contribution-week-${weekIndex}`"
-                class="contribution-week"
-              >
-                <span
-                  v-for="day in week"
-                  :key="day.key"
-                  :class="['contribution-day', `level-${day.level}`, { outside: day.outside }]"
-                  :aria-label="day.outside ? undefined : contributionDayTitle(day)"
-                  :aria-describedby="isContributionTooltipActive(day) ? 'contribution-tooltip' : undefined"
-                  :tabindex="day.outside ? undefined : 0"
-                  :role="day.outside ? undefined : 'img'"
-                  @mouseenter="showContributionTooltip(day, $event)"
-                  @mousemove="moveContributionTooltip(day, $event)"
-                  @mouseleave="hideContributionTooltip"
-                  @focus="showContributionTooltip(day, $event)"
-                  @blur="hideContributionTooltip"
-                ></span>
-              </div>
-            </div>
-          </div>
-
-          <Teleport to="body">
-            <Transition name="contribution-tooltip-fade">
-              <div
-                v-if="activeContributionTooltip"
-                id="contribution-tooltip"
-                class="contribution-tooltip"
-                :class="{ below: activeContributionTooltip.placement === 'below' }"
-                :style="{
-                  left: `${activeContributionTooltip.x}px`,
-                  top: `${activeContributionTooltip.y}px`,
-                }"
-                role="tooltip"
-              >
-                <div class="contribution-tooltip-date">{{ activeContributionTooltip.date }}</div>
-                <div class="contribution-tooltip-metrics">
-                  <span>
-                    <strong>{{ formatNumber(activeContributionTooltip.requests) }}</strong>
-                    次请求
-                  </span>
-                  <span>
-                    <strong>{{ formatNumber(activeContributionTooltip.tokens) }}</strong>
-                    Token
-                  </span>
-                </div>
-                <p>{{ activeContributionTooltip.requests > 0 ? '当天有代理活动' : '当天暂无请求' }}</p>
-              </div>
-            </Transition>
-          </Teleport>
-
-          <div class="contribution-footer">
-            <span>
-              {{ formatNumber(contributionCalendarSummary.tokens) }} Token · 活跃
-              {{ formatNumber(contributionCalendarSummary.activeDays) }} 天
-            </span>
-            <div class="contribution-legend" aria-hidden="true">
-              <span>少</span>
-              <i v-for="level in CONTRIBUTION_LEVELS" :key="`legend-${level}`" :class="`level-${level}`"></i>
-              <span>多</span>
-            </div>
-          </div>
-        </section>
+        <DashboardContributionCalendar :rows="dailyUsageRows" :format-number="formatNumber" />
 
         <section class="panel full usage-overview-panel">
           <div class="section-heading">

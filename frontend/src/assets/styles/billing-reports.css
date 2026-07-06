@@ -372,6 +372,20 @@
   line-height: 1;
 }
 
+.diagnostic-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diagnostic-head-actions button:first-child {
+  width: auto;
+  min-width: 72px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .diagnostic-grid {
   margin-top: 16px;
   display: grid;

@@ -1,3 +1,5 @@
+@import './GatewayRoutingExtras.css';
+
 .settings-panel .settings-gateway-section {
   gap: 18px;
 }
@@ -484,6 +486,141 @@
   z-index: 110;
 }
 
+.settings-panel .gateway-diagnostic-row {
+  padding-top: 0;
+}
+
+.settings-panel .gateway-diagnostic-controls {
+  grid-template-columns: minmax(180px, 0.34fr) minmax(220px, 1fr) auto;
+  align-items: end;
+}
+
+.settings-panel .gateway-diagnostic-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-panel .gateway-diagnostic-message {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.45;
+}
+
+.settings-panel .gateway-diagnostic-result {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 22%, var(--surface));
+}
+
+.settings-panel .gateway-diagnostic-result-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-panel .gateway-diagnostic-result-head strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-diagnostic-result-head span,
+.settings-panel .gateway-diagnostic-grid span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-diagnostic-chain {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-panel .gateway-diagnostic-candidate {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.settings-panel .gateway-diagnostic-candidate.selected {
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--line));
+  background: color-mix(in srgb, var(--brand) 7%, var(--surface));
+}
+
+.settings-panel .gateway-diagnostic-candidate.available:not(.selected) {
+  border-color: color-mix(in srgb, var(--success) 32%, var(--line));
+}
+
+.settings-panel .gateway-diagnostic-candidate-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.settings-panel .gateway-diagnostic-candidate-head span,
+.settings-panel .gateway-diagnostic-candidate-head small {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--surface));
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 740;
+}
+
+.settings-panel .gateway-diagnostic-candidate-head strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-diagnostic-candidate.available .gateway-diagnostic-candidate-head small {
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  color: var(--success);
+}
+
+.settings-panel .gateway-diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-panel .gateway-diagnostic-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-panel .gateway-diagnostic-grid strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.shell.dark .settings-panel .gateway-diagnostic-result,
+.shell.dark .settings-panel .gateway-diagnostic-candidate,
+.shell.dark .settings-panel .gateway-diagnostic-candidate-head span,
+.shell.dark .settings-panel .gateway-diagnostic-candidate-head small {
+  background: color-mix(in srgb, var(--surface-soft) 40%, var(--surface));
+}
+
 @media (max-width: 900px) {
   .settings-panel .gateway-quick-config {
     grid-template-columns: 1fr;
@@ -521,4 +658,20 @@
   .settings-panel .gateway-fallback-actions {
     justify-content: flex-start;
   }
+
+  .settings-panel .gateway-diagnostic-controls,
+  .settings-panel .gateway-diagnostic-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .gateway-diagnostic-actions,
+  .settings-panel .gateway-diagnostic-result-head {
+    justify-content: flex-start;
+  }
+
+  .settings-panel .gateway-diagnostic-result-head,
+  .settings-panel .gateway-diagnostic-candidate-head {
+    flex-wrap: wrap;
+  }
+
 }

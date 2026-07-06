@@ -14,6 +14,10 @@ func (a *DesktopApp) ConfigureClaudeModels(req claudeModelsConfigureRequest) (mi
 	return a.server.configureClaudeModels(req)
 }
 
+func (a *DesktopApp) ClientConfigPreviews() ([]clientConfigPreview, error) {
+	return a.server.clientConfigPreviews()
+}
+
 func (a *DesktopApp) ConfigureClaudeDesktopModels(req claudeModelsConfigureRequest) (mimoConfigureResult, error) {
 	return a.server.configureClaudeDesktopModels(req)
 }

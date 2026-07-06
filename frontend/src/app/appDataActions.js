@@ -1,10 +1,15 @@
 import { ElMessageBox } from 'element-plus'
+import { applyLoadedConfig } from './appDataMerge.js'
 import { localDateKey } from '../utils/format'
 import {
   chooseDataDirectory as chooseDataDirectoryWithDialog,
   clearBillingUsage,
   clearRequestHistory,
+  createConfigSnapshot,
+  deleteConfigSnapshot,
   exportCodexAuthFiles,
+  exportConfigBundle,
+  exportDiagnosticsBundle,
   exportHistory,
   exportTokens,
   getActiveRequests,
@@ -13,7 +18,10 @@ import {
   getBillingDates,
   getBillingSummary,
   getBillingUsage,
+  getClientConfigPreviews,
   getConfig,
+  importConfigBundle,
+  listConfigSnapshots,
   getDataDirectory,
   getHistory,
   getHistorySummary,
@@ -23,6 +31,7 @@ import {
   getTaskAutomationBrowserProfiles,
   getTokens,
   getUpdateDiagnostics,
+  restoreConfigSnapshot,
   setAutoStart,
   startProxy,
   stopProxy,
@@ -45,6 +54,8 @@ export function createAppDataActions(state, navigation) {
         loadedAutoStart,
         loadedAppInfo,
         loadedUpdateDiagnostics,
+        loadedConfigSnapshots,
+        loadedClientConfigPreviews,
       ] = await Promise.all([
         getTokens(),
         getConfig(),
@@ -57,21 +68,15 @@ export function createAppDataActions(state, navigation) {
         getAutoStartStatus(),
         getAppInfo(),
         getUpdateDiagnostics().catch(() => null),
+        listConfigSnapshots().catch(() => []),
+        getClientConfigPreviews().catch(() => []),
       ])
       state.tokens.value = loadedTokens
       state.logs.value = loadedLogs
       state.activeRequests.value = loadedActiveRequests
       state.requestHistory.value = loadedHistory
       state.billingSummary.value = loadedBillingSummary || state.emptyBillingSummary()
-      const pendingGatewayRoutes = state.gatewayRoutesDirty.value ? state.config.gatewayRoutes : null
-      const pendingModelRoutes = state.gatewayRoutesDirty.value ? state.config.modelRoutes : null
-      Object.assign(state.config, loadedConfig)
-      if (pendingGatewayRoutes) {
-        state.config.gatewayRoutes = pendingGatewayRoutes
-      }
-      if (pendingModelRoutes) {
-        state.config.modelRoutes = pendingModelRoutes
-      }
+      applyLoadedConfig(state.config, loadedConfig, state.routeDraftsDirty.value)
       Object.assign(state.proxyStatus, loadedStatus)
       Object.assign(state.dataDirectory, loadedDataDirectory, {
         pendingDataDir: '',
@@ -80,6 +85,8 @@ export function createAppDataActions(state, navigation) {
       state.autoStartEnabled.value = Boolean(loadedAutoStart?.enabled)
       Object.assign(state.appInfo, loadedAppInfo)
       state.updateDiagnostics.value = loadedUpdateDiagnostics || null
+      state.configSnapshots.value = Array.isArray(loadedConfigSnapshots) ? loadedConfigSnapshots : []
+      state.clientConfigPreviews.value = Array.isArray(loadedClientConfigPreviews) ? loadedClientConfigPreviews : []
       if (state.activeTab.value === 'history') {
         await refreshHistory()
       } else if (state.activeTab.value === 'billing') {
@@ -412,6 +419,132 @@ export function createAppDataActions(state, navigation) {
     }
   }
 
+  async function exportDiagnostics() {
+    state.exportingDiagnostics.value = true
+    state.errorMessage.value = ''
+    state.successMessage.value = ''
+    try {
+      const result = await exportDiagnosticsBundle()
+      if (result?.path || result?.fileName) {
+        state.successMessage.value = `诊断包已导出：${result.fileName || result.path}`
+      }
+    } catch (error) {
+      state.errorMessage.value = error.message
+    } finally {
+      state.exportingDiagnostics.value = false
+    }
+  }
+
+  async function refreshConfigSnapshots() {
+    try {
+      state.configSnapshots.value = await listConfigSnapshots()
+    } catch (error) {
+      state.errorMessage.value = error.message
+    }
+  }
+
+  async function createCurrentConfigSnapshot() {
+    state.configSnapshotBusy.value = 'create'
+    state.errorMessage.value = ''
+    state.successMessage.value = ''
+    try {
+      await createConfigSnapshot('')
+      await refreshConfigSnapshots()
+      state.successMessage.value = '配置快照已创建'
+    } catch (error) {
+      state.errorMessage.value = error.message
+    } finally {
+      state.configSnapshotBusy.value = ''
+    }
+  }
+
+  async function restoreConfigSnapshotById(id) {
+    try {
+      await ElMessageBox.confirm('将用该快照覆盖当前应用设置。账号池不会被改动。', '恢复配置快照', {
+        confirmButtonText: '恢复快照',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+      state.configSnapshotBusy.value = id
+      state.errorMessage.value = ''
+      state.successMessage.value = ''
+      const saved = await restoreConfigSnapshot(id)
+      applyLoadedConfig(state.config, saved, false)
+      state.routeDraftsDirty.value = false
+      await Promise.all([refreshConfigSnapshots(), refreshRealtime()])
+      state.successMessage.value = '配置快照已恢复'
+    } catch (action) {
+      if (action instanceof Error) {
+        state.errorMessage.value = action.message
+      }
+    } finally {
+      state.configSnapshotBusy.value = ''
+    }
+  }
+
+  async function deleteConfigSnapshotById(id) {
+    try {
+      await ElMessageBox.confirm('将删除这个本地配置快照。此操作不会影响当前设置。', '删除配置快照', {
+        confirmButtonText: '删除快照',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+      state.configSnapshotBusy.value = id
+      state.errorMessage.value = ''
+      await deleteConfigSnapshot(id)
+      await refreshConfigSnapshots()
+      state.successMessage.value = '配置快照已删除'
+    } catch (action) {
+      if (action instanceof Error) {
+        state.errorMessage.value = action.message
+      }
+    } finally {
+      state.configSnapshotBusy.value = ''
+    }
+  }
+
+  async function exportCurrentConfig() {
+    state.exportingConfig.value = true
+    state.errorMessage.value = ''
+    state.successMessage.value = ''
+    try {
+      const result = await exportConfigBundle()
+      if (result?.path || result?.fileName) {
+        state.successMessage.value = `配置已导出：${result.fileName || result.path}`
+      }
+    } catch (error) {
+      state.errorMessage.value = error.message
+    } finally {
+      state.exportingConfig.value = false
+    }
+  }
+
+  async function importConfigFromFile(file = null) {
+    try {
+      await ElMessageBox.confirm('将用导入文件覆盖当前应用设置。账号池不会被导入或覆盖。', '导入配置', {
+        confirmButtonText: '导入配置',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+      state.importingConfig.value = true
+      state.errorMessage.value = ''
+      state.successMessage.value = ''
+      const result = await importConfigBundle(file)
+      if (result?.config) {
+        applyLoadedConfig(state.config, result.config, false)
+        state.routeDraftsDirty.value = false
+      }
+      await Promise.all([refreshConfigSnapshots(), refreshRealtime()])
+      state.successMessage.value = result?.message || '配置已导入'
+    } catch (action) {
+      if (action instanceof Error) {
+        state.errorMessage.value = action.message
+      }
+    } finally {
+      state.importingConfig.value = false
+    }
+  }
+
   function closeHistoryDiagnosis() {
     state.selectedHistoryEntry.value = null
   }
@@ -437,6 +570,13 @@ export function createAppDataActions(state, navigation) {
     exportRequestHistory,
     exportTokenBackup,
     exportCodexAuthBackups,
+    exportDiagnostics,
+    refreshConfigSnapshots,
+    createCurrentConfigSnapshot,
+    restoreConfigSnapshotById,
+    deleteConfigSnapshotById,
+    exportCurrentConfig,
+    importConfigFromFile,
     closeHistoryDiagnosis,
   }
 }

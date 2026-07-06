@@ -1,0 +1,59 @@
+.settings-panel .gateway-catalog-sync {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 20%, var(--surface));
+}
+
+.settings-panel .gateway-catalog-sync > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-panel .gateway-catalog-sync span,
+.settings-panel .gateway-strategy-list small {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.settings-panel .gateway-catalog-sync small {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.settings-panel .gateway-strategy-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 8px;
+}
+
+.settings-panel .gateway-strategy-list .gateway-model-preset {
+  min-height: 52px;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.settings-panel .gateway-strategy-list strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+@media (max-width: 900px) {
+  .settings-panel .gateway-catalog-sync {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}

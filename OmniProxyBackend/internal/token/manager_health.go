@@ -234,14 +234,29 @@ func (m *Manager) balancedTokenLessLocked(left Token, right Token, leftIndex int
 	return leftIndex > rightIndex
 }
 
-func (m *Manager) nameExistsLocked(name string, provider string, exceptID string) bool {
+func (m *Manager) tokenIdentityExistsLocked(name string, provider string, credentialType string, value string, exceptID string) bool {
 	provider = NormalizeProvider(provider)
+	var incomingCodexFields CodexAuthFields
+	incomingCodexOK := false
+	if credentialType == CredentialTypeCodexAuthJSON {
+		incomingCodexFields, incomingCodexOK = ExtractCodexAuthFields(value)
+	}
+
 	for _, item := range m.tokens {
 		if item.ID == exceptID {
 			continue
 		}
 		if NormalizeProvider(item.Provider) != provider {
 			continue
+		}
+		if credentialType == CredentialTypeCodexAuthJSON && item.CredentialType == CredentialTypeCodexAuthJSON && incomingCodexOK {
+			existingCodexFields, ok := ExtractCodexAuthFields(item.TokenValue)
+			if ok && codexAuthSameIdentity(existingCodexFields, incomingCodexFields) {
+				return true
+			}
+			if ok {
+				continue
+			}
 		}
 		if strings.EqualFold(strings.TrimSpace(item.Name), name) {
 			return true

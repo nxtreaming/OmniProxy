@@ -13,10 +13,15 @@ export namespace main {
   export import appInfo = main_coreModels.appInfo
   export import balancePackageResponse = main_tokensModels.balancePackageResponse
   export import claudeModelsConfigureRequest = main_coreModels.claudeModelsConfigureRequest
+  export import clientConfigPreview = main_miscModels.clientConfigPreview
   export import clientConfigureResult = main_coreModels.clientConfigureResult
   export import codexAuthExportResult = main_coreModels.codexAuthExportResult
   export import codexConfigureRequest = main_miscModels.codexConfigureRequest
   export import codexConfigureResult = main_coreModels.codexConfigureResult
+  export import configExportResult = main_miscModels.configExportResult
+  export import configImportResult = main_miscModels.configImportResult
+  export import configSnapshotSummary = main_miscModels.configSnapshotSummary
+  export import diagnosticsExportResult = main_miscModels.diagnosticsExportResult
   export import healthResponse = main_tokensModels.healthResponse
   export import retryAttemptResponse = main_historyModels.retryAttemptResponse
   export import historyResponse = main_historyModels.historyResponse
@@ -29,6 +34,9 @@ export namespace main {
   export import openRouterPricing = main_openrouterModels.openRouterPricing
   export import openRouterModelResponse = main_openrouterModels.openRouterModelResponse
   export import openRouterModelsResponse = main_openrouterModels.openRouterModelsResponse
+  export import providerModelCatalogItem = main_miscModels.providerModelCatalogItem
+  export import providerModelCatalogRequest = main_miscModels.providerModelCatalogRequest
+  export import providerModelCatalogResponse = main_miscModels.providerModelCatalogResponse
   export import tokenExportResult = main_tokensModels.tokenExportResult
   export import tokenStatsResponse = main_tokensModels.tokenStatsResponse
   export import usageResponse = main_tokensModels.usageResponse

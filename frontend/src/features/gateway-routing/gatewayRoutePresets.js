@@ -1,3 +1,5 @@
+import { gatewayEndpointPaths, localProxyEndpoint } from '../../constants/gatewayEndpoints.js'
+
 const openAICompatibleProviders = [
   'openai',
   'deepseek',
@@ -20,7 +22,7 @@ export const routeDefinitions = [
     key: 'codex',
     title: 'Codex',
     protocol: 'OpenAI Responses',
-    endpoint: (port) => `http://127.0.0.1:${port}/codex/v1`,
+    endpoint: (port) => localProxyEndpoint(port, gatewayEndpointPaths.codex),
     fallback: { provider: 'openai', credentialType: '', model: 'gpt-5.5' },
     providers: openAICompatibleProviders,
     modelPresets: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-high', 'gpt-5.5-high', 'gpt-5-codex', 'deepseek-v4-pro', 'mimo-v2.5-pro', 'kimi-for-coding', 'glm-5.1', 'MiniMax-M2.7'],
@@ -29,7 +31,7 @@ export const routeDefinitions = [
     key: 'claude',
     title: 'Claude Code / Desktop',
     protocol: 'Anthropic Messages',
-    endpoint: (port) => `http://127.0.0.1:${port}/anthropic-router`,
+    endpoint: (port) => localProxyEndpoint(port, gatewayEndpointPaths.claudeRouter),
     fallback: { provider: 'anthropic', credentialType: '', model: 'default' },
     providers: [
       'anthropic',
@@ -63,7 +65,7 @@ export const routeDefinitions = [
     key: 'openai',
     title: 'OpenAI 兼容',
     protocol: 'Chat / Responses',
-    endpoint: (port) => `http://127.0.0.1:${port}/opencode-router/v1`,
+    endpoint: (port) => localProxyEndpoint(port, gatewayEndpointPaths.opencodeRouter),
     fallback: { provider: 'openai', credentialType: '', model: 'gpt-5.4' },
     providers: openAICompatibleProviders,
     modelPresets: ['gpt-5.4', 'gpt-5.4-high', 'gpt-5.5', 'gpt-5.5-high', 'deepseek-v4-pro', 'kimi-for-coding', 'glm-5.1', 'MiniMax-M2.7'],
@@ -72,7 +74,7 @@ export const routeDefinitions = [
     key: 'gemini',
     title: 'Gemini CLI',
     protocol: 'Gemini Native',
-    endpoint: (port) => `http://127.0.0.1:${port}/gemini`,
+    endpoint: (port) => localProxyEndpoint(port, gatewayEndpointPaths.gemini),
     fallback: { provider: 'gemini', credentialType: '', model: 'gemini-3-pro-preview' },
     providers: ['gemini', 'sub2api', 'newapi'],
     modelPresets: ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
@@ -227,6 +229,65 @@ export const gatewayPlatformPresets = [
     ],
   },
 ]
+
+export const routeStrategyPresets = [
+  {
+    key: 'stable',
+    label: '稳定优先',
+    description: '官方与主流托管优先',
+    providers: ['openai', 'anthropic', 'gemini', 'deepseek', 'kimi', 'zhipu', 'minimax', 'openrouter', 'tokenrouter', 'prem', 'custom'],
+  },
+  {
+    key: 'cost',
+    label: '成本优先',
+    description: '低成本和聚合网关优先',
+    providers: ['deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'tokenrouter', 'openrouter', 'sub2api', 'newapi', 'anyrouter', 'prem', 'custom', 'openai', 'anthropic', 'gemini'],
+  },
+  {
+    key: 'speed',
+    label: '速度优先',
+    description: '本地和高速中转优先',
+    providers: ['prem', 'zo', 'openai', 'anthropic', 'gemini', 'tokenrouter', 'openrouter', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'custom'],
+  },
+  {
+    key: 'quota',
+    label: '额度轮转',
+    description: '尽量保留更多备用链',
+    providers: ['openai', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'anthropic', 'gemini', 'openrouter', 'tokenrouter', 'sub2api', 'newapi', 'anyrouter', 'zo', 'prem', 'custom'],
+  },
+]
+
+export function routeStrategyChain(availableProviders, strategyKey) {
+  const available = Array.from(new Set((availableProviders || []).map(normalizeProviderKey).filter(Boolean)))
+  const preset = routeStrategyPresets.find((item) => item.key === strategyKey) || routeStrategyPresets[0]
+  const ordered = [
+    ...preset.providers.filter((provider) => available.includes(provider)),
+    ...available.filter((provider) => !preset.providers.includes(provider)),
+  ]
+  return Array.from(new Set(ordered))
+}
+
+export function inferGatewayProviderForModel(model) {
+  const normalized = String(model || '').trim().toLowerCase()
+  if (normalized === 'claude-opus-4-7' || normalized === 'claude-sonnet-4-6') return 'zo'
+  if (normalized.startsWith('claude-')) return 'anthropic'
+  if (normalized.startsWith('deepseek-')) return 'deepseek'
+  if (normalized.startsWith('kimi-')) return 'kimi'
+  if (normalized.startsWith('mimo-')) return 'xiaomi'
+  if (normalized.startsWith('glm-') || normalized.startsWith('zhipu-')) return 'zhipu'
+  if (normalized.startsWith('minimax-')) return 'minimax'
+  if (normalized.startsWith('gemini-')) return 'gemini'
+  if (normalized.startsWith('auto:') || normalized.startsWith('tokenrouter:') || normalized.startsWith('tokenrouter/')) {
+    return 'tokenrouter'
+  }
+  if (normalized.includes('/')) return 'openrouter'
+  if (normalized.startsWith('custom-')) return 'custom'
+  return 'openai'
+}
+
+function normalizeProviderKey(provider) {
+  return String(provider || '').trim().toLowerCase()
+}
 
 function routeModel(model, routeKeys, label = model) {
   return {

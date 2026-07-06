@@ -25,6 +25,19 @@ export function createAppDerivedState(state, tokenHelpers) {
   )
   const invalidTokens = computed(() => enabledTokens.value.filter((item) => item.status === 'invalid'))
   const coolingTokens = computed(() => enabledTokens.value.filter((item) => isCooling(item)))
+  const healthWatchThreshold = computed(() => clampHealthThreshold(state.config.healthWatchThreshold, 80))
+  const healthRiskThreshold = computed(() =>
+    Math.min(healthWatchThreshold.value - 1, clampHealthThreshold(state.config.healthRiskThreshold, 50)),
+  )
+  const watchTokens = computed(() =>
+    enabledTokens.value.filter((item) => {
+      const score = Number(item.healthScore)
+      return score >= healthRiskThreshold.value && score < healthWatchThreshold.value
+    }),
+  )
+  const riskTokens = computed(() =>
+    enabledTokens.value.filter((item) => Number(item.healthScore) < healthRiskThreshold.value),
+  )
   const activeTokenIds = computed(() => new Set(state.activeRequests.value.map((item) => item.tokenId).filter(Boolean)))
   const activeProviderInfo = computed(
     () => providers.find((item) => item.key === state.activeProvider.value) || providers[0],
@@ -192,6 +205,12 @@ export function createAppDerivedState(state, tokenHelpers) {
     return `${start}-${end} / ${total}`
   }
 
+  function clampHealthThreshold(value, fallback) {
+    const parsed = Number(value || fallback)
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.min(100, Math.max(1, Math.round(parsed)))
+  }
+
   function changeQuotaOverviewPage(type, direction) {
     const target = type === 'subscription' ? state.subscriptionQuotaPage : state.apiQuotaPage
     const count = type === 'subscription' ? subscriptionOverviewPageCount.value : apiOverviewPageCount.value
@@ -206,6 +225,8 @@ export function createAppDerivedState(state, tokenHelpers) {
     exhaustedTokens,
     invalidTokens,
     coolingTokens,
+    watchTokens,
+    riskTokens,
     activeTokenIds,
     activeProviderInfo,
     activeProviderTokens,

@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue'
+
 const props = defineProps({
   entry: {
     type: Object,
@@ -19,6 +21,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
+const copied = ref(false)
 
 function diagnosticRetryChain(entry) {
   if (entry?.retryChain?.length) {
@@ -64,6 +67,34 @@ function diagnosticClientLabel(entry) {
   if (isStatusCheckEntry(entry)) return '状态检查'
   return entry?.clientName || entry?.clientKey || '-'
 }
+
+function diagnosticSummary(entry) {
+  if (!entry) return ''
+  const lines = [
+    `时间: ${props.formatTime(entry.time)}`,
+    `请求: ${entry.method || '-'} ${entry.path || '-'}`,
+    `工具: ${diagnosticClientLabel(entry)}`,
+    `路由: ${props.providerLabel(entry.provider)} / ${entry.protocol || '-'}`,
+    `模型: ${entry.model || '-'}`,
+    `账号: ${entry.tokenName || '-'}`,
+    `状态: ${entry.status || '-'} / ${props.formatDuration(entry.durationMs)}`,
+    `消息: ${historyMessageSummary(entry)}`,
+    '链路:',
+    ...diagnosticRetryChain(entry).map((attempt) =>
+      `  #${attempt.attempt || '-'} ${props.providerLabel(attempt.provider)} ${attempt.model || entry.model || '-'} ${attempt.tokenName || '-'} ${attempt.status || '-'} ${props.formatDuration(attempt.durationMs)}${attempt.cooldownTriggered ? ' 冷却' : ''} ${attempt.message || ''}`.trimEnd(),
+    ),
+  ]
+  return lines.join('\n')
+}
+
+async function copyDiagnosticSummary() {
+  if (!props.entry || typeof navigator === 'undefined' || !navigator.clipboard) return
+  await navigator.clipboard.writeText(diagnosticSummary(props.entry))
+  copied.value = true
+  window.setTimeout(() => {
+    copied.value = false
+  }, 1600)
+}
 </script>
 
 <template>
@@ -75,7 +106,12 @@ function diagnosticClientLabel(entry) {
             <h2>{{ isProblemHistory(entry) ? '失败诊断' : '请求详情' }}</h2>
             <p>{{ formatTime(entry.time) }} · {{ entry.method }} {{ entry.path }}</p>
           </div>
-          <button type="button" aria-label="关闭诊断面板" @click="emit('close')">×</button>
+          <div class="diagnostic-head-actions">
+            <button type="button" @click="copyDiagnosticSummary">
+              {{ copied ? '已复制' : '复制摘要' }}
+            </button>
+            <button type="button" aria-label="关闭诊断面板" @click="emit('close')">×</button>
+          </div>
         </div>
 
         <div class="diagnostic-grid">

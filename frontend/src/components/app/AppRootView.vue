@@ -47,14 +47,15 @@ const {
   activeTokens, afterPageEnter, apiOverviewPageCount, apiOverviewTokens, apiQuotaPage, apiQuotaPageText, appInfo, appThemeLabel,
   autoStartChanging, autoStartEnabled, batchImportForm, batchImportPlaceholder, batchImporting, billingDates, billingUsage, canConfigureClaudeModels, canConfigureCodexModels,
   changeBillingDate, changeQuotaOverviewPage, chooseDataDirectory, claudeCliRestoring, claudeDesktopConfiguring, claudeDesktopRestoring, claudeModelsConfiguring,
-  clearBillingUsageData, clearRequestHistoryData, clearingBillingUsage, clearingRequestHistory, clientToolLabel, closeBatchImport, closeDeleteConfirm, closeFirstUseGuide,
-  closeForm, closeHistoryDiagnosis, closeTitlebarUpdatePopover, closeWindow, codexAuthImporting, codexConfiguring, codexRestoring, config,
+  clearBillingUsageData, clearRequestHistoryData, clearingBillingUsage, clearingRequestHistory, clientConfigPreviews, clientToolLabel, closeBatchImport, closeDeleteConfirm, closeFirstUseGuide,
+  closeForm, closeHistoryDiagnosis, closeTitlebarUpdatePopover, closeWindow, codexAuthImporting, codexConfiguring, codexRestoring, config, configSnapshotBusy,
+  configSnapshots, createCurrentConfigSnapshot,
   confirmRemoveToken, confirmTitlebarUpdatePopover, configureLocalClaudeDesktopModels, configureLocalClaudeModels, configureLocalCodex, configureLocalDeepSeekTUI,
   configureLocalGemini, configureLocalOpenCode, configureLocalPi, coolingTokens, copyEndpointValue, credentialDisplay, credentialLabel, credentialPlaceholder,
   currentFirstUseGuideStep, currentTabLabel, dailyUsageRows, dashboardDailyUsageRows, dashboardSignals, dashboardTrendRows, dataDirChanging, dataDirectory,
-  deepSeekTUIConfiguring, deepSeekTUIRestoring, deleteBusy, deleteCandidate, disabledTokens, errorMessage, exhaustedTokens, exportCodexAuthBackups,
-  exportRequestHistory, exportTokenBackup, exportingCodexAuth, exportingHistory, exportingTokens, firstUseGuideStepIndex, firstUseGuideSteps, firstUseGuideVisible,
-  form, gatewayRoutesDirty, geminiConfiguring, geminiRestoring, hasWailsRuntime, hideWorkspaceScrollbar, importCodexAuthFiles, installReadyUpdateFromUpdateSurface, invalidTokens,
+  deepSeekTUIConfiguring, deepSeekTUIRestoring, deleteBusy, deleteCandidate, deleteConfigSnapshotById, disabledTokens, errorMessage, exhaustedTokens, exportCodexAuthBackups,
+  exportCurrentConfig, exportDiagnostics, exportRequestHistory, exportTokenBackup, exportingCodexAuth, exportingConfig, exportingDiagnostics, exportingHistory, exportingTokens, firstUseGuideStepIndex, firstUseGuideSteps, firstUseGuideVisible,
+  form, geminiConfiguring, geminiRestoring, hasWailsRuntime, hideWorkspaceScrollbar, importCodexAuthFiles, importConfigFromFile, importingConfig, installReadyUpdateFromUpdateSurface, invalidTokens,
   isAutoNameForm, isClaudeModelOptionDisabled, isCodexModelOptionDisabled, isDark, isTokenActiveNow, lastUpdateCheckedAt, lastUpdateInfo, loading, logs,
   lowTokens, manualCheckForUpdates, minimiseWindow, mobileSidebarOpen, navSections, nextFirstUseGuideStep, onBatchImportProviderChange, onProviderChange,
   openBatchImport, openBillingView, openCodexAuthFilePicker, openCreateForm, openEditForm, openOpenRouterChat, openRouterModels, openRouterModelsCached,
@@ -62,15 +63,15 @@ const {
   pagedSubscriptionOverviewTokens, piConfiguring, piRestoring, persistConfig, previousFirstUseGuideStep, providerLabel, providerTokens, proxyEndpoint,
   proxyStatus, quotaOverviewRangeText, quotaRefreshProgress, refreshAll, refreshAuthToken, refreshBilling, refreshHistory, refreshOpenRouterModels,
   refreshProviderQuotas, refreshQuota, refreshRealtime, refreshingProvider, refreshingTokenIds, refreshTaskAutomationBrowserProfiles, refreshUpdateDiagnostics, removeToken, requestHistory,
-  requestHistorySummary, requestTrendWidth, restoreActiveWorkspaceScroll, restoreLocalClaude, restoreLocalClaudeDesktop, restoreLocalCodex, restoreLocalDeepSeekTUI,
+  requestHistorySummary, requestTrendWidth, restoreActiveWorkspaceScroll, restoreConfigSnapshotById, restoreLocalClaude, restoreLocalClaudeDesktop, restoreLocalCodex, restoreLocalDeepSeekTUI,
   restoreLocalGemini, restoreLocalOpenCode, restoreLocalPi, runFirstUseGuideAction, selectOpenRouterChatModel, selectProvider, selectTab, selectedBillingDate,
-  selectedClaudeModelLabels, selectedClaudeModels, selectedCodexModelLabels, selectedCodexModels, selectedHistoryEntry, selectedOpenRouterChatModel, skipCurrentUpdate, snoozeTitlebarUpdate, startUpdateDownload, startWindowResize, submitBatchImport,
+  riskTokens, routeDraftsDirty, selectedClaudeModelLabels, selectedClaudeModels, selectedCodexModelLabels, selectedCodexModels, selectedHistoryEntry, selectedOpenRouterChatModel, skipCurrentUpdate, snoozeTitlebarUpdate, startUpdateDownload, startWindowResize, submitBatchImport,
   submitForm, subscriptionOverviewPageCount, subscriptionOverviewTokens, subscriptionQuotaPage, subscriptionQuotaPageText, successMessage, switchingOnlyTokenIds,
   tabIcons, taskAutomationBrowserProfiles, taskAutomationBrowserProfilesError, taskAutomationBrowserProfilesLoading, titlebarUpdatePopoverOpen, titlebarUpdatePrompt,
   titlebarUpdateVisible, todayProxyRequests, todayProxyTokens, toggleAppTheme, toggleAutoStart, toggleProxy, toggleTitlebarUpdatePopover,
   toggleTokenEnabled, toggleTokenSelected, toggleWindowMaximise, togglingTokenIds, tokens, toolUsageDuration, toolUsageMeta, toolUsageRows,
   totalProxyInputTokens, totalProxyOutputTokens, totalProxyRequests, totalProxyTokens, trendWidth, updateChecking, updateDiagnostics, updateDiagnosticsLoading, updateDownloadStatus, validatingIds,
-  verifyToken, windowMaximised, workspaceRef, workspaceScrollbarVisible, handleWorkspacePointerMove, handleWorkspaceScroll,
+  verifyToken, watchTokens, windowMaximised, workspaceRef, workspaceScrollbarVisible, handleWorkspacePointerMove, handleWorkspaceScroll,
 } = useOmniProxyApp()
 </script>
 
@@ -179,6 +180,8 @@ const {
         :cooling-tokens="coolingTokens"
         :exhausted-tokens="exhaustedTokens"
         :disabled-tokens="disabledTokens"
+        :watch-tokens="watchTokens"
+        :risk-tokens="riskTokens"
         :total-proxy-tokens="totalProxyTokens"
         :total-proxy-input-tokens="totalProxyInputTokens"
         :total-proxy-output-tokens="totalProxyOutputTokens"
@@ -186,6 +189,7 @@ const {
         :today-proxy-requests="todayProxyRequests"
         :total-proxy-requests="totalProxyRequests"
         :active-requests="activeRequests"
+        :long-request-alert-seconds="config.longRequestAlertSeconds"
         :active-token-ids="activeTokenIds"
         :tool-usage-rows="toolUsageRows"
         :subscription-overview-tokens="subscriptionOverviewTokens"
@@ -362,7 +366,7 @@ const {
         key="gateway-routes"
         :config="config"
         @persist-config="persistConfig"
-        @route-dirty="gatewayRoutesDirty = true"
+        @route-draft-dirty="routeDraftsDirty = true"
       />
 
       <SettingsView
@@ -373,6 +377,10 @@ const {
         :data-dir-changing="dataDirChanging"
         :auto-start-changing="autoStartChanging"
         :auto-start-enabled="autoStartEnabled"
+        :config-snapshots="configSnapshots"
+        :config-snapshot-busy="configSnapshotBusy"
+        :exporting-config="exportingConfig"
+        :importing-config="importingConfig"
         :task-automation-browser-profiles="taskAutomationBrowserProfiles"
         :task-automation-browser-profiles-loading="taskAutomationBrowserProfilesLoading"
         :task-automation-browser-profiles-error="taskAutomationBrowserProfilesError"
@@ -381,6 +389,11 @@ const {
         @persist-config="persistConfig"
         @choose-data-directory="chooseDataDirectory"
         @toggle-auto-start="toggleAutoStart"
+        @create-config-snapshot="createCurrentConfigSnapshot"
+        @restore-config-snapshot="restoreConfigSnapshotById"
+        @delete-config-snapshot="deleteConfigSnapshotById"
+        @export-config="exportCurrentConfig"
+        @import-config="importConfigFromFile"
         @refresh-task-automation-browser-profiles="refreshTaskAutomationBrowserProfiles"
         @clear-billing-usage="clearBillingUsageData"
         @clear-request-history="clearRequestHistoryData"
@@ -400,6 +413,7 @@ const {
         :update-checked-at="lastUpdateCheckedAt"
         :update-diagnostics="updateDiagnostics"
         :update-diagnostics-loading="updateDiagnosticsLoading"
+        :exporting-diagnostics="exportingDiagnostics"
         :format-time="formatTime"
         @manual-check-for-updates="manualCheckForUpdates"
         @download-update="startUpdateDownload"
@@ -407,6 +421,7 @@ const {
         @open-url="openExternalURL"
         @refresh-update-diagnostics="refreshUpdateDiagnostics"
         @copy-update-diagnostics="copyEndpointValue($event, '更新诊断信息')"
+        @export-diagnostics="exportDiagnostics"
       />
 
       <QuickstartView
@@ -415,6 +430,7 @@ const {
         v-model:selected-codex-models="selectedCodexModels"
         v-model:selected-claude-models="selectedClaudeModels"
         :config="config"
+        :client-config-previews="clientConfigPreviews"
         :codex-model-options="codexModelOptions"
         :codex-model-selection-limit="codexModelSelectionLimit"
         :selected-codex-model-labels="selectedCodexModelLabels"

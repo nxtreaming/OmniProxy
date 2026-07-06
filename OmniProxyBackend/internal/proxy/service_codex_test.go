@@ -88,6 +88,63 @@ func TestServiceRoutesCodexAuthJSONToCodexBackend(t *testing.T) {
 	}
 }
 
+func TestServiceBalancedCodexAutoCredentialUsesActiveFallbackBeforeLowAuthJSON(t *testing.T) {
+	var gotAuth string
+	var gotAccount string
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotAccount = r.Header.Get("ChatGPT-Account-Id")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lowAuth, err := manager.Add(token.UpsertRequest{
+		Name:           "coder@example.com",
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTest(t, "coder@example.com"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Add(token.UpsertRequest{Name: "api-key", Provider: token.ProviderOpenAI, TokenValue: "sk-active-openai-token"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RecordUsage(lowAuth.ID, 5); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		SchedulingMode:  config.SchedulingModeBalanced,
+		OpenAIBaseURL:   upstream.URL,
+		CodexBaseURL:    upstream.URL + "/backend-api/codex",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	}, manager, logs.NewRecorder(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/responses", stringsReader(`{"model":"gpt-5.5","input":"hi"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if gotAuth != "Bearer sk-active-openai-token" || gotAccount != "" {
+		t.Fatalf("expected active API key before low Codex auth, got auth=%q account=%q", gotAuth, gotAccount)
+	}
+}
+
 func TestServiceConvertsCodexChatCompletionsToResponses(t *testing.T) {
 	var gotPath string
 	var gotAuth string

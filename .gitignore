@@ -13,6 +13,8 @@ Thumbs.db
 .env.*
 auth.json
 **/auth.json
+cpa-codex-*.json
+omniproxy-tokens-*.json
 *.omniproxy.bak
 *.har
 

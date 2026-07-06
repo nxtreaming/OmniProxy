@@ -106,6 +106,9 @@ export function configPayload(config) {
     switchThreshold: Number(source.switchThreshold),
     maxRetries: Number(source.maxRetries),
     historyRetentionDays: Number(source.historyRetentionDays),
+    healthWatchThreshold: Number(source.healthWatchThreshold),
+    healthRiskThreshold: Number(source.healthRiskThreshold),
+    longRequestAlertSeconds: Number(source.longRequestAlertSeconds),
   }
 }
 
@@ -118,7 +121,7 @@ export function createConfigActions(state, dataActions) {
     try {
       const saved = await saveConfig(configPayload(state.config))
       Object.assign(state.config, saved)
-      state.gatewayRoutesDirty.value = false
+      state.routeDraftsDirty.value = false
       await dataActions.refreshRealtime()
       state.successMessage.value = '设置已保存'
     } catch (error) {

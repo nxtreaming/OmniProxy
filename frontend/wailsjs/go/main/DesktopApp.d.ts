@@ -4,6 +4,7 @@ import {main} from '../models';
 import {history} from '../models';
 import {config} from '../models';
 import {token} from '../models';
+import {proxy} from '../models';
 import {taskautomation} from '../models';
 
 export function ActiveProxyRequests():Promise<Array<main.activeRequestResponse>>;
@@ -28,7 +29,11 @@ export function ClearBillingUsage():Promise<void>;
 
 export function ClearRequestHistory():Promise<void>;
 
+export function ClientConfigPreviews():Promise<Array<main.clientConfigPreview>>;
+
 export function Config():Promise<config.Config>;
+
+export function ConfigSnapshots():Promise<Array<main.configSnapshotSummary>>;
 
 export function ConfigureClaudeDesktopModels(arg1:main.claudeModelsConfigureRequest):Promise<main.mimoConfigureResult>;
 
@@ -46,9 +51,13 @@ export function ConfigurePi():Promise<main.clientConfigureResult>;
 
 export function ControlAPI():Promise<string>;
 
+export function CreateConfigSnapshot(arg1:string):Promise<main.configSnapshotSummary>;
+
 export function CreateToken(arg1:token.UpsertRequest):Promise<main.tokenResponse>;
 
 export function DataDirectory():Promise<config.DataDirectoryInfo>;
+
+export function DeleteConfigSnapshot(arg1:string):Promise<void>;
 
 export function DeleteToken(arg1:string):Promise<void>;
 
@@ -56,11 +65,19 @@ export function DownloadUpdate(arg1:main.updateDownloadRequest):Promise<main.upd
 
 export function ExportCodexAuthFiles():Promise<main.codexAuthExportResult>;
 
+export function ExportConfigBundle():Promise<main.configExportResult>;
+
+export function ExportDiagnosticsBundle():Promise<main.diagnosticsExportResult>;
+
 export function ExportRequestHistory(arg1:string,arg2:history.Filter):Promise<string>;
 
 export function ExportTokens():Promise<main.tokenExportResult>;
 
+export function GatewayRouteDiagnostics(arg1:proxy.RouteDiagnosticRequest):Promise<proxy.RouteDiagnostic>;
+
 export function ImportAPIKeys(arg1:main.apiKeyBatchImportRequest):Promise<main.apiKeyBatchImportResult>;
+
+export function ImportConfigBundle():Promise<main.configImportResult>;
 
 export function InstallDownloadedUpdate():Promise<main.updateDownloadStatus>;
 
@@ -69,6 +86,8 @@ export function Logs():Promise<Array<main.logResponse>>;
 export function OpenRouterChat(arg1:main.openRouterChatRequest):Promise<main.openRouterChatResponse>;
 
 export function OpenRouterModels(arg1:boolean):Promise<main.openRouterModelsResponse>;
+
+export function ProviderModels(arg1:main.providerModelCatalogRequest):Promise<main.providerModelCatalogResponse>;
 
 export function ProxyStatus():Promise<Record<string, any>>;
 
@@ -83,6 +102,8 @@ export function RestoreClaude():Promise<main.mimoConfigureResult>;
 export function RestoreClaudeDesktop():Promise<main.mimoConfigureResult>;
 
 export function RestoreCodex():Promise<main.codexConfigureResult>;
+
+export function RestoreConfigSnapshot(arg1:string):Promise<config.Config>;
 
 export function RestoreDeepSeekTUI():Promise<main.clientConfigureResult>;
 

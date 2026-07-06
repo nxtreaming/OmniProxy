@@ -1,4 +1,8 @@
 export function codexEmailFromAuthJSON(text) {
+  return codexIdentityFromAuthJSON(text).email
+}
+
+export function codexIdentityFromAuthJSON(text) {
   let data
   try {
     data = JSON.parse(text)
@@ -15,31 +19,35 @@ export function codexEmailFromAuthJSON(text) {
   }
 
   const directEmail = codexStringField(data?.email)
-  if (directEmail) {
-    return directEmail
+  const idToken = codexIDTokenFromData(data)
+  const directAccountId = codexStringField(data?.tokens?.account_id) || codexStringField(data?.account_id)
+  let payload = null
+  if ((!directEmail || !directAccountId) && idToken) {
+    const parts = idToken.split('.')
+    if (parts.length !== 3) {
+      if (!directEmail) throw new Error('id_token 格式不正确')
+    } else {
+      try {
+        payload = JSON.parse(decodeBase64URL(parts[1]))
+      } catch {
+        if (!directEmail) throw new Error('无法解析 id_token')
+      }
+    }
   }
 
-  const idToken = codexIDTokenFromData(data)
-  if (typeof idToken !== 'string' || !idToken.trim()) {
+  const email = directEmail || payload?.['https://api.openai.com/profile']?.email || payload?.email
+  if (typeof email !== 'string' || !email.trim()) {
     throw new Error('缺少 email，且无法从 id_token 解析邮箱')
   }
-  const parts = idToken.split('.')
-  if (parts.length !== 3) {
-    throw new Error('id_token 格式不正确')
-  }
 
-  let payload
-  try {
-    payload = JSON.parse(decodeBase64URL(parts[1]))
-  } catch {
-    throw new Error('无法解析 id_token')
+  const accountId = directAccountId ||
+    payload?.['https://api.openai.com/auth']?.chatgpt_account_id ||
+    payload?.account_id ||
+    ''
+  return {
+    email: email.trim(),
+    accountId: codexStringField(accountId),
   }
-
-  const email = payload?.['https://api.openai.com/profile']?.email || payload?.email
-  if (typeof email !== 'string' || !email.trim()) {
-    throw new Error('id_token 中没有邮箱')
-  }
-  return email.trim()
 }
 
 function codexIDTokenFromData(data) {
@@ -62,7 +70,7 @@ function codexStringField(value) {
 function decodeBase64URL(value) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
   const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=')
-  const binary = window.atob(padded)
+  const binary = globalThis.atob(padded)
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
   return new TextDecoder().decode(bytes)
 }

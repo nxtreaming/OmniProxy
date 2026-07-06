@@ -17,6 +17,79 @@
   margin-top: 0;
 }
 
+.quickstart-panel .client-preview-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 26%, var(--surface));
+}
+
+.quickstart-panel .client-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quickstart-panel .client-preview-head strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.quickstart-panel .client-preview-head small {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.quickstart-panel .client-preview-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 8px;
+}
+
+.quickstart-panel .client-preview-row {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.quickstart-panel .client-preview-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.quickstart-panel .client-preview-row strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.quickstart-panel .client-preview-row small {
+  min-width: 0;
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.quickstart-panel .client-preview-row code {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 60%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .quickstart-panel .help-grid article {
   box-shadow: none;
 }

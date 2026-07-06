@@ -517,6 +517,16 @@ export function displayStatusType(item) {
 }
 
 export function healthSummary(item) {
+  if (item?.healthMessage) {
+    const label = {
+      healthy: '健康',
+      watch: '关注',
+      risk: '高风险',
+      disabled: '已停用',
+    }[item.healthLevel] || '健康'
+    const score = Number.isFinite(Number(item.healthScore)) ? ` · ${Math.round(Number(item.healthScore))} 分` : ''
+    return `${label}${score} · ${item.healthMessage}`
+  }
   if (item?.disabled) {
     return '已停用，不参与调度和自动检查'
   }

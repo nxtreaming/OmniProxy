@@ -310,6 +310,68 @@
   width: 100%;
 }
 
+.settings-panel .snapshot-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.settings-panel .snapshot-pill {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-panel .snapshot-pill > button:first-child {
+  min-width: 0;
+  min-height: 38px;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+  color: var(--text-strong);
+  text-align: left;
+}
+
+.settings-panel .snapshot-pill span,
+.settings-panel .snapshot-pill small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-panel .snapshot-delete-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 26%, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-panel .threshold-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.settings-panel .settings-maintenance-section .threshold-grid .inline-number-field {
+  width: 100%;
+}
+
+.settings-panel .hidden-file-input {
+  display: none;
+}
+
 .settings-panel .settings-chip-list {
   display: flex;
   flex-wrap: wrap;

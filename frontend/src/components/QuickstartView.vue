@@ -4,6 +4,7 @@ import { MagicStick, Monitor, RefreshRight } from '@element-plus/icons-vue'
 
 const props = defineProps({
   config: { type: Object, required: true },
+  clientConfigPreviews: { type: Array, default: () => [] },
   codexModelOptions: { type: Array, required: true },
   codexModelSelectionLimit: { type: Number, required: true },
   selectedCodexModels: { type: Array, required: true },
@@ -74,10 +75,39 @@ function addCustomCodexModel() {
   emit('update:selectedCodexModels', [...selectedCodex.value, model])
   customCodexModel.value = ''
 }
+
+function previewTarget(preview) {
+  return [preview.configPath, preview.settingsPath].filter(Boolean).join(' / ')
+}
+
+function previewMeta(preview) {
+  return [
+    preview.baseUrl,
+    preview.providerId ? `Provider ${preview.providerId}` : '',
+    preview.model ? `模型 ${preview.model}` : '',
+    preview.models?.length ? `模型 ${preview.models.join('、')}` : '',
+  ].filter(Boolean).join(' · ')
+}
 </script>
 
 <template>
   <section class="help-panel quickstart-panel">
+    <section v-if="clientConfigPreviews.length" class="client-preview-panel">
+      <div class="client-preview-head">
+        <strong>配置预览</strong>
+        <small>一键配置会写入以下本地文件，并保留 `.omniproxy.bak` 备份。</small>
+      </div>
+      <div class="client-preview-list">
+        <div v-for="preview in clientConfigPreviews" :key="preview.client" class="client-preview-row">
+          <div>
+            <strong>{{ preview.client }}</strong>
+            <small>{{ preview.message }}</small>
+          </div>
+          <code>{{ previewTarget(preview) }}</code>
+          <small>{{ previewMeta(preview) }}</small>
+        </div>
+      </div>
+    </section>
     <div class="help-grid">
       <article class="wide-help">
         <strong>Codex</strong>
