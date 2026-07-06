@@ -226,14 +226,7 @@ func tokenResponseFor(item token.Token) tokenResponse {
 }
 
 func tokenAccountID(item token.Token) string {
-	if token.NormalizeProvider(item.Provider) != token.ProviderOpenAI || item.CredentialType != token.CredentialTypeCodexAuthJSON {
-		return ""
-	}
-	fields, ok := token.ExtractCodexAuthFields(item.TokenValue)
-	if !ok {
-		return ""
-	}
-	return fields.AccountID
+	return token.CodexAccountID(item)
 }
 
 func tokenHealthScore(item token.Token) int {

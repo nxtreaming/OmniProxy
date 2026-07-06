@@ -173,7 +173,7 @@ func (s *Service) proxyHTTPWithRetries(w http.ResponseWriter, r *http.Request, r
 				ClientKey:  attemptRoute.ClientKey,
 				ClientName: attemptRoute.ClientName,
 				Model:      attemptRoute.Model,
-				TokenName:  selected.Name,
+				TokenName:  token.DisplayName(selected),
 				Message:    proxyLogMessage(attemptRoute.Model, token.TokenConsumption{}, "upstream request failed, trying next token"),
 			})
 			retryChain = appendRetryAttempt(retryChain, attempt, attemptRoute, &selected, http.StatusBadGateway, time.Since(attemptStart).Milliseconds(), false, fmt.Sprintf("upstream request failed: %v", err))
@@ -217,7 +217,7 @@ func (s *Service) proxyHTTPWithRetries(w http.ResponseWriter, r *http.Request, r
 			Model:      attemptRoute.Model,
 			Status:     resp.StatusCode,
 			Duration:   time.Since(start).Milliseconds(),
-			TokenName:  selected.Name,
+			TokenName:  token.DisplayName(selected),
 			Message:    proxyLogMessage(attemptRoute.Model, consumption, "request proxied"),
 		})
 		s.recordHistory(r, attemptRoute, &selected, resp.StatusCode, time.Since(start).Milliseconds(), consumption, levelForStatus(resp.StatusCode), historyMessage, retryChain...)

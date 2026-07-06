@@ -41,6 +41,36 @@ func ExtractCodexEmail(authJSON string) (string, bool) {
 	return strings.TrimSpace(fields.Email), true
 }
 
+func CodexAccountID(item Token) string {
+	if NormalizeProvider(item.Provider) != ProviderOpenAI || item.CredentialType != CredentialTypeCodexAuthJSON {
+		return ""
+	}
+	fields, ok := ExtractCodexAuthFields(item.TokenValue)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(fields.AccountID)
+}
+
+func DisplayName(item Token) string {
+	name := strings.TrimSpace(item.Name)
+	if accountID := CodexAccountID(item); accountID != "" {
+		if name == "" {
+			return "account_id: " + ShortAccountID(accountID)
+		}
+		return name + " (account_id: " + ShortAccountID(accountID) + ")"
+	}
+	return name
+}
+
+func ShortAccountID(accountID string) string {
+	accountID = strings.TrimSpace(accountID)
+	if len(accountID) <= 18 {
+		return accountID
+	}
+	return accountID[:8] + "..." + accountID[len(accountID)-6:]
+}
+
 func codexAuthSameIdentity(left CodexAuthFields, right CodexAuthFields) bool {
 	leftEmail := strings.TrimSpace(left.Email)
 	rightEmail := strings.TrimSpace(right.Email)

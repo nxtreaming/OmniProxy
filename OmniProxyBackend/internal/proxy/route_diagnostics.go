@@ -181,7 +181,7 @@ func diagnosticCandidate(cfg config.Config, manager *token.Manager, route routeI
 	}
 	if ok {
 		out.TokenID = selected.ID
-		out.TokenName = selected.Name
+		out.TokenName = token.DisplayName(selected)
 		out.TokenStatus = string(selected.Status)
 		out.TokenCredentialType = selected.CredentialType
 		out.TokenRemaining = selected.Remaining

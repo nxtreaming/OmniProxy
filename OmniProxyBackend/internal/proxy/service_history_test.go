@@ -127,6 +127,77 @@ func TestServiceRecordsPersistentRequestHistory(t *testing.T) {
 	}
 }
 
+func TestServiceRecordsCodexWorkspaceTokenName(t *testing.T) {
+	var gotAccount string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccount = r.Header.Get("ChatGPT-Account-Id")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"model":"gpt-response","usage":{"input_tokens":5,"output_tokens":4,"total_tokens":9}}`))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Add(token.UpsertRequest{
+		Name:           "coder@example.com",
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForServiceTestWithCredentials(t, "coder@example.com", "47336c9d1234567890af1e46", "codex-access-token"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logRecorder := logs.NewRecorder(10)
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		CodexBaseURL:    upstream.URL + "/backend-api/codex",
+		SwitchThreshold: 15,
+		MaxRetries:      0,
+	}, manager, logRecorder, recorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/responses", stringsReader(`{"input":"hello"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", res.Code, res.Body.String())
+	}
+	if gotAccount != "47336c9d1234567890af1e46" {
+		t.Fatalf("expected selected workspace account id upstream, got %q", gotAccount)
+	}
+	entries := recorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 history entry, got %#v", entries)
+	}
+	wantName := "coder@example.com (account_id: 47336c9d...af1e46)"
+	if entries[0].TokenID != item.ID || entries[0].TokenName != wantName {
+		t.Fatalf("expected workspace-aware token record, got %#v", entries[0])
+	}
+	logEntries := logRecorder.List()
+	if len(logEntries) != 1 || logEntries[0].TokenName != wantName {
+		t.Fatalf("expected workspace-aware log record, got %#v", logEntries)
+	}
+	updated, err := manager.Get(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Stats.RequestCount != 1 || updated.Stats.TotalTokens != 9 {
+		t.Fatalf("expected usage stats to stay on selected token id, got %#v", updated.Stats)
+	}
+}
+
 func TestServiceRecordsClientToolInHistoryAndLogs(t *testing.T) {
 	var forwardedClientHeader string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

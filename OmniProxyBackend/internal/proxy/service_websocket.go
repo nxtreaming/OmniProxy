@@ -140,7 +140,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 			Model:      lastRoute.Model,
 			Status:     http.StatusBadRequest,
 			Duration:   time.Since(start).Milliseconds(),
-			TokenName:  selected.Name,
+			TokenName:  token.DisplayName(selected),
 			Message:    fmt.Sprintf("websocket client upgrade failed: %v", err),
 		})
 		s.recordHistory(r, lastRoute, &selected, http.StatusBadRequest, time.Since(start).Milliseconds(), token.TokenConsumption{}, logs.LevelError, fmt.Sprintf("websocket client upgrade failed: %v", err))
@@ -169,7 +169,7 @@ func (s *Service) serveCodexWebSocket(w http.ResponseWriter, r *http.Request) {
 		Model:      lastRoute.Model,
 		Status:     http.StatusSwitchingProtocols,
 		Duration:   time.Since(start).Milliseconds(),
-		TokenName:  selected.Name,
+		TokenName:  token.DisplayName(selected),
 		Message:    message,
 	})
 	if len(retryChain) == 0 || retryChain[len(retryChain)-1].Status != http.StatusSwitchingProtocols {

@@ -77,7 +77,7 @@ func (s *Service) prepareTokenAttempt(ctx context.Context, r *http.Request, rout
 			ClientKey:  route.ClientKey,
 			ClientName: route.ClientName,
 			Model:      route.Model,
-			TokenName:  selected.Name,
+			TokenName:  token.DisplayName(selected),
 			Message:    fmt.Sprintf("codex token refresh failed: %v", err),
 		})
 		return tokenAttemptOutcome{
@@ -111,7 +111,7 @@ func (s *Service) retryUpstreamAttempt(r *http.Request, route routeInfo, selecte
 		ClientName: route.ClientName,
 		Model:      route.Model,
 		Status:     status,
-		TokenName:  selected.Name,
+		TokenName:  token.DisplayName(selected),
 		Message:    logMessage,
 	})
 	return appendRetryAttempt(retryChain, attempt, route, &selected, status, time.Since(attemptStart).Milliseconds(), cooldownTriggered, historyMessage)

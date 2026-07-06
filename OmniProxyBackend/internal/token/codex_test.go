@@ -63,6 +63,52 @@ func TestExtractCodexAuthFieldsFallsBackToFlatIDTokenClaims(t *testing.T) {
 	}
 }
 
+func TestDisplayNameAddsCodexAccountID(t *testing.T) {
+	raw, err := json.Marshal(map[string]any{
+		"type":       "codex",
+		"email":      "coder@example.com",
+		"account_id": "1234567890abcdef",
+		"tokens": map[string]any{
+			"access_token": "codex-access-token",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := Token{
+		Name:           "coder@example.com",
+		Provider:       ProviderOpenAI,
+		CredentialType: CredentialTypeCodexAuthJSON,
+		TokenValue:     string(raw),
+	}
+	if got := DisplayName(item); got != "coder@example.com (account_id: 1234567890abcdef)" {
+		t.Fatalf("unexpected display name: %q", got)
+	}
+}
+
+func TestDisplayNameShortensLongCodexAccountID(t *testing.T) {
+	raw, err := json.Marshal(map[string]any{
+		"type":       "codex",
+		"email":      "coder@example.com",
+		"account_id": "1234567890abcdef1234567890abcdef",
+		"tokens": map[string]any{
+			"access_token": "codex-access-token",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := Token{
+		Name:           "coder@example.com",
+		Provider:       ProviderOpenAI,
+		CredentialType: CredentialTypeCodexAuthJSON,
+		TokenValue:     string(raw),
+	}
+	if got := DisplayName(item); got != "coder@example.com (account_id: 12345678...abcdef)" {
+		t.Fatalf("unexpected display name: %q", got)
+	}
+}
+
 func codexJWTForTest(t *testing.T, email string, accountID string) string {
 	t.Helper()
 	payload, err := json.Marshal(map[string]any{

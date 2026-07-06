@@ -87,7 +87,7 @@ func (s *Service) recordHistory(r *http.Request, route routeInfo, selected *toke
 	}
 	if selected != nil {
 		entry.TokenID = selected.ID
-		entry.TokenName = selected.Name
+		entry.TokenName = token.DisplayName(*selected)
 	}
 	if len(retryChain) > 0 {
 		entry.RetryChain = append([]history.RetryAttempt(nil), retryChain...)
@@ -122,7 +122,7 @@ func (s *Service) beginActiveRequest(r *http.Request, route routeInfo, selected 
 		Protocol:   route.Protocol,
 		Model:      route.Model,
 		TokenID:    selected.ID,
-		TokenName:  selected.Name,
+		TokenName:  token.DisplayName(selected),
 	}
 	s.activeRequests[id] = entry
 	s.activeMu.Unlock()
@@ -158,7 +158,7 @@ func appendRetryAttempt(chain []history.RetryAttempt, attempt int, route routeIn
 	}
 	if selected != nil {
 		item.TokenID = selected.ID
-		item.TokenName = selected.Name
+		item.TokenName = token.DisplayName(*selected)
 	}
 	return append(chain, item)
 }
