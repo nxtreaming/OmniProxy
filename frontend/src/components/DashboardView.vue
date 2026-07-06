@@ -165,7 +165,7 @@ function longActiveRequests() {
           <small>正在占用 {{ activeTokenIds.size }} 个账号 · 长请求 {{ longActiveRequests().length }}</small>
         </article>
 
-        <section class="panel full tool-usage-panel">
+        <section class="panel tool-usage-panel">
           <div class="section-heading">
             <div>
               <h2>编程工具账号占用</h2>
