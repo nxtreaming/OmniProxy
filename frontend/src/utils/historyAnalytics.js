@@ -48,13 +48,15 @@ export function filterHistory(items, currentFilters) {
   const search = currentFilters.search.trim().toLowerCase()
   const model = currentFilters.model.trim().toLowerCase()
   const tokenName = currentFilters.token.trim().toLowerCase()
+  const tokenId = String(currentFilters.tokenId || 'all').trim()
   return items
     .filter((item) => currentFilters.provider === 'all' || item.provider === currentFilters.provider)
     .filter((item) => currentFilters.client === 'all' || item.clientKey === currentFilters.client)
     .filter((item) => currentFilters.level === 'all' || item.level === currentFilters.level)
     .filter((item) => currentFilters.status === 'all' || historyStatusMatches(item, currentFilters.status))
     .filter((item) => !model || String(item.model || '').toLowerCase().includes(model))
-    .filter((item) => !tokenName || String(item.tokenName || '').toLowerCase().includes(tokenName))
+    .filter((item) => tokenId === 'all' || String(item.tokenId || '') === tokenId)
+    .filter((item) => !tokenName || `${item.tokenName || ''} ${item.tokenId || ''}`.toLowerCase().includes(tokenName))
     .filter((item) => {
       if (!search) return true
       return [
@@ -65,6 +67,7 @@ export function filterHistory(items, currentFilters) {
         item.clientKey,
         item.clientName,
         item.model,
+        item.tokenId,
         item.tokenName,
         item.message,
         String(item.status || ''),
@@ -141,6 +144,22 @@ export function historyClientOptions(items) {
   return [...byKey.entries()]
     .map(([key, label]) => ({ key, label }))
     .sort((a, b) => a.label.localeCompare(b.label))
+}
+
+export function historyWorkspaceOptions(items) {
+  const byID = new Map()
+  for (const entry of items || []) {
+    const key = String(entry.tokenId || '').trim()
+    if (!key || byID.has(key)) continue
+    byID.set(key, historyWorkspaceLabel(entry))
+  }
+  return [...byID.entries()]
+    .map(([key, label]) => ({ key, label }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
+
+export function historyWorkspaceLabel(entry) {
+  return entry?.tokenName || entry?.tokenId || '未记录账号'
 }
 
 export function clientLabel(entry) {

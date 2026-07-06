@@ -27,7 +27,7 @@ const summaryClientRankLabelSQL = `COALESCE(NULLIF(client_label, ''), NULLIF(cli
 
 const modelRankLabelSQL = `COALESCE(NULLIF(model, ''), NULLIF(protocol, ''), '')`
 
-const tokenRankLabelSQL = `COALESCE(NULLIF(token_name, ''), '')`
+const tokenRankLabelSQL = `COALESCE(NULLIF(token_name, ''), NULLIF(token_id, ''), '')`
 
 const failureStatusLabelSQL = `CASE
   WHEN COALESCE(status, 0) = 0 THEN '__no_status__'
@@ -41,13 +41,21 @@ END`
 
 const upsertDailyUsageSQL = `
 INSERT INTO billing_daily_usage (
-  date, provider, protocol, client_key, client_name, model,
+  date, provider, protocol, client_key, client_name, token_key, token_id, token_name, model,
   request_count, input_tokens, output_tokens, total_tokens, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-ON CONFLICT(date, provider, protocol, client_key, model) DO UPDATE SET
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+ON CONFLICT(date, provider, protocol, client_key, model, token_key) DO UPDATE SET
   client_name = CASE
     WHEN excluded.client_name != '' THEN excluded.client_name
     ELSE billing_daily_usage.client_name
+  END,
+  token_id = CASE
+    WHEN excluded.token_id != '' THEN excluded.token_id
+    ELSE billing_daily_usage.token_id
+  END,
+  token_name = CASE
+    WHEN excluded.token_name != '' THEN excluded.token_name
+    ELSE billing_daily_usage.token_name
   END,
   request_count = billing_daily_usage.request_count + excluded.request_count,
   input_tokens = billing_daily_usage.input_tokens + excluded.input_tokens,
@@ -69,10 +77,10 @@ ON CONFLICT(id) DO UPDATE SET
 const upsertRequestDailySummarySQL = `
 INSERT INTO request_daily_summary (
   date, provider, protocol, client_key, client_name, client_label,
-  level, status, model, token_name,
+  level, status, model, token_key, token_id, token_name,
   request_count, failed_count, total_tokens, duration_ms, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-ON CONFLICT(date, provider, protocol, client_key, level, status, model, token_name) DO UPDATE SET
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+ON CONFLICT(date, provider, protocol, client_key, level, status, model, token_key) DO UPDATE SET
   client_name = CASE
     WHEN excluded.client_name != '' THEN excluded.client_name
     ELSE request_daily_summary.client_name
@@ -80,6 +88,14 @@ ON CONFLICT(date, provider, protocol, client_key, level, status, model, token_na
   client_label = CASE
     WHEN excluded.client_label != '' THEN excluded.client_label
     ELSE request_daily_summary.client_label
+  END,
+  token_id = CASE
+    WHEN excluded.token_id != '' THEN excluded.token_id
+    ELSE request_daily_summary.token_id
+  END,
+  token_name = CASE
+    WHEN excluded.token_name != '' THEN excluded.token_name
+    ELSE request_daily_summary.token_name
   END,
   request_count = request_daily_summary.request_count + excluded.request_count,
   failed_count = request_daily_summary.failed_count + excluded.failed_count,

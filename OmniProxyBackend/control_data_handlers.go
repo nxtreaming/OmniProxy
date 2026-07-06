@@ -173,6 +173,7 @@ func (a *appServer) handleHistory(w http.ResponseWriter, r *http.Request) {
 		Level:    strings.TrimSpace(r.URL.Query().Get("level")),
 		Status:   strings.TrimSpace(r.URL.Query().Get("status")),
 		Model:    strings.TrimSpace(r.URL.Query().Get("model")),
+		TokenID:  strings.TrimSpace(r.URL.Query().Get("tokenId")),
 		Token:    strings.TrimSpace(r.URL.Query().Get("token")),
 		Search:   strings.TrimSpace(r.URL.Query().Get("search")),
 		Limit:    limit,
@@ -205,6 +206,7 @@ func (a *appServer) handleHistorySummary(w http.ResponseWriter, r *http.Request)
 		Level:    strings.TrimSpace(r.URL.Query().Get("level")),
 		Status:   strings.TrimSpace(r.URL.Query().Get("status")),
 		Model:    strings.TrimSpace(r.URL.Query().Get("model")),
+		TokenID:  strings.TrimSpace(r.URL.Query().Get("tokenId")),
 		Token:    strings.TrimSpace(r.URL.Query().Get("token")),
 		Search:   strings.TrimSpace(r.URL.Query().Get("search")),
 	}
@@ -309,6 +311,26 @@ func (a *appServer) handleBillingClear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "billing daily usage cleared"})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *appServer) handleHistorySummariesRebuild(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a.mu.Lock()
+	recorder := a.history
+	a.mu.Unlock()
+	if recorder == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err := recorder.RebuildSummaries(); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "history summaries rebuilt"})
 	w.WriteHeader(http.StatusNoContent)
 }
 

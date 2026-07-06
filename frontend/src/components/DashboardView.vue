@@ -4,7 +4,6 @@ import {
   ArrowRight,
   CircleCheckFilled,
   Lightning,
-  Monitor,
   Refresh,
   TrendCharts,
 } from '@element-plus/icons-vue'
@@ -128,14 +127,6 @@ function changeQuotaOverviewPage(type, direction) {
           </div>
           <strong>{{ formatNumber(todayProxyTokens) }}</strong>
           <small>累计请求 {{ formatNumber(totalProxyRequests) }} 次</small>
-        </article>
-        <article class="metric-card">
-          <div class="metric-card-head">
-            <span>当前连接</span>
-            <Monitor class="metric-icon" aria-hidden="true" />
-          </div>
-          <strong>{{ formatNumber(activeRequests.length) }}</strong>
-          <small>正在占用 {{ activeTokenIds.size }} 个账号</small>
         </article>
 
         <section class="panel tool-usage-panel">

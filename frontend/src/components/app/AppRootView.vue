@@ -61,7 +61,7 @@ const {
   openBatchImport, openBillingView, openCodexAuthFilePicker, openCreateForm, openEditForm, openOpenRouterChat, openRouterModels, openRouterModelsCached,
   openRouterModelsError, openRouterModelsFetchedAt, openRouterModelsLoading, openRouterTokens, opencodeConfiguring, opencodeRestoring, pagedApiOverviewTokens,
   pagedSubscriptionOverviewTokens, piConfiguring, piRestoring, persistConfig, previousFirstUseGuideStep, providerLabel, providerTokens, proxyEndpoint,
-  proxyStatus, quotaOverviewRangeText, quotaRefreshProgress, refreshAll, refreshAuthToken, refreshBilling, refreshHistory, refreshOpenRouterModels,
+  proxyStatus, quotaOverviewRangeText, quotaRefreshProgress, rebuildHistorySummaryData, rebuildingHistorySummaries, refreshAll, refreshAuthToken, refreshBilling, refreshHistory, refreshOpenRouterModels,
   refreshProviderQuotas, refreshQuota, refreshRealtime, refreshingProvider, refreshingTokenIds, refreshTaskAutomationBrowserProfiles, refreshUpdateDiagnostics, removeToken, requestHistory,
   requestHistorySummary, requestTrendWidth, restoreActiveWorkspaceScroll, restoreConfigSnapshotById, restoreLocalClaude, restoreLocalClaudeDesktop, restoreLocalCodex, restoreLocalDeepSeekTUI,
   restoreLocalGemini, restoreLocalOpenCode, restoreLocalPi, runFirstUseGuideAction, selectOpenRouterChatModel, selectProvider, selectTab, selectTokenGroup, selectedBillingDate,
@@ -385,6 +385,7 @@ const {
         :task-automation-browser-profiles-error="taskAutomationBrowserProfilesError"
         :clearing-billing-usage="clearingBillingUsage"
         :clearing-request-history="clearingRequestHistory"
+        :rebuilding-history-summaries="rebuildingHistorySummaries"
         @persist-config="persistConfig"
         @choose-data-directory="chooseDataDirectory"
         @toggle-auto-start="toggleAutoStart"
@@ -396,6 +397,7 @@ const {
         @refresh-task-automation-browser-profiles="refreshTaskAutomationBrowserProfiles"
         @clear-billing-usage="clearBillingUsageData"
         @clear-request-history="clearRequestHistoryData"
+        @rebuild-history-summaries="rebuildHistorySummaryData"
       />
 
       <AboutView

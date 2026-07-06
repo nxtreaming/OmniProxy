@@ -75,7 +75,7 @@ func (a *appServer) refreshStoredAuthToken(ctx context.Context, id string) (toke
 		return token.Token{}, err
 	}
 	if a.logs != nil {
-		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: updated.Name, Message: "manual OAuth token refresh completed"})
+		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(updated), Message: "manual OAuth token refresh completed"})
 	}
 	return updated, nil
 }
@@ -210,6 +210,11 @@ func (a *appServer) recordTokenMaintenanceHistory(event string, selected token.T
 	if recorder == nil {
 		return
 	}
+	if a.tokens != nil && strings.TrimSpace(selected.ID) != "" {
+		if latest, latestErr := a.tokens.Get(selected.ID); latestErr == nil {
+			selected = latest
+		}
+	}
 
 	path, protocol, label := tokenMaintenanceEventMeta(event)
 	level := logs.LevelInfo
@@ -226,7 +231,7 @@ func (a *appServer) recordTokenMaintenanceHistory(event string, selected token.T
 		Status:    result.Status,
 		Duration:  result.Duration,
 		TokenID:   selected.ID,
-		TokenName: selected.Name,
+		TokenName: token.DisplayName(selected),
 		Message:   tokenMaintenanceHistoryMessage(label, result, err),
 	})
 }
@@ -301,7 +306,7 @@ func (a *appServer) refreshAuthTokenIfNeeded(ctx context.Context, selected token
 		return selected, true, err
 	}
 	if a.logs != nil {
-		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: updated.Name, Message: "OAuth access token refreshed"})
+		a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(updated), Message: "OAuth access token refreshed"})
 	}
 	return updated, true, nil
 }
@@ -322,7 +327,7 @@ func (a *appServer) refreshCodexUsageOnStartup(ctx context.Context) {
 		a.recordTokenMaintenanceHistory(historyEventStartupCodexUsage, item, result, err)
 		if err != nil {
 			failed++
-			a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("startup codex usage refresh failed: %v", err)})
+			a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: a.tokenDisplayName(item), Message: fmt.Sprintf("startup codex usage refresh failed: %v", err)})
 		}
 	}
 	if total == 0 {
@@ -409,7 +414,7 @@ func (a *appServer) refreshCurrentTokenUsage(ctx context.Context) {
 			Level:     logs.LevelWarn,
 			Status:    result.Status,
 			Duration:  result.Duration,
-			TokenName: selected.Name,
+			TokenName: a.tokenDisplayName(selected),
 			Message:   fmt.Sprintf("current token quota refresh failed: %v", message),
 		})
 	}
@@ -483,7 +488,7 @@ func (a *appServer) runDueHealthChecks(ctx context.Context) {
 			Level:     level,
 			Status:    result.Status,
 			Duration:  result.Duration,
-			TokenName: item.Name,
+			TokenName: a.tokenDisplayName(item),
 			Message:   "health check completed",
 		})
 	}

@@ -121,6 +121,7 @@ test('HTTP API fallback fetches history summary with filters', async () => {
       assert.equal(options.headers['X-OmniProxy-Control-Token'], 'summary-control-token')
       assert.equal(parsed.searchParams.get('provider'), 'openai')
       assert.equal(parsed.searchParams.get('model'), 'gpt-5.5')
+      assert.equal(parsed.searchParams.get('tokenId'), 'workspace-a')
       assert.equal(parsed.searchParams.get('days'), '14')
       return jsonResponse(200, { total: 42, dailyRows: [] })
     }
@@ -128,13 +129,41 @@ test('HTTP API fallback fetches history summary with filters', async () => {
   }
 
   const { getHistorySummary } = await import(`./api.js?history-summary-test=${Date.now()}`)
-  assert.deepEqual(await getHistorySummary({ provider: 'openai', model: 'gpt-5.5' }, 14), {
+  assert.deepEqual(await getHistorySummary({ provider: 'openai', model: 'gpt-5.5', tokenId: 'workspace-a' }, 14), {
     total: 42,
     dailyRows: [],
   })
   assert.deepEqual(
     calls.map((call) => new URL(call.url).pathname),
     ['/api/history/summary'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})
+
+test('HTTP API fallback rebuilds history summaries', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'rebuild-history-token'
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    if (String(url).endsWith('/history/rebuild-summaries')) {
+      assert.equal(options.method, 'POST')
+      assert.equal(options.headers['X-OmniProxy-Control-Token'], 'rebuild-history-token')
+      return {
+        ok: true,
+        status: 204,
+        async json() {
+          return null
+        },
+      }
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const { rebuildHistorySummaries } = await import(`./api.js?history-rebuild-test=${Date.now()}`)
+  assert.equal(await rebuildHistorySummaries(), null)
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    ['http://127.0.0.1:3890/api/history/rebuild-summaries'],
   )
   delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
 })

@@ -84,7 +84,7 @@ func (a *appServer) providerModels(ctx context.Context, req providerModelCatalog
 		Provider:  provider,
 		Source:    provider,
 		BaseURL:   baseURL,
-		TokenName: selected.Name,
+		TokenName: a.tokenDisplayName(selected),
 		FetchedAt: timeString(time.Now()),
 		Models:    models,
 	}, nil

@@ -99,6 +99,7 @@ function historyFilter(filters = {}) {
     level: filters.level || 'all',
     status: filters.status || 'all',
     model: filters.model || '',
+    tokenId: filters.tokenId || 'all',
     token: filters.token || '',
     search: filters.search || '',
     limit: Number(filters.limit || 10000),
@@ -316,6 +317,12 @@ export function getBillingSummary(days = 30) {
 export function clearBillingUsage() {
   return callDesktopOr('ClearBillingUsage', [], () => request('/billing/clear', {
     method: 'DELETE',
+  }))
+}
+
+export function rebuildHistorySummaries() {
+  return callDesktopOr('RebuildHistorySummaries', [], () => request('/history/rebuild-summaries', {
+    method: 'POST',
   }))
 }
 

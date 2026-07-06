@@ -435,7 +435,7 @@ func (a *appServer) recordOpenRouterChatAttempt(selected token.Token, model stri
 		Model:     model,
 		Status:    status,
 		Duration:  time.Since(start).Milliseconds(),
-		TokenName: selected.Name,
+		TokenName: a.tokenDisplayName(selected),
 		Message:   message,
 	})
 }

@@ -68,6 +68,17 @@ func (a *DesktopApp) ClearBillingUsage() error {
 	return nil
 }
 
+func (a *DesktopApp) RebuildHistorySummaries() error {
+	if a.server.history == nil {
+		return nil
+	}
+	if err := a.server.history.RebuildSummaries(); err != nil {
+		return err
+	}
+	a.server.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "history summaries rebuilt"})
+	return nil
+}
+
 func (a *DesktopApp) ClearRequestHistory() error {
 	if a.server.history == nil {
 		return nil

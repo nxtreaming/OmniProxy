@@ -36,6 +36,7 @@ const emit = defineEmits(['refresh', 'date-change'])
 const selectedDate = ref(props.selectedDate || localDateKey())
 const selectedTemplate = ref('poster')
 const selectedLanguage = ref('zh')
+const selectedGroupMode = ref('model')
 const previewVisible = ref(false)
 const previewBusy = ref(false)
 const reportPreviewUrl = ref('')
@@ -74,6 +75,10 @@ const availableDates = computed(() => {
 const billingDateOptions = computed(() =>
   availableDates.value.map((date) => ({ value: date, label: date })),
 )
+const billingGroupOptions = [
+  { key: 'model', label: '按模型' },
+  { key: 'workspace', label: '按工作区' },
+]
 
 watch(
   () => props.selectedDate,
@@ -90,7 +95,7 @@ watch(selectedDate, (value) => {
   }
 })
 
-watch([selectedDate, selectedTemplate, selectedLanguage], () => {
+watch([selectedDate, selectedTemplate, selectedLanguage, selectedGroupMode], () => {
   if (previewVisible.value) {
     closeReportPreview()
   } else {
@@ -98,10 +103,18 @@ watch([selectedDate, selectedTemplate, selectedLanguage], () => {
   }
 })
 
-const rawRows = computed(() => buildBillingRows(props.entries, selectedDate.value, props.dailyUsage))
-const billingRows = computed(() => rawRows.value.filter((row) => row.price && row.totalTokens > 0))
-const ignoredRows = computed(() => rawRows.value.filter((row) => !row.price || row.totalTokens <= 0))
+const rawRows = computed(() => buildBillingRows(props.entries, selectedDate.value, props.dailyUsage, selectedGroupMode.value))
+const billingRows = computed(() => rawRows.value.filter((row) => row.billable && row.totalTokens > 0))
+const ignoredRows = computed(() => rawRows.value.filter((row) => !row.billable || row.totalTokens <= 0))
 const pricedRows = computed(() => billingRows.value)
+const billingPrimaryLabel = computed(() => (selectedGroupMode.value === 'workspace' ? '工作区' : '模型'))
+const billingPrimaryLabelEn = computed(() => (selectedGroupMode.value === 'workspace' ? 'Workspace' : 'Model'))
+const billingDetailTitle = computed(() => (selectedGroupMode.value === 'workspace' ? '工作区费用明细' : '模型费用明细'))
+const billingDetailDescription = computed(() =>
+  selectedGroupMode.value === 'workspace'
+    ? '下方明细按账号工作区聚合，费用仍按实际模型单价累加'
+    : '下方明细是生成模拟账单图的数据来源，未匹配价格的模型不会计入金额',
+)
 const topRows = computed(() =>
   [...pricedRows.value]
     .sort((a, b) => b.cost - a.cost || b.totalTokens - a.totalTokens)
@@ -188,6 +201,8 @@ function totalInvoiceLines() {
 }
 
 function priceRateText(row) {
+  if (row.groupMode === 'workspace') return '按模型累加'
+  if (!row.price) return '-'
   return `${formatMoney(row.price.input, row.currency)} / ${formatMoney(row.price.output, row.currency)}`
 }
 
@@ -352,6 +367,19 @@ function drawBillingReport(ctx, width, height, templateKey = selectedTemplate.va
             aria-label="账单日期"
           />
           <div class="billing-action-buttons">
+            <div class="billing-group-switch" role="radiogroup" aria-label="账单视图维度">
+              <button
+                v-for="option in billingGroupOptions"
+                :key="option.key"
+                type="button"
+                :class="{ active: selectedGroupMode === option.key }"
+                :aria-checked="selectedGroupMode === option.key"
+                role="radio"
+                @click="selectedGroupMode = option.key"
+              >
+                {{ option.label }}
+              </button>
+            </div>
             <el-button :icon="Refresh" @click="$emit('refresh')">刷新</el-button>
             <el-button type="primary" :icon="View" :loading="previewBusy" @click="exportReportImage">
               预览模拟账单
@@ -445,11 +473,11 @@ function drawBillingReport(ctx, width, height, templateKey = selectedTemplate.va
           </div>
           <div class="report-preview-list">
             <div class="report-preview-list-head">
-              <span>{{ billText('模型', 'Model') }}</span>
+              <span>{{ billText(billingPrimaryLabel, billingPrimaryLabelEn) }}</span>
               <strong>{{ billText('用量', 'Usage') }}</strong>
               <small>{{ billText('金额', 'Amount') }}</small>
             </div>
-            <div v-for="(row, index) in topRows.slice(0, 3)" :key="row.model">
+            <div v-for="(row, index) in topRows.slice(0, 3)" :key="row.key">
               <span>{{ index + 1 }}</span>
               <strong>{{ row.model }}</strong>
               <small>{{ rowCostText(row) }}</small>
@@ -465,8 +493,8 @@ function drawBillingReport(ctx, width, height, templateKey = selectedTemplate.va
       <article class="panel billing-table-panel">
         <div class="section-heading compact-heading">
           <div>
-            <h2>模型费用明细</h2>
-            <p>下方明细是生成模拟账单图的数据来源，未匹配价格的模型不会计入金额</p>
+            <h2>{{ billingDetailTitle }}</h2>
+            <p>{{ billingDetailDescription }}</p>
           </div>
         </div>
 
@@ -479,11 +507,11 @@ function drawBillingReport(ctx, width, height, templateKey = selectedTemplate.va
 
           <section class="billing-side-section">
             <div class="billing-side-section-head">
-              <strong>模型占比</strong>
+              <strong>{{ billingPrimaryLabel }}占比</strong>
               <span>按估算费用排序</span>
             </div>
             <div v-if="topRows.length" class="billing-rank-bars">
-              <div v-for="row in topRows.slice(0, 4)" :key="row.model" class="billing-rank-bar">
+              <div v-for="row in topRows.slice(0, 4)" :key="row.key" class="billing-rank-bar">
                 <div>
                   <strong>{{ row.model }}</strong>
                   <span>{{ rowCostText(row) }} · {{ formatNumber(row.totalTokens) }} Token</span>
@@ -496,11 +524,11 @@ function drawBillingReport(ctx, width, height, templateKey = selectedTemplate.va
 
           <section class="billing-side-section">
             <div class="billing-side-section-head">
-              <strong>未纳入模型</strong>
+              <strong>未纳入{{ billingPrimaryLabel }}</strong>
               <span>{{ ignoredRows.length }} 个 · {{ formatNumber(ignoredTokenTotal) }} Token</span>
             </div>
             <div v-if="ignoredPreviewRows.length" class="billing-ignored-list">
-              <div v-for="row in ignoredPreviewRows" :key="row.model">
+              <div v-for="row in ignoredPreviewRows" :key="row.key">
                 <strong>{{ row.model }}</strong>
                 <span>{{ formatNumber(row.totalTokens) }} Token</span>
               </div>
@@ -516,15 +544,18 @@ function drawBillingReport(ctx, width, height, templateKey = selectedTemplate.va
 
         <div class="billing-table">
           <div class="billing-row header">
-            <span>模型</span>
+            <span>{{ billingPrimaryLabel }}</span>
             <span>输入 / 输出</span>
             <span>单价</span>
             <span>估算</span>
           </div>
-          <div v-for="row in billingRows" :key="row.model" class="billing-row">
+          <div v-for="row in billingRows" :key="row.key" class="billing-row">
             <span>
               <strong>{{ row.model }}</strong>
-              <small>{{ row.requestCount }} 次请求</small>
+              <small>
+                {{ row.requestCount }} 次请求
+                <template v-if="row.groupMode === 'workspace'"> · {{ row.models.length }} 个模型</template>
+              </small>
             </span>
             <span>
               {{ formatNumber(row.inputTokens) }} / {{ formatNumber(row.outputTokens) }}
@@ -532,7 +563,7 @@ function drawBillingReport(ctx, width, height, templateKey = selectedTemplate.va
             </span>
             <span>
               <strong class="price-rate">{{ priceRateText(row) }}</strong>
-              <small>每 1M · {{ row.price.label }}</small>
+              <small>{{ row.price?.aggregate ? '按实际模型价格' : `每 1M · ${row.price?.label || '未匹配价格'}` }}</small>
             </span>
             <span>
               <strong>{{ rowCostText(row) }}</strong>

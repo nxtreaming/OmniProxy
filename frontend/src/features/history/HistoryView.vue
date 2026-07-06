@@ -14,6 +14,8 @@ import {
   failureReasonLabel,
   filterHistory,
   historyClientOptions,
+  historyWorkspaceLabel,
+  historyWorkspaceOptions,
   isFailedHistory,
   normalizeClientRankLabel,
   normalizeDailyRows,
@@ -67,6 +69,7 @@ const filters = reactive({
   level: 'all',
   status: 'all',
   model: '',
+  tokenId: 'all',
   token: '',
   search: '',
 })
@@ -91,6 +94,7 @@ const providerRanks = computed(() => {
   return rankHistory(filteredHistory.value, (entry) => props.providerLabel(entry.provider) || '-', 'count').slice(0, 5)
 })
 const clientOptions = computed(() => historyClientOptions(props.entries))
+const workspaceOptions = computed(() => historyWorkspaceOptions(props.entries))
 const providerFilterOptions = computed(() => [
   { value: 'all', label: '全部厂商' },
   ...props.providers.map((provider) => ({ value: provider.key, label: provider.label })),
@@ -98,6 +102,10 @@ const providerFilterOptions = computed(() => [
 const clientFilterOptions = computed(() => [
   { value: 'all', label: '全部工具' },
   ...clientOptions.value.map((client) => ({ value: client.key, label: client.label })),
+])
+const workspaceFilterOptions = computed(() => [
+  { value: 'all', label: '全部工作区' },
+  ...workspaceOptions.value.map((workspace) => ({ value: workspace.key, label: workspace.label })),
 ])
 const levelFilterOptions = [
   { value: 'all', label: '全部级别' },
@@ -118,6 +126,10 @@ const statusFilterOptions = [
 const clientRanks = computed(() => {
   if (props.summary) return normalizeRanks(props.summary.clientRanks, '未记录工具', normalizeClientRankLabel).slice(0, 5)
   return rankHistory(filteredHistory.value, (entry) => clientLabel(entry), 'count').slice(0, 5)
+})
+const tokenRanks = computed(() => {
+  if (props.summary) return normalizeRanks(props.summary.tokenRanks, '未记录账号').slice(0, 5)
+  return rankHistory(filteredHistory.value, (entry) => historyWorkspaceLabel(entry), 'totalTokens').slice(0, 5)
 })
 const allModelRanks = computed(() => {
   if (props.summary) return normalizeRanks(props.summary.modelRanks, '未记录模型')
@@ -225,6 +237,10 @@ function nextHistoryPage() {
         <GeminiSelect v-model="filters.status" :options="statusFilterOptions" aria-label="筛选状态" />
       </label>
       <label>
+        <span>工作区</span>
+        <GeminiSelect v-model="filters.tokenId" :options="workspaceFilterOptions" aria-label="筛选工作区" />
+      </label>
+      <label>
         <span>模型</span>
         <input v-model="filters.model" type="search" placeholder="模型名称" />
       </label>
@@ -272,6 +288,7 @@ function nextHistoryPage() {
       />
       <HistoryRankPanel title="厂商分布" :items="providerRanks" empty-label="暂无厂商数据" :format-number="formatNumber" />
       <HistoryRankPanel title="工具分布" :items="clientRanks" empty-label="暂无工具数据" :format-number="formatNumber" />
+      <HistoryRankPanel title="账号 / 工作区" :items="tokenRanks" empty-label="暂无账号数据" value-key="totalTokens" value-suffix="Token" :format-number="formatNumber" />
       <HistoryRankPanel title="失败账号" :items="tokenFailureRanks" empty-label="暂无失败账号" :format-number="formatNumber" />
       <HistoryRankPanel
         title="失败原因"

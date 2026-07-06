@@ -77,6 +77,10 @@ func (a *appServer) loadData(dataDir string) error {
 		_ = historyStore.Close()
 		return fmt.Errorf("migrate request history: %w", err)
 	}
+	if err := historyStore.RelabelTokenNames(tokenDisplayNamesByID(tokenManager.List())); err != nil {
+		_ = historyStore.Close()
+		return fmt.Errorf("relabel request history tokens: %w", err)
+	}
 	historyRecorder, err := history.NewRecorder(historyStore, requestHistoryMax)
 	if err != nil {
 		_ = historyStore.Close()
@@ -118,6 +122,19 @@ func migrateLegacyRequestHistory(store history.Store, legacyPath string) error {
 		return nil
 	}
 	return store.Save(entries)
+}
+
+func tokenDisplayNamesByID(items []token.Token) map[string]string {
+	out := map[string]string{}
+	for _, item := range items {
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		if name := strings.TrimSpace(token.DisplayName(item)); name != "" {
+			out[item.ID] = name
+		}
+	}
+	return out
 }
 
 func (a *appServer) isLoaded() bool {

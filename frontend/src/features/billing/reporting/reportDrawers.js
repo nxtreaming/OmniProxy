@@ -169,7 +169,10 @@ function drawStandardReport(ctx, width, height) {
 
     ctx.fillStyle = text
     ctx.font = `400 18px ${font}`
-    if (row.price) {
+    if (row.price?.aggregate) {
+      ctx.fillText(billText('按模型', 'By model'), detailX + 770, y + 32)
+      ctx.fillText(billText('累加', 'sum'), detailX + 770, y + 58)
+    } else if (row.price) {
       ctx.fillText(`${billText('入', 'In')} ${formatMoney(row.price.input, row.currency)}`, detailX + 770, y + 32)
       ctx.fillText(`${billText('出', 'Out')} ${formatMoney(row.price.output, row.currency)}`, detailX + 770, y + 58)
     } else {

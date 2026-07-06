@@ -318,6 +318,18 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 16%, transparent);
 }
 
+.quotas-page-panel .quota-workspace-select {
+  width: min(100%, 176px);
+  flex: 1 1 150px;
+}
+
+.quotas-page-panel .quota-workspace-select .el-select__wrapper {
+  min-height: 28px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 38%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 84%, transparent) inset;
+}
+
 .quotas-page-panel .quota-layout,
 .quotas-page-panel .quota-layout.codex-layout,
 .quotas-page-panel .quota-layout.single-window-layout,

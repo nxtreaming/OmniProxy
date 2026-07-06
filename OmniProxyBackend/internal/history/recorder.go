@@ -34,6 +34,7 @@ type UsageStore interface {
 	PruneBeforeDate(string) error
 	ClearDailyUsage() error
 	ClearRequestHistory() error
+	RebuildSummaries() error
 }
 
 type SummaryStore interface {
@@ -82,6 +83,7 @@ type Filter struct {
 	Level    string `json:"level,omitempty"`
 	Status   string `json:"status,omitempty"`
 	Model    string `json:"model,omitempty"`
+	TokenID  string `json:"tokenId,omitempty"`
 	Token    string `json:"token,omitempty"`
 	Search   string `json:"search,omitempty"`
 	Limit    int    `json:"limit,omitempty"`
@@ -93,6 +95,8 @@ type DailyUsage struct {
 	Protocol     string    `json:"protocol,omitempty"`
 	ClientKey    string    `json:"clientKey,omitempty"`
 	ClientName   string    `json:"clientName,omitempty"`
+	TokenID      string    `json:"tokenId,omitempty"`
+	TokenName    string    `json:"tokenName,omitempty"`
 	Model        string    `json:"model,omitempty"`
 	RequestCount int       `json:"requestCount"`
 	InputTokens  int       `json:"inputTokens"`
@@ -140,6 +144,7 @@ type Summary struct {
 	DailyRows          []DailySummary `json:"dailyRows"`
 	ProviderRanks      []Rank         `json:"providerRanks"`
 	ClientRanks        []Rank         `json:"clientRanks"`
+	TokenRanks         []Rank         `json:"tokenRanks"`
 	ModelRanks         []Rank         `json:"modelRanks"`
 	TokenFailureRanks  []Rank         `json:"tokenFailureRanks"`
 	FailureReasonRanks []Rank         `json:"failureReasonRanks"`
@@ -331,7 +336,7 @@ func (r *Recorder) Summary(filter Filter, days int) Summary {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	out := Summary{DailyRows: []DailySummary{}, ProviderRanks: []Rank{}, ClientRanks: []Rank{}, ModelRanks: []Rank{}, TokenFailureRanks: []Rank{}, FailureReasonRanks: []Rank{}}
+	out := Summary{DailyRows: []DailySummary{}, ProviderRanks: []Rank{}, ClientRanks: []Rank{}, TokenRanks: []Rank{}, ModelRanks: []Rank{}, TokenFailureRanks: []Rank{}, FailureReasonRanks: []Rank{}}
 	daily := map[string]*DailySummary{}
 	var durationSum int64
 	for _, entry := range r.entries {
@@ -384,6 +389,13 @@ func (r *Recorder) ClearDailyUsage() error {
 		return nil
 	}
 	return r.usageStore.ClearDailyUsage()
+}
+
+func (r *Recorder) RebuildSummaries() error {
+	if r.usageStore == nil {
+		return nil
+	}
+	return r.usageStore.RebuildSummaries()
 }
 
 func (r *Recorder) ClearRequestHistory() error {
@@ -574,7 +586,10 @@ func matches(entry Entry, filter Filter) bool {
 	if filter.Model != "" && !strings.Contains(strings.ToLower(entry.Model), strings.ToLower(filter.Model)) {
 		return false
 	}
-	if filter.Token != "" && !strings.Contains(strings.ToLower(entry.TokenName), strings.ToLower(filter.Token)) {
+	if filter.TokenID != "" && filter.TokenID != "all" && !strings.EqualFold(entry.TokenID, filter.TokenID) {
+		return false
+	}
+	if filter.Token != "" && !strings.Contains(strings.ToLower(entry.TokenName+" "+entry.TokenID), strings.ToLower(filter.Token)) {
 		return false
 	}
 	if filter.Search != "" {
@@ -587,6 +602,7 @@ func matches(entry Entry, filter Filter) bool {
 			entry.ClientKey,
 			entry.ClientName,
 			entry.Model,
+			entry.TokenID,
 			entry.TokenName,
 			entry.Message,
 			strconv.Itoa(entry.Status),

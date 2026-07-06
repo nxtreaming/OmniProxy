@@ -162,10 +162,10 @@ func (s *SQLiteStore) DailyUsage(date string, limit int) ([]DailyUsage, error) {
 		limit = defaultMaxEntries
 	}
 	rows, err := s.db.Query(`
-SELECT date, provider, protocol, client_key, client_name, model, request_count, input_tokens, output_tokens, total_tokens, updated_at
+SELECT date, provider, protocol, client_key, client_name, token_id, token_name, model, request_count, input_tokens, output_tokens, total_tokens, updated_at
 FROM billing_daily_usage
 WHERE date = ?
-ORDER BY total_tokens DESC, request_count DESC, model COLLATE NOCASE
+ORDER BY total_tokens DESC, request_count DESC, model COLLATE NOCASE, token_name COLLATE NOCASE
 LIMIT ?`, strings.TrimSpace(date), limit)
 	if err != nil {
 		return nil, err

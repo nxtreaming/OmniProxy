@@ -46,6 +46,10 @@ defineProps({
     type: Boolean,
     required: true,
   },
+  rebuildingHistorySummaries: {
+    type: Boolean,
+    required: true,
+  },
 })
 
 const emit = defineEmits([
@@ -58,6 +62,7 @@ const emit = defineEmits([
   'import-config',
   'clear-billing-usage',
   'clear-request-history',
+  'rebuild-history-summaries',
 ])
 
 const importInput = ref(null)
@@ -215,6 +220,14 @@ function onImportConfigFile(event) {
           </label>
         </div>
         <div class="maintenance-actions">
+          <button
+            type="button"
+            class="ghost-button"
+            :disabled="rebuildingHistorySummaries"
+            @click="$emit('rebuild-history-summaries')"
+          >
+            {{ rebuildingHistorySummaries ? '重建中' : '重建汇总' }}
+          </button>
           <button
             type="button"
             class="danger-button"

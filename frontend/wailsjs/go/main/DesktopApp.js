@@ -170,6 +170,10 @@ export function ProxyStatus() {
   return window['go']['main']['DesktopApp']['ProxyStatus']();
 }
 
+export function RebuildHistorySummaries() {
+  return window['go']['main']['DesktopApp']['RebuildHistorySummaries']();
+}
+
 export function RefreshTokenAuth(arg1) {
   return window['go']['main']['DesktopApp']['RefreshTokenAuth'](arg1);
 }

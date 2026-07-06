@@ -62,6 +62,10 @@ defineProps({
     type: Boolean,
     required: true,
   },
+  rebuildingHistorySummaries: {
+    type: Boolean,
+    required: true,
+  },
 })
 
 defineEmits([
@@ -76,6 +80,7 @@ defineEmits([
   'refresh-task-automation-browser-profiles',
   'clear-billing-usage',
   'clear-request-history',
+  'rebuild-history-summaries',
 ])
 </script>
 
@@ -100,6 +105,7 @@ defineEmits([
             :importing-config="importingConfig"
             :clearing-billing-usage="clearingBillingUsage"
             :clearing-request-history="clearingRequestHistory"
+            :rebuilding-history-summaries="rebuildingHistorySummaries"
             @choose-data-directory="$emit('choose-data-directory')"
             @toggle-auto-start="$emit('toggle-auto-start')"
             @create-config-snapshot="$emit('create-config-snapshot')"
@@ -109,6 +115,7 @@ defineEmits([
             @import-config="$emit('import-config', $event)"
             @clear-billing-usage="$emit('clear-billing-usage')"
             @clear-request-history="$emit('clear-request-history')"
+            @rebuild-history-summaries="$emit('rebuild-history-summaries')"
           />
           <ServiceSchedulingSettings :config="config" />
         </div>

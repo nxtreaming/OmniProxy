@@ -25,6 +25,7 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/history", a.handleHistory)
 	mux.HandleFunc("/api/history/summary", a.handleHistorySummary)
 	mux.HandleFunc("/api/history/clear", a.handleHistoryClear)
+	mux.HandleFunc("/api/history/rebuild-summaries", a.handleHistorySummariesRebuild)
 	mux.HandleFunc("/api/billing/summary", a.handleBillingSummary)
 	mux.HandleFunc("/api/billing/usage", a.handleBillingUsage)
 	mux.HandleFunc("/api/billing/dates", a.handleBillingDates)

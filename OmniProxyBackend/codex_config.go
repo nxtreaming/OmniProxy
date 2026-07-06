@@ -96,7 +96,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 		item, addErr := a.tokens.Add(req)
 		if addErr == nil {
 			result.ImportedAuth = true
-			a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "codex auth imported"})
+			a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: "codex auth imported"})
 		} else if errors.Is(addErr, token.ErrDuplicateName) {
 			existing, findErr := a.tokens.FindCodexAuth(token.ProviderOpenAI, fields)
 			if findErr != nil {
@@ -104,7 +104,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 			}
 			if strings.TrimSpace(existing.TokenValue) == authValue {
 				result.AuthAlreadyAdded = true
-				a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: existing.Name, Message: "codex auth already imported"})
+				a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(existing), Message: "codex auth already imported"})
 				break
 			}
 			updated, updateErr := a.tokens.Update(existing.ID, req)
@@ -112,7 +112,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 				return codexConfigureResult{}, updateErr
 			}
 			result.AuthUpdated = true
-			a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: updated.Name, Message: "codex auth synced"})
+			a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(updated), Message: "codex auth synced"})
 		} else {
 			return codexConfigureResult{}, addErr
 		}

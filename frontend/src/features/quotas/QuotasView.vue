@@ -77,12 +77,21 @@ watch(
 
 function changeWorkspace(group, direction) {
   if (!group?.isWorkspaceGroup) return
-  workspaceIndexes[group.id] = Math.max(0, Math.min(group.tokens.length - 1, group.index + direction))
+  const nextIndex = Math.max(0, Math.min(group.tokens.length - 1, group.index + direction))
+  workspaceIndexes[group.id] = group.tokens[nextIndex]?.id || nextIndex
 }
 
 function selectWorkspace(group, index) {
   if (!group?.isWorkspaceGroup) return
-  workspaceIndexes[group.id] = Math.max(0, Math.min(group.tokens.length - 1, index))
+  const nextIndex = Math.max(0, Math.min(group.tokens.length - 1, index))
+  workspaceIndexes[group.id] = group.tokens[nextIndex]?.id || nextIndex
+}
+
+function selectWorkspaceById(group, id) {
+  if (!group?.isWorkspaceGroup) return
+  const nextID = String(id || '').trim()
+  if (!nextID) return
+  workspaceIndexes[group.id] = nextID
 }
 
 function selectableGroupTokens(group) {
@@ -259,7 +268,7 @@ function groupSelectionLoading(group) {
             </div>
             <small class="health-line">{{ healthSummary(group.current) }}</small>
             <div v-if="group.isWorkspaceGroup" class="quota-workspace-row">
-              <div class="quota-workspace-dots" aria-label="工作区列表">
+              <div v-if="group.tokens.length <= 8" class="quota-workspace-dots" aria-label="工作区列表">
                 <button
                   v-for="(workspace, workspaceIndex) in group.tokens"
                   :key="workspace.id"
@@ -271,6 +280,21 @@ function groupSelectionLoading(group) {
                   {{ workspaceIndex + 1 }}
                 </button>
               </div>
+              <el-select
+                v-else
+                class="quota-workspace-select"
+                size="small"
+                :model-value="group.current.id"
+                aria-label="工作区列表"
+                @change="selectWorkspaceById(group, $event)"
+              >
+                <el-option
+                  v-for="(workspace, workspaceIndex) in group.tokens"
+                  :key="workspace.id"
+                  :label="`${workspaceIndex + 1} · ${quotaWorkspaceLabel(workspace, workspaceIndex)}`"
+                  :value="workspace.id"
+                />
+              </el-select>
               <div class="quota-workspace-switcher">
                 <el-tooltip content="上一个工作区" placement="top">
                   <el-button

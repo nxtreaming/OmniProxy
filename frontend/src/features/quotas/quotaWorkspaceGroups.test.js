@@ -49,13 +49,22 @@ test('buildQuotaWorkspaceGroups keeps API keys and different emails separate', (
   assert.deepEqual(groups.map((group) => group.current.id), ['api-1', 'api-2', 'codex-1', 'codex-2'])
 })
 
-test('buildQuotaWorkspaceGroups uses selected workspace unless page state overrides it', () => {
+test('buildQuotaWorkspaceGroups uses selected workspace unless page token id state overrides it', () => {
   const tokens = [
     codexToken('a', 'coder@example.com', 'workspace-a'),
     codexToken('b', 'coder@example.com', 'workspace-b', true),
   ]
 
   assert.equal(buildQuotaWorkspaceGroups(tokens)[0].current.id, 'b')
+  assert.equal(buildQuotaWorkspaceGroups(tokens, { 'codex:coder@example.com': 'a' })[0].current.id, 'a')
+})
+
+test('buildQuotaWorkspaceGroups keeps legacy selected index state compatible', () => {
+  const tokens = [
+    codexToken('a', 'coder@example.com', 'workspace-a'),
+    codexToken('b', 'coder@example.com', 'workspace-b', true),
+  ]
+
   assert.equal(buildQuotaWorkspaceGroups(tokens, { 'codex:coder@example.com': 0 })[0].current.id, 'a')
 })
 

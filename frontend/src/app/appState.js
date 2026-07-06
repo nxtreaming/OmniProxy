@@ -82,6 +82,7 @@ export function createAppState() {
     batchImporting: ref(false),
     clearingBillingUsage: ref(false),
     clearingRequestHistory: ref(false),
+    rebuildingHistorySummaries: ref(false),
     updateDiagnosticsLoading: ref(false),
     errorMessage: ref(''),
     successMessage: ref(''),

@@ -71,6 +71,7 @@ func (s *SQLiteStore) Summary(filter Filter, days int) (Summary, error) {
 		DailyRows:          []DailySummary{},
 		ProviderRanks:      []Rank{},
 		ClientRanks:        []Rank{},
+		TokenRanks:         []Rank{},
 		ModelRanks:         []Rank{},
 		TokenFailureRanks:  []Rank{},
 		FailureReasonRanks: []Rank{},
@@ -101,6 +102,9 @@ FROM request_daily_summary`+whereSQL, args...).Scan(&out.Total, &out.Failed, &ou
 		return Summary{}, err
 	}
 	if out.ClientRanks, err = s.summaryRanks(summaryClientRankLabelSQL, where, args, "count", 0, false); err != nil {
+		return Summary{}, err
+	}
+	if out.TokenRanks, err = s.summaryRanks(tokenRankLabelSQL, where, args, "total_tokens", 0, false); err != nil {
 		return Summary{}, err
 	}
 	if out.ModelRanks, err = s.summaryRanks(modelRankLabelSQL, where, args, "total_tokens", 0, false); err != nil {
@@ -201,6 +205,7 @@ func (s *SQLiteStore) summaryFromHistory(filter Filter, days int) (Summary, erro
 		DailyRows:          []DailySummary{},
 		ProviderRanks:      []Rank{},
 		ClientRanks:        []Rank{},
+		TokenRanks:         []Rank{},
 		ModelRanks:         []Rank{},
 		TokenFailureRanks:  []Rank{},
 		FailureReasonRanks: []Rank{},
@@ -231,6 +236,9 @@ FROM request_history`+whereSQL, args...).Scan(&out.Total, &out.Failed, &out.Tota
 		return Summary{}, err
 	}
 	if out.ClientRanks, err = s.summaryRanksFromHistory(clientRankLabelSQL, where, args, "count", 0); err != nil {
+		return Summary{}, err
+	}
+	if out.TokenRanks, err = s.summaryRanksFromHistory(tokenRankLabelSQL, where, args, "total_tokens", 0); err != nil {
 		return Summary{}, err
 	}
 	if out.ModelRanks, err = s.summaryRanksFromHistory(modelRankLabelSQL, where, args, "total_tokens", 0); err != nil {

@@ -13,12 +13,12 @@ func (a *appServer) createToken(ctx context.Context, req token.UpsertRequest) (t
 	if err != nil {
 		return tokenResponse{}, err
 	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token added"})
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: "token added"})
 	if isRefreshableAuthToken(item) {
 		result, err := a.validateAndRecordToken(ctx, item)
 		a.recordTokenMaintenanceHistory(historyEventCodexRefreshAdd, item, result, err)
 		if err != nil {
-			a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: item.Name, Message: fmt.Sprintf("OAuth validation failed after add: %v", err)})
+			a.logs.Add(logs.Entry{Level: logs.LevelWarn, TokenName: a.tokenDisplayName(item), Message: fmt.Sprintf("OAuth validation failed after add: %v", err)})
 		}
 		if updated, err := a.tokens.Get(item.ID); err == nil {
 			item = updated
@@ -33,7 +33,7 @@ func (a *appServer) updateToken(id string, req token.UpsertRequest) (tokenRespon
 	if err != nil {
 		return tokenResponse{}, err
 	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token updated"})
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: "token updated"})
 	a.ensurePremProxyForToken(item, "Prem account updated")
 	return tokenResponseFor(item), nil
 }
@@ -56,7 +56,7 @@ func (a *appServer) setTokenDisabled(id string, disabled bool) (tokenResponse, e
 	if item.Disabled {
 		message = "token disabled"
 	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: message})
 	if item.Disabled {
 		a.stopPremProxyIfUnused()
 	} else {
@@ -74,7 +74,7 @@ func (a *appServer) useOnlyToken(id string) ([]tokenResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "token selected as only provider account"})
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: "token selected as only provider account"})
 	return tokenResponses(items), nil
 }
 
@@ -87,7 +87,7 @@ func (a *appServer) cancelUseOnlyToken(id string) ([]tokenResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: "provider account selection cleared"})
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: "provider account selection cleared"})
 	return tokenResponses(items), nil
 }
 
@@ -104,7 +104,7 @@ func (a *appServer) setTokenSelected(id string, selected bool) ([]tokenResponse,
 	if selected {
 		message = "token added to provider selection"
 	}
-	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: item.Name, Message: message})
+	a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: message})
 	return tokenResponses(items), nil
 }
 
@@ -125,7 +125,7 @@ func (a *appServer) validateToken(ctx context.Context, id string) (validationRes
 		Level:     level,
 		Status:    result.Status,
 		Duration:  result.Duration,
-		TokenName: selected.Name,
+		TokenName: a.tokenDisplayName(selected),
 		Message:   "token validation completed",
 	})
 	return validationResponseFor(result), err

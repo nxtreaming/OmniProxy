@@ -93,6 +93,8 @@ func scanDailyUsage(rows *sql.Rows) ([]DailyUsage, error) {
 			&row.Protocol,
 			&row.ClientKey,
 			&row.ClientName,
+			&row.TokenID,
+			&row.TokenName,
 			&row.Model,
 			&row.RequestCount,
 			&row.InputTokens,

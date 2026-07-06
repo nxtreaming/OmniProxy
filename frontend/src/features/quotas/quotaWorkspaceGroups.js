@@ -57,6 +57,11 @@ export function quotaWorkspaceTitle(item, index = 0) {
 function workspaceIndex(tokens, selectedIndex) {
   const count = tokens.length
   if (count <= 0) return 0
+  const selectedID = String(selectedIndex || '').trim()
+  if (selectedID) {
+    const selectedIDIndex = tokens.findIndex((item) => String(item?.id || '') === selectedID)
+    if (selectedIDIndex >= 0) return selectedIDIndex
+  }
   const stored = Number(selectedIndex)
   if (Number.isInteger(stored) && stored >= 0 && stored < count) return stored
   const selected = tokens.findIndex((item) => item?.selected)

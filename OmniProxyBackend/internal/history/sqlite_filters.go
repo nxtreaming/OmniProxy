@@ -41,9 +41,14 @@ func historyWhere(filter Filter) ([]string, []any) {
 		where = append(where, `model LIKE ? COLLATE NOCASE`)
 		args = append(args, like(filter.Model))
 	}
+	if strings.TrimSpace(filter.TokenID) != "" && filter.TokenID != "all" {
+		where = append(where, `token_id = ? COLLATE NOCASE`)
+		args = append(args, strings.TrimSpace(filter.TokenID))
+	}
 	if strings.TrimSpace(filter.Token) != "" {
-		where = append(where, `token_name LIKE ? COLLATE NOCASE`)
-		args = append(args, like(filter.Token))
+		where = append(where, `(token_name LIKE ? COLLATE NOCASE OR token_id LIKE ? COLLATE NOCASE)`)
+		tokenSearch := like(filter.Token)
+		args = append(args, tokenSearch, tokenSearch)
 	}
 	if strings.TrimSpace(filter.Search) != "" {
 		where = append(where, `(
@@ -55,11 +60,12 @@ client_key LIKE ? COLLATE NOCASE OR
 client_name LIKE ? COLLATE NOCASE OR
 model LIKE ? COLLATE NOCASE OR
 token_name LIKE ? COLLATE NOCASE OR
+token_id LIKE ? COLLATE NOCASE OR
 message LIKE ? COLLATE NOCASE OR
 CAST(status AS TEXT) LIKE ?
 )`)
 		search := like(filter.Search)
-		args = append(args, search, search, search, search, search, search, search, search, search, search)
+		args = append(args, search, search, search, search, search, search, search, search, search, search, search)
 	}
 
 	return where, args

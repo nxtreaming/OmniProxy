@@ -82,6 +82,8 @@ export namespace history {
 	    protocol?: string;
 	    clientKey?: string;
 	    clientName?: string;
+	    tokenId?: string;
+	    tokenName?: string;
 	    model?: string;
 	    requestCount: number;
 	    inputTokens: number;
@@ -101,6 +103,8 @@ export namespace history {
 	        this.protocol = source["protocol"];
 	        this.clientKey = source["clientKey"];
 	        this.clientName = source["clientName"];
+	        this.tokenId = source["tokenId"];
+	        this.tokenName = source["tokenName"];
 	        this.model = source["model"];
 	        this.requestCount = source["requestCount"];
 	        this.inputTokens = source["inputTokens"];
@@ -133,6 +137,7 @@ export namespace history {
 	    level?: string;
 	    status?: string;
 	    model?: string;
+	    tokenId?: string;
 	    token?: string;
 	    search?: string;
 	    limit?: number;
@@ -148,6 +153,7 @@ export namespace history {
 	        this.level = source["level"];
 	        this.status = source["status"];
 	        this.model = source["model"];
+	        this.tokenId = source["tokenId"];
 	        this.token = source["token"];
 	        this.search = source["search"];
 	        this.limit = source["limit"];
@@ -180,6 +186,7 @@ export namespace history {
 	    dailyRows: DailySummary[];
 	    providerRanks: Rank[];
 	    clientRanks: Rank[];
+	    tokenRanks: Rank[];
 	    modelRanks: Rank[];
 	    tokenFailureRanks: Rank[];
 	    failureReasonRanks: Rank[];
@@ -198,6 +205,7 @@ export namespace history {
 	        this.dailyRows = this.convertValues(source["dailyRows"], DailySummary);
 	        this.providerRanks = this.convertValues(source["providerRanks"], Rank);
 	        this.clientRanks = this.convertValues(source["clientRanks"], Rank);
+	        this.tokenRanks = this.convertValues(source["tokenRanks"], Rank);
 	        this.modelRanks = this.convertValues(source["modelRanks"], Rank);
 	        this.tokenFailureRanks = this.convertValues(source["tokenFailureRanks"], Rank);
 	        this.failureReasonRanks = this.convertValues(source["failureReasonRanks"], Rank);

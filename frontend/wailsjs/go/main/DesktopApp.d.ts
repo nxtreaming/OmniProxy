@@ -91,6 +91,8 @@ export function ProviderModels(arg1:main.providerModelCatalogRequest):Promise<ma
 
 export function ProxyStatus():Promise<Record<string, any>>;
 
+export function RebuildHistorySummaries():Promise<void>;
+
 export function RefreshTokenAuth(arg1:string):Promise<main.tokenResponse>;
 
 export function RequestHistory(arg1:history.Filter):Promise<Array<main.historyResponse>>;

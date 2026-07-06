@@ -31,6 +31,7 @@ import {
   getTaskAutomationBrowserProfiles,
   getTokens,
   getUpdateDiagnostics,
+  rebuildHistorySummaries,
   restoreConfigSnapshot,
   setAutoStart,
   startProxy,
@@ -305,6 +306,32 @@ export function createAppDataActions(state, navigation) {
     }
   }
 
+  async function rebuildHistorySummaryData() {
+    try {
+      await ElMessageBox.confirm(
+        '将根据当前保留的请求历史重新生成账单汇总、每日汇总和账号/工作区统计。请求历史明细不会删除。',
+        '重建历史汇总',
+        {
+          confirmButtonText: '重建汇总',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      )
+      state.rebuildingHistorySummaries.value = true
+      state.errorMessage.value = ''
+      state.successMessage.value = ''
+      await rebuildHistorySummaries()
+      await Promise.all([refreshHistory(), refreshBilling()])
+      state.successMessage.value = '历史与账单汇总已重建'
+    } catch (action) {
+      if (action instanceof Error) {
+        state.errorMessage.value = action.message
+      }
+    } finally {
+      state.rebuildingHistorySummaries.value = false
+    }
+  }
+
   async function chooseDataDirectory() {
     state.dataDirChanging.value = true
     state.errorMessage.value = ''
@@ -564,6 +591,7 @@ export function createAppDataActions(state, navigation) {
     openBillingView,
     clearBillingUsageData,
     clearRequestHistoryData,
+    rebuildHistorySummaryData,
     chooseDataDirectory,
     toggleProxy,
     toggleAutoStart,

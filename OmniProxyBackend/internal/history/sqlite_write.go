@@ -97,6 +97,8 @@ func requestDailySummaryValues(entry Entry) []any {
 		strings.TrimSpace(entry.Level),
 		entry.Status,
 		strings.TrimSpace(entry.Model),
+		tokenAggregationKey(entry),
+		strings.TrimSpace(entry.TokenID),
 		strings.TrimSpace(entry.TokenName),
 		boolInt(failedEntry(entry)),
 		total,
@@ -139,12 +141,22 @@ func dailyUsageValues(entry Entry) ([]any, bool) {
 		strings.TrimSpace(entry.Protocol),
 		strings.TrimSpace(entry.ClientKey),
 		strings.TrimSpace(entry.ClientName),
+		tokenAggregationKey(entry),
+		strings.TrimSpace(entry.TokenID),
+		strings.TrimSpace(entry.TokenName),
 		strings.TrimSpace(entry.Model),
 		input,
 		output,
 		total,
 		time.Now().Format(time.RFC3339Nano),
 	}, true
+}
+
+func tokenAggregationKey(entry Entry) string {
+	if id := strings.TrimSpace(entry.TokenID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(entry.TokenName)
 }
 
 func billingLifetimeValues(entry Entry) ([]any, bool) {
