@@ -58,7 +58,7 @@ const props = defineProps({
   providerLabel: { type: Function, required: true },
 })
 
-defineEmits(['refresh', 'refresh-provider-quotas', 'select-provider', 'toggle-token-selected', 'refresh-quota'])
+defineEmits(['refresh', 'refresh-provider-quotas', 'select-provider', 'toggle-token-selected', 'select-token-group', 'refresh-quota'])
 
 const workspaceIndexes = reactive({})
 
@@ -83,6 +83,19 @@ function changeWorkspace(group, direction) {
 function selectWorkspace(group, index) {
   if (!group?.isWorkspaceGroup) return
   workspaceIndexes[group.id] = Math.max(0, Math.min(group.tokens.length - 1, index))
+}
+
+function selectableGroupTokens(group) {
+  return Array.isArray(group?.tokens) ? group.tokens.filter((item) => item?.id && !item.disabled) : []
+}
+
+function groupAllSelected(group) {
+  const items = selectableGroupTokens(group)
+  return !items.length || items.every((item) => item.selected)
+}
+
+function groupSelectionLoading(group) {
+  return selectableGroupTokens(group).some((item) => props.switchingOnlyTokenIds[item.id])
 }
 </script>
 
@@ -207,6 +220,18 @@ function selectWorkspace(group, index) {
               </span>
               <div class="quota-card-actions">
                 <el-button
+                  v-if="group.isWorkspaceGroup"
+                  size="small"
+                  class="account-action-button account-select-all-button"
+                  plain
+                  :icon="CircleCheckFilled"
+                  :loading="groupSelectionLoading(group)"
+                  :disabled="groupAllSelected(group)"
+                  @click="$emit('select-token-group', group.tokens)"
+                >
+                  全选
+                </el-button>
+                <el-button
                   size="small"
                   :class="['account-action-button', 'account-select-button', { selected: group.current.selected }]"
                   :type="group.current.selected ? 'primary' : ''"
@@ -232,9 +257,21 @@ function selectWorkspace(group, index) {
                 </el-tooltip>
               </div>
             </div>
-            <div class="quota-health-row">
-              <small class="health-line">{{ healthSummary(group.current) }}</small>
-              <div v-if="group.isWorkspaceGroup" class="quota-workspace-switcher">
+            <small class="health-line">{{ healthSummary(group.current) }}</small>
+            <div v-if="group.isWorkspaceGroup" class="quota-workspace-row">
+              <div class="quota-workspace-dots" aria-label="工作区列表">
+                <button
+                  v-for="(workspace, workspaceIndex) in group.tokens"
+                  :key="workspace.id"
+                  type="button"
+                  :class="{ active: workspaceIndex === group.index, selected: workspace.selected }"
+                  :title="quotaWorkspaceTitle(workspace, workspaceIndex)"
+                  @click="selectWorkspace(group, workspaceIndex)"
+                >
+                  {{ workspaceIndex + 1 }}
+                </button>
+              </div>
+              <div class="quota-workspace-switcher">
                 <el-tooltip content="上一个工作区" placement="top">
                   <el-button
                     class="quota-workspace-nav"
@@ -264,18 +301,6 @@ function selectWorkspace(group, index) {
                   />
                 </el-tooltip>
               </div>
-            </div>
-            <div v-if="group.isWorkspaceGroup" class="quota-workspace-dots" aria-label="工作区列表">
-              <button
-                v-for="(workspace, workspaceIndex) in group.tokens"
-                :key="workspace.id"
-                type="button"
-                :class="{ active: workspaceIndex === group.index, selected: workspace.selected }"
-                :title="quotaWorkspaceTitle(workspace, workspaceIndex)"
-                @click="selectWorkspace(group, workspaceIndex)"
-              >
-                {{ workspaceIndex + 1 }}
-              </button>
             </div>
           </div>
 

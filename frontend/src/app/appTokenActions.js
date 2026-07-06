@@ -330,6 +330,35 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
     }
   }
 
+  async function selectTokenGroup(tokens) {
+    const items = Array.isArray(tokens) ? tokens.filter((item) => item?.id && !item.disabled && !item.selected) : []
+    if (!items.length) {
+      state.successMessage.value = '该账号下的工作区已全部选中'
+      return
+    }
+    state.errorMessage.value = ''
+    state.successMessage.value = ''
+    try {
+      for (const item of items) {
+        state.switchingOnlyTokenIds[item.id] = true
+        const updatedTokens = await setTokenSelected(item.id, true)
+        if (Array.isArray(updatedTokens)) {
+          state.tokens.value = updatedTokens
+        } else {
+          await dataActions.refreshRealtime()
+        }
+      }
+      state.successMessage.value = `已全选 ${items[0].name} 的 ${items.length} 个工作区`
+    } catch (error) {
+      state.errorMessage.value = error.message
+      await dataActions.refreshRealtime()
+    } finally {
+      for (const item of items) {
+        state.switchingOnlyTokenIds[item.id] = false
+      }
+    }
+  }
+
   async function verifyToken(token) {
     state.errorMessage.value = ''
     state.successMessage.value = ''
@@ -590,6 +619,7 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
     toggleTokenEnabled,
     providerSelectedTokens,
     toggleTokenSelected,
+    selectTokenGroup,
     verifyToken,
     refreshAuthToken,
     openCodexAuthFilePicker,

@@ -64,7 +64,7 @@ const {
   proxyStatus, quotaOverviewRangeText, quotaRefreshProgress, refreshAll, refreshAuthToken, refreshBilling, refreshHistory, refreshOpenRouterModels,
   refreshProviderQuotas, refreshQuota, refreshRealtime, refreshingProvider, refreshingTokenIds, refreshTaskAutomationBrowserProfiles, refreshUpdateDiagnostics, removeToken, requestHistory,
   requestHistorySummary, requestTrendWidth, restoreActiveWorkspaceScroll, restoreConfigSnapshotById, restoreLocalClaude, restoreLocalClaudeDesktop, restoreLocalCodex, restoreLocalDeepSeekTUI,
-  restoreLocalGemini, restoreLocalOpenCode, restoreLocalPi, runFirstUseGuideAction, selectOpenRouterChatModel, selectProvider, selectTab, selectedBillingDate,
+  restoreLocalGemini, restoreLocalOpenCode, restoreLocalPi, runFirstUseGuideAction, selectOpenRouterChatModel, selectProvider, selectTab, selectTokenGroup, selectedBillingDate,
   riskTokens, routeDraftsDirty, selectedClaudeModelLabels, selectedClaudeModels, selectedCodexModelLabels, selectedCodexModels, selectedHistoryEntry, selectedOpenRouterChatModel, skipCurrentUpdate, snoozeTitlebarUpdate, startUpdateDownload, startWindowResize, submitBatchImport,
   submitForm, subscriptionOverviewPageCount, subscriptionOverviewTokens, subscriptionQuotaPage, subscriptionQuotaPageText, successMessage, switchingOnlyTokenIds,
   tabIcons, taskAutomationBrowserProfiles, taskAutomationBrowserProfilesError, taskAutomationBrowserProfilesLoading, titlebarUpdatePopoverOpen, titlebarUpdatePrompt,
@@ -189,7 +189,6 @@ const {
         :today-proxy-requests="todayProxyRequests"
         :total-proxy-requests="totalProxyRequests"
         :active-requests="activeRequests"
-        :long-request-alert-seconds="config.longRequestAlertSeconds"
         :active-token-ids="activeTokenIds"
         :tool-usage-rows="toolUsageRows"
         :subscription-overview-tokens="subscriptionOverviewTokens"
@@ -225,7 +224,6 @@ const {
         :api-quota-meta="apiQuotaMeta"
         :trend-width="trendWidth"
         :request-trend-width="requestTrendWidth"
-        @toggle-proxy="toggleProxy"
         @refresh="refreshAll"
         @open-settings="selectTab('settings')"
         @open-billing="openBillingView"
@@ -270,6 +268,7 @@ const {
         @refresh-provider-quotas="refreshProviderQuotas"
         @select-provider="selectProvider"
         @toggle-token-selected="toggleTokenSelected"
+        @select-token-group="selectTokenGroup"
         @refresh-quota="refreshQuota"
       />
 

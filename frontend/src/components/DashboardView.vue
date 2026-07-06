@@ -6,12 +6,11 @@ import {
   Lightning,
   Monitor,
   Refresh,
-  SwitchButton,
   TrendCharts,
 } from '@element-plus/icons-vue'
 import DashboardContributionCalendar from './DashboardContributionCalendar.vue'
 
-const props = defineProps({
+defineProps({
   proxyStatus: { type: Object, required: true },
   proxyEndpoint: { type: String, required: true },
   dashboardSignals: { type: Array, required: true },
@@ -30,7 +29,6 @@ const props = defineProps({
   todayProxyRequests: { type: Number, required: true },
   totalProxyRequests: { type: Number, required: true },
   activeRequests: { type: Array, required: true },
-  longRequestAlertSeconds: { type: Number, required: true },
   activeTokenIds: { type: Object, required: true },
   toolUsageRows: { type: Array, required: true },
   subscriptionOverviewTokens: { type: Array, required: true },
@@ -68,11 +66,7 @@ const props = defineProps({
   requestTrendWidth: { type: Function, required: true },
 })
 
-const emit = defineEmits(['toggle-proxy', 'refresh', 'open-settings', 'open-billing', 'open-trends', 'change-quota-page'])
-
-function toggleProxy() {
-  emit('toggle-proxy')
-}
+const emit = defineEmits(['refresh', 'open-settings', 'open-billing', 'open-trends', 'change-quota-page'])
 
 function refreshAll() {
   emit('refresh')
@@ -94,27 +88,6 @@ function changeQuotaOverviewPage(type, direction) {
   emit('change-quota-page', type, direction)
 }
 
-function requestAgeSeconds(request) {
-  const startedAt = Date.parse(request?.startedAt || '')
-  if (!Number.isFinite(startedAt)) return 0
-  return Math.max(0, Math.round((Date.now() - startedAt) / 1000))
-}
-
-function requestDurationText(request) {
-  const seconds = requestAgeSeconds(request)
-  if (seconds < 60) return `${seconds} 秒`
-  const minutes = Math.floor(seconds / 60)
-  const rest = seconds % 60
-  return `${minutes} 分 ${rest} 秒`
-}
-
-function isLongRequest(request) {
-  return requestAgeSeconds(request) >= Number(props.longRequestAlertSeconds || 120)
-}
-
-function longActiveRequests() {
-  return props.activeRequests.filter((request) => isLongRequest(request))
-}
 </script>
 
 <template>
@@ -162,7 +135,7 @@ function longActiveRequests() {
             <Monitor class="metric-icon" aria-hidden="true" />
           </div>
           <strong>{{ formatNumber(activeRequests.length) }}</strong>
-          <small>正在占用 {{ activeTokenIds.size }} 个账号 · 长请求 {{ longActiveRequests().length }}</small>
+          <small>正在占用 {{ activeTokenIds.size }} 个账号</small>
         </article>
 
         <section class="panel tool-usage-panel">
@@ -195,32 +168,6 @@ function longActiveRequests() {
             </div>
           </div>
           <div v-else class="empty">暂无工具使用记录</div>
-        </section>
-
-        <section v-if="activeRequests.length" class="panel active-request-panel">
-          <div class="section-heading">
-            <div>
-              <h2>活跃请求</h2>
-              <p>长时间占用会按当前阈值标记</p>
-            </div>
-            <button v-if="longActiveRequests().length" type="button" class="danger-button" @click="toggleProxy">停止代理</button>
-          </div>
-          <div class="active-request-list">
-            <div
-              v-for="request in activeRequests.slice(0, 5)"
-              :key="request.id"
-              :class="['active-request-row', { warning: isLongRequest(request) }]"
-            >
-              <div>
-                <strong>{{ request.clientName || clientToolLabel(request.clientKey) }}</strong>
-                <small>{{ providerLabel(request.provider) }} · {{ request.model || '未识别模型' }}</small>
-              </div>
-              <span :class="['tag', isLongRequest(request) ? 'warning' : 'success']">
-                {{ requestDurationText(request) }}
-              </span>
-              <small>账号 {{ request.tokenName || '-' }} · {{ formatTime(request.startedAt) }}</small>
-            </div>
-          </div>
         </section>
 
         <section class="panel wide quota-overview-panel">

@@ -194,15 +194,7 @@
   line-height: 1.45;
 }
 
-.quotas-page-panel .quota-health-row {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.quotas-page-panel .quota-health-row .health-line {
+.quotas-page-panel .quota-card-head > .health-line {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -228,6 +220,18 @@
   height: 30px;
   padding-inline: 10px;
   border-radius: 999px;
+}
+
+.quotas-page-panel .quota-card-actions .account-select-all-button.el-button {
+  min-width: 58px !important;
+}
+
+.quotas-page-panel .quota-workspace-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .quotas-page-panel .quota-workspace-switcher {
@@ -288,6 +292,7 @@
   flex-wrap: wrap;
   gap: 5px;
   min-width: 0;
+  align-items: center;
 }
 
 .quotas-page-panel .quota-workspace-dots button {
@@ -443,6 +448,11 @@
   .quotas-page-panel .quota-status-tags,
   .quotas-page-panel .quota-card-actions {
     justify-content: flex-start;
+  }
+
+  .quotas-page-panel .quota-workspace-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
