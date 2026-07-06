@@ -232,36 +232,38 @@ function selectWorkspace(group, index) {
                 </el-tooltip>
               </div>
             </div>
-            <small class="health-line">{{ healthSummary(group.current) }}</small>
-            <div v-if="group.isWorkspaceGroup" class="quota-workspace-switcher">
-              <el-tooltip content="上一个工作区" placement="top">
-                <el-button
-                  class="quota-workspace-nav"
-                  circle
-                  plain
-                  :icon="ArrowLeft"
-                  :disabled="group.index <= 0"
-                  aria-label="上一个工作区"
-                  @click="changeWorkspace(group, -1)"
-                />
-              </el-tooltip>
-              <div class="quota-workspace-current">
-                <span>工作区 {{ group.index + 1 }} / {{ group.tokens.length }}</span>
-                <strong :title="quotaWorkspaceTitle(group.current, group.index)">
-                  {{ quotaWorkspaceLabel(group.current, group.index) }}
-                </strong>
+            <div class="quota-health-row">
+              <small class="health-line">{{ healthSummary(group.current) }}</small>
+              <div v-if="group.isWorkspaceGroup" class="quota-workspace-switcher">
+                <el-tooltip content="上一个工作区" placement="top">
+                  <el-button
+                    class="quota-workspace-nav"
+                    circle
+                    text
+                    :icon="ArrowLeft"
+                    :disabled="group.index <= 0"
+                    aria-label="上一个工作区"
+                    @click="changeWorkspace(group, -1)"
+                  />
+                </el-tooltip>
+                <div class="quota-workspace-current">
+                  <span>工作区 {{ group.index + 1 }} / {{ group.tokens.length }}</span>
+                  <strong :title="quotaWorkspaceTitle(group.current, group.index)">
+                    {{ quotaWorkspaceLabel(group.current, group.index) }}
+                  </strong>
+                </div>
+                <el-tooltip content="下一个工作区" placement="top">
+                  <el-button
+                    class="quota-workspace-nav"
+                    circle
+                    text
+                    :icon="ArrowRight"
+                    :disabled="group.index >= group.tokens.length - 1"
+                    aria-label="下一个工作区"
+                    @click="changeWorkspace(group, 1)"
+                  />
+                </el-tooltip>
               </div>
-              <el-tooltip content="下一个工作区" placement="top">
-                <el-button
-                  class="quota-workspace-nav"
-                  circle
-                  plain
-                  :icon="ArrowRight"
-                  :disabled="group.index >= group.tokens.length - 1"
-                  aria-label="下一个工作区"
-                  @click="changeWorkspace(group, 1)"
-                />
-              </el-tooltip>
             </div>
             <div v-if="group.isWorkspaceGroup" class="quota-workspace-dots" aria-label="工作区列表">
               <button

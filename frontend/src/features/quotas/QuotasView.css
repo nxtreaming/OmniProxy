@@ -194,6 +194,21 @@
   line-height: 1.45;
 }
 
+.quotas-page-panel .quota-health-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quotas-page-panel .quota-health-row .health-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .quotas-page-panel .quota-account-id {
   color: var(--brand-strong);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
@@ -216,44 +231,54 @@
 }
 
 .quotas-page-panel .quota-workspace-switcher {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  grid-template-columns: 24px minmax(96px, auto) 24px;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--brand) 20%, var(--line));
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--brand) 7%, var(--surface));
+  padding: 2px 4px;
+  border: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 38%, transparent);
 }
 
 .quotas-page-panel .quota-workspace-nav.el-button {
-  width: 30px !important;
-  height: 30px;
-  min-width: 30px !important;
+  width: 24px !important;
+  height: 24px;
+  min-width: 24px !important;
+  padding: 0 !important;
   border-radius: 999px;
+  color: var(--text-muted);
+}
+
+.quotas-page-panel .quota-workspace-nav.el-button:not(.is-disabled):hover {
+  background: color-mix(in srgb, var(--surface-soft) 78%, var(--surface));
+  color: var(--text-strong);
 }
 
 .quotas-page-panel .quota-workspace-current {
   min-width: 0;
-  display: grid;
-  justify-items: center;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 6px;
   text-align: center;
 }
 
 .quotas-page-panel .quota-workspace-current span {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .quotas-page-panel .quota-workspace-current strong {
-  max-width: 100%;
+  max-width: 108px;
   overflow: hidden;
   color: var(--brand-strong);
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  font-size: 13px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -261,19 +286,19 @@
 .quotas-page-panel .quota-workspace-dots {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
 .quotas-page-panel .quota-workspace-dots button {
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-soft) 45%, transparent);
+  background: transparent;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -285,7 +310,7 @@
 }
 
 .quotas-page-panel .quota-workspace-dots button.selected {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 16%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 16%, transparent);
 }
 
 .quotas-page-panel .quota-layout,
@@ -379,8 +404,8 @@
 }
 
 .shell.dark .quotas-page-panel .quota-workspace-switcher {
-  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
-  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--line) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 48%, transparent);
 }
 
 @media (min-width: 2200px) {
