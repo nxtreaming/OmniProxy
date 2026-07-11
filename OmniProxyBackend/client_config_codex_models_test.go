@@ -28,13 +28,13 @@ func TestConfigureCodexWritesSelectedModelProfiles(t *testing.T) {
 	}
 
 	result, err := app.configureCodex(codexConfigureRequest{
-		Models: []string{" gpt-5.5 ", "gpt-5.4", "gpt-5.4-mini", "deepseek-v4-pro[1m]", "ignored"},
+		Models: []string{" gpt-5.6-sol ", "gpt-5.6-terra", "gpt-5.6-luna", "deepseek-v4-pro[1m]", "ignored"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Model != "gpt-5.5" || len(result.Models) != maxCodexModels {
-		t.Fatalf("expected four selected Codex models with gpt-5.5 primary, got %#v", result)
+	if result.Model != "gpt-5.6-sol" || len(result.Models) != maxCodexModels {
+		t.Fatalf("expected four selected Codex models with gpt-5.6-sol primary, got %#v", result)
 	}
 	if result.Models[3] != "deepseek-v4-pro" {
 		t.Fatalf("expected Codex 1M suffix to normalize for upstream routing, got %#v", result.Models)
@@ -46,8 +46,9 @@ func TestConfigureCodexWritesSelectedModelProfiles(t *testing.T) {
 	}
 	text := string(content)
 	for _, expected := range []string{
-		`model = "gpt-5.5"`,
-		`review_model = "gpt-5.5"`,
+		`model = "gpt-5.6-sol"`,
+		`review_model = "gpt-5.6-sol"`,
+		`model_context_window = 1050000`,
 		`model_provider = "OpenAI"`,
 		`base_url = "http://127.0.0.1:3000/codex/v1"`,
 	} {
@@ -56,12 +57,15 @@ func TestConfigureCodexWritesSelectedModelProfiles(t *testing.T) {
 		}
 	}
 
-	profilePath := filepath.Join(home, ".codex", "omniproxy-gpt-5-4.config.toml")
+	profilePath := filepath.Join(home, ".codex", "omniproxy-gpt-5-6-luna.config.toml")
 	profile, err := os.ReadFile(profilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(profile), `model = "gpt-5.4"`) || !strings.Contains(string(profile), `review_model = "gpt-5.4"`) {
+	if !strings.Contains(string(profile), `model = "gpt-5.6-luna"`) ||
+		!strings.Contains(string(profile), `review_model = "gpt-5.6-luna"`) ||
+		!strings.Contains(string(profile), `model_context_window = 400000`) ||
+		!strings.Contains(string(profile), `model_auto_compact_token_limit = 360000`) {
 		t.Fatalf("unexpected profile content:\n%s", string(profile))
 	}
 	if _, err := os.Stat(filepath.Join(home, ".codex", "omniproxy-ignored.config.toml")); !errors.Is(err, os.ErrNotExist) {

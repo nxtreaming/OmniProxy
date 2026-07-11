@@ -12,6 +12,18 @@ test('routeDefinitions build stable local gateway endpoints', () => {
   assert.equal(endpoints.gemini, 'http://127.0.0.1:3899/gemini')
 })
 
+test('routeDefinitions expose GPT-5.6 role-aware defaults and family presets', () => {
+  const codex = routeDefinitions.find((route) => route.key === 'codex')
+  const openai = routeDefinitions.find((route) => route.key === 'openai')
+
+  assert.equal(codex.fallback.model, 'gpt-5.6-sol')
+  assert.equal(openai.fallback.model, 'gpt-5.6-terra')
+  for (const model of ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
+    assert.ok(codex.modelPresets.includes(model))
+    assert.ok(openai.modelPresets.includes(model))
+  }
+})
+
 test('inferGatewayProviderForModel keeps provider inference stable', () => {
   const cases = [
     ['claude-sonnet-4-6', 'zo'],
@@ -26,6 +38,7 @@ test('inferGatewayProviderForModel keeps provider inference stable', () => {
     ['auto:balance', 'tokenrouter'],
     ['openai/gpt-5.4', 'openrouter'],
     ['custom-model', 'custom'],
+    ['gpt-5.6-sol', 'openai'],
     ['gpt-5.4', 'openai'],
   ]
 

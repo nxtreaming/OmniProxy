@@ -97,7 +97,7 @@ flowchart LR
 - **账单明细增强**：费用账单右侧明细区新增费用洞察、模型占比和未纳入模型摘要，并优化暗色模式海报预览。
 - **Codex Chat Completions 兼容入口**：新增 `/codex/v1/chat/completions`，可用 OpenAI `auth.json` 账号接入 OpenAI Chat Completions 客户端，内部自动转换到 Codex Responses 后端。
 - **Codex 流式响应转换**：Codex Responses 的 SSE 事件会转换为 `chat.completion.chunk`，非流式请求会汇总为 `chat.completion` 响应。
-- **Codex 模型与参数适配**：支持 `gpt-5.4-high` 等 Codex CLI 模型别名，并保留 `max_completion_tokens`、`reasoning_effort`、tools / function calling 等常用参数。
+- **Codex 模型与参数适配**：支持 GPT-5.6 Sol / Terra / Luna，以及 `gpt-5.6-sol-high` 等 Codex CLI 模型别名，并保留 `max_completion_tokens`、`reasoning_effort`、tools / function calling 等常用参数。
 - **Codex 请求体兼容**：支持解码 Codex 发往本地 Responses 入口的 zstd / gzip 压缩请求体。
 
 ## 快速开始

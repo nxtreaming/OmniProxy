@@ -166,6 +166,9 @@ func writePiModelsConfig(path string, routerBaseURL string, zoBaseURL string, op
 
 func piRouterModels(openRouterModels []map[string]any) []map[string]any {
 	models := []map[string]any{
+		{"id": "gpt-5.6-sol", "name": "GPT-5.6 Sol"},
+		{"id": "gpt-5.6-terra", "name": "GPT-5.6 Terra"},
+		{"id": "gpt-5.6-luna", "name": "GPT-5.6 Luna"},
 		{"id": "gpt-5.4", "name": "GPT-5.4"},
 		{"id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro"},
 		{"id": "kimi-for-coding", "name": "Kimi for Coding"},
@@ -305,6 +308,9 @@ func defaultPiOpenRouterModels() []map[string]any {
 
 func openCodeRouterProvider(baseURL string, extraModels map[string]any) map[string]any {
 	models := map[string]any{
+		"gpt-5.6-sol":     map[string]any{"name": "GPT-5.6 Sol"},
+		"gpt-5.6-terra":   map[string]any{"name": "GPT-5.6 Terra"},
+		"gpt-5.6-luna":    map[string]any{"name": "GPT-5.6 Luna"},
 		"gpt-5.4":         map[string]any{"name": "GPT-5.4"},
 		"deepseek-v4-pro": map[string]any{"name": "DeepSeek V4 Pro"},
 		"glm-5.1":         map[string]any{"name": "GLM-5.1"},

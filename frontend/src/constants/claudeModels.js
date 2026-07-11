@@ -3,6 +3,21 @@ export const codexModelSelectionLimit = 4
 
 export const codexModelOptions = [
   {
+    id: 'gpt-5.6-sol',
+    label: 'GPT-5.6 Sol',
+    description: '旗舰模型，适合复杂编码、研究和高质量任务。',
+  },
+  {
+    id: 'gpt-5.6-terra',
+    label: 'GPT-5.6 Terra',
+    description: '兼顾能力与成本，适合日常编码和对话。',
+  },
+  {
+    id: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna',
+    description: '速度快、成本低，适合轻量和高吞吐任务。',
+  },
+  {
     id: 'gpt-5.5',
     label: 'GPT-5.5',
     description: 'Frontier model for complex coding, research, and real-world work.',

@@ -219,7 +219,7 @@ func codexBuildChatCompletion(resp *codexResponsesPayload, requestedModel string
 		}
 	}
 	if model == "" {
-		model = "gpt-5.4"
+		model = "gpt-5.6-sol"
 	}
 	return codexChatCompletion{
 		ID:      codexChatID(id),
@@ -293,13 +293,17 @@ func codexChatID(value string) string {
 func normalizeCodexChatModel(model string) string {
 	key := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(model)), "-"))
 	if key == "" {
-		return "gpt-5.4"
+		return "gpt-5.6-sol"
 	}
 	if strings.Contains(key, "/") {
 		parts := strings.Split(key, "/")
 		key = parts[len(parts)-1]
 	}
 	modelMap := map[string]string{
+		"gpt-5.6":             "gpt-5.6-sol",
+		"gpt-5.6-sol":         "gpt-5.6-sol",
+		"gpt-5.6-terra":       "gpt-5.6-terra",
+		"gpt-5.6-luna":        "gpt-5.6-luna",
 		"gpt-5.5":             "gpt-5.5",
 		"gpt-5.4":             "gpt-5.4",
 		"gpt-5.4-mini":        "gpt-5.4-mini",
@@ -326,7 +330,7 @@ func normalizeCodexChatModel(model string) string {
 	if mapped, ok := modelMap[key]; ok {
 		return mapped
 	}
-	for _, prefix := range []string{"gpt-5.5", "gpt-5.4-mini", "gpt-5.4", "gpt-5.3-codex-spark", "gpt-5.3-codex", "gpt-5.2"} {
+	for _, prefix := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4", "gpt-5.3-codex-spark", "gpt-5.3-codex", "gpt-5.2"} {
 		if key == prefix || strings.HasPrefix(key, prefix+"-") {
 			return modelMap[prefix]
 		}

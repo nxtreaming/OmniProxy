@@ -5,6 +5,10 @@ const gpt54LongContext = {
 }
 
 export const priceRules = [
+  { pattern: /^gpt-5\.6-sol/i, label: 'OpenAI GPT-5.6 Sol', currency: 'USD', input: 5, output: 30, cacheCreation: 6.25, cacheRead: 0.5, ...gpt54LongContext },
+  { pattern: /^gpt-5\.6-terra/i, label: 'OpenAI GPT-5.6 Terra', currency: 'USD', input: 2.5, output: 15, cacheCreation: 3.125, cacheRead: 0.25, ...gpt54LongContext },
+  { pattern: /^gpt-5\.6-luna/i, label: 'OpenAI GPT-5.6 Luna', currency: 'USD', input: 1, output: 6, cacheCreation: 1.25, cacheRead: 0.1 },
+  { pattern: /^gpt-5\.6(?:$|-)/i, label: 'OpenAI GPT-5.6 Sol', currency: 'USD', input: 5, output: 30, cacheCreation: 6.25, cacheRead: 0.5, ...gpt54LongContext },
   { pattern: /^gpt-5\.5/i, label: 'OpenAI GPT-5.5', currency: 'USD', input: 2.5, output: 15, cacheCreation: 2.5, cacheRead: 0.25, ...gpt54LongContext },
   { pattern: /^gpt-5\.4-mini/i, label: 'OpenAI GPT-5.4 mini', currency: 'USD', input: 0.75, output: 4.5, cacheCreation: 0, cacheRead: 0.075 },
   { pattern: /^gpt-5\.4/i, label: 'OpenAI GPT-5.4', currency: 'USD', input: 2.5, output: 15, cacheCreation: 2.5, cacheRead: 0.25, ...gpt54LongContext },

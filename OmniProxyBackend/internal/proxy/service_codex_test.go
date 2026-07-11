@@ -15,6 +15,21 @@ import (
 	"time"
 )
 
+func TestNormalizeCodexChatModelSupportsGPT56Family(t *testing.T) {
+	tests := map[string]string{
+		"":                         "gpt-5.6-sol",
+		"gpt-5.6":                  "gpt-5.6-sol",
+		"gpt-5.6-sol-high":         "gpt-5.6-sol",
+		"openai/gpt-5.6-terra-low": "gpt-5.6-terra",
+		"gpt-5.6-luna-xhigh":       "gpt-5.6-luna",
+	}
+	for input, expected := range tests {
+		if got := normalizeCodexChatModel(input); got != expected {
+			t.Errorf("normalizeCodexChatModel(%q) = %q, want %q", input, got, expected)
+		}
+	}
+}
+
 func TestServiceRoutesCodexAuthJSONToCodexBackend(t *testing.T) {
 	var gotPath string
 	var gotAuth string

@@ -164,7 +164,7 @@ func TestWriteOpenCodeConfigAddsOmniProxyProviders(t *testing.T) {
 		t.Fatalf("unexpected router baseURL: %#v", options)
 	}
 	routerModels := routerProvider["models"].(map[string]any)
-	if routerModels["openai/gpt-test"] == nil || routerModels["auto:balance"] == nil || routerModels["custom-model"] == nil {
+	if routerModels["gpt-5.6-sol"] == nil || routerModels["gpt-5.6-terra"] == nil || routerModels["gpt-5.6-luna"] == nil || routerModels["openai/gpt-test"] == nil || routerModels["auto:balance"] == nil || routerModels["custom-model"] == nil {
 		t.Fatalf("expected gateway models in %#v", routerModels)
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
@@ -212,6 +212,11 @@ func TestWritePiModelsConfigAddsOmniProxyProviders(t *testing.T) {
 	routerModels := routerProvider["models"].([]any)
 	if len(routerModels) == 0 {
 		t.Fatalf("expected Pi router models: %#v", routerProvider)
+	}
+	for _, id := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
+		if _, ok := piTestFindModel(routerModels, id); !ok {
+			t.Fatalf("expected Pi router models to include %s: %#v", id, routerModels)
+		}
 	}
 	routerCompat := routerProvider["compat"].(map[string]any)
 	if routerCompat["supportsReasoningEffort"] != true {

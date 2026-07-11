@@ -191,9 +191,9 @@ export function createAppState() {
       xiaomiCredentialPriority: 'mimo_token_plan',
       codexBaseUrl: 'https://chatgpt.com/backend-api/codex',
       gatewayRoutes: {
-        codex: { provider: 'openai', credentialType: '', model: 'gpt-5.5' },
+        codex: { provider: 'openai', credentialType: '', model: 'gpt-5.6-sol' },
         claude: { provider: 'anthropic', credentialType: '', model: 'default' },
-        openai: { provider: 'openai', credentialType: '', model: 'gpt-5.4' },
+        openai: { provider: 'openai', credentialType: '', model: 'gpt-5.6-terra' },
         gemini: { provider: 'gemini', credentialType: '', model: 'gemini-3-pro-preview' },
       },
       modelRoutes: {},

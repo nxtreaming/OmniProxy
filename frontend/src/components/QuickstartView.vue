@@ -64,9 +64,9 @@ const selectedCodex = computed({
   set: (value) => emit('update:selectedCodexModels', value),
 })
 
-const codexRouteModel = computed(() => props.selectedCodexModels[0] || props.config.gatewayRoutes?.codex?.model || 'gpt-5.5')
+const codexRouteModel = computed(() => props.selectedCodexModels[0] || props.config.gatewayRoutes?.codex?.model || 'gpt-5.6-sol')
 const claudeRouteModel = computed(() => props.config.gatewayRoutes?.claude?.model || 'default')
-const openAIRouteModel = computed(() => props.config.gatewayRoutes?.openai?.model || 'gpt-5.4')
+const openAIRouteModel = computed(() => props.config.gatewayRoutes?.openai?.model || 'gpt-5.6-terra')
 const geminiRouteModel = computed(() => props.config.gatewayRoutes?.gemini?.model || 'gemini-3-pro-preview')
 
 function addCustomCodexModel() {

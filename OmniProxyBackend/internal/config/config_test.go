@@ -55,6 +55,9 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if cfg.GatewayRoutes.Codex.CredentialType != "" || cfg.GatewayRoutes.Claude.CredentialType != "" || cfg.GatewayRoutes.OpenAI.CredentialType != "" || cfg.GatewayRoutes.Gemini.CredentialType != "" {
 		t.Fatalf("expected default gateway routes to use automatic credential matching, got %#v", cfg.GatewayRoutes)
 	}
+	if cfg.GatewayRoutes.Codex.Model != "gpt-5.6-sol" || cfg.GatewayRoutes.OpenAI.Model != "gpt-5.6-terra" {
+		t.Fatalf("expected GPT-5.6 role-aware gateway defaults, got %#v", cfg.GatewayRoutes)
+	}
 	if !Default().PremAutoStartPCCIProxy {
 		t.Fatal("expected Prem pcci-proxy auto-start enabled by default")
 	}

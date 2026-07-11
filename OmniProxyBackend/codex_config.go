@@ -17,7 +17,7 @@ const (
 	maxCodexModels          = 4
 )
 
-var defaultCodexModels = []string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}
+var defaultCodexModels = []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
 
 type codexConfigureResult struct {
 	ConfigPath       string   `json:"configPath"`
@@ -201,6 +201,12 @@ func writeCodexModelProfiles(codexDir string, models []string) ([]string, error)
 			fmt.Sprintf(`model = "%s"`, tomlEscape(model)),
 			fmt.Sprintf(`review_model = "%s"`, tomlEscape(model)),
 		}
+		if contextWindow, compactLimit, ok := codexModelContext(model); ok {
+			lines = append(lines,
+				fmt.Sprintf("model_context_window = %d", contextWindow),
+				fmt.Sprintf("model_auto_compact_token_limit = %d", compactLimit),
+			)
+		}
 		if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
 			return nil, err
 		}
@@ -244,6 +250,19 @@ func codexProfileName(model string) string {
 		return "omniproxy-model"
 	}
 	return name
+}
+
+func codexModelContext(model string) (int, int, bool) {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra":
+		return 1_050_000, 900_000, true
+	case "gpt-5.6-luna", "gpt-5.4-mini":
+		return 400_000, 360_000, true
+	case "gpt-5.5", "gpt-5.4":
+		return 1_000_000, 900_000, true
+	default:
+		return 0, 0, false
+	}
 }
 
 func (a *appServer) restoreCodexConfig() (codexConfigureResult, error) {
@@ -330,8 +349,12 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, models []strin
 	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
 	lines = setRootStringKey(lines, "network_access", "enabled")
 	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
-	lines = setRootRawKey(lines, "model_context_window", "1000000")
-	lines = setRootRawKey(lines, "model_auto_compact_token_limit", "900000")
+	contextWindow, compactLimit, ok := codexModelContext(model)
+	if !ok {
+		contextWindow, compactLimit = 1_000_000, 900_000
+	}
+	lines = setRootRawKey(lines, "model_context_window", fmt.Sprintf("%d", contextWindow))
+	lines = setRootRawKey(lines, "model_auto_compact_token_limit", fmt.Sprintf("%d", compactLimit))
 	lines = removeRootKey(lines, "preferred_auth_method")
 	lines = removeRootKey(lines, "openai_base_url")
 	lines = removeRootKey(lines, "chatgpt_base_url")

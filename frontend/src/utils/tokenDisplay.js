@@ -4,7 +4,7 @@ import { formatNumber, formatTime } from './format.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
-const CODEX_WEEKLY_ESTIMATE_MODEL = 'gpt-5.5'
+const CODEX_WEEKLY_ESTIMATE_MODEL = 'gpt-5.6-sol'
 
 export function statusLabel(status) {
   return statusMeta[status]?.label || status

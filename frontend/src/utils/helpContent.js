@@ -13,7 +13,7 @@ export function buildThirdPartyEndpointGroups(port) {
           protocol: 'OpenAI Chat / Responses',
           baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.openai),
           apiKey: 'omniproxy-local',
-          models: '客户端发送的模型名，或入口默认模型，例如 gpt-5.4',
+          models: '客户端发送的模型名，或入口默认模型，例如 gpt-5.6-terra',
           use: '通用 OpenAI 兼容入口；模型对应的后端顺序在「网关路由」页面选择。',
         },
         {
@@ -21,7 +21,7 @@ export function buildThirdPartyEndpointGroups(port) {
           protocol: 'OpenAI Responses / Chat',
           baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.codex),
           apiKey: 'omniproxy-local',
-          models: 'Codex 一键配置写入的默认模型，例如 gpt-5.5 / gpt-5.4-mini / deepseek-v4-pro',
+          models: 'Codex 一键配置写入的默认模型，例如 gpt-5.6-sol / gpt-5.6-luna / deepseek-v4-pro',
           use: 'Codex 和 OpenAI 兼容客户端可固定接入这里；后端顺序按模型路由选择。',
         },
         {

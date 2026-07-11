@@ -12,7 +12,7 @@ import (
 
 const (
 	geminiDefaultModel            = "gemini-3-pro-preview"
-	openAICompatibleDefaultModel  = "gpt-5.4"
+	openAICompatibleDefaultModel  = "gpt-5.6-terra"
 	opencodeOmniProviderID        = "omniproxy"
 	opencodeGeminiProviderID      = "omniproxy-gemini"
 	opencodeOpenRouterProviderID  = "omniproxy-openrouter"
