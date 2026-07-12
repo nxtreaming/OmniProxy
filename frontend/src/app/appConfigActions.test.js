@@ -95,13 +95,11 @@ test('configPayload preserves all top-level backend config fields', () => {
 test('configPayload trims third-party URLs and preserves Prem autostart toggle', () => {
   const payload = configPayload({
     anyrouterBaseUrl: ' https://anyrouter.example ',
-    forgeBaseUrl: ' https://forge.example/v1 ',
     premBaseUrl: ' http://127.0.0.1:3101 ',
     premAutoStartPcciProxy: false,
   })
 
   assert.equal(payload.anyrouterBaseUrl, 'https://anyrouter.example')
-  assert.equal(payload.forgeBaseUrl, 'https://forge.example/v1')
   assert.equal(payload.premBaseUrl, 'http://127.0.0.1:3101')
   assert.equal(payload.premAutoStartPcciProxy, false)
 })

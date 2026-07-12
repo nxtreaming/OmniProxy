@@ -25,7 +25,6 @@ const (
 	ProviderSub2API     = "sub2api"
 	ProviderNewAPI      = "newapi"
 	ProviderAnyRouter   = "anyrouter"
-	ProviderForge       = "forge"
 	ProviderZo          = "zo"
 	ProviderPrem        = "prem"
 	ProviderCustom      = "custom"

@@ -142,15 +142,13 @@ C:\Users\mimanchi\go\bin\wails.exe dev
 | TokenRouter | `http://127.0.0.1:3000/tokenrouter/v1` | `http://127.0.0.1:3001/tokenrouter/v1` |
 | AnyRouter Codex / OpenAI | `http://127.0.0.1:3000/anyrouter/v1` | `http://127.0.0.1:3001/anyrouter/v1` |
 | AnyRouter Claude Code | `http://127.0.0.1:3000/anyrouter/anthropic` | `http://127.0.0.1:3001/anyrouter/anthropic` |
-| Forge AI OpenAI Responses / Chat | `http://127.0.0.1:3000/forge/v1` | `http://127.0.0.1:3001/forge/v1` |
-| Forge AI Anthropic | `http://127.0.0.1:3000/forge/anthropic/v1` | `http://127.0.0.1:3001/forge/anthropic/v1` |
 | Zo Computer | `http://127.0.0.1:3000/zo/v1` | `http://127.0.0.1:3001/zo/v1` |
 | Prem | `http://127.0.0.1:3000/prem/v1` | `http://127.0.0.1:3001/prem/v1` |
 | Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
 
 Prem 需要先运行官方 `pcci-proxy`，OmniProxy 默认把 Prem 上游指向 `http://127.0.0.1:3100/v1`，可在「全局设置」中修改。Prem 账号只需要保存 API Key；多 Key 由 OmniProxy 选择可用账号并注入到转发请求中。
 
-Codex、Claude、OpenAI compatible、Pi router 和 Gemini router 是面向客户端的稳定入口。它们接到请求后会按「网关路由」配置选择 OpenAI、Anthropic、Gemini、DeepSeek、MiMo、sub2api、new-api、AnyRouter、Forge AI、Zo、Prem 或自定义网关等后端；表中的 TokenRouter、AnyRouter、Forge AI、Zo、Prem 等路径仍保留为高级用户的固定后端入口。Forge 支持 OpenAI Responses、Chat Completions 与 Anthropic Messages，可作为 Codex、OpenAI/OpenCode 和 Claude Code 路由后端。
+Codex、Claude、OpenAI compatible、Pi router 和 Gemini router 是面向客户端的稳定入口。它们接到请求后会按「网关路由」配置选择 OpenAI、Anthropic、Gemini、DeepSeek、MiMo、sub2api、new-api、AnyRouter、Zo、Prem 或自定义网关等后端；表中的 TokenRouter、AnyRouter、Zo、Prem 等路径仍保留为高级用户的固定后端入口。
 
 默认数据目录：
 
@@ -179,7 +177,6 @@ Codex、Claude、OpenAI compatible、Pi router 和 Gemini router 是面向客户
 | sub2api | API Key | OpenAI / Anthropic / Gemini 兼容网关，可作为网关路由后端或固定后端入口。 |
 | new-api | API Key | OpenAI / Anthropic / Gemini 兼容网关，默认 `http://127.0.0.1:3000`，通过 `/api/usage/token/` 刷新 Key 额度。 |
 | AnyRouter | API Key | Codex/OpenAI 与 Claude Code/Anthropic 兼容网关，默认 `https://anyrouter.top`。 |
-| Forge AI | API Key | OpenAI Responses、Chat Completions 与 Anthropic Messages 网关，默认 `https://forge-gateway-api.fly.dev/v1`。 |
 | Zo Computer | Access Token | OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、模型列表和客户端模型预设。 |
 | Prem | API Key | 通过 Prem 官方 `pcci-proxy` 本机 OpenAI 兼容服务转发，支持多 Key 调度。 |
 | 自定义网关 | API Key | OpenAI / Anthropic 兼容网关。 |

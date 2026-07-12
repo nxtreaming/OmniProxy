@@ -81,14 +81,6 @@ export function buildThirdPartyEndpointGroups(port) {
           use: '转发到 AnyRouter 的 OpenAI/Codex 兼容入口。',
         },
         {
-          name: 'Forge AI',
-          protocol: 'OpenAI Chat / Responses',
-          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.forge),
-          apiKey: 'omniproxy-local',
-          models: 'Forge 模型目录中的模型 ID，例如 gpt-5.6-sol / deepseek-r1',
-          use: '转发到 Forge 的 OpenAI Responses / Chat Completions 兼容入口。',
-        },
-        {
           name: '自定义网关',
           protocol: 'OpenAI Chat',
           baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.custom),
@@ -157,14 +149,6 @@ export function buildThirdPartyEndpointGroups(port) {
           apiKey: 'omniproxy-local',
           models: 'claude-opus-4-5-20251101',
           use: '转发到 AnyRouter 的 Claude Code/Anthropic 兼容入口。',
-        },
-        {
-          name: 'Forge AI Anthropic',
-          protocol: 'Anthropic Messages',
-          baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.forgeAnthropic),
-          apiKey: 'omniproxy-local',
-          models: 'Forge 模型目录中的模型 ID，例如 claude-sonnet-5 / deepseek-r1',
-          use: '转发到 Forge 的 Anthropic Messages 兼容入口。',
         },
         {
           name: '自定义 Anthropic 网关',

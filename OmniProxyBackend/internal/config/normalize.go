@@ -116,9 +116,6 @@ func Normalize(cfg Config) Config {
 	if cfg.AnyRouterBaseURL == "" {
 		cfg.AnyRouterBaseURL = defaults.AnyRouterBaseURL
 	}
-	if cfg.ForgeBaseURL == "" {
-		cfg.ForgeBaseURL = defaults.ForgeBaseURL
-	}
 	if cfg.ZoBaseURL == "" {
 		cfg.ZoBaseURL = defaults.ZoBaseURL
 	}

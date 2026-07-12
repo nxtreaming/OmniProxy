@@ -188,8 +188,6 @@ func (v *Validator) validationURL(selected token.Token) (string, error) {
 		if basePathHasVersionSuffix(base.Path) {
 			path = "/models"
 		}
-	case token.ProviderForge:
-		path = "/models"
 	case token.ProviderPrem:
 		path = "/openai/v1/models"
 	case token.ProviderZo:

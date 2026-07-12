@@ -23,7 +23,7 @@ func protocolForRoute(provider string, path *string) string {
 		} else if stripProtocolPrefix(path, "/gemini") {
 			protocol = "gemini"
 		}
-	case token.ProviderAnyRouter, token.ProviderForge:
+	case token.ProviderAnyRouter:
 		if stripProtocolPrefix(path, "/anthropic") {
 			protocol = "anthropic"
 		}
@@ -65,7 +65,7 @@ func stripProtocolPrefix(path *string, prefix string) bool {
 }
 
 func gatewayProviderUsesProtocolPrefixes(provider string) bool {
-	return provider == token.ProviderSub2API || provider == token.ProviderNewAPI || provider == token.ProviderAnyRouter || provider == token.ProviderForge
+	return provider == token.ProviderSub2API || provider == token.ProviderNewAPI || provider == token.ProviderAnyRouter
 }
 
 func versionedGatewayOpenAIPath(path string) string {

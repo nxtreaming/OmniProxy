@@ -132,26 +132,6 @@ func TestApplyAuthUsesGeminiAPIKeyHeader(t *testing.T) {
 	}
 }
 
-func TestApplyAuthUsesForgeBearerForResponses(t *testing.T) {
-	header := http.Header{}
-	header.Set("x-api-key", "caller-key")
-	selected := token.Token{
-		Provider:       token.ProviderForge,
-		CredentialType: token.CredentialTypeAPIKey,
-		TokenValue:     "fg-forge-api-key-token",
-	}
-
-	if err := applyRouteAuth(header, selected, routeInfo{Protocol: "openai"}); err != nil {
-		t.Fatal(err)
-	}
-	if got := header.Get("Authorization"); got != "Bearer fg-forge-api-key-token" {
-		t.Fatalf("unexpected Forge Authorization header: %q", got)
-	}
-	if got := header.Get("x-api-key"); got != "" {
-		t.Fatalf("Forge Responses should clear x-api-key, got %q", got)
-	}
-}
-
 func TestApplyAuthUsesClaudeOAuthBearerHeaders(t *testing.T) {
 	header := http.Header{}
 	header.Set("x-api-key", "caller-key")
@@ -176,7 +156,7 @@ func TestApplyAuthUsesClaudeOAuthBearerHeaders(t *testing.T) {
 }
 
 func TestApplyAuthUsesAnthropicHeadersForCompatibleProviders(t *testing.T) {
-	for _, provider := range []string{token.ProviderZhipu, token.ProviderMiniMax, token.ProviderAnyRouter, token.ProviderForge, token.ProviderCustom} {
+	for _, provider := range []string{token.ProviderZhipu, token.ProviderMiniMax, token.ProviderAnyRouter, token.ProviderCustom} {
 		t.Run(provider, func(t *testing.T) {
 			header := http.Header{}
 			selected := token.Token{

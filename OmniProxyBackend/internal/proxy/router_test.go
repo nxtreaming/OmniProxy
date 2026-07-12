@@ -399,22 +399,6 @@ func TestRouterMapsNewProviderPrefixes(t *testing.T) {
 			outPath:  "/v1/messages",
 		},
 		{
-			name:     "forge openai direct",
-			path:     "/forge/v1/chat/completions",
-			body:     `{"model":"gpt-5.6-sol"}`,
-			provider: token.ProviderForge,
-			protocol: "openai",
-			outPath:  "/v1/chat/completions",
-		},
-		{
-			name:     "forge anthropic direct",
-			path:     "/forge/anthropic/v1/messages",
-			body:     `{"model":"claude-sonnet-5"}`,
-			provider: token.ProviderForge,
-			protocol: "anthropic",
-			outPath:  "/v1/messages",
-		},
-		{
 			name:     "zo openai direct",
 			path:     "/zo/v1/chat/completions",
 			body:     `{"model":"gpt-5.5"}`,

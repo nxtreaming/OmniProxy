@@ -20,11 +20,6 @@ test('buildThirdPartyEndpointGroups keeps key client routes stable', () => {
     'http://127.0.0.1:3899/anthropic-router',
   )
   assert.equal(endpoints.find((endpoint) => endpoint.name === 'Gemini Native')?.baseUrl, 'http://127.0.0.1:3899/gemini')
-  assert.equal(endpoints.find((endpoint) => endpoint.name === 'Forge AI')?.baseUrl, 'http://127.0.0.1:3899/forge/v1')
-  assert.equal(
-    endpoints.find((endpoint) => endpoint.name === 'Forge AI Anthropic')?.baseUrl,
-    'http://127.0.0.1:3899/forge/anthropic/v1',
-  )
   assert.equal(
     endpoints.find((endpoint) => endpoint.name === 'Claude Desktop Gateway')?.apiKey,
     'omniproxy-claude-desktop',

@@ -49,8 +49,8 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if cfg.TaskAutomationFallbackURL != "https://www.douyin.com" || cfg.TaskAutomationIdleSeconds != 5 || cfg.TaskAutomationReturnDelaySeconds != 3 {
 		t.Fatalf("expected default task automation timing, got fallback=%q idle=%d delay=%d", cfg.TaskAutomationFallbackURL, cfg.TaskAutomationIdleSeconds, cfg.TaskAutomationReturnDelaySeconds)
 	}
-	if cfg.ZhipuBaseURL == "" || cfg.MiniMaxBaseURL == "" || cfg.GeminiBaseURL == "" || cfg.OpenRouterBaseURL == "" || cfg.TokenRouterBaseURL == "" || cfg.Sub2APIBaseURL == "" || cfg.NewAPIBaseURL == "" || cfg.AnyRouterBaseURL == "" || cfg.ForgeBaseURL == "" || cfg.ZoBaseURL == "" || cfg.PremBaseURL == "" {
-		t.Fatalf("expected new provider default base urls, got zhipu=%q minimax=%q gemini=%q openrouter=%q tokenrouter=%q sub2api=%q newapi=%q anyrouter=%q forge=%q zo=%q prem=%q", cfg.ZhipuBaseURL, cfg.MiniMaxBaseURL, cfg.GeminiBaseURL, cfg.OpenRouterBaseURL, cfg.TokenRouterBaseURL, cfg.Sub2APIBaseURL, cfg.NewAPIBaseURL, cfg.AnyRouterBaseURL, cfg.ForgeBaseURL, cfg.ZoBaseURL, cfg.PremBaseURL)
+	if cfg.ZhipuBaseURL == "" || cfg.MiniMaxBaseURL == "" || cfg.GeminiBaseURL == "" || cfg.OpenRouterBaseURL == "" || cfg.TokenRouterBaseURL == "" || cfg.Sub2APIBaseURL == "" || cfg.NewAPIBaseURL == "" || cfg.AnyRouterBaseURL == "" || cfg.ZoBaseURL == "" || cfg.PremBaseURL == "" {
+		t.Fatalf("expected new provider default base urls, got zhipu=%q minimax=%q gemini=%q openrouter=%q tokenrouter=%q sub2api=%q newapi=%q anyrouter=%q zo=%q prem=%q", cfg.ZhipuBaseURL, cfg.MiniMaxBaseURL, cfg.GeminiBaseURL, cfg.OpenRouterBaseURL, cfg.TokenRouterBaseURL, cfg.Sub2APIBaseURL, cfg.NewAPIBaseURL, cfg.AnyRouterBaseURL, cfg.ZoBaseURL, cfg.PremBaseURL)
 	}
 	if cfg.GatewayRoutes.Codex.CredentialType != "" || cfg.GatewayRoutes.Claude.CredentialType != "" || cfg.GatewayRoutes.OpenAI.CredentialType != "" || cfg.GatewayRoutes.Gemini.CredentialType != "" {
 		t.Fatalf("expected default gateway routes to use automatic credential matching, got %#v", cfg.GatewayRoutes)
@@ -67,7 +67,7 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 		WebSocketMode:                    "DISABLED",
 		OutboundProxyEnabled:             true,
 		OutboundProxyURL:                 "mixed:10808",
-		OutboundProxyProviders:           []string{"codex", " ", "OPENROUTER", "forge-ai", "zo-computer", "any-router", "prem-ai", "codex"},
+		OutboundProxyProviders:           []string{"codex", " ", "OPENROUTER", "zo-computer", "any-router", "prem-ai", "codex"},
 		OutboundProxyModels:              []string{"gpt-5.4", " ", "GPT-5.4", "claude-*"},
 		XiaomiCredentialPriority:         "api",
 		TaskAutomationClients:            []string{"Codex", "claudecode", "claude-code-desktop", "codex", "unknown"},
@@ -93,7 +93,7 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	if len(cfg.OutboundProxyModels) != 2 || cfg.OutboundProxyModels[0] != "gpt-5.4" || cfg.OutboundProxyModels[1] != "claude-*" {
 		t.Fatalf("expected normalized outbound proxy models, got %#v", cfg.OutboundProxyModels)
 	}
-	if len(cfg.OutboundProxyProviders) != 6 || cfg.OutboundProxyProviders[0] != "openai" || cfg.OutboundProxyProviders[1] != "openrouter" || cfg.OutboundProxyProviders[2] != "forge" || cfg.OutboundProxyProviders[3] != "zo" || cfg.OutboundProxyProviders[4] != "anyrouter" || cfg.OutboundProxyProviders[5] != "prem" {
+	if len(cfg.OutboundProxyProviders) != 5 || cfg.OutboundProxyProviders[0] != "openai" || cfg.OutboundProxyProviders[1] != "openrouter" || cfg.OutboundProxyProviders[2] != "zo" || cfg.OutboundProxyProviders[3] != "anyrouter" || cfg.OutboundProxyProviders[4] != "prem" {
 		t.Fatalf("expected normalized outbound proxy providers, got %#v", cfg.OutboundProxyProviders)
 	}
 	if len(cfg.TaskAutomationClients) != 3 || cfg.TaskAutomationClients[0] != "codex" || cfg.TaskAutomationClients[1] != "claude" || cfg.TaskAutomationClients[2] != "claude-desktop" {
@@ -113,26 +113,6 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	}
 }
 
-func TestNormalizeAllowsForgeForAllDocumentedProtocols(t *testing.T) {
-	cfg := Normalize(Config{
-		GatewayRoutes: GatewayRoutes{
-			Codex:  GatewayRouteConfig{Provider: token.ProviderForge, Model: "gpt-5.6-sol"},
-			Claude: GatewayRouteConfig{Provider: token.ProviderForge, Model: "claude-sonnet-5"},
-			OpenAI: GatewayRouteConfig{Provider: token.ProviderForge, Model: "deepseek-r1"},
-		},
-		ModelRoutes: ModelRoutes{
-			"deepseek-r1": {Provider: token.ProviderForge, Model: "deepseek-r1"},
-		},
-	})
-
-	if cfg.GatewayRoutes.Codex.Provider != token.ProviderForge || cfg.GatewayRoutes.Claude.Provider != token.ProviderForge || cfg.GatewayRoutes.OpenAI.Provider != token.ProviderForge {
-		t.Fatalf("expected Forge for Responses, Anthropic, and OpenAI Chat routes, got %#v", cfg.GatewayRoutes)
-	}
-	if cfg.ModelRoutes["deepseek-r1"].Provider != token.ProviderForge {
-		t.Fatalf("expected Forge model route, got %#v", cfg.ModelRoutes)
-	}
-}
-
 func TestStoreLoadPreservesPremAutoStartDisabled(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(path, []byte(`{"premAutoStartPcciProxy":false}`), 0600); err != nil {
@@ -144,20 +124,6 @@ func TestStoreLoadPreservesPremAutoStartDisabled(t *testing.T) {
 	}
 	if cfg.PremAutoStartPCCIProxy {
 		t.Fatal("expected saved Prem pcci-proxy auto-start=false to be preserved")
-	}
-}
-
-func TestStoreLoadPreservesForgeBaseURL(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(path, []byte(`{"forgeBaseUrl":"https://forge.example/v1"}`), 0600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-	cfg, err := NewStore(path).Load()
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if cfg.ForgeBaseURL != "https://forge.example/v1" {
-		t.Fatalf("expected saved Forge base url, got %q", cfg.ForgeBaseURL)
 	}
 }
 

@@ -91,9 +91,6 @@ export function createTokenHelpers(state) {
     if (state.form.provider === 'anyrouter') {
       return '粘贴 sk- 开头的 AnyRouter API Key'
     }
-    if (state.form.provider === 'forge') {
-      return '粘贴 fg- 开头的 Forge API Key'
-    }
     if (state.form.provider === 'zo') {
       return '粘贴 zo_sk_ 开头的 Zo Access Token'
     }

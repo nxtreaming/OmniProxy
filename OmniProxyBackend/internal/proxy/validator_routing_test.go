@@ -173,34 +173,6 @@ func TestValidatorUsesPremModelsEndpoint(t *testing.T) {
 	}
 }
 
-func TestValidatorUsesForgeModelsEndpoint(t *testing.T) {
-	var gotPath string
-	var authorization string
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		authorization = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"data":[]}`))
-	}))
-	defer upstream.Close()
-
-	validator, err := NewValidator(config.Config{ForgeBaseURL: upstream.URL + "/v1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	result, err := validator.Validate(context.Background(), token.Token{
-		Provider:       token.ProviderForge,
-		CredentialType: token.CredentialTypeAPIKey,
-		TokenValue:     "fg-forge-api-key-token",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.OK || gotPath != "/v1/models" || authorization != "Bearer fg-forge-api-key-token" {
-		t.Fatalf("unexpected Forge validation result=%#v path=%q authorization=%q", result, gotPath, authorization)
-	}
-}
-
 func TestValidatorUsesZoModelsAvailable(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/models/available" {

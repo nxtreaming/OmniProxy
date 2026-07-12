@@ -192,12 +192,6 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
         'prem-key-yyyyyyyyyyyyyyyyyyyyyyyy',
       ].join('\n')
     }
-    if (state.batchImportForm.provider === 'forge') {
-      return [
-        'fg-xxxxxxxxxxxxxxxxxxxxxxxx',
-        'fg-yyyyyyyyyyyyyyyyyyyyyyyy',
-      ].join('\n')
-    }
     return [
       'sk-aa0aeaf480484648a8a93d672d76334d  # balance: 10.14 CNY',
       'sk-460d28e38c7e4b05a13fa2bebd27159c  # balance: 0.24 USD',

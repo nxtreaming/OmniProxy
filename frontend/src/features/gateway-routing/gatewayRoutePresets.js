@@ -1,6 +1,6 @@
 import { gatewayEndpointPaths, localProxyEndpoint } from '../../constants/gatewayEndpoints.js'
 
-const codexCompatibleProviders = [
+const openAICompatibleProviders = [
   'openai',
   'deepseek',
   'kimi',
@@ -12,14 +12,9 @@ const codexCompatibleProviders = [
   'sub2api',
   'newapi',
   'anyrouter',
-  'forge',
   'zo',
   'prem',
   'custom',
-]
-
-const openAICompatibleProviders = [
-  ...codexCompatibleProviders,
 ]
 
 export const routeDefinitions = [
@@ -29,7 +24,7 @@ export const routeDefinitions = [
     protocol: 'OpenAI Responses',
     endpoint: (port) => localProxyEndpoint(port, gatewayEndpointPaths.codex),
     fallback: { provider: 'openai', credentialType: '', model: 'gpt-5.6-sol' },
-    providers: codexCompatibleProviders,
+    providers: openAICompatibleProviders,
     modelPresets: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.6-sol-high', 'gpt-5.4-high', 'gpt-5.5-high', 'gpt-5-codex', 'deepseek-v4-pro', 'mimo-v2.5-pro', 'kimi-for-coding', 'glm-5.1', 'MiniMax-M2.7'],
   },
   {
@@ -48,7 +43,6 @@ export const routeDefinitions = [
       'sub2api',
       'newapi',
       'anyrouter',
-      'forge',
       'zo',
       'prem',
       'custom',
@@ -209,15 +203,6 @@ export const gatewayPlatformPresets = [
     ],
   },
   {
-    key: 'forge',
-    routeCredentials: { codex: 'api_key', openai: 'api_key', claude: 'api_key' },
-    models: [
-      routeModel('gpt-5.6-sol', ['codex', 'openai'], 'GPT-5.6 Sol via Forge'),
-      routeModel('claude-sonnet-5', ['codex', 'openai', 'claude'], 'Claude Sonnet 5 via Forge'),
-      routeModel('deepseek-r1', ['codex', 'openai', 'claude'], 'DeepSeek R1 via Forge'),
-    ],
-  },
-  {
     key: 'zo',
     routeCredentials: { codex: 'api_key', openai: 'api_key', claude: 'api_key' },
     models: [
@@ -253,25 +238,25 @@ export const routeStrategyPresets = [
     key: 'stable',
     label: '稳定优先',
     description: '官方与主流托管优先',
-    providers: ['openai', 'anthropic', 'gemini', 'deepseek', 'kimi', 'zhipu', 'minimax', 'openrouter', 'tokenrouter', 'forge', 'prem', 'custom'],
+    providers: ['openai', 'anthropic', 'gemini', 'deepseek', 'kimi', 'zhipu', 'minimax', 'openrouter', 'tokenrouter', 'prem', 'custom'],
   },
   {
     key: 'cost',
     label: '成本优先',
     description: '低成本和聚合网关优先',
-    providers: ['deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'tokenrouter', 'openrouter', 'forge', 'sub2api', 'newapi', 'anyrouter', 'prem', 'custom', 'openai', 'anthropic', 'gemini'],
+    providers: ['deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'tokenrouter', 'openrouter', 'sub2api', 'newapi', 'anyrouter', 'prem', 'custom', 'openai', 'anthropic', 'gemini'],
   },
   {
     key: 'speed',
     label: '速度优先',
     description: '本地和高速中转优先',
-    providers: ['prem', 'forge', 'zo', 'openai', 'anthropic', 'gemini', 'tokenrouter', 'openrouter', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'custom'],
+    providers: ['prem', 'zo', 'openai', 'anthropic', 'gemini', 'tokenrouter', 'openrouter', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'custom'],
   },
   {
     key: 'quota',
     label: '额度轮转',
     description: '尽量保留更多备用链',
-    providers: ['openai', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'anthropic', 'gemini', 'openrouter', 'tokenrouter', 'forge', 'sub2api', 'newapi', 'anyrouter', 'zo', 'prem', 'custom'],
+    providers: ['openai', 'deepseek', 'kimi', 'xiaomi', 'zhipu', 'minimax', 'anthropic', 'gemini', 'openrouter', 'tokenrouter', 'sub2api', 'newapi', 'anyrouter', 'zo', 'prem', 'custom'],
   },
 ]
 

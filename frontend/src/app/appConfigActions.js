@@ -84,7 +84,6 @@ export function configPayload(config) {
     sub2apiBaseUrl: trimText(source.sub2apiBaseUrl),
     newapiBaseUrl: trimText(source.newapiBaseUrl),
     anyrouterBaseUrl: trimText(source.anyrouterBaseUrl),
-    forgeBaseUrl: trimText(source.forgeBaseUrl),
     zoBaseUrl: trimText(source.zoBaseUrl),
     premBaseUrl: trimText(source.premBaseUrl),
     premAutoStartPcciProxy: Boolean(source.premAutoStartPcciProxy),

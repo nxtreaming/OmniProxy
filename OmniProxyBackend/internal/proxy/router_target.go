@@ -68,8 +68,7 @@ func upstreamPath(path string, selected token.Token) string {
 
 func upstreamPathForBase(basePath string, route routeInfo, selected token.Token) string {
 	path := upstreamPath(route.Path, selected)
-	provider := token.NormalizeProvider(route.Provider)
-	if basePathHasVersionSuffix(basePath) && strings.HasPrefix(path, "/v1/") && (route.Protocol == "openai" || provider == token.ProviderAnyRouter || provider == token.ProviderForge) {
+	if basePathHasVersionSuffix(basePath) && strings.HasPrefix(path, "/v1/") && (route.Protocol == "openai" || token.NormalizeProvider(route.Provider) == token.ProviderAnyRouter) {
 		return "/" + strings.TrimPrefix(path, "/v1/")
 	}
 	return path
