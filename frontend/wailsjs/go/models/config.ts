@@ -109,6 +109,7 @@ export namespace config {
 	    sub2apiBaseUrl: string;
 	    newapiBaseUrl: string;
 	    anyrouterBaseUrl: string;
+	    forgeBaseUrl: string;
 	    zoBaseUrl: string;
 	    premBaseUrl: string;
 	    premAutoStartPcciProxy: boolean;
@@ -177,6 +178,7 @@ export namespace config {
 	        this.sub2apiBaseUrl = source["sub2apiBaseUrl"];
 	        this.newapiBaseUrl = source["newapiBaseUrl"];
 	        this.anyrouterBaseUrl = source["anyrouterBaseUrl"];
+	        this.forgeBaseUrl = source["forgeBaseUrl"];
 	        this.zoBaseUrl = source["zoBaseUrl"];
 	        this.premBaseUrl = source["premBaseUrl"];
 	        this.premAutoStartPcciProxy = source["premAutoStartPcciProxy"];

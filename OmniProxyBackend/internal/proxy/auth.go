@@ -90,6 +90,15 @@ func applyAuthWithProtocol(header http.Header, selected token.Token, protocol st
 		} else {
 			header.Set("Authorization", "Bearer "+secret)
 		}
+	case token.ProviderForge:
+		if protocol == "anthropic" {
+			header.Set("x-api-key", secret)
+			if header.Get("anthropic-version") == "" {
+				header.Set("anthropic-version", "2023-06-01")
+			}
+		} else {
+			header.Set("Authorization", "Bearer "+secret)
+		}
 	default:
 		header.Set("Authorization", "Bearer "+secret)
 	}

@@ -144,13 +144,15 @@ Or use the repository helper script:
 | TokenRouter | `http://127.0.0.1:3000/tokenrouter/v1` | `http://127.0.0.1:3001/tokenrouter/v1` |
 | AnyRouter Codex / OpenAI | `http://127.0.0.1:3000/anyrouter/v1` | `http://127.0.0.1:3001/anyrouter/v1` |
 | AnyRouter Claude Code | `http://127.0.0.1:3000/anyrouter/anthropic` | `http://127.0.0.1:3001/anyrouter/anthropic` |
+| Forge AI OpenAI Chat | `http://127.0.0.1:3000/forge/v1` | `http://127.0.0.1:3001/forge/v1` |
+| Forge AI Anthropic | `http://127.0.0.1:3000/forge/anthropic/v1` | `http://127.0.0.1:3001/forge/anthropic/v1` |
 | Zo Computer | `http://127.0.0.1:3000/zo/v1` | `http://127.0.0.1:3001/zo/v1` |
 | Prem | `http://127.0.0.1:3000/prem/v1` | `http://127.0.0.1:3001/prem/v1` |
 | Control API | `http://127.0.0.1:3890/api` | `http://127.0.0.1:3891/api` |
 
 Prem requires the official `pcci-proxy` to be running first. OmniProxy defaults the Prem upstream to `http://127.0.0.1:3100/v1`; change it in **Global Settings**. Prem accounts only need API keys; OmniProxy selects a usable account and injects the key into forwarded requests.
 
-Codex, Claude, OpenAI compatible, Pi router, and Gemini router are stable client-facing entrypoints. Requests received there are routed according to **Gateway Routing**, which can select OpenAI, Anthropic, Gemini, DeepSeek, MiMo, sub2api, new-api, AnyRouter, Zo, Prem, custom gateways, or other supported backends. TokenRouter, AnyRouter, Zo, Prem, and similar paths remain available as advanced fixed-backend entrypoints.
+Codex, Claude, OpenAI compatible, Pi router, and Gemini router are stable client-facing entrypoints. Requests received there are routed according to **Gateway Routing**, which can select OpenAI, Anthropic, Gemini, DeepSeek, MiMo, sub2api, new-api, AnyRouter, Forge AI, Zo, Prem, custom gateways, or other supported backends. TokenRouter, AnyRouter, Forge AI, Zo, Prem, and similar paths remain available as advanced fixed-backend entrypoints. Forge currently implements its documented OpenAI Chat Completions and Anthropic Messages protocols and is not used for Codex Responses routing.
 
 Default data directories:
 
@@ -179,6 +181,7 @@ Default data directories:
 | sub2api | API Key | OpenAI / Anthropic / Gemini-compatible gateway, usable as a gateway-route backend or a fixed backend entrypoint. |
 | new-api | API Key | OpenAI / Anthropic / Gemini-compatible gateway; defaults to `http://127.0.0.1:3000` and refreshes key quota via `/api/usage/token/`. |
 | AnyRouter | API Key | Codex/OpenAI and Claude Code/Anthropic-compatible gateway; defaults to `https://anyrouter.top`. |
+| Forge AI | API Key | Dual OpenAI Chat Completions and Anthropic Messages gateway; defaults to `https://forge-gateway-api.fly.dev/v1`. |
 | Zo Computer | Access Token | OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, model lists, and client model presets. |
 | Prem | API Key | Forwards through the official local Prem `pcci-proxy` OpenAI-compatible service, with multi-key scheduling in OmniProxy. |
 | Custom Gateway | API Key | OpenAI / Anthropic-compatible gateways. |

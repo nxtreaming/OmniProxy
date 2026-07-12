@@ -42,6 +42,7 @@ var defaultOutboundProxyProviders = []string{
 	"anthropic",
 	"gemini",
 	"openrouter",
+	"forge",
 	"zo",
 	"prem",
 }
@@ -83,6 +84,7 @@ type Config struct {
 	Sub2APIBaseURL                     string        `json:"sub2apiBaseUrl"`
 	NewAPIBaseURL                      string        `json:"newapiBaseUrl"`
 	AnyRouterBaseURL                   string        `json:"anyrouterBaseUrl"`
+	ForgeBaseURL                       string        `json:"forgeBaseUrl"`
 	ZoBaseURL                          string        `json:"zoBaseUrl"`
 	PremBaseURL                        string        `json:"premBaseUrl"`
 	PremAutoStartPCCIProxy             bool          `json:"premAutoStartPcciProxy"`
@@ -164,6 +166,7 @@ func Default() Config {
 		Sub2APIBaseURL:                     "https://aiapi.aicnio.com",
 		NewAPIBaseURL:                      "http://127.0.0.1:3000",
 		AnyRouterBaseURL:                   "https://anyrouter.top",
+		ForgeBaseURL:                       "https://forge-gateway-api.fly.dev/v1",
 		ZoBaseURL:                          "https://api.zo.computer",
 		PremBaseURL:                        "http://127.0.0.1:3100",
 		PremAutoStartPCCIProxy:             true,

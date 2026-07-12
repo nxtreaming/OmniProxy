@@ -72,7 +72,7 @@ func (r Router) Route(incoming *url.URL, body []byte) routeInfo {
 	if len(parts) > 0 {
 		candidate := strings.ToLower(parts[0])
 		switch candidate {
-		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderNewAPI, token.ProviderAnyRouter, token.ProviderZo, token.ProviderPrem, token.ProviderCustom:
+		case token.ProviderOpenAI, token.ProviderAnthropic, token.ProviderDeepSeek, token.ProviderKimi, token.ProviderXiaomi, token.ProviderZhipu, token.ProviderMiniMax, token.ProviderGemini, token.ProviderOpenRouter, token.ProviderTokenRouter, token.ProviderSub2API, token.ProviderNewAPI, token.ProviderAnyRouter, token.ProviderForge, token.ProviderZo, token.ProviderPrem, token.ProviderCustom:
 			directProvider = true
 			provider = candidate
 			credentialType = ""
@@ -115,11 +115,11 @@ func (r Router) gatewayRoute(name string, requestModel string) config.GatewayRou
 		model = route.Model
 	}
 	if model != "" {
-		if modelRoute, ok := r.modelRoute(model); ok {
+		if modelRoute, ok := r.modelRoute(model); ok && gatewayModelRouteAllowed(name, modelRoute) {
 			return modelRoute
 		}
 		model = normalizeUpstreamModelID(model)
-		if modelRoute, ok := r.modelRoute(model); ok {
+		if modelRoute, ok := r.modelRoute(model); ok && gatewayModelRouteAllowed(name, modelRoute) {
 			return modelRoute
 		}
 		route.Model = model
@@ -128,6 +128,10 @@ func (r Router) gatewayRoute(name string, requestModel string) config.GatewayRou
 		}
 	}
 	return inferGatewayRouteProvider(name, route)
+}
+
+func gatewayModelRouteAllowed(name string, route config.GatewayRouteConfig) bool {
+	return name != config.GatewayRouteCodex || token.NormalizeProvider(route.Provider) != token.ProviderForge
 }
 
 func (r Router) modelRoute(model string) (config.GatewayRouteConfig, bool) {

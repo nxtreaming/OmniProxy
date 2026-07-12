@@ -81,6 +81,9 @@ function credentialHint() {
   if (props.form.provider === 'prem') {
     return '保存 Prem API Key 后，OmniProxy 会按账号调度并转发到全局 Prem confidential-proxy Base URL。'
   }
+  if (props.form.provider === 'forge') {
+    return '保存 Forge API Key 后，可通过 /forge/v1 使用 OpenAI Chat，或通过 /forge/anthropic/v1 使用 Anthropic Messages。'
+  }
   if (props.form.provider === 'openrouter') {
     return '保存后可在账号管理刷新 OpenRouter 模型列表，模型 ID 会按 provider/model 展示。'
   }

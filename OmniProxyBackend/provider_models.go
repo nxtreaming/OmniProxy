@@ -156,6 +156,8 @@ func providerModelBaseURL(cfg config.Config, selected token.Token) string {
 		return cfg.NewAPIBaseURL
 	case token.ProviderAnyRouter:
 		return cfg.AnyRouterBaseURL
+	case token.ProviderForge:
+		return cfg.ForgeBaseURL
 	case token.ProviderZo:
 		return cfg.ZoBaseURL
 	case token.ProviderPrem:

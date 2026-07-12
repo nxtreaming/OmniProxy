@@ -71,6 +71,8 @@ func normalizeOutboundProxyProvider(provider string) string {
 		return "newapi"
 	case "anyrouter", "any-router", "any router":
 		return "anyrouter"
+	case "forge", "forge-ai", "forge ai":
+		return "forge"
 	case "zo", "zocomputer", "zo-computer":
 		return "zo"
 	case "prem", "premai", "prem-ai", "prem ai":

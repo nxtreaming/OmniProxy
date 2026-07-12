@@ -67,6 +67,7 @@ func (s *Store) Load() (Config, error) {
 		Sub2APIBaseURL                     *string        `json:"sub2apiBaseUrl"`
 		NewAPIBaseURL                      *string        `json:"newapiBaseUrl"`
 		AnyRouterBaseURL                   *string        `json:"anyrouterBaseUrl"`
+		ForgeBaseURL                       *string        `json:"forgeBaseUrl"`
 		ZoBaseURL                          *string        `json:"zoBaseUrl"`
 		PremBaseURL                        *string        `json:"premBaseUrl"`
 		PremAutoStartPCCIProxy             *bool          `json:"premAutoStartPcciProxy"`
@@ -206,6 +207,9 @@ func (s *Store) Load() (Config, error) {
 	}
 	if saved.AnyRouterBaseURL != nil && *saved.AnyRouterBaseURL != "" {
 		cfg.AnyRouterBaseURL = *saved.AnyRouterBaseURL
+	}
+	if saved.ForgeBaseURL != nil && *saved.ForgeBaseURL != "" {
+		cfg.ForgeBaseURL = *saved.ForgeBaseURL
 	}
 	if saved.ZoBaseURL != nil && *saved.ZoBaseURL != "" {
 		cfg.ZoBaseURL = *saved.ZoBaseURL

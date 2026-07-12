@@ -51,7 +51,7 @@ const thirdPartyUrlsExpanded = ref(false)
     <div class="settings-section-head">
       <div>
         <h3>第三方路由</h3>
-        <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、new-api、AnyRouter、Zo Computer、Prem、Xiaomi MiMo 和自定义网关入口。</p>
+        <p>DeepSeek、Kimi、Zhipu GLM、MiniMax、Gemini、OpenRouter、TokenRouter、sub2api、new-api、AnyRouter、Forge AI、Zo Computer、Prem、Xiaomi MiMo 和自定义网关入口。</p>
       </div>
       <button type="button" class="ghost-button compact-button" @click="thirdPartyUrlsExpanded = !thirdPartyUrlsExpanded">
         {{ thirdPartyUrlsExpanded ? '收起地址' : '展开地址' }}
@@ -112,6 +112,11 @@ const thirdPartyUrlsExpanded = ref(false)
         <span>AnyRouter 默认 Base URL</span>
         <input v-model="config.anyrouterBaseUrl" type="url" />
         <small>仅作为新增 AnyRouter 账号的默认填充值，以及旧账号未保存 Base URL 时的回退地址；OpenAI/Codex 会走 /v1，Claude Code 会走 Anthropic 路径。</small>
+      </label>
+      <label class="wide-field">
+        <span>Forge AI Base URL</span>
+        <input v-model="config.forgeBaseUrl" type="url" />
+        <small>Forge 的 OpenAI Chat 和 Anthropic Messages 共用此地址；默认已包含 /v1。</small>
       </label>
       <label class="wide-field">
         <span>Zo Computer Base URL</span>

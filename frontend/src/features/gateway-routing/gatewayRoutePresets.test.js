@@ -24,6 +24,16 @@ test('routeDefinitions expose GPT-5.6 role-aware defaults and family presets', (
   }
 })
 
+test('routeDefinitions expose Forge only for documented Chat and Messages protocols', () => {
+  const codex = routeDefinitions.find((route) => route.key === 'codex')
+  const claude = routeDefinitions.find((route) => route.key === 'claude')
+  const openai = routeDefinitions.find((route) => route.key === 'openai')
+
+  assert.equal(codex.providers.includes('forge'), false)
+  assert.equal(claude.providers.includes('forge'), true)
+  assert.equal(openai.providers.includes('forge'), true)
+})
+
 test('inferGatewayProviderForModel keeps provider inference stable', () => {
   const cases = [
     ['claude-sonnet-4-6', 'zo'],
