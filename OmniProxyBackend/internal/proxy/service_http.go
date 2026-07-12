@@ -1,8 +1,10 @@
 package proxy
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -143,6 +145,7 @@ func (s *Service) proxyHTTPWithRetries(w http.ResponseWriter, r *http.Request, r
 	lastRoute := route
 	var lastErr error
 	var lastStatus int
+	var lastRetryableResponse *retryableHTTPResponse
 
 	for attempt := 1; attempt <= attempts; attempt++ {
 		attemptStart := time.Now()
@@ -189,6 +192,9 @@ func (s *Service) proxyHTTPWithRetries(w http.ResponseWriter, r *http.Request, r
 
 		if s.shouldRetryUpstreamResponse(attemptRoute, selected, resp.StatusCode, attempt, attempts) {
 			finishActive()
+			if preserved, err := preserveRetryableHTTPResponse(resp, attemptRoute, selected); err == nil {
+				lastRetryableResponse = preserved
+			}
 			switchMessage := upstreamSwitchMessage(attemptRoute, selected, resp.StatusCode)
 			retryChain = s.retryUpstreamAttempt(r, attemptRoute, selected, resp.StatusCode, resp.Header, attempt, attemptStart, retryChain, excluded, resp.Body, fmt.Sprintf("upstream returned %d", resp.StatusCode), proxyLogMessage(attemptRoute.Model, token.TokenConsumption{}, switchMessage), switchMessage)
 			continue
@@ -224,7 +230,58 @@ func (s *Service) proxyHTTPWithRetries(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
+	if errors.Is(lastErr, token.ErrNoActiveToken) && lastRetryableResponse != nil {
+		s.writePreservedRetryableHTTPResponse(w, r, lastRetryableResponse, retryChain, start)
+		return
+	}
 	s.writeHTTPProxyFailure(w, r, lastRoute, retryChain, lastErr, lastStatus, start)
+}
+
+type retryableHTTPResponse struct {
+	route    routeInfo
+	selected token.Token
+	status   int
+	header   http.Header
+	body     []byte
+}
+
+func preserveRetryableHTTPResponse(resp *http.Response, route routeInfo, selected token.Token) (*retryableHTTPResponse, error) {
+	body, err := io.ReadAll(resp.Body)
+	closeBody(resp.Body)
+	resp.Body = nil
+	if err != nil {
+		return nil, err
+	}
+	return &retryableHTTPResponse{
+		route:    route,
+		selected: selected,
+		status:   resp.StatusCode,
+		header:   resp.Header.Clone(),
+		body:     body,
+	}, nil
+}
+
+func (s *Service) writePreservedRetryableHTTPResponse(w http.ResponseWriter, r *http.Request, preserved *retryableHTTPResponse, retryChain []history.RetryAttempt, start time.Time) {
+	resp := &http.Response{
+		StatusCode: preserved.status,
+		Header:     preserved.header,
+		Body:       io.NopCloser(bytes.NewReader(preserved.body)),
+	}
+	consumption, responseBody := s.writeResponse(w, resp)
+	message := proxyHistoryMessage(preserved.status, preserved.route.Model, consumption, "request proxied", responseBody)
+	s.logs.Add(logs.Entry{
+		Level:      levelForStatus(preserved.status),
+		Method:     r.Method,
+		Path:       r.URL.RequestURI(),
+		ClientKey:  preserved.route.ClientKey,
+		ClientName: preserved.route.ClientName,
+		Model:      preserved.route.Model,
+		Status:     preserved.status,
+		Duration:   time.Since(start).Milliseconds(),
+		TokenName:  token.DisplayName(preserved.selected),
+		Message:    message,
+	})
+	s.recordHistory(r, preserved.route, &preserved.selected, preserved.status, time.Since(start).Milliseconds(), consumption, levelForStatus(preserved.status), message, retryChain...)
 }
 
 func (s *Service) writeHTTPProxyFailure(w http.ResponseWriter, r *http.Request, lastRoute routeInfo, retryChain []history.RetryAttempt, lastErr error, lastStatus int, start time.Time) {

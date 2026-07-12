@@ -133,6 +133,87 @@ func TestServiceRetries429WithNextTokenAndPreservesBody(t *testing.T) {
 	}
 }
 
+func TestServicePreservesRetryableForgeResponseWhenNoNextToken(t *testing.T) {
+	const upstreamBody = `{"error":{"message":"context length exceeded: sk-upstream-secret-12345678"}}`
+	upstreamCalls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalls++
+		if r.URL.Path != "/v1/responses" {
+			t.Fatalf("expected Forge Responses path, got %q", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer fg-forge-api-key-token" {
+			t.Fatalf("expected Forge bearer auth, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(upstreamBody))
+	}))
+	defer upstream.Close()
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	forgeToken, err := manager.Add(token.UpsertRequest{
+		Name:       "forge-primary",
+		Provider:   token.ProviderForge,
+		TokenValue: "fg-forge-api-key-token",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder, err := history.NewRecorder(storage.NewJSONStore[[]history.Entry](filepath.Join(t.TempDir(), "history.json")), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := NewService(config.Config{
+		ProxyPort:       3000,
+		ControlPort:     3890,
+		ForgeBaseURL:    upstream.URL + "/v1",
+		SwitchThreshold: 15,
+		MaxRetries:      1,
+	}, manager, logs.NewRecorder(10), recorder)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/forge/v1/responses", stringsReader(`{"model":"gpt-5.6-sol","input":"hi"}`))
+	res := httptest.NewRecorder()
+	service.ServeHTTP(res, req)
+
+	if res.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected upstream status 503, got %d body=%q", res.Code, res.Body.String())
+	}
+	if got := res.Body.String(); got != upstreamBody {
+		t.Fatalf("expected original upstream body, got %q", got)
+	}
+	if got := res.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected upstream content type, got %q", got)
+	}
+	if upstreamCalls != 1 {
+		t.Fatalf("expected one upstream call with no duplicate token, got %d", upstreamCalls)
+	}
+
+	updated, err := manager.Get(forgeToken.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != token.StatusExhausted || updated.CooldownUntil == nil || !updated.CooldownUntil.After(time.Now()) {
+		t.Fatalf("expected Forge token to enter transient cooldown, got %#v", updated)
+	}
+	entries := recorder.List(history.Filter{Limit: 10})
+	if len(entries) != 1 {
+		t.Fatalf("expected one history entry, got %#v", entries)
+	}
+	if entries[0].Status != http.StatusServiceUnavailable || !strings.Contains(entries[0].Message, "context length exceeded") {
+		t.Fatalf("expected preserved upstream error summary, got %#v", entries[0])
+	}
+	if strings.Contains(entries[0].Message, "sk-upstream-secret-12345678") || !strings.Contains(entries[0].Message, "sk-***") {
+		t.Fatalf("expected history error summary to redact credentials, got %q", entries[0].Message)
+	}
+}
+
 func TestServiceFallsBackToGatewayBackupProviderWhenPrimaryHasNoToken(t *testing.T) {
 	var authHeaders []string
 	var paths []string
