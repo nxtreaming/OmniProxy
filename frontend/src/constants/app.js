@@ -28,7 +28,7 @@ export const providers = [
   { key: 'sub2api', label: 'sub2api', note: 'sub2api OpenAI / Anthropic / Gemini 兼容网关 API Key' },
   { key: 'newapi', label: 'new-api', note: 'new-api OpenAI / Anthropic / Gemini 兼容网关 API Key' },
   { key: 'anyrouter', label: 'AnyRouter', note: 'AnyRouter API Key，Codex / Claude Code 兼容网关' },
-  { key: 'forge', label: 'Forge AI', note: 'Forge API Key，OpenAI Chat / Anthropic Messages 双协议网关' },
+  { key: 'forge', label: 'Forge AI', note: 'Forge API Key，OpenAI Responses / Chat 与 Anthropic Messages 网关' },
   { key: 'zo', label: 'Zo Computer', note: 'Zo Access Token，OpenAI / Anthropic 兼容适配' },
   { key: 'prem', label: 'Prem', note: 'Prem API Key，通过本机 confidential-proxy 双协议入口' },
   { key: 'custom', label: '自定义网关', note: 'OpenAI / Anthropic 兼容网关 API Key' },

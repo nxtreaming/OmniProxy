@@ -12,6 +12,7 @@ const codexCompatibleProviders = [
   'sub2api',
   'newapi',
   'anyrouter',
+  'forge',
   'zo',
   'prem',
   'custom',
@@ -19,7 +20,6 @@ const codexCompatibleProviders = [
 
 const openAICompatibleProviders = [
   ...codexCompatibleProviders,
-  'forge',
 ]
 
 export const routeDefinitions = [
@@ -210,11 +210,11 @@ export const gatewayPlatformPresets = [
   },
   {
     key: 'forge',
-    routeCredentials: { openai: 'api_key', claude: 'api_key' },
+    routeCredentials: { codex: 'api_key', openai: 'api_key', claude: 'api_key' },
     models: [
-      routeModel('gpt-5.6-sol', ['openai'], 'GPT-5.6 Sol via Forge'),
-      routeModel('claude-sonnet-5', ['openai', 'claude'], 'Claude Sonnet 5 via Forge'),
-      routeModel('deepseek-r1', ['openai', 'claude'], 'DeepSeek R1 via Forge'),
+      routeModel('gpt-5.6-sol', ['codex', 'openai'], 'GPT-5.6 Sol via Forge'),
+      routeModel('claude-sonnet-5', ['codex', 'openai', 'claude'], 'Claude Sonnet 5 via Forge'),
+      routeModel('deepseek-r1', ['codex', 'openai', 'claude'], 'DeepSeek R1 via Forge'),
     ],
   },
   {

@@ -7,7 +7,7 @@ import (
 	"omniproxy/internal/token"
 )
 
-func TestRouterDoesNotUseForgeModelRouteForCodexResponses(t *testing.T) {
+func TestRouterUsesForgeModelRouteForCodexResponses(t *testing.T) {
 	router := NewRouter(config.Config{
 		GatewayRoutes: config.GatewayRoutes{
 			Codex: config.GatewayRouteConfig{Provider: token.ProviderOpenAI, Model: "gpt-5.6-sol"},
@@ -18,8 +18,15 @@ func TestRouterDoesNotUseForgeModelRouteForCodexResponses(t *testing.T) {
 	})
 
 	route := router.Route(mustRouterTestURL(t, "/codex/v1/responses"), []byte(`{"model":"deepseek-r1","input":"hi"}`))
-	if route.Provider == token.ProviderForge || route.Path != "/v1/responses" {
-		t.Fatalf("expected Codex Responses to stay off Forge, got %#v", route)
+	if route.Provider != token.ProviderForge || route.Path != "/v1/responses" {
+		t.Fatalf("expected Codex Responses to use Forge, got %#v", route)
+	}
+	target, err := router.TargetURL(route, token.Token{Provider: token.ProviderForge, CredentialType: token.CredentialTypeAPIKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://forge-gateway-api.fly.dev/v1/responses" {
+		t.Fatalf("unexpected Codex to Forge target url: %s", target)
 	}
 
 	route = router.Route(mustRouterTestURL(t, "/opencode-router/v1/chat/completions"), []byte(`{"model":"deepseek-r1","messages":[]}`))
@@ -41,6 +48,15 @@ func TestRouterTargetsForgeVersionedBaseURL(t *testing.T) {
 	}
 	if target != "https://forge-gateway-api.fly.dev/v1/chat/completions" {
 		t.Fatalf("unexpected Forge OpenAI target url: %s", target)
+	}
+
+	route = router.Route(mustRouterTestURL(t, "/forge/v1/responses"), []byte(`{"model":"gpt-5.6-sol","input":"hi"}`))
+	target, err = router.TargetURL(route, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "https://forge-gateway-api.fly.dev/v1/responses" {
+		t.Fatalf("unexpected Forge Responses target url: %s", target)
 	}
 
 	route = router.Route(mustRouterTestURL(t, "/forge/anthropic/v1/messages"), []byte(`{"model":"claude-sonnet-5"}`))

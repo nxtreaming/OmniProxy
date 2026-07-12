@@ -115,11 +115,11 @@ func (r Router) gatewayRoute(name string, requestModel string) config.GatewayRou
 		model = route.Model
 	}
 	if model != "" {
-		if modelRoute, ok := r.modelRoute(model); ok && gatewayModelRouteAllowed(name, modelRoute) {
+		if modelRoute, ok := r.modelRoute(model); ok {
 			return modelRoute
 		}
 		model = normalizeUpstreamModelID(model)
-		if modelRoute, ok := r.modelRoute(model); ok && gatewayModelRouteAllowed(name, modelRoute) {
+		if modelRoute, ok := r.modelRoute(model); ok {
 			return modelRoute
 		}
 		route.Model = model
@@ -128,10 +128,6 @@ func (r Router) gatewayRoute(name string, requestModel string) config.GatewayRou
 		}
 	}
 	return inferGatewayRouteProvider(name, route)
-}
-
-func gatewayModelRouteAllowed(name string, route config.GatewayRouteConfig) bool {
-	return name != config.GatewayRouteCodex || token.NormalizeProvider(route.Provider) != token.ProviderForge
 }
 
 func (r Router) modelRoute(model string) (config.GatewayRouteConfig, bool) {

@@ -113,7 +113,7 @@ func TestNormalizeSchedulingAndWebSocketModes(t *testing.T) {
 	}
 }
 
-func TestNormalizeAllowsForgeForDocumentedProtocolsOnly(t *testing.T) {
+func TestNormalizeAllowsForgeForAllDocumentedProtocols(t *testing.T) {
 	cfg := Normalize(Config{
 		GatewayRoutes: GatewayRoutes{
 			Codex:  GatewayRouteConfig{Provider: token.ProviderForge, Model: "gpt-5.6-sol"},
@@ -125,11 +125,8 @@ func TestNormalizeAllowsForgeForDocumentedProtocolsOnly(t *testing.T) {
 		},
 	})
 
-	if cfg.GatewayRoutes.Codex.Provider == token.ProviderForge {
-		t.Fatal("Forge must not be selectable for Codex Responses")
-	}
-	if cfg.GatewayRoutes.Claude.Provider != token.ProviderForge || cfg.GatewayRoutes.OpenAI.Provider != token.ProviderForge {
-		t.Fatalf("expected Forge for Anthropic and OpenAI Chat routes, got %#v", cfg.GatewayRoutes)
+	if cfg.GatewayRoutes.Codex.Provider != token.ProviderForge || cfg.GatewayRoutes.Claude.Provider != token.ProviderForge || cfg.GatewayRoutes.OpenAI.Provider != token.ProviderForge {
+		t.Fatalf("expected Forge for Responses, Anthropic, and OpenAI Chat routes, got %#v", cfg.GatewayRoutes)
 	}
 	if cfg.ModelRoutes["deepseek-r1"].Provider != token.ProviderForge {
 		t.Fatalf("expected Forge model route, got %#v", cfg.ModelRoutes)

@@ -49,7 +49,7 @@ const outboundProxyProviderGroups = [
         key: 'forge',
         label: 'Forge AI',
         providers: ['forge'],
-        description: 'Forge OpenAI Chat / Anthropic Messages 双协议网关',
+        description: 'Forge OpenAI Responses / Chat 与 Anthropic Messages 网关',
         recommended: true,
       },
       {

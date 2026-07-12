@@ -147,6 +147,7 @@ func gatewayCodexProviders() map[string]bool {
 		token.ProviderSub2API,
 		token.ProviderNewAPI,
 		token.ProviderAnyRouter,
+		token.ProviderForge,
 		token.ProviderZo,
 		token.ProviderPrem,
 		token.ProviderCustom,
@@ -172,23 +173,7 @@ func gatewayClaudeProviders() map[string]bool {
 }
 
 func gatewayOpenAIProviders() map[string]bool {
-	return gatewayProviderSet(
-		token.ProviderOpenAI,
-		token.ProviderDeepSeek,
-		token.ProviderKimi,
-		token.ProviderXiaomi,
-		token.ProviderZhipu,
-		token.ProviderMiniMax,
-		token.ProviderOpenRouter,
-		token.ProviderTokenRouter,
-		token.ProviderSub2API,
-		token.ProviderNewAPI,
-		token.ProviderAnyRouter,
-		token.ProviderForge,
-		token.ProviderZo,
-		token.ProviderPrem,
-		token.ProviderCustom,
-	)
+	return gatewayCodexProviders()
 }
 
 func gatewayGeminiProviders() map[string]bool {

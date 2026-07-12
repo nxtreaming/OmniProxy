@@ -116,7 +116,7 @@ const thirdPartyUrlsExpanded = ref(false)
       <label class="wide-field">
         <span>Forge AI Base URL</span>
         <input v-model="config.forgeBaseUrl" type="url" />
-        <small>Forge 的 OpenAI Chat 和 Anthropic Messages 共用此地址；默认已包含 /v1。</small>
+        <small>Forge 的 OpenAI Responses / Chat 和 Anthropic Messages 共用此地址；默认已包含 /v1。</small>
       </label>
       <label class="wide-field">
         <span>Zo Computer Base URL</span>

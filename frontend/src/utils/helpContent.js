@@ -82,11 +82,11 @@ export function buildThirdPartyEndpointGroups(port) {
         },
         {
           name: 'Forge AI',
-          protocol: 'OpenAI Chat',
+          protocol: 'OpenAI Chat / Responses',
           baseUrl: localProxyEndpoint(safePort, gatewayEndpointPaths.forge),
           apiKey: 'omniproxy-local',
           models: 'Forge 模型目录中的模型 ID，例如 gpt-5.6-sol / deepseek-r1',
-          use: '转发到 Forge 的 OpenAI Chat Completions 兼容入口。',
+          use: '转发到 Forge 的 OpenAI Responses / Chat Completions 兼容入口。',
         },
         {
           name: '自定义网关',
