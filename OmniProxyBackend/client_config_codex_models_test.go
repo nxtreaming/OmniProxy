@@ -21,6 +21,13 @@ func TestConfigureCodexWritesSelectedModelProfiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := manager.Add(token.UpsertRequest{
+		Provider:       token.ProviderOpenAI,
+		CredentialType: token.CredentialTypeCodexAuthJSON,
+		TokenValue:     codexAuthJSONForMainTest(t, "coder@example.com"),
+	}); err != nil {
+		t.Fatal(err)
+	}
 	app := &appServer{
 		cfg:    config.Config{ProxyPort: 3000},
 		tokens: manager,
@@ -50,7 +57,10 @@ func TestConfigureCodexWritesSelectedModelProfiles(t *testing.T) {
 		`review_model = "gpt-5.6-sol"`,
 		`model_context_window = 1050000`,
 		`model_provider = "OpenAI"`,
+		`forced_login_method = "chatgpt"`,
+		`cli_auth_credentials_store = "file"`,
 		`base_url = "http://127.0.0.1:3000/codex/v1"`,
+		`requires_openai_auth = true`,
 	} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("expected config to contain %q, got:\n%s", expected, text)

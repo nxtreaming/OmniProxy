@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"omniproxy/internal/config"
@@ -189,18 +190,15 @@ func TestConfigureCodexSkipsAPIKeyOnlyAuthJSON(t *testing.T) {
 		logs:   logs.NewRecorder(10),
 	}
 
-	result, err := app.configureCodex()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.ImportedAuth || result.AuthUpdated || result.AuthAlreadyAdded {
-		t.Fatalf("expected API-key-only auth to be skipped, got %#v", result)
-	}
-	if !strings.Contains(result.Message, "未找到可导入的 Codex auth.json") {
-		t.Fatalf("expected skipped auth message, got %q", result.Message)
+	_, err = app.configureCodex()
+	if err == nil || !strings.Contains(err.Error(), "Codex App ChatGPT 登录") {
+		t.Fatalf("expected account auth requirement error, got %v", err)
 	}
 	if items := manager.List(); len(items) != 0 {
 		t.Fatalf("expected no Codex token to be imported, got %d", len(items))
+	}
+	if _, statErr := os.Stat(filepath.Join(codexDir, "config.toml")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("Codex config should not be changed without an account, got %v", statErr)
 	}
 }
 
@@ -634,37 +632,6 @@ func TestWriteCodexOmniProxyConfig(t *testing.T) {
 	}
 	if _, err := os.Stat(path + ".omniproxy.bak"); err != nil {
 		t.Fatalf("expected backup file: %v", err)
-	}
-}
-
-func TestEnsureCodexOpenAIAPIKeyPreservesExistingAuth(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "auth.json")
-	initial := `{"tokens":{"access_token":"keep-token"}}`
-	if err := os.WriteFile(path, []byte(initial), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	state, err := ensureCodexOpenAIAPIKey(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state != "updated" {
-		t.Fatalf("expected updated state, got %q", state)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(content, &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload["OPENAI_API_KEY"] != codexSub2APILocalAPIKey {
-		t.Fatalf("expected local API key placeholder, got %#v", payload["OPENAI_API_KEY"])
-	}
-	if _, ok := payload["tokens"].(map[string]any); !ok {
-		t.Fatalf("expected existing tokens object to be preserved: %#v", payload)
 	}
 }
 

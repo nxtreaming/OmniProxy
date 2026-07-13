@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	codexSub2APILocalAPIKey = "sk-omniproxy-local-sub2api"
-	maxCodexModels          = 4
+	maxCodexModels = 4
 )
 
 var defaultCodexModels = []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
@@ -61,24 +60,16 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 	models := normalizeCodexConfigureModels(request)
 	model := models[0]
 	configPath := filepath.Join(codexDir, "config.toml")
-	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, models); err != nil {
-		return codexConfigureResult{}, err
-	}
-	profilePaths, err := writeCodexModelProfiles(codexDir, models)
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-
 	result := codexConfigureResult{
-		ConfigPath:   configPath,
-		AuthPath:     filepath.Join(codexDir, "auth.json"),
-		BackupPath:   configPath + ".omniproxy.bak",
-		BaseURL:      baseURL,
-		Model:        model,
-		Models:       models,
-		ProfilePaths: profilePaths,
+		ConfigPath: configPath,
+		AuthPath:   filepath.Join(codexDir, "auth.json"),
+		BackupPath: configPath + ".omniproxy.bak",
+		BaseURL:    baseURL,
+		Model:      model,
+		Models:     models,
 	}
 
+	preferredAuthID := ""
 	authBytes, err := os.ReadFile(result.AuthPath)
 	authValue := strings.TrimSpace(string(authBytes))
 	switch {
@@ -96,6 +87,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 		item, addErr := a.tokens.Add(req)
 		if addErr == nil {
 			result.ImportedAuth = true
+			preferredAuthID = item.ID
 			a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(item), Message: "codex auth imported"})
 		} else if errors.Is(addErr, token.ErrDuplicateName) {
 			existing, findErr := a.tokens.FindCodexAuth(token.ProviderOpenAI, fields)
@@ -104,6 +96,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 			}
 			if strings.TrimSpace(existing.TokenValue) == authValue {
 				result.AuthAlreadyAdded = true
+				preferredAuthID = existing.ID
 				a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(existing), Message: "codex auth already imported"})
 				break
 			}
@@ -112,6 +105,7 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 				return codexConfigureResult{}, updateErr
 			}
 			result.AuthUpdated = true
+			preferredAuthID = updated.ID
 			a.logs.Add(logs.Entry{Level: logs.LevelInfo, TokenName: a.tokenDisplayName(updated), Message: "codex auth synced"})
 		} else {
 			return codexConfigureResult{}, addErr
@@ -121,32 +115,38 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 		return codexConfigureResult{}, err
 	}
 
-	authState, err := ensureCodexOpenAIAPIKey(result.AuthPath)
+	clientAuth, ok := selectCodexClientAuth(a.tokens.List(), preferredAuthID)
+	if !ok {
+		return codexConfigureResult{}, errors.New("未找到可用于 Codex App ChatGPT 登录的 auth.json 账号，请先在账号池添加并启用一个 OpenAI auth.json 账号")
+	}
+	authState, err := writeCodexAccountAuth(result.AuthPath, clientAuth.TokenValue)
 	if err != nil {
 		return codexConfigureResult{}, err
 	}
-	switch authState {
-	case "created":
-		if !result.ImportedAuth && !result.AuthAlreadyAdded {
-			result.AuthUpdated = true
-		}
-	case "updated":
-		if !result.ImportedAuth && !result.AuthAlreadyAdded {
-			result.AuthUpdated = true
-		}
+	if authState != "existing" && !result.ImportedAuth && !result.AuthAlreadyAdded {
+		result.AuthUpdated = true
 	}
+
+	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, models); err != nil {
+		return codexConfigureResult{}, err
+	}
+	profilePaths, err := writeCodexModelProfiles(codexDir, models)
+	if err != nil {
+		return codexConfigureResult{}, err
+	}
+	result.ProfilePaths = profilePaths
 
 	parts := []string{fmt.Sprintf("Codex 已配置 %d 个模型：%s，默认模型 %s", len(models), strings.Join(models, "、"), model)}
 	if result.ImportedAuth {
-		parts = append(parts, "已导入 auth.json")
+		parts = append(parts, "已导入现有 auth.json，并使用 ChatGPT 账号登录")
 	} else if result.AuthUpdated {
-		parts = append(parts, "已同步 auth.json / 本地占位 OPENAI_API_KEY")
+		parts = append(parts, "已从 auth 池写入一个 ChatGPT 登录账号")
 	} else if result.AuthAlreadyAdded {
-		parts = append(parts, "auth.json 账号已存在")
+		parts = append(parts, "auth.json 账号已存在，并继续用于 ChatGPT 登录")
 	} else {
-		parts = append(parts, "未找到可导入的 Codex auth.json，请先运行 codex login 或手动添加账号")
+		parts = append(parts, "已使用 auth 池账号接入 ChatGPT")
 	}
-	parts = append(parts, "后端平台请在 OmniProxy 网关路由中选择")
+	parts = append(parts, "实际请求仍由 OmniProxy 后端 auth 池调度")
 	result.Message = strings.Join(parts, "；")
 	a.logs.Add(logs.Entry{Level: logs.LevelInfo, Message: "codex configured for omniproxy"})
 	return result, nil
@@ -348,6 +348,8 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, models []strin
 	lines = setRootStringKey(lines, "review_model", model)
 	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
 	lines = setRootStringKey(lines, "network_access", "enabled")
+	lines = setRootStringKey(lines, "forced_login_method", "chatgpt")
+	lines = setRootStringKey(lines, "cli_auth_credentials_store", "file")
 	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
 	contextWindow, compactLimit, ok := codexModelContext(model)
 	if !ok {
@@ -386,34 +388,55 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, models []strin
 	return os.WriteFile(path, []byte(next), 0o600)
 }
 
-func ensureCodexOpenAIAPIKey(path string) (string, error) {
-	content, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		data, marshalErr := json.MarshalIndent(map[string]any{
-			"OPENAI_API_KEY": codexSub2APILocalAPIKey,
-		}, "", "  ")
-		if marshalErr != nil {
-			return "", marshalErr
+func selectCodexClientAuth(items []token.Token, preferredID string) (token.Token, bool) {
+	for _, status := range []token.Status{token.StatusActive, token.StatusLow} {
+		for _, item := range items {
+			if preferredID != "" && item.ID == preferredID && codexClientAuthUsable(item, status) {
+				return item, true
+			}
 		}
-		return "created", os.WriteFile(path, append(data, '\n'), 0o600)
+		for _, selectedOnly := range []bool{true, false} {
+			for _, item := range items {
+				if item.Selected != selectedOnly || !codexClientAuthUsable(item, status) {
+					continue
+				}
+				return item, true
+			}
+		}
 	}
-	if err != nil {
-		return "", err
-	}
+	return token.Token{}, false
+}
 
+func codexClientAuthUsable(item token.Token, status token.Status) bool {
+	if item.Disabled || item.Status != status || token.NormalizeProvider(item.Provider) != token.ProviderOpenAI || item.CredentialType != token.CredentialTypeCodexAuthJSON {
+		return false
+	}
+	fields, ok := token.ExtractCodexAuthFields(item.TokenValue)
+	return ok && strings.TrimSpace(fields.Email) != "" && strings.TrimSpace(fields.AccessToken) != ""
+}
+
+func writeCodexAccountAuth(path string, authValue string) (string, error) {
 	var payload map[string]any
-	if err := json.Unmarshal(content, &payload); err != nil {
-		return "", err
+	if err := json.Unmarshal([]byte(authValue), &payload); err != nil || payload == nil {
+		return "", errors.New("Codex App 登录账号 auth.json 无效")
 	}
-	if value, ok := payload["OPENAI_API_KEY"].(string); ok && strings.TrimSpace(value) != "" {
-		return "existing", nil
-	}
-	payload["OPENAI_API_KEY"] = codexSub2APILocalAPIKey
+	delete(payload, "OPENAI_API_KEY")
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	return "updated", os.WriteFile(path, append(data, '\n'), 0o600)
+	data = append(data, '\n')
+
+	state := "updated"
+	content, readErr := os.ReadFile(path)
+	if errors.Is(readErr, os.ErrNotExist) {
+		state = "created"
+	} else if readErr != nil {
+		return "", readErr
+	} else if strings.TrimSpace(string(content)) == strings.TrimSpace(string(data)) {
+		return "existing", nil
+	}
+	return state, os.WriteFile(path, data, 0o600)
 }
 
 func setRootStringKey(lines []string, key string, value string) []string {
