@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"net"
 	"net/http"
 	"omniproxy/internal/config"
@@ -160,7 +159,7 @@ func TestConfigureCodexReportsAlreadyImportedAuthJSON(t *testing.T) {
 	}
 }
 
-func TestConfigureCodexSkipsAPIKeyOnlyAuthJSON(t *testing.T) {
+func TestConfigureCodexUsesAPIKeyOnlyAuthAsFallback(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
@@ -190,15 +189,29 @@ func TestConfigureCodexSkipsAPIKeyOnlyAuthJSON(t *testing.T) {
 		logs:   logs.NewRecorder(10),
 	}
 
-	_, err = app.configureCodex()
-	if err == nil || !strings.Contains(err.Error(), "Codex App ChatGPT 登录") {
-		t.Fatalf("expected account auth requirement error, got %v", err)
+	result, err := app.configureCodex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.Message, "已自动切换为 API 登录模式") {
+		t.Fatalf("expected API login fallback message, got %q", result.Message)
 	}
 	if items := manager.List(); len(items) != 0 {
 		t.Fatalf("expected no Codex token to be imported, got %d", len(items))
 	}
-	if _, statErr := os.Stat(filepath.Join(codexDir, "config.toml")); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("Codex config should not be changed without an account, got %v", statErr)
+	configContent, err := os.ReadFile(filepath.Join(codexDir, "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(configContent), `forced_login_method = "api"`) {
+		t.Fatalf("expected API login config, got:\n%s", configContent)
+	}
+	authContent, err := os.ReadFile(filepath.Join(codexDir, "auth.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(authContent), "sk-local-placeholder") {
+		t.Fatalf("expected existing API key login to be preserved, got %s", authContent)
 	}
 }
 

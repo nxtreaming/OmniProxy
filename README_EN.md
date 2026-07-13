@@ -187,7 +187,7 @@ Default data directories:
 
 | Client | Supported Setup |
 | --- | --- |
-| Codex | Uses one OpenAI `auth.json` account from the auth pool as the ChatGPT login identity and writes the stable `/codex/v1` gateway entrypoint; actual requests are still scheduled independently by the backend auth pool, with config backup restore support. |
+| Codex | Prefers one OpenAI `auth.json` account from the auth pool as the ChatGPT login identity, then automatically falls back to local API login when no account is available. Both modes use the stable `/codex/v1` gateway while actual requests remain independently scheduled by backend routing and credential pools. |
 | Claude Code | Writes the stable Anthropic router and up to 4 selected model slots; backend provider is selected in gateway routing. |
 | Claude Desktop | Writes a 3P Gateway Profile and reuses selected Claude model slots; backend provider is selected in gateway routing. Restart Claude Desktop after configuration. |
 | Gemini CLI | Writes the stable Gemini router; backend provider and default model are selected in gateway routing. |

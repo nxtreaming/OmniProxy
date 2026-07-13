@@ -64,6 +64,44 @@ func TestConfigureCodexWritesPoolAccountForChatGPTLogin(t *testing.T) {
 	}
 }
 
+func TestConfigureCodexCreatesAPIKeyFallbackWithoutAccount(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	manager, err := token.NewManager(storage.NewJSONStore[[]token.Token](filepath.Join(t.TempDir(), "tokens.json")), 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := &appServer{cfg: config.Config{ProxyPort: 3000}, tokens: manager, logs: logs.NewRecorder(10)}
+	result, err := app.configureCodex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.AuthUpdated || !strings.Contains(result.Message, "API 登录模式") {
+		t.Fatalf("expected API fallback result, got %#v", result)
+	}
+
+	authContent, err := os.ReadFile(filepath.Join(home, ".codex", "auth.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var authPayload map[string]any
+	if err := json.Unmarshal(authContent, &authPayload); err != nil {
+		t.Fatal(err)
+	}
+	if authPayload["OPENAI_API_KEY"] != codexLocalAPIKey {
+		t.Fatalf("expected local API fallback key, got %#v", authPayload)
+	}
+	configContent, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(configContent), `forced_login_method = "api"`) {
+		t.Fatalf("expected API login method, got:\n%s", configContent)
+	}
+}
+
 func TestSelectCodexClientAuthPrefersImportedAccount(t *testing.T) {
 	preferred := token.Token{
 		ID:             "preferred",

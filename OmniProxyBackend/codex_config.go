@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	maxCodexModels = 4
+	codexLocalAPIKey = "sk-omniproxy-local-sub2api"
+	maxCodexModels   = 4
 )
 
 var defaultCodexModels = []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
@@ -115,19 +116,28 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 		return codexConfigureResult{}, err
 	}
 
-	clientAuth, ok := selectCodexClientAuth(a.tokens.List(), preferredAuthID)
-	if !ok {
-		return codexConfigureResult{}, errors.New("未找到可用于 Codex App ChatGPT 登录的 auth.json 账号，请先在账号池添加并启用一个 OpenAI auth.json 账号")
-	}
-	authState, err := writeCodexAccountAuth(result.AuthPath, clientAuth.TokenValue)
-	if err != nil {
-		return codexConfigureResult{}, err
-	}
-	if authState != "existing" && !result.ImportedAuth && !result.AuthAlreadyAdded {
-		result.AuthUpdated = true
+	clientAuth, hasClientAuth := selectCodexClientAuth(a.tokens.List(), preferredAuthID)
+	loginMethod := "chatgpt"
+	if hasClientAuth {
+		authState, writeErr := writeCodexAccountAuth(result.AuthPath, clientAuth.TokenValue)
+		if writeErr != nil {
+			return codexConfigureResult{}, writeErr
+		}
+		if authState != "existing" && !result.ImportedAuth && !result.AuthAlreadyAdded {
+			result.AuthUpdated = true
+		}
+	} else {
+		loginMethod = "api"
+		authState, writeErr := ensureCodexAPIKeyAuth(result.AuthPath)
+		if writeErr != nil {
+			return codexConfigureResult{}, writeErr
+		}
+		if authState != "existing" {
+			result.AuthUpdated = true
+		}
 	}
 
-	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, models); err != nil {
+	if err := writeCodexOpenAIResponsesConfig(configPath, baseURL, models, loginMethod); err != nil {
 		return codexConfigureResult{}, err
 	}
 	profilePaths, err := writeCodexModelProfiles(codexDir, models)
@@ -137,7 +147,9 @@ func (a *appServer) configureCodex(requests ...codexConfigureRequest) (codexConf
 	result.ProfilePaths = profilePaths
 
 	parts := []string{fmt.Sprintf("Codex 已配置 %d 个模型：%s，默认模型 %s", len(models), strings.Join(models, "、"), model)}
-	if result.ImportedAuth {
+	if !hasClientAuth {
+		parts = append(parts, "未找到可用 auth.json 账号，已自动切换为 API 登录模式")
+	} else if result.ImportedAuth {
 		parts = append(parts, "已导入现有 auth.json，并使用 ChatGPT 账号登录")
 	} else if result.AuthUpdated {
 		parts = append(parts, "已从 auth 池写入一个 ChatGPT 登录账号")
@@ -329,7 +341,7 @@ func writeCodexOmniProxyConfig(path string, baseURL string) error {
 	return os.WriteFile(path, []byte(next), 0o600)
 }
 
-func writeCodexOpenAIResponsesConfig(path string, baseURL string, models []string) error {
+func writeCodexOpenAIResponsesConfig(path string, baseURL string, models []string, loginMethod string) error {
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -348,7 +360,7 @@ func writeCodexOpenAIResponsesConfig(path string, baseURL string, models []strin
 	lines = setRootStringKey(lines, "review_model", model)
 	lines = setRootStringKey(lines, "model_reasoning_effort", "xhigh")
 	lines = setRootStringKey(lines, "network_access", "enabled")
-	lines = setRootStringKey(lines, "forced_login_method", "chatgpt")
+	lines = setRootStringKey(lines, "forced_login_method", loginMethod)
 	lines = setRootStringKey(lines, "cli_auth_credentials_store", "file")
 	lines = setRootRawKey(lines, "windows_wsl_setup_acknowledged", "true")
 	contextWindow, compactLimit, ok := codexModelContext(model)
@@ -437,6 +449,30 @@ func writeCodexAccountAuth(path string, authValue string) (string, error) {
 		return "existing", nil
 	}
 	return state, os.WriteFile(path, data, 0o600)
+}
+
+func ensureCodexAPIKeyAuth(path string) (string, error) {
+	payload := map[string]any{}
+	state := "updated"
+	content, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		state = "created"
+	} else if err != nil {
+		return "", err
+	} else if json.Unmarshal(content, &payload) == nil && payload != nil {
+		if value, ok := payload["OPENAI_API_KEY"].(string); ok && strings.TrimSpace(value) != "" {
+			return "existing", nil
+		}
+	} else {
+		payload = map[string]any{}
+	}
+
+	payload["OPENAI_API_KEY"] = codexLocalAPIKey
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return state, os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
 func setRootStringKey(lines []string, key string, value string) []string {

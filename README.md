@@ -185,7 +185,7 @@ Codex、Claude、OpenAI compatible、Pi router 和 Gemini router 是面向客户
 
 | 客户端 | 支持内容 |
 | --- | --- |
-| Codex | 从 auth 池选择一个 OpenAI `auth.json` 账号作为 ChatGPT 登录身份，并写入稳定 `/codex/v1` 网关入口；实际请求仍由后端 auth 池独立调度，支持恢复配置备份。 |
+| Codex | 优先从 auth 池选择一个 OpenAI `auth.json` 账号作为 ChatGPT 登录身份；没有可用账号时自动切换为本地 API 登录。两种模式都写入稳定 `/codex/v1` 网关入口，实际请求仍由后端路由和凭据池独立调度。 |
 | Claude Code | 写入稳定 Anthropic router，并可选择最多 4 个模型槽位；后端厂商在网关路由中选择。 |
 | Claude Desktop | 写入 3P Gateway Profile，可复用 Claude 模型选择结果；后端厂商在网关路由中选择，配置后需要重启 Claude Desktop。 |
 | Gemini CLI | 写入稳定 Gemini router，后端厂商和默认模型在网关路由中选择。 |
