@@ -443,13 +443,14 @@ jobs:
             $betaReleases = @()
             $page = 1
             do {
-              $pageReleases = @(
-                Invoke-RestMethod `
-                  -Headers $headers `
-                  -Uri "https://api.github.com/repos/$repo/releases?per_page=100&page=$page"
-              )
-              $matchingBetaReleases = @($pageReleases | Where-Object { $_.tag_name -match $betaTagPattern })
-              $betaReleases += $matchingBetaReleases
+              $pageReleases = Invoke-RestMethod `
+                -Headers $headers `
+                -Uri "https://api.github.com/repos/$repo/releases?per_page=100&page=$page"
+              foreach ($pageRelease in $pageReleases) {
+                if ($pageRelease.tag_name -match $betaTagPattern) {
+                  $betaReleases += $pageRelease
+                }
+              }
               $page++
             } while ($pageReleases.Count -eq 100)
 
