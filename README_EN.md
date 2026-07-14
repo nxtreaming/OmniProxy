@@ -286,6 +286,7 @@ The Dev build uses the `omniproxy_dev` build tag. App title, single-instance ID,
 | Dev | `dev-*` | Local build version, not published as a public release. |
 
 Release notes live in `docs/releases/`. Beta versions are marked as GitHub Pre-release, while stable versions are reserved for regular public releases.
+After a stable release is published, the workflow automatically removes GitHub Release entries and assets from the matching Beta line while preserving Beta Git tags and release notes under `docs/releases/`.
 
 ## Security Model
 

@@ -437,3 +437,25 @@ jobs:
               -Uri "${uploadUrl}?name=$assetName" `
               -InFile $asset.FullName | Out-Null
           }
+
+          if (-not $prerelease) {
+            $betaTagPattern = '^' + [Regex]::Escape($tag) + '-beta\.[0-9]+$'
+            $betaReleases = @()
+            $page = 1
+            do {
+              $pageReleases = @(
+                Invoke-RestMethod `
+                  -Headers $headers `
+                  -Uri "https://api.github.com/repos/$repo/releases?per_page=100&page=$page"
+              )
+              $matchingBetaReleases = @($pageReleases | Where-Object { $_.tag_name -match $betaTagPattern })
+              $betaReleases += $matchingBetaReleases
+              $page++
+            } while ($pageReleases.Count -eq 100)
+
+            foreach ($betaRelease in $betaReleases) {
+              Write-Host "Deleting superseded beta release $($betaRelease.tag_name)"
+              Invoke-RestMethod -Method Delete -Headers $headers -Uri $betaRelease.url | Out-Null
+            }
+            Write-Host "Deleted $($betaReleases.Count) beta release(s) superseded by $tag; Git tags and docs are preserved."
+          }

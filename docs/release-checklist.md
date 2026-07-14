@@ -86,5 +86,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release-ass
 - Only promote after the latest beta has completed install, update, and uninstall validation.
 - Create the stable tag from the validated commit.
 - Confirm the stable release notes summarize the beta line and list any user-visible upgrade guidance.
+- Confirm publishing the stable release removes GitHub Release entries and assets for the matching `<stable-tag>-beta.*` line only.
+- Confirm beta Git tags and `docs/releases/<beta-tag>.md` remain available for history and changelog links.
 - After publish, install the stable Windows asset over the latest beta once.
 - Confirm beta users can detect the stable tag as a newer available update.

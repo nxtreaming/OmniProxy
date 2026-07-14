@@ -36,6 +36,11 @@ func TestServiceDoesNotRefreshAPIKeyQuotaAfterTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := manager.Flush(); err != nil {
+			t.Errorf("flush token manager: %v", err)
+		}
+	})
 	item, err := manager.Add(token.UpsertRequest{Name: "primary", Provider: token.ProviderOpenAI, TokenValue: "sk-primary-token"})
 	if err != nil {
 		t.Fatal(err)
