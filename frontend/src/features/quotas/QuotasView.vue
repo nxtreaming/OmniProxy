@@ -66,11 +66,9 @@ const props = defineProps({
 const emit = defineEmits(['refresh', 'refresh-provider-quotas', 'select-provider', 'toggle-token-selected', 'select-token-group', 'refresh-quota', 'use-reset-credit'])
 
 const workspaceIndexes = reactive({})
-const resetCreditDrawerVisible = ref(false)
 const resetCreditTokenId = ref('')
 
 const quotaCardGroups = computed(() => buildQuotaWorkspaceGroups(props.activeProviderTokens, workspaceIndexes))
-const resetCreditToken = computed(() => props.activeProviderTokens.find((item) => item.id === resetCreditTokenId.value) || null)
 
 watch(
   quotaCardGroups,
@@ -120,9 +118,12 @@ function hasCodexResetCreditData(item) {
   return codexResetCreditsAvailable(item) !== null || codexResetCredits(item).length > 0 || Boolean(item.usage?.codexResetCreditsError)
 }
 
-function openResetCreditDetails(item) {
-  resetCreditTokenId.value = item.id
-  resetCreditDrawerVisible.value = true
+function toggleResetCreditDetails(item) {
+  resetCreditTokenId.value = resetCreditTokenId.value === item.id ? '' : item.id
+}
+
+function resetCreditDetailsOpen(item) {
+  return resetCreditTokenId.value === item.id
 }
 
 function resetCreditExpiryText(item) {
@@ -424,9 +425,11 @@ function useResetCredit(item) {
           <div v-if="hasCodexResetCreditData(group.current)" class="codex-reset-credit-row">
             <button
               type="button"
-              class="codex-reset-credit-summary"
-              :aria-label="`查看 ${group.current.name} 的额度刷新卡记录`"
-              @click="openResetCreditDetails(group.current)"
+              :class="['codex-reset-credit-summary', { expanded: resetCreditDetailsOpen(group.current) }]"
+              :aria-label="`${resetCreditDetailsOpen(group.current) ? '收起' : '查看'} ${group.current.name} 的额度刷新卡记录`"
+              :aria-expanded="resetCreditDetailsOpen(group.current)"
+              :aria-controls="`reset-credit-details-${group.current.id}`"
+              @click="toggleResetCreditDetails(group.current)"
             >
               <span class="codex-reset-credit-icon"><el-icon><Tickets /></el-icon></span>
               <span>
@@ -437,7 +440,7 @@ function useResetCredit(item) {
                 <small>最近到期</small>
                 <strong>{{ resetCreditExpiryText(group.current) }}</strong>
               </span>
-              <span class="codex-reset-credit-link">查看记录</span>
+              <span class="codex-reset-credit-link">{{ resetCreditDetailsOpen(group.current) ? '收起记录' : '查看记录' }}</span>
             </button>
             <el-button
               type="warning"
@@ -449,6 +452,53 @@ function useResetCredit(item) {
               立即使用
             </el-button>
           </div>
+
+          <Transition name="reset-credit-expand">
+            <section
+              v-if="resetCreditDetailsOpen(group.current)"
+              :id="`reset-credit-details-${group.current.id}`"
+              class="codex-reset-credit-detail"
+              :aria-label="`${group.current.name} 的额度刷新卡记录`"
+            >
+              <el-alert
+                v-if="group.current.usage?.codexResetCreditsError"
+                type="warning"
+                :closable="false"
+                show-icon
+                :title="group.current.usage.codexResetCreditsError"
+              />
+
+              <div class="codex-reset-credit-history-head">
+                <strong>使用记录</strong>
+                <small>共 {{ codexResetCredits(group.current).length }} 条</small>
+              </div>
+              <div v-if="codexResetCredits(group.current).length" class="codex-reset-credit-history">
+                <article v-for="credit in codexResetCredits(group.current)" :key="credit.id">
+                  <div>
+                    <strong>{{ codexResetCreditTypeLabel(credit) }}</strong>
+                    <el-tag :type="codexResetCreditStatusMeta(credit).type" size="small" effect="light">
+                      {{ codexResetCreditStatusMeta(credit).label }}
+                    </el-tag>
+                  </div>
+                  <dl>
+                    <template v-if="credit.grantedAt">
+                      <dt>发放时间</dt>
+                      <dd>{{ formatResetTime(credit.grantedAt) }}</dd>
+                    </template>
+                    <template v-if="credit.expiresAt">
+                      <dt>到期时间</dt>
+                      <dd>{{ formatResetTime(credit.expiresAt) }}</dd>
+                    </template>
+                    <template v-if="credit.redeemedAt">
+                      <dt>使用时间</dt>
+                      <dd>{{ formatResetTime(credit.redeemedAt) }}</dd>
+                    </template>
+                  </dl>
+                </article>
+              </div>
+              <el-empty v-else description="暂无刷新卡记录" :image-size="72" />
+            </section>
+          </Transition>
 
           <div v-if="balancePackages(group.current).length" class="balance-package-list">
             <div class="balance-package-head">
@@ -477,70 +527,6 @@ function useResetCredit(item) {
         暂无 {{ activeProviderInfo.label }} 账号
       </div>
     </div>
-
-    <el-drawer
-      v-model="resetCreditDrawerVisible"
-      class="codex-reset-credit-drawer"
-      size="min(440px, 92vw)"
-      direction="rtl"
-      :title="resetCreditToken ? `${resetCreditToken.name} · 额度刷新卡` : '额度刷新卡'"
-    >
-      <div v-if="resetCreditToken" class="codex-reset-credit-detail">
-        <div class="codex-reset-credit-overview">
-          <div>
-            <span>可用刷新卡</span>
-            <strong>{{ codexResetCreditsAvailable(resetCreditToken) ?? '-' }} 张</strong>
-            <small>最近到期 {{ resetCreditExpiryText(resetCreditToken) }}</small>
-          </div>
-          <el-button
-            type="warning"
-            :loading="consumingResetCreditIds[resetCreditToken.id]"
-            :disabled="resetCreditToken.disabled || !codexResetCreditsAvailable(resetCreditToken)"
-            @click="useResetCredit(resetCreditToken)"
-          >
-            使用 1 张
-          </el-button>
-        </div>
-
-        <el-alert
-          v-if="resetCreditToken.usage?.codexResetCreditsError"
-          type="warning"
-          :closable="false"
-          show-icon
-          :title="resetCreditToken.usage.codexResetCreditsError"
-        />
-
-        <div class="codex-reset-credit-history-head">
-          <strong>使用记录</strong>
-          <small>共 {{ codexResetCredits(resetCreditToken).length }} 条</small>
-        </div>
-        <div v-if="codexResetCredits(resetCreditToken).length" class="codex-reset-credit-history">
-          <article v-for="credit in codexResetCredits(resetCreditToken)" :key="credit.id">
-            <div>
-              <strong>{{ codexResetCreditTypeLabel(credit) }}</strong>
-              <el-tag :type="codexResetCreditStatusMeta(credit).type" size="small" effect="light">
-                {{ codexResetCreditStatusMeta(credit).label }}
-              </el-tag>
-            </div>
-            <dl>
-              <template v-if="credit.grantedAt">
-                <dt>发放时间</dt>
-                <dd>{{ formatResetTime(credit.grantedAt) }}</dd>
-              </template>
-              <template v-if="credit.expiresAt">
-                <dt>到期时间</dt>
-                <dd>{{ formatResetTime(credit.expiresAt) }}</dd>
-              </template>
-              <template v-if="credit.redeemedAt">
-                <dt>使用时间</dt>
-                <dd>{{ formatResetTime(credit.redeemedAt) }}</dd>
-              </template>
-            </dl>
-          </article>
-        </div>
-        <el-empty v-else description="暂无刷新卡记录" :image-size="88" />
-      </div>
-    </el-drawer>
   </section>
 </template>
 

@@ -402,6 +402,11 @@
   background: color-mix(in srgb, var(--warning) 11%, var(--surface));
 }
 
+.quotas-page-panel .codex-reset-credit-summary.expanded {
+  border-color: color-mix(in srgb, var(--warning) 56%, var(--line));
+  background: color-mix(in srgb, var(--warning) 13%, var(--surface));
+}
+
 .quotas-page-panel .codex-reset-credit-summary:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--warning) 30%, transparent);
   outline-offset: 2px;
@@ -425,7 +430,7 @@
 }
 
 .quotas-page-panel .codex-reset-credit-summary small,
-.codex-reset-credit-detail small {
+.quotas-page-panel .codex-reset-credit-detail small {
   color: var(--text-muted);
 }
 
@@ -446,59 +451,32 @@
   white-space: nowrap;
 }
 
-.codex-reset-credit-drawer .el-drawer__header {
-  margin-bottom: 0;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--line);
-  color: var(--text-strong);
-  font-weight: 750;
-}
-
-.codex-reset-credit-drawer .el-drawer__body {
-  background: var(--surface);
-}
-
-.codex-reset-credit-detail,
-.codex-reset-credit-history {
+.quotas-page-panel .codex-reset-credit-detail,
+.quotas-page-panel .codex-reset-credit-history {
   display: grid;
   gap: 12px;
 }
 
-.codex-reset-credit-overview {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--line));
+.quotas-page-panel .codex-reset-credit-detail {
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 20%, var(--line));
   border-radius: 20px;
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+  background: color-mix(in srgb, var(--surface-soft) 38%, var(--surface));
 }
 
-.codex-reset-credit-overview > div {
-  display: grid;
-  gap: 4px;
-}
-
-.codex-reset-credit-overview > div > span,
-.codex-reset-credit-history-head strong {
+.quotas-page-panel .codex-reset-credit-history-head strong {
   color: var(--text-strong);
   font-weight: 750;
 }
 
-.codex-reset-credit-overview > div > strong {
-  color: var(--warning);
-  font-size: 25px;
-}
-
-.codex-reset-credit-history-head {
+.quotas-page-panel .codex-reset-credit-history-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 8px;
 }
 
-.codex-reset-credit-history article {
+.quotas-page-panel .codex-reset-credit-history article {
   display: grid;
   gap: 12px;
   padding: 15px;
@@ -507,14 +485,14 @@
   background: color-mix(in srgb, var(--surface-soft) 44%, var(--surface));
 }
 
-.codex-reset-credit-history article > div {
+.quotas-page-panel .codex-reset-credit-history article > div {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.codex-reset-credit-history dl {
+.quotas-page-panel .codex-reset-credit-history dl {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 7px 14px;
@@ -522,14 +500,32 @@
   font-size: 13px;
 }
 
-.codex-reset-credit-history dt {
+.quotas-page-panel .codex-reset-credit-history dt {
   color: var(--text-muted);
 }
 
-.codex-reset-credit-history dd {
+.quotas-page-panel .codex-reset-credit-history dd {
   margin: 0;
   color: var(--text-strong);
   text-align: right;
+}
+
+.reset-credit-expand-enter-active,
+.reset-credit-expand-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.reset-credit-expand-enter-from,
+.reset-credit-expand-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reset-credit-expand-enter-active,
+  .reset-credit-expand-leave-active {
+    transition: none;
+  }
 }
 .quotas-page-panel .balance-package-head {
   padding-inline: 2px;
