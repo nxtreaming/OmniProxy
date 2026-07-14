@@ -50,6 +50,10 @@ export function ClientConfigPreviews() {
   return window['go']['main']['DesktopApp']['ClientConfigPreviews']();
 }
 
+export function CompleteCodexOAuthLogin(arg1) {
+  return window['go']['main']['DesktopApp']['CompleteCodexOAuthLogin'](arg1);
+}
+
 export function Config() {
   return window['go']['main']['DesktopApp']['Config']();
 }
@@ -84,6 +88,10 @@ export function ConfigureOpenCode() {
 
 export function ConfigurePi() {
   return window['go']['main']['DesktopApp']['ConfigurePi']();
+}
+
+export function ConsumeCodexResetCredit(arg1) {
+  return window['go']['main']['DesktopApp']['ConsumeCodexResetCredit'](arg1);
 }
 
 export function ControlAPI() {
@@ -232,6 +240,10 @@ export function SetTokenDisabled(arg1, arg2) {
 
 export function SetTokenSelected(arg1, arg2) {
   return window['go']['main']['DesktopApp']['SetTokenSelected'](arg1, arg2);
+}
+
+export function StartCodexOAuthLogin() {
+  return window['go']['main']['DesktopApp']['StartCodexOAuthLogin']();
 }
 
 export function StartProxy() {

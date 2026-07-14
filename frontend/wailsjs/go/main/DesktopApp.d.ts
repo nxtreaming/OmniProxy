@@ -31,6 +31,8 @@ export function ClearRequestHistory():Promise<void>;
 
 export function ClientConfigPreviews():Promise<Array<main.clientConfigPreview>>;
 
+export function CompleteCodexOAuthLogin(arg1:string):Promise<main.tokenResponse>;
+
 export function Config():Promise<config.Config>;
 
 export function ConfigSnapshots():Promise<Array<main.configSnapshotSummary>>;
@@ -48,6 +50,8 @@ export function ConfigureGemini():Promise<main.clientConfigureResult>;
 export function ConfigureOpenCode():Promise<main.clientConfigureResult>;
 
 export function ConfigurePi():Promise<main.clientConfigureResult>;
+
+export function ConsumeCodexResetCredit(arg1:string):Promise<main.codexResetCreditConsumeResponse>;
 
 export function ControlAPI():Promise<string>;
 
@@ -122,6 +126,8 @@ export function SetAutoStart(arg1:boolean):Promise<Record<string, any>>;
 export function SetTokenDisabled(arg1:string,arg2:boolean):Promise<main.tokenResponse>;
 
 export function SetTokenSelected(arg1:string,arg2:boolean):Promise<Array<main.tokenResponse>>;
+
+export function StartCodexOAuthLogin():Promise<main.codexOAuthLoginStartResponse>;
 
 export function StartProxy():Promise<Record<string, any>>;
 

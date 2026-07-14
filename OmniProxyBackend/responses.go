@@ -56,25 +56,39 @@ type apiKeyBatchImportResult struct {
 }
 
 type usageResponse struct {
-	Source                     string                   `json:"source,omitempty"`
-	PlanType                   string                   `json:"planType,omitempty"`
-	LimitReached               bool                     `json:"limitReached,omitempty"`
-	PrimaryUsedPercent         int                      `json:"primaryUsedPercent"`
-	PrimaryRemainingPercent    int                      `json:"primaryRemainingPercent"`
-	PrimaryResetAt             int64                    `json:"primaryResetAt,omitempty"`
-	SecondaryUsedPercent       int                      `json:"secondaryUsedPercent"`
-	SecondaryRemainingPercent  int                      `json:"secondaryRemainingPercent"`
-	SecondaryResetAt           int64                    `json:"secondaryResetAt,omitempty"`
-	APIRemaining               int                      `json:"apiRemaining,omitempty"`
-	BalanceRemaining           float64                  `json:"balanceRemaining,omitempty"`
-	BalanceTotal               float64                  `json:"balanceTotal,omitempty"`
-	BalanceUsed                float64                  `json:"balanceUsed,omitempty"`
-	BalanceUnit                string                   `json:"balanceUnit,omitempty"`
-	BalanceUnlimited           bool                     `json:"balanceUnlimited,omitempty"`
-	BalancePackages            []balancePackageResponse `json:"balancePackages,omitempty"`
-	SubscriptionQuotaAvailable bool                     `json:"subscriptionQuotaAvailable,omitempty"`
-	Message                    string                   `json:"message,omitempty"`
-	UpdatedAt                  string                   `json:"updatedAt,omitempty"`
+	Source                         string                     `json:"source,omitempty"`
+	PlanType                       string                     `json:"planType,omitempty"`
+	LimitReached                   bool                       `json:"limitReached,omitempty"`
+	PrimaryUsedPercent             int                        `json:"primaryUsedPercent"`
+	PrimaryRemainingPercent        int                        `json:"primaryRemainingPercent"`
+	PrimaryResetAt                 int64                      `json:"primaryResetAt,omitempty"`
+	SecondaryUsedPercent           int                        `json:"secondaryUsedPercent"`
+	SecondaryRemainingPercent      int                        `json:"secondaryRemainingPercent"`
+	SecondaryResetAt               int64                      `json:"secondaryResetAt,omitempty"`
+	APIRemaining                   int                        `json:"apiRemaining,omitempty"`
+	BalanceRemaining               float64                    `json:"balanceRemaining,omitempty"`
+	BalanceTotal                   float64                    `json:"balanceTotal,omitempty"`
+	BalanceUsed                    float64                    `json:"balanceUsed,omitempty"`
+	BalanceUnit                    string                     `json:"balanceUnit,omitempty"`
+	BalanceUnlimited               bool                       `json:"balanceUnlimited,omitempty"`
+	BalancePackages                []balancePackageResponse   `json:"balancePackages,omitempty"`
+	CodexResetCreditsAvailable     *int                       `json:"codexResetCreditsAvailable,omitempty"`
+	CodexResetCredits              []codexResetCreditResponse `json:"codexResetCredits,omitempty"`
+	CodexResetCreditsNextExpiresAt int64                      `json:"codexResetCreditsNextExpiresAt,omitempty"`
+	CodexResetCreditsError         string                     `json:"codexResetCreditsError,omitempty"`
+	SubscriptionQuotaAvailable     bool                       `json:"subscriptionQuotaAvailable,omitempty"`
+	Message                        string                     `json:"message,omitempty"`
+	UpdatedAt                      string                     `json:"updatedAt,omitempty"`
+}
+
+type codexResetCreditResponse struct {
+	ID         string `json:"id,omitempty"`
+	Status     string `json:"status,omitempty"`
+	ResetType  string `json:"resetType,omitempty"`
+	GrantedAt  int64  `json:"grantedAt,omitempty"`
+	ExpiresAt  int64  `json:"expiresAt,omitempty"`
+	RedeemedAt int64  `json:"redeemedAt,omitempty"`
+	RawStatus  string `json:"rawStatus,omitempty"`
 }
 
 type balancePackageResponse struct {
@@ -304,26 +318,49 @@ func tokenHealthMessage(item token.Token) string {
 
 func usageResponseFor(usage token.UsageInfo) usageResponse {
 	return usageResponse{
-		Source:                     usage.Source,
-		PlanType:                   usage.PlanType,
-		LimitReached:               usage.LimitReached,
-		PrimaryUsedPercent:         usage.PrimaryUsedPercent,
-		PrimaryRemainingPercent:    usage.PrimaryRemainingPercent,
-		PrimaryResetAt:             usage.PrimaryResetAt,
-		SecondaryUsedPercent:       usage.SecondaryUsedPercent,
-		SecondaryRemainingPercent:  usage.SecondaryRemainingPercent,
-		SecondaryResetAt:           usage.SecondaryResetAt,
-		APIRemaining:               usage.APIRemaining,
-		BalanceRemaining:           usage.BalanceRemaining,
-		BalanceTotal:               usage.BalanceTotal,
-		BalanceUsed:                usage.BalanceUsed,
-		BalanceUnit:                usage.BalanceUnit,
-		BalanceUnlimited:           usage.BalanceUnlimited,
-		BalancePackages:            balancePackageResponses(usage.BalancePackages),
-		SubscriptionQuotaAvailable: usage.SubscriptionQuotaAvailable,
-		Message:                    usage.Message,
-		UpdatedAt:                  timePtrString(usage.UpdatedAt),
+		Source:                         usage.Source,
+		PlanType:                       usage.PlanType,
+		LimitReached:                   usage.LimitReached,
+		PrimaryUsedPercent:             usage.PrimaryUsedPercent,
+		PrimaryRemainingPercent:        usage.PrimaryRemainingPercent,
+		PrimaryResetAt:                 usage.PrimaryResetAt,
+		SecondaryUsedPercent:           usage.SecondaryUsedPercent,
+		SecondaryRemainingPercent:      usage.SecondaryRemainingPercent,
+		SecondaryResetAt:               usage.SecondaryResetAt,
+		APIRemaining:                   usage.APIRemaining,
+		BalanceRemaining:               usage.BalanceRemaining,
+		BalanceTotal:                   usage.BalanceTotal,
+		BalanceUsed:                    usage.BalanceUsed,
+		BalanceUnit:                    usage.BalanceUnit,
+		BalanceUnlimited:               usage.BalanceUnlimited,
+		BalancePackages:                balancePackageResponses(usage.BalancePackages),
+		CodexResetCreditsAvailable:     usage.CodexResetCreditsAvailable,
+		CodexResetCredits:              codexResetCreditResponses(usage.CodexResetCredits),
+		CodexResetCreditsNextExpiresAt: usage.CodexResetCreditsNextExpiresAt,
+		CodexResetCreditsError:         usage.CodexResetCreditsError,
+		SubscriptionQuotaAvailable:     usage.SubscriptionQuotaAvailable,
+		Message:                        usage.Message,
+		UpdatedAt:                      timePtrString(usage.UpdatedAt),
 	}
+}
+
+func codexResetCreditResponses(items []token.CodexResetCredit) []codexResetCreditResponse {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]codexResetCreditResponse, len(items))
+	for i, item := range items {
+		out[i] = codexResetCreditResponse{
+			ID:         item.ID,
+			Status:     item.Status,
+			ResetType:  item.ResetType,
+			GrantedAt:  item.GrantedAt,
+			ExpiresAt:  item.ExpiresAt,
+			RedeemedAt: item.RedeemedAt,
+			RawStatus:  item.RawStatus,
+		}
+	}
+	return out
 }
 
 func balancePackageResponses(items []token.BalancePackage) []balancePackageResponse {

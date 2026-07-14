@@ -136,6 +136,10 @@ export namespace main {
 	    balanceUnit?: string;
 	    balanceUnlimited?: boolean;
 	    balancePackages?: balancePackageResponse[];
+	    codexResetCreditsAvailable?: number;
+	    codexResetCredits?: codexResetCreditResponse[];
+	    codexResetCreditsNextExpiresAt?: number;
+	    codexResetCreditsError?: string;
 	    subscriptionQuotaAvailable?: boolean;
 	    message?: string;
 	    updatedAt?: string;
@@ -162,6 +166,10 @@ export namespace main {
 	        this.balanceUnit = source["balanceUnit"];
 	        this.balanceUnlimited = source["balanceUnlimited"];
 	        this.balancePackages = this.convertValues(source["balancePackages"], balancePackageResponse);
+	        this.codexResetCreditsAvailable = source["codexResetCreditsAvailable"];
+	        this.codexResetCredits = this.convertValues(source["codexResetCredits"], codexResetCreditResponse);
+	        this.codexResetCreditsNextExpiresAt = source["codexResetCreditsNextExpiresAt"];
+	        this.codexResetCreditsError = source["codexResetCreditsError"];
 	        this.subscriptionQuotaAvailable = source["subscriptionQuotaAvailable"];
 	        this.message = source["message"];
 	        this.updatedAt = source["updatedAt"];

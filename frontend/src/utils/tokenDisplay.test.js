@@ -2,6 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  codexResetCreditStatusMeta,
+  codexResetCreditTypeLabel,
+  codexResetCredits,
+  codexResetCreditsAvailable,
   codexWeeklyQuotaEstimateMeta,
   codexWeeklyQuotaEstimateText,
   displayStatusClass,
@@ -209,4 +213,22 @@ test('Codex weekly quota estimate stays hidden without current weekly usage rows
 
 test('cooling tokens report warning status class', () => {
   assert.equal(displayStatusClass({ cooldownUntil: new Date(Date.now() + 60000).toISOString() }), 'warning')
+})
+
+test('Codex reset credit helpers normalize count, records, and status', () => {
+  const item = {
+    usage: {
+      codexResetCreditsAvailable: 2.9,
+      codexResetCredits: [{ id: 'credit-1', status: 'redeemed', resetType: 'five_hour' }],
+    },
+  }
+
+  assert.equal(codexResetCreditsAvailable(item), 2)
+  assert.deepEqual(codexResetCredits(item), item.usage.codexResetCredits)
+  assert.deepEqual(codexResetCreditStatusMeta(item.usage.codexResetCredits[0]), { label: '已使用', type: 'info' })
+  assert.equal(codexResetCreditTypeLabel(item.usage.codexResetCredits[0]), 'five hour')
+  assert.deepEqual(codexResetCreditStatusMeta({ status: 'available', expiresAt: 1 }), { label: '已过期', type: 'warning' })
+  assert.equal(codexResetCreditTypeLabel({ resetType: 'codex_rate_limits' }), 'Codex 限额刷新')
+  assert.equal(codexResetCreditsAvailable({}), null)
+  assert.deepEqual(codexResetCredits({}), [])
 })

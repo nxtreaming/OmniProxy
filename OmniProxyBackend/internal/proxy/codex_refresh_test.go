@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -272,6 +273,64 @@ func TestRefreshCodexAuthJSONFailsWhenExpiredAndRefreshTokenMissing(t *testing.T
 	raw := `{"tokens":{"access_token":"` + jwtWithExp(t, now.Add(-time.Minute)) + `"}}`
 	if _, _, err := RefreshCodexAuthJSON(context.Background(), nil, raw, false, now); err == nil {
 		t.Fatal("expected missing refresh token error")
+	}
+}
+
+func TestCodexOAuthAuthorizationURLUsesPKCEAndState(t *testing.T) {
+	redirectURI := "http://localhost:1455/auth/callback"
+	authURL := CodexOAuthAuthorizationURL(redirectURI, "challenge-value", "state-value")
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Scheme+"://"+parsed.Host+parsed.Path != codexOAuthAuthorizeEndpoint {
+		t.Fatalf("unexpected authorize endpoint: %s", parsed.String())
+	}
+	query := parsed.Query()
+	expected := map[string]string{
+		"response_type":         "code",
+		"client_id":             codexOAuthClientID,
+		"redirect_uri":          redirectURI,
+		"scope":                 codexOAuthLoginScope,
+		"code_challenge":        "challenge-value",
+		"code_challenge_method": "S256",
+		"state":                 "state-value",
+		"originator":            codexOAuthLoginOriginator,
+	}
+	for key, want := range expected {
+		if got := query.Get(key); got != want {
+			t.Fatalf("unexpected %s: got %q want %q", key, got, want)
+		}
+	}
+	if query.Has("code_verifier") {
+		t.Fatal("authorization URL must not expose the PKCE verifier")
+	}
+}
+
+func TestExchangeCodexAuthorizationCode(t *testing.T) {
+	var posted url.Values
+	restore := replaceHTTPPostFormForTest(func(_ context.Context, _ *http.Client, endpoint string, values url.Values) (*http.Response, error) {
+		if endpoint != codexOAuthTokenEndpoint {
+			t.Fatalf("unexpected token endpoint: %s", endpoint)
+		}
+		posted = values
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"access_token":"access","id_token":"id","refresh_token":"refresh","expires_in":3600}`)),
+		}, nil
+	})
+	defer restore()
+
+	validator := &Validator{client: http.DefaultClient}
+	tokens, err := validator.ExchangeCodexAuthorizationCode(context.Background(), "authorization-code", "pkce-verifier", "http://localhost:1455/auth/callback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tokens.AccessToken != "access" || tokens.IDToken != "id" || tokens.RefreshToken != "refresh" || tokens.ExpiresIn != 3600 {
+		t.Fatalf("unexpected OAuth tokens: %+v", tokens)
+	}
+	if posted.Get("grant_type") != "authorization_code" || posted.Get("code") != "authorization-code" || posted.Get("code_verifier") != "pkce-verifier" {
+		t.Fatalf("unexpected token form: %v", posted)
 	}
 }
 

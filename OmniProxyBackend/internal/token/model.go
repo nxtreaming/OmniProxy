@@ -68,25 +68,40 @@ type Token struct {
 }
 
 type UsageInfo struct {
-	Source                     string           `json:"source,omitempty"`
-	PlanType                   string           `json:"planType,omitempty"`
-	LimitReached               bool             `json:"limitReached,omitempty"`
-	PrimaryUsedPercent         int              `json:"primaryUsedPercent,omitempty"`
-	PrimaryRemainingPercent    int              `json:"primaryRemainingPercent,omitempty"`
-	PrimaryResetAt             int64            `json:"primaryResetAt,omitempty"`
-	SecondaryUsedPercent       int              `json:"secondaryUsedPercent,omitempty"`
-	SecondaryRemainingPercent  int              `json:"secondaryRemainingPercent,omitempty"`
-	SecondaryResetAt           int64            `json:"secondaryResetAt,omitempty"`
-	APIRemaining               int              `json:"apiRemaining,omitempty"`
-	BalanceRemaining           float64          `json:"balanceRemaining,omitempty"`
-	BalanceTotal               float64          `json:"balanceTotal,omitempty"`
-	BalanceUsed                float64          `json:"balanceUsed,omitempty"`
-	BalanceUnit                string           `json:"balanceUnit,omitempty"`
-	BalanceUnlimited           bool             `json:"balanceUnlimited,omitempty"`
-	BalancePackages            []BalancePackage `json:"balancePackages,omitempty"`
-	SubscriptionQuotaAvailable bool             `json:"subscriptionQuotaAvailable,omitempty"`
-	Message                    string           `json:"message,omitempty"`
-	UpdatedAt                  *time.Time       `json:"updatedAt,omitempty"`
+	Source                         string             `json:"source,omitempty"`
+	PlanType                       string             `json:"planType,omitempty"`
+	LimitReached                   bool               `json:"limitReached,omitempty"`
+	PrimaryUsedPercent             int                `json:"primaryUsedPercent,omitempty"`
+	PrimaryRemainingPercent        int                `json:"primaryRemainingPercent,omitempty"`
+	PrimaryResetAt                 int64              `json:"primaryResetAt,omitempty"`
+	SecondaryUsedPercent           int                `json:"secondaryUsedPercent,omitempty"`
+	SecondaryRemainingPercent      int                `json:"secondaryRemainingPercent,omitempty"`
+	SecondaryResetAt               int64              `json:"secondaryResetAt,omitempty"`
+	APIRemaining                   int                `json:"apiRemaining,omitempty"`
+	BalanceRemaining               float64            `json:"balanceRemaining,omitempty"`
+	BalanceTotal                   float64            `json:"balanceTotal,omitempty"`
+	BalanceUsed                    float64            `json:"balanceUsed,omitempty"`
+	BalanceUnit                    string             `json:"balanceUnit,omitempty"`
+	BalanceUnlimited               bool               `json:"balanceUnlimited,omitempty"`
+	BalancePackages                []BalancePackage   `json:"balancePackages,omitempty"`
+	CodexResetCreditsAvailable     *int               `json:"codexResetCreditsAvailable,omitempty"`
+	CodexResetCredits              []CodexResetCredit `json:"codexResetCredits,omitempty"`
+	CodexResetCreditsNextExpiresAt int64              `json:"codexResetCreditsNextExpiresAt,omitempty"`
+	CodexResetCreditsError         string             `json:"codexResetCreditsError,omitempty"`
+	CodexResetCreditsCheckedAt     int64              `json:"codexResetCreditsCheckedAt,omitempty"`
+	SubscriptionQuotaAvailable     bool               `json:"subscriptionQuotaAvailable,omitempty"`
+	Message                        string             `json:"message,omitempty"`
+	UpdatedAt                      *time.Time         `json:"updatedAt,omitempty"`
+}
+
+type CodexResetCredit struct {
+	ID         string `json:"id,omitempty"`
+	Status     string `json:"status,omitempty"`
+	ResetType  string `json:"resetType,omitempty"`
+	GrantedAt  int64  `json:"grantedAt,omitempty"`
+	ExpiresAt  int64  `json:"expiresAt,omitempty"`
+	RedeemedAt int64  `json:"redeemedAt,omitempty"`
+	RawStatus  string `json:"rawStatus,omitempty"`
 }
 
 func (usage UsageInfo) EffectiveRemainingPercent() int {

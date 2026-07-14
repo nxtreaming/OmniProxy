@@ -1,14 +1,19 @@
+import { ElMessageBox } from 'element-plus'
 import {
+  completeCodexOAuthLogin,
+  consumeCodexResetCredit,
   createToken,
   deleteToken,
   importAPIKeys,
+  openExternalURL,
   refreshTokenAuth,
   setTokenDisabled,
   setTokenSelected,
+  startCodexOAuthLogin,
   updateToken,
   validateToken,
 } from '../services/api'
-import { isCodexToken, validationSuccessMessage } from '../utils/tokenDisplay'
+import { codexResetCreditsAvailable, isCodexToken, validationSuccessMessage } from '../utils/tokenDisplay'
 import { codexIdentityFromAuthJSON } from './codexAuth'
 
 function codexIdentityKey(email, accountId = '') {
@@ -16,7 +21,6 @@ function codexIdentityKey(email, accountId = '') {
   const normalizedAccountId = String(accountId || '').trim()
   return normalizedAccountId ? `${normalizedEmail}::${normalizedAccountId}` : normalizedEmail
 }
-
 function rememberCodexToken(map, item, identity = {}) {
   if (!item) return
   const email = item.name || identity.email
@@ -397,7 +401,66 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
       state.refreshingTokenIds[token.id] = false
     }
   }
-
+  async function loginCodex() {
+    if (state.codexLoggingIn.value) return
+    state.errorMessage.value = ''
+    state.successMessage.value = ''
+    state.activeProvider.value = 'openai'
+    state.codexLoggingIn.value = true
+    try {
+      const login = await startCodexOAuthLogin()
+      if (!login?.loginId || !login?.authUrl) {
+        throw new Error('Codex 登录会话创建失败')
+      }
+      openExternalURL(login.authUrl)
+      state.successMessage.value = '已打开浏览器，请完成 Codex 授权'
+      const updated = await completeCodexOAuthLogin(login.loginId)
+      replaceToken(updated)
+      await dataActions.refreshRealtime()
+      state.successMessage.value = `Codex 登录成功：${updated.name}`
+    } catch (error) {
+      state.errorMessage.value = error.message
+    } finally {
+      state.codexLoggingIn.value = false
+    }
+  }
+  async function useCodexResetCredit(item) {
+    if (!item?.id || state.consumingResetCreditIds[item.id]) return
+    const available = codexResetCreditsAvailable(item)
+    if (!available) {
+      state.errorMessage.value = '当前账号没有可用的额度刷新卡'
+      return
+    }
+    try {
+      await ElMessageBox.confirm(
+        `将消耗 1 张额度刷新卡，立即重置当前 5 小时额度。当前可用 ${available} 张。`,
+        '使用额度刷新卡',
+        {
+          confirmButtonText: '确认使用',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      )
+    } catch (action) {
+      if (action instanceof Error) state.errorMessage.value = action.message
+      return
+    }
+    state.errorMessage.value = ''
+    state.successMessage.value = ''
+    state.consumingResetCreditIds[item.id] = true
+    try {
+      const result = await consumeCodexResetCredit(item.id)
+      replaceToken(result.token)
+      await dataActions.refreshRealtime()
+      state.successMessage.value = result.refreshError
+        ? `${result.message}：${result.refreshError}`
+        : result.message || '额度刷新卡已使用'
+    } catch (error) {
+      state.errorMessage.value = error.message
+    } finally {
+      state.consumingResetCreditIds[item.id] = false
+    }
+  }
   function openCodexAuthFilePicker() {
     state.errorMessage.value = ''
     state.successMessage.value = ''
@@ -622,6 +685,8 @@ export function createTokenActions(state, derived, tokenHelpers, dataActions) {
     selectTokenGroup,
     verifyToken,
     refreshAuthToken,
+    loginCodex,
+    useCodexResetCredit,
     openCodexAuthFilePicker,
     importCodexAuthFiles,
     onProviderChange,

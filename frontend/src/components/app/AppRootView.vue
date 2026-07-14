@@ -48,16 +48,16 @@ const {
   autoStartChanging, autoStartEnabled, batchImportForm, batchImportPlaceholder, batchImporting, billingDates, billingUsage, canConfigureClaudeModels, canConfigureCodexModels,
   changeBillingDate, changeQuotaOverviewPage, chooseDataDirectory, claudeCliRestoring, claudeDesktopConfiguring, claudeDesktopRestoring, claudeModelsConfiguring,
   clearBillingUsageData, clearRequestHistoryData, clearingBillingUsage, clearingRequestHistory, clientConfigPreviews, clientToolLabel, closeBatchImport, closeDeleteConfirm, closeFirstUseGuide,
-  closeForm, closeHistoryDiagnosis, closeTitlebarUpdatePopover, closeWindow, codexAuthImporting, codexConfiguring, codexRestoring, config, configSnapshotBusy,
+  closeForm, closeHistoryDiagnosis, closeTitlebarUpdatePopover, closeWindow, codexAuthImporting, codexConfiguring, codexLoggingIn, codexRestoring, config, configSnapshotBusy,
   configSnapshots, createCurrentConfigSnapshot,
   confirmRemoveToken, confirmTitlebarUpdatePopover, configureLocalClaudeDesktopModels, configureLocalClaudeModels, configureLocalCodex, configureLocalDeepSeekTUI,
   configureLocalGemini, configureLocalOpenCode, configureLocalPi, coolingTokens, copyEndpointValue, credentialDisplay, credentialLabel, credentialPlaceholder,
   currentFirstUseGuideStep, currentTabLabel, dailyUsageRows, dashboardDailyUsageRows, dashboardSignals, dashboardTrendRows, dataDirChanging, dataDirectory,
-  deepSeekTUIConfiguring, deepSeekTUIRestoring, deleteBusy, deleteCandidate, deleteConfigSnapshotById, disabledTokens, errorMessage, exhaustedTokens, exportCodexAuthBackups,
+  consumingResetCreditIds, deepSeekTUIConfiguring, deepSeekTUIRestoring, deleteBusy, deleteCandidate, deleteConfigSnapshotById, disabledTokens, errorMessage, exhaustedTokens, exportCodexAuthBackups,
   exportCurrentConfig, exportDiagnostics, exportRequestHistory, exportTokenBackup, exportingCodexAuth, exportingConfig, exportingDiagnostics, exportingHistory, exportingTokens, firstUseGuideStepIndex, firstUseGuideSteps, firstUseGuideVisible,
   form, geminiConfiguring, geminiRestoring, hasWailsRuntime, hideWorkspaceScrollbar, importCodexAuthFiles, importConfigFromFile, importingConfig, installReadyUpdateFromUpdateSurface, invalidTokens,
   isAutoNameForm, isClaudeModelOptionDisabled, isCodexModelOptionDisabled, isDark, isTokenActiveNow, lastUpdateCheckedAt, lastUpdateInfo, loading, logs,
-  lowTokens, manualCheckForUpdates, minimiseWindow, mobileSidebarOpen, navSections, nextFirstUseGuideStep, onBatchImportProviderChange, onProviderChange,
+  loginCodex, lowTokens, manualCheckForUpdates, minimiseWindow, mobileSidebarOpen, navSections, nextFirstUseGuideStep, onBatchImportProviderChange, onProviderChange,
   openBatchImport, openBillingView, openCodexAuthFilePicker, openCreateForm, openEditForm, openOpenRouterChat, openRouterModels, openRouterModelsCached,
   openRouterModelsError, openRouterModelsFetchedAt, openRouterModelsLoading, openRouterTokens, opencodeConfiguring, opencodeRestoring, pagedApiOverviewTokens,
   pagedSubscriptionOverviewTokens, piConfiguring, piRestoring, persistConfig, previousFirstUseGuideStep, providerLabel, providerTokens, proxyEndpoint,
@@ -71,7 +71,7 @@ const {
   titlebarUpdateVisible, todayProxyRequests, todayProxyTokens, toggleAppTheme, toggleAutoStart, toggleProxy, toggleTitlebarUpdatePopover,
   toggleTokenEnabled, toggleTokenSelected, toggleWindowMaximise, togglingTokenIds, tokens, toolUsageDuration, toolUsageMeta, toolUsageRows,
   totalProxyInputTokens, totalProxyOutputTokens, totalProxyRequests, totalProxyTokens, trendWidth, updateChecking, updateDiagnostics, updateDiagnosticsLoading, updateDownloadStatus, validatingIds,
-  verifyToken, watchTokens, windowMaximised, workspaceRef, workspaceScrollbarVisible, handleWorkspacePointerMove, handleWorkspaceScroll,
+  useCodexResetCredit, verifyToken, watchTokens, windowMaximised, workspaceRef, workspaceScrollbarVisible, handleWorkspacePointerMove, handleWorkspaceScroll,
 } = useOmniProxyApp()
 </script>
 
@@ -261,6 +261,7 @@ const {
         :refreshing-provider="refreshingProvider"
         :switching-only-token-ids="switchingOnlyTokenIds"
         :validating-ids="validatingIds"
+        :consuming-reset-credit-ids="consumingResetCreditIds"
         :provider-tokens="providerTokens"
         :credential-label="credentialLabel"
         :provider-label="providerLabel"
@@ -270,6 +271,7 @@ const {
         @toggle-token-selected="toggleTokenSelected"
         @select-token-group="selectTokenGroup"
         @refresh-quota="refreshQuota"
+        @use-reset-credit="useCodexResetCredit"
       />
 
       <TokensView
@@ -283,6 +285,7 @@ const {
         :exporting-tokens="exportingTokens"
         :exporting-codex-auth="exportingCodexAuth"
         :codex-auth-importing="codexAuthImporting"
+        :codex-logging-in="codexLoggingIn"
         :batch-importing="batchImporting"
         :open-router-models="openRouterModels"
         :open-router-models-loading="openRouterModelsLoading"
@@ -303,6 +306,7 @@ const {
         :format-balance="formatBalance"
         :quota-display="quotaDisplay"
         @select-provider="selectProvider"
+        @login-codex="loginCodex"
         @export-token-backup="exportTokenBackup"
         @open-codex-auth-file-picker="openCodexAuthFilePicker"
         @import-codex-auth-files="importCodexAuthFiles"

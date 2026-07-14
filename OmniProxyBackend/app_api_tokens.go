@@ -60,6 +60,18 @@ func (a *DesktopApp) RefreshTokenAuth(id string) (tokenResponse, error) {
 	return a.server.refreshAuthTokenResponse(a.callContext(), id)
 }
 
+func (a *DesktopApp) ConsumeCodexResetCredit(id string) (codexResetCreditConsumeResponse, error) {
+	return a.server.consumeCodexResetCredit(a.callContext(), id)
+}
+
+func (a *DesktopApp) StartCodexOAuthLogin() (codexOAuthLoginStartResponse, error) {
+	return a.server.startCodexOAuthLogin()
+}
+
+func (a *DesktopApp) CompleteCodexOAuthLogin(loginID string) (tokenResponse, error) {
+	return a.server.completeCodexOAuthLogin(a.callContext(), loginID)
+}
+
 func (a *DesktopApp) ImportAPIKeys(req apiKeyBatchImportRequest) (apiKeyBatchImportResult, error) {
 	return a.server.importAPIKeys(req)
 }

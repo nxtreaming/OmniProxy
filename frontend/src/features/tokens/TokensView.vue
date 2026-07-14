@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { CircleCheckFilled, Connection, Delete, Download, Edit, Key, Refresh, Upload } from '@element-plus/icons-vue'
+import { CircleCheckFilled, Connection, Delete, Download, Edit, Key, Refresh, Upload, UserFilled } from '@element-plus/icons-vue'
 
 const props = defineProps({
   providers: {
@@ -34,6 +34,10 @@ const props = defineProps({
   codexAuthImporting: {
     type: Boolean,
     required: true,
+  },
+  codexLoggingIn: {
+    type: Boolean,
+    default: false,
   },
   batchImporting: {
     type: Boolean,
@@ -116,6 +120,7 @@ const props = defineProps({
 const emit = defineEmits([
   'select-provider',
   'export-token-backup',
+  'login-codex',
   'open-codex-auth-file-picker',
   'import-codex-auth-files',
   'export-codex-auth-backups',
@@ -219,6 +224,16 @@ function apiBalanceSummaryMeta(summary) {
         </article>
       </div>
       <div class="provider-summary-actions">
+        <el-button
+          v-if="activeProvider === 'openai'"
+          type="primary"
+          plain
+          :icon="UserFilled"
+          :loading="codexLoggingIn"
+          @click="$emit('login-codex')"
+        >
+          {{ codexLoggingIn ? '等待浏览器授权' : '登录 Codex' }}
+        </el-button>
         <el-button :icon="Download" :loading="exportingTokens" @click="$emit('export-token-backup')">
           {{ exportingTokens ? '导出中' : '导出账号池' }}
         </el-button>

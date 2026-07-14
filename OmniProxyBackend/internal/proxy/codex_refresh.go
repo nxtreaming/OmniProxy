@@ -10,17 +10,28 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"omniproxy/internal/token"
 	"strings"
 	"time"
 )
 
 const (
-	codexOAuthClientID       = "app_EMoamEEZ73f0CkXaXp7hrann"
-	codexOAuthTokenEndpoint  = "https://auth.openai.com/oauth/token"
-	codexOAuthRefreshScope   = "openid profile email"
-	codexOAuthUserAgent      = "codex-cli/0.91.0"
-	codexAccessRefreshMargin = 30 * time.Minute
+	codexOAuthClientID          = "app_EMoamEEZ73f0CkXaXp7hrann"
+	codexOAuthAuthorizeEndpoint = "https://auth.openai.com/oauth/authorize"
+	codexOAuthTokenEndpoint     = "https://auth.openai.com/oauth/token"
+	codexOAuthRefreshScope      = "openid profile email"
+	codexOAuthLoginScope        = "openid profile email offline_access api.connectors.read api.connectors.invoke"
+	codexOAuthLoginOriginator   = "codex_vscode"
+	codexOAuthUserAgent         = "codex-cli/0.91.0"
+	codexAccessRefreshMargin    = 30 * time.Minute
 )
+
+type CodexOAuthTokens struct {
+	AccessToken  string
+	IDToken      string
+	RefreshToken string
+	ExpiresIn    int
+}
 
 type codexRefreshResponse struct {
 	AccessToken  string `json:"access_token"`
@@ -45,6 +56,55 @@ var httpPostForm = func(ctx context.Context, client *http.Client, endpoint strin
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", codexOAuthUserAgent)
 	return client.Do(req)
+}
+
+func CodexOAuthAuthorizationURL(redirectURI string, codeChallenge string, state string) string {
+	values := url.Values{}
+	values.Set("response_type", "code")
+	values.Set("client_id", codexOAuthClientID)
+	values.Set("redirect_uri", redirectURI)
+	values.Set("scope", codexOAuthLoginScope)
+	values.Set("code_challenge", codeChallenge)
+	values.Set("code_challenge_method", "S256")
+	values.Set("id_token_add_organizations", "true")
+	values.Set("codex_cli_simplified_flow", "true")
+	values.Set("state", state)
+	values.Set("originator", codexOAuthLoginOriginator)
+	return codexOAuthAuthorizeEndpoint + "?" + values.Encode()
+}
+
+func (v *Validator) ExchangeCodexAuthorizationCode(ctx context.Context, code string, codeVerifier string, redirectURI string) (CodexOAuthTokens, error) {
+	values := url.Values{}
+	values.Set("grant_type", "authorization_code")
+	values.Set("code", strings.TrimSpace(code))
+	values.Set("redirect_uri", strings.TrimSpace(redirectURI))
+	values.Set("client_id", codexOAuthClientID)
+	values.Set("code_verifier", strings.TrimSpace(codeVerifier))
+
+	client := v.clientForToken(token.Token{Provider: token.ProviderOpenAI})
+	resp, err := httpPostForm(ctx, client, codexOAuthTokenEndpoint, values)
+	if err != nil {
+		return CodexOAuthTokens{}, fmt.Errorf("exchange codex authorization code: %w", err)
+	}
+	defer closeBody(resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return CodexOAuthTokens{}, fmt.Errorf("Codex 登录令牌交换返回 %d：%s", resp.StatusCode, codexRefreshErrorMessage(body, resp.Status))
+	}
+
+	var result codexRefreshResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return CodexOAuthTokens{}, fmt.Errorf("decode codex authorization response: %w", err)
+	}
+	if strings.TrimSpace(result.AccessToken) == "" || strings.TrimSpace(result.IDToken) == "" {
+		return CodexOAuthTokens{}, errors.New("Codex 登录响应缺少 access_token 或 id_token")
+	}
+	return CodexOAuthTokens{
+		AccessToken:  strings.TrimSpace(result.AccessToken),
+		IDToken:      strings.TrimSpace(result.IDToken),
+		RefreshToken: strings.TrimSpace(result.RefreshToken),
+		ExpiresIn:    result.ExpiresIn,
+	}, nil
 }
 
 func RefreshCodexAuthJSON(ctx context.Context, client *http.Client, raw string, force bool, now time.Time) (string, bool, error) {

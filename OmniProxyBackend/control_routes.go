@@ -44,6 +44,8 @@ func (a *appServer) routes() http.Handler {
 	mux.HandleFunc("/api/clients/preview", a.handleClientConfigPreviews)
 	mux.HandleFunc("/api/codex/configure", a.handleCodexConfigure)
 	mux.HandleFunc("/api/codex/restore", a.handleCodexRestore)
+	mux.HandleFunc("/api/codex/login/start", a.handleCodexOAuthLoginStart)
+	mux.HandleFunc("/api/codex/login/complete", a.handleCodexOAuthLoginComplete)
 	mux.HandleFunc("/api/claude/models/configure", a.handleClaudeModelsConfigure)
 	mux.HandleFunc("/api/claude/restore", a.handleClaudeRestore)
 	mux.HandleFunc("/api/claude/desktop/models/configure", a.handleClaudeDesktopModelsConfigure)
@@ -137,6 +139,10 @@ func (a *appServer) handleTokenByID(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) == 2 && parts[1] == "refresh" {
 		a.handleTokenRefresh(w, r, id)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "reset-credit" {
+		a.handleCodexResetCredit(w, r, id)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "disabled" {
@@ -274,4 +280,48 @@ func (a *appServer) handleTokenRefresh(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 	writeJSON(w, http.StatusOK, item)
+}
+
+func (a *appServer) handleCodexResetCredit(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.consumeCodexResetCredit(r.Context(), id)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleCodexOAuthLoginStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result, err := a.startCodexOAuthLogin()
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *appServer) handleCodexOAuthLoginComplete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req codexOAuthLoginCompleteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	result, err := a.completeCodexOAuthLogin(r.Context(), req.LoginID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }

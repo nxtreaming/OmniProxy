@@ -185,6 +185,25 @@ export function refreshTokenAuth(id) {
   }))
 }
 
+export function consumeCodexResetCredit(id) {
+  return callDesktopOr('ConsumeCodexResetCredit', [id], () => request(`/tokens/${id}/reset-credit`, {
+    method: 'POST',
+  }))
+}
+
+export function startCodexOAuthLogin() {
+  return callDesktopOr('StartCodexOAuthLogin', [], () => request('/codex/login/start', {
+    method: 'POST',
+  }))
+}
+
+export function completeCodexOAuthLogin(loginId) {
+  return callDesktopOr('CompleteCodexOAuthLogin', [loginId], () => request('/codex/login/complete', {
+    method: 'POST',
+    body: JSON.stringify({ loginId }),
+  }))
+}
+
 export function getOpenRouterModels(refresh = false) {
   const params = new URLSearchParams()
   if (refresh) params.set('refresh', 'true')

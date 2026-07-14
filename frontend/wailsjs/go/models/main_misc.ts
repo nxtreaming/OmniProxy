@@ -41,6 +41,82 @@ export namespace main {
 	        this.models = source["models"];
 	    }
 	}
+	export class codexOAuthLoginStartResponse {
+	    loginId: string;
+	    authUrl: string;
+
+	    static createFrom(source: any = {}) {
+	        return new codexOAuthLoginStartResponse(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.loginId = source["loginId"];
+	        this.authUrl = source["authUrl"];
+	    }
+	}
+	export class codexResetCreditResponse {
+	    id?: string;
+	    status?: string;
+	    resetType?: string;
+	    grantedAt?: number;
+	    expiresAt?: number;
+	    redeemedAt?: number;
+	    rawStatus?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new codexResetCreditResponse(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.status = source["status"];
+	        this.resetType = source["resetType"];
+	        this.grantedAt = source["grantedAt"];
+	        this.expiresAt = source["expiresAt"];
+	        this.redeemedAt = source["redeemedAt"];
+	        this.rawStatus = source["rawStatus"];
+	    }
+	}
+	export class codexResetCreditConsumeResponse {
+	    consumed: boolean;
+	    refreshed: boolean;
+	    refreshError?: string;
+	    message: string;
+	    token: tokenResponse;
+
+	    static createFrom(source: any = {}) {
+	        return new codexResetCreditConsumeResponse(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.consumed = source["consumed"];
+	        this.refreshed = source["refreshed"];
+	        this.refreshError = source["refreshError"];
+	        this.message = source["message"];
+	        this.token = this.convertValues(source["token"], tokenResponse);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class configExportResult {
 	    path?: string;
 	    fileName?: string;

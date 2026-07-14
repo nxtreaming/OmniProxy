@@ -102,6 +102,7 @@ func (v *Validator) Validate(ctx context.Context, selected token.Token) (Validat
 	if result.OK && selected.CredentialType == token.CredentialTypeCodexAuthJSON {
 		usage, ok := parseCodexUsage(body)
 		if ok {
+			v.hydrateCodexResetCredits(ctx, selected, &usage)
 			result.Usage = &usage
 			if usage.SubscriptionQuotaAvailable {
 				remaining := usage.EffectiveRemainingPercent()
@@ -240,6 +241,7 @@ func parseCodexUsage(body []byte) (token.UsageInfo, bool) {
 		LimitReached: payload.RateLimit.LimitReached,
 		Message:      "Codex usage endpoint",
 	}
+	usage.CodexResetCreditsAvailable = codexResetCreditsAvailableFromUsage(body)
 
 	freePlan := strings.EqualFold(strings.TrimSpace(payload.PlanType), "free")
 	primaryWindow := payload.RateLimit.PrimaryWindow

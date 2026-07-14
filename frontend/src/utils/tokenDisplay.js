@@ -248,6 +248,31 @@ export function isCodexToken(item) {
   return item?.provider === 'openai' && item?.credentialType === 'codex_auth_json'
 }
 
+export function codexResetCreditsAvailable(item) {
+  const value = Number(item?.usage?.codexResetCreditsAvailable)
+  if (!Number.isFinite(value)) return null
+  return Math.max(0, Math.trunc(value))
+}
+
+export function codexResetCredits(item) {
+  return Array.isArray(item?.usage?.codexResetCredits) ? item.usage.codexResetCredits : []
+}
+
+export function codexResetCreditStatusMeta(credit) {
+  const status = String(credit?.status || credit?.rawStatus || '').trim().toLowerCase()
+  if (['redeemed', 'used', 'consumed'].includes(status)) return { label: '已使用', type: 'info' }
+  const expiresAt = Number(credit?.expiresAt || 0)
+  if (status === 'expired' || (expiresAt > 0 && expiresAt <= Date.now() / 1000)) return { label: '已过期', type: 'warning' }
+  if (status === 'available' || !status) return { label: '可使用', type: 'success' }
+  return { label: '未知', type: 'info' }
+}
+
+export function codexResetCreditTypeLabel(credit) {
+  const resetType = String(credit?.resetType || '').trim()
+  if (!resetType || resetType === 'codex_rate_limits') return 'Codex 限额刷新'
+  return resetType.replaceAll('_', ' ')
+}
+
 export function isMimoTokenPlan(item) {
   return item?.provider === 'xiaomi' && item?.credentialType === 'mimo_token_plan'
 }

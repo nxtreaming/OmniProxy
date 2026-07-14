@@ -26,6 +26,9 @@ var assets embed.FS
 type appServer struct {
 	mu                    sync.Mutex
 	codexRefreshMu        sync.Mutex
+	codexOAuthMu          sync.Mutex
+	codexOAuthSession     *codexOAuthSession
+	codexResetCreditMu    sync.Mutex
 	dataDir               string
 	cfg                   config.Config
 	configStore           *config.Store

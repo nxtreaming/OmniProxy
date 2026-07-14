@@ -84,6 +84,37 @@ test('HTTP API fallback refreshes token auth through the control API', async () 
   delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
 })
 
+test('HTTP API fallback supports Codex browser login and reset credits', async () => {
+  globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'codex-action-token'
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options })
+    const path = new URL(String(url)).pathname
+    assert.equal(options.headers['X-OmniProxy-Control-Token'], 'codex-action-token')
+    if (path.endsWith('/codex/login/start')) {
+      return jsonResponse(200, { loginId: 'login-1', authUrl: 'https://auth.openai.com/oauth/authorize' })
+    }
+    if (path.endsWith('/codex/login/complete')) {
+      assert.deepEqual(JSON.parse(options.body), { loginId: 'login-1' })
+      return jsonResponse(200, { id: 'account-1', name: 'coder@example.com' })
+    }
+    if (path.endsWith('/tokens/account-1/reset-credit')) {
+      return jsonResponse(200, { consumed: true, token: { id: 'account-1' } })
+    }
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const api = await import(`./api.js?codex-actions-test=${Date.now()}`)
+  assert.equal((await api.startCodexOAuthLogin()).loginId, 'login-1')
+  assert.equal((await api.completeCodexOAuthLogin('login-1')).id, 'account-1')
+  assert.equal((await api.consumeCodexResetCredit('account-1')).consumed, true)
+  assert.deepEqual(
+    calls.map((call) => new URL(call.url).pathname),
+    ['/api/codex/login/start', '/api/codex/login/complete', '/api/tokens/account-1/reset-credit'],
+  )
+  delete globalThis.__OMNIPROXY_CONTROL_TOKEN__
+})
+
 test('HTTP API fallback imports API keys through the control API', async () => {
   globalThis.__OMNIPROXY_CONTROL_TOKEN__ = 'import-control-token'
   const payload = { provider: 'openai', tokenText: 'sk-test-token-value' }

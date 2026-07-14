@@ -88,6 +88,22 @@ func (m *Manager) RecordUsageInfo(id string, usage UsageInfo) error {
 	return ErrTokenNotFound
 }
 
+func (m *Manager) InvalidateCodexResetCredits(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := range m.tokens {
+		if m.tokens[i].ID != id {
+			continue
+		}
+		m.tokens[i].Usage.CodexResetCreditsCheckedAt = 0
+		m.tokens[i].Usage.CodexResetCreditsError = ""
+		return nil
+	}
+
+	return ErrTokenNotFound
+}
+
 func balanceRemainingPercent(usage UsageInfo) int {
 	if usage.BalanceUnlimited {
 		return 100

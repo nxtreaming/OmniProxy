@@ -87,6 +87,8 @@ flowchart LR
 
 ## Latest Changes
 
+- **Codex browser login**: Account Management now provides **Log in to Codex**, using PKCE and a loopback callback to complete browser authorization and automatically add or update the OpenAI `auth.json` account.
+- **Codex quota reset credits**: The Quota page now shows reset-credit counts and grant / expiry / redemption history, with a confirmation step before consuming one to reset the current 5-hour quota.
 - **Gemini-style UI refresh**: The desktop console now uses a modern minimal visual system across Dashboard, Quota, Account Management, Request History, Realtime Logs, Usage Trends, Billing, One-click Setup, Global Settings, and OpenRouter Chat.
 - **Desktop interaction polish**: Dropdowns, dialogs, global snackbars, scrollbars, buttons, and cards now share one visual language. Each page keeps its own scroll position, and Realtime Logs now shows only the latest 5 minutes with internal scrolling.
 - **Gateway routing settings**: Codex, Claude Code, Claude Desktop, OpenCode, Pi, DeepSeek-TUI, and Gemini CLI now write stable local entrypoints by default. Upstream provider, credential type, and default model are selected on the **Gateway Routing** page.
